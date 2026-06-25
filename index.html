@@ -484,8 +484,8 @@ function renderCompose(){
         '<div style="display:flex;gap:8px;margin-bottom:12px;"><select id="cmpTpl" style="flex:1;"></select><button class="btn btn-sm" id="cmpAuto">対象者を自動選択</button></div>'+
         '<div id="cmpBilling" class="field" style="display:none;"><label>請求対象月</label><select id="cmpCycle"></select></div>'+
         '<div class="field"><label>件名</label><input id="cmpSubject"></div>'+
-        '<div class="field"><label>本文テンプレート（〔 〕は宛先ごと/設定から自動差し込み）</label><textarea id="cmpBody" rows="9"></textarea></div>'+
-        '<label>プレビュー</label><div class="preview" id="cmpPreview" style="max-height:300px;"></div></div>'+
+        '<div class="field"><label>本文（基本は固定テンプレ／送信前にこの場で自由に編集・追記できます。〔 〕は宛先ごとに自動差し込み）</label><textarea id="cmpBody" rows="9"></textarea></div>'+
+        '<label>プレビュー（送信される本文・上の編集を反映）</label><div class="preview" id="cmpPreview" style="max-height:300px;"></div></div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('send')+'送信</h3>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;"><div><label>送信元</label><input value="'+SET.sender+'" readonly style="background:#f7f8f6;"></div><div><label>BCC（本部共有・自動付与）</label><input value="'+SET.bcc+'" readonly style="background:#f7f8f6;"></div></div>'+
@@ -535,29 +535,51 @@ function sendSeq(list,tplLabel,bodyTpl,ctx,btn,log,bar,perPerson){
 }
 
 /* ---------- broadcast ---------- */
-var broadcastPreset=null,bTpl='dailyPre',bSel=null;
+var broadcastPreset=null,bTpl='dailyPre',bSel=null,bManual=false,bManualSub='',bManualBody='';
 function renderBroadcast(){
-  if(broadcastPreset){bTpl=broadcastPreset;broadcastPreset=null;bSel=null;}
+  if(broadcastPreset){bTpl=broadcastPreset;broadcastPreset=null;bSel=null;bManual=false;}
   var def=BCAST.filter(function(x){return x.key===bTpl;})[0];
   if(!bSel){bSel={};(def.cls||['Pre','Kinder']).forEach(function(k){bSel[k]=true;});}
   var s=$('section[data-page="broadcast"]');
   s.innerHTML=
-    '<div class="card" style="margin-bottom:16px;"><div style="display:flex;gap:8px;align-items:center;"><span class="muted">テンプレート</span><select id="bTpl" style="max-width:280px;">'+BCAST.map(function(x){return '<option value="'+x.key+'"'+(x.key===bTpl?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><div style="display:flex;gap:8px;align-items:center;"><span class="muted">テンプレート</span><select id="bTpl" style="max-width:280px;">'+BCAST.map(function(x){return '<option value="'+x.key+'"'+(x.key===bTpl?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div><span class="muted" style="margin-left:auto;">基本は固定テンプレ。送信前にこの場で自由に編集・追記できます。</span></div>'+
     '<div class="grid" style="grid-template-columns:1.2fr 1fr;align-items:start;">'+
       '<div class="card" id="bEditor"></div>'+
-      '<div class="card"><h3>'+ic('mail')+'プレビュー</h3><div class="preview" id="bPreview"></div></div>'+
+      '<div class="card"><h3>'+ic('mail')+'プレビュー（送信される本文）</h3><div class="preview" id="bPreview"></div></div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('cast')+'全体配信</h3>'+
       '<label>配信先（在園児・クラス別）</label><div class="chips" id="bChips" style="margin-top:6px;"></div>'+
       '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'全体配信する</button><span class="muted" id="bCount"></span></div>'+
       '<div class="pbar"><div id="bBar"></div></div><div class="send-log" id="bLog"></div></div>';
-  $('#bTpl').onchange=function(e){bTpl=e.target.value;bSel=null;renderBroadcast();};
+  $('#bTpl').onchange=function(e){bTpl=e.target.value;bSel=null;bManual=false;renderBroadcast();};
   buildEditor();chips();preview();count();
+  function assembleDaily(){
+    var d=$('#bDate').value,p=d.split('-');var head=(def.daily==='Pre'?'COCOASKIDSプレスクール':'COCOASKIDSキンダーガーデン');
+    var subj=head+(+p[1])+'月'+(+p[2])+'日のデイリーメール';
+    var b=$('#bSeason').value+'\n\n【Monthly Theme】\n'+$('#bTheme').value;
+    if(def.daily==='Pre'){
+      b+='\n\n【Phonics Letter】\n'+$('#bPL').value+'\n\n【Phonics Song】\n'+$('#bPS').value+'\n\n【Monthly Song】\n◎English\n'+$('#bSE').value+'\n◎Japanese\n'+$('#bSJ').value+'\n\n【Morning Activity】\n'+$('#bM1').value+'\n\n【Afternoon Activity】\n'+$('#bA1').value;
+    } else {
+      b+='\n\n【Morning Activity1】\n'+$('#bM1').value+'\n\n【Morning Activity2】\n'+$('#bM2').value+'\n\n【Afternoon activity1】\n'+$('#bA1').value+'\n\n【Afternoon activity2】\n'+$('#bA2').value;
+    }
+    b+='\n\n【お知らせ】\n'+$('#bNotice').value+SIG_SHORT;
+    return {subject:subj,body:b};
+  }
   function buildEditor(){
     var e=$('#bEditor');
+    if(def.daily && bManual){
+      e.innerHTML='<h3>'+ic('report')+'デイリーメール（'+def.daily+'）・直接編集<button class="btn btn-sm btn-ghost" id="bStruct" style="margin-left:auto;">項目編集に戻す</button></h3>'+
+        '<div class="field"><label>件名</label><input id="bManualSubEl"></div>'+
+        '<div class="field"><label>本文（自由に編集・追記できます）</label><textarea id="bManualBodyEl" rows="18"></textarea></div>';
+      $('#bManualSubEl').value=bManualSub;$('#bManualBodyEl').value=bManualBody;
+      $('#bManualSubEl').oninput=function(ev){bManualSub=ev.target.value;preview();};
+      $('#bManualBodyEl').oninput=function(ev){bManualBody=ev.target.value;preview();};
+      $('#bStruct').onclick=function(){bManual=false;buildEditor();preview();};
+      return;
+    }
     if(def.daily){
       var pre=def.daily==='Pre';
-      e.innerHTML='<h3>'+ic('report')+'デイリーメール（'+def.daily+'）'+'<button class="btn btn-sm btn-ghost" id="bFillCur" style="margin-left:auto;">カリキュラムから取込</button></h3>'+
+      e.innerHTML='<h3>'+ic('report')+'デイリーメール（'+def.daily+'）<span style="margin-left:auto;display:flex;gap:6px;"><button class="btn btn-sm btn-ghost" id="bFillCur">カリキュラムから取込</button><button class="btn btn-sm btn-ghost" id="bEditDirect">本文を直接編集</button></span></h3>'+
         '<div class="field"><label>配信日</label><input type="date" id="bDate" value="'+todayISO()+'"></div>'+
         '<div class="field"><label>冒頭ひとこと（季節・行事）</label><textarea id="bSeason" rows="2">暖かい季節になりましたね☀️\n今週もよろしくお願い致します😊</textarea></div>'+
         '<div class="field"><label>Monthly Theme</label><input id="bTheme" value="'+CUR.theme.replace(/"/g,'&quot;')+'"></div>'+
@@ -567,28 +589,17 @@ function renderBroadcast(){
           :'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Morning Activity 1</label><textarea id="bM1" rows="2">実施したこと2〜3文</textarea></div><div class="field"><label>Morning Activity 2</label><textarea id="bM2" rows="2">実施したこと2〜3文</textarea></div></div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Afternoon Activity 1</label><textarea id="bA1" rows="2">実施したこと2〜3文</textarea></div><div class="field"><label>Afternoon Activity 2</label><textarea id="bA2" rows="2">実施したこと2〜3文</textarea></div></div>')+
         '<div class="field"><label>お知らせ</label><textarea id="bNotice" rows="3">'+(pre?'☆お子様のすべての持ち物にご記名いただいているか再度ご確認をお願いいたします。\nオムツ・洋服・下着・靴下・フルーツのアイスパックにも必ずご記名ください。ご協力ありがとうございます！':'今月から徐々に今年度の教材を自宅にお返ししていきます。テキストブックが入る大きいバッグの持参をお願いいたします。')+'</textarea></div>';
       $('#bFillCur').onclick=function(){$('#bTheme').value=CUR.theme;if(pre){$('#bPL').value=CUR.phonicsLetter;$('#bPS').value=CUR.phonicsSong;$('#bSE').value=CUR.songEN;$('#bSJ').value=CUR.songJP;}preview();};
+      $('#bEditDirect').onclick=function(){var a=assembleDaily();bManualSub=a.subject;bManualBody=a.body;bManual=true;buildEditor();preview();};
       e.querySelectorAll('input,textarea').forEach(function(x){x.oninput=preview;x.onchange=preview;});
     } else {
       var bb=BBODY[def.key];
-      e.innerHTML='<h3>'+ic('doc')+def.label+'</h3><div class="field"><label>件名</label><input id="bSubject" value="'+bb.subject.replace(/"/g,'&quot;')+'"></div><div class="field"><label>本文（〔 〕は設定から自動差し込み）</label><textarea id="bBody" rows="16">'+bb.body+'</textarea></div>';
+      e.innerHTML='<h3>'+ic('doc')+def.label+'</h3><div class="field"><label>件名</label><input id="bSubject" value="'+bb.subject.replace(/"/g,'&quot;')+'"></div><div class="field"><label>本文（自由に編集・追記できます。〔 〕は設定から自動差し込み）</label><textarea id="bBody" rows="16">'+bb.body+'</textarea></div>';
       e.querySelectorAll('input,textarea').forEach(function(x){x.oninput=preview;});
     }
   }
   function buildEmail(){
-    if(def.daily){
-      var d=$('#bDate').value,p=d.split('-');var head=(def.daily==='Pre'?'COCOASKIDSプレスクール':'COCOASKIDSキンダーガーデン');
-      var subj=head+(+p[1])+'月'+(+p[2])+'日のデイリーメール';
-      var b=$('#bSeason').value+'\n\n【Monthly Theme】\n'+$('#bTheme').value;
-      if(def.daily==='Pre'){
-        b+='\n\n【Phonics Letter】\n'+$('#bPL').value+'\n\n【Phonics Song】\n'+$('#bPS').value+'\n\n【Monthly Song】\n◎English\n'+$('#bSE').value+'\n◎Japanese\n'+$('#bSJ').value+'\n\n【Morning Activity】\n'+$('#bM1').value+'\n\n【Afternoon Activity】\n'+$('#bA1').value;
-      } else {
-        b+='\n\n【Morning Activity1】\n'+$('#bM1').value+'\n\n【Morning Activity2】\n'+$('#bM2').value+'\n\n【Afternoon activity1】\n'+$('#bA1').value+'\n\n【Afternoon activity2】\n'+$('#bA2').value;
-      }
-      b+='\n\n【お知らせ】\n'+$('#bNotice').value+SIG_SHORT;
-      return {subject:subj,body:b};
-    } else {
-      return {subject:fillTokens($('#bSubject').value,null,{}),body:fillTokens($('#bBody').value,null,{})};
-    }
+    if(def.daily){ if(bManual)return {subject:bManualSub,body:bManualBody}; return assembleDaily(); }
+    return {subject:fillTokens($('#bSubject').value,null,{}),body:fillTokens($('#bBody').value,null,{})};
   }
   function preview(){var e=buildEmail();$('#bPreview').textContent='件名: '+e.subject+'\n\n'+e.body;}
   function recip(){return enrolled().filter(function(c){return bSel[c.klass];});}
