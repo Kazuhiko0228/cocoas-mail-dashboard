@@ -113,6 +113,26 @@
   .cal-banner{background:#f1faf6;border:1px dashed var(--teal-l);border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;gap:14px;}
   .muted{color:var(--tx2);font-size:12.5px;}
   .empty{text-align:center;color:var(--tx3);padding:30px;font-size:13px;}
+  .scrollx{overflow-x:auto;}
+  .napcell{min-width:34px;height:30px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11.5px;cursor:pointer;padding:0;}
+  .napcell.v仰{background:#EAF3DE;color:#27500A;}
+  .napcell.v横{background:#E6F1FB;color:#0C447C;}
+  .napcell.v伏{background:#FCEBEB;color:#A32D2D;font-weight:600;}
+  .shiftcell{min-width:40px;height:32px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;padding:0;}
+  .shiftcell.s早{background:#FAEEDA;color:#854F0B;}
+  .shiftcell.s日{background:#EAF3DE;color:#27500A;}
+  .shiftcell.s遅{background:#E6F1FB;color:#0C447C;}
+  .shiftcell.s休{background:#F1EFE8;color:#90998f;}
+  #printArea{display:none;}
+  @media print{
+    .app,#modalRoot{display:none !important;}
+    #printArea{display:block;position:absolute;left:0;top:0;width:100%;background:#fff;color:#000;font-size:12px;}
+    #printArea h1{font-size:18px;margin:0 0 4px;}
+    #printArea h2{font-size:14px;margin:14px 0 6px;}
+    #printArea table{width:100%;border-collapse:collapse;font-size:11px;page-break-inside:auto;}
+    #printArea th,#printArea td{border:1px solid #888;padding:5px 7px;text-align:left;}
+    #printArea .print-foot{margin-top:16px;font-size:11px;color:#333;}
+  }
   @media(max-width:880px){.sidebar{display:none;}.content{padding:18px;}}
 </style>
 </head>
@@ -128,6 +148,12 @@
       <div class="nav-label">配信</div>
       <a data-go="compose">{ic:send}個別メール送信</a>
       <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
+      <div class="nav-label">記録・書類</div>
+      <a data-go="records">{ic:activity}日常記録</a>
+      <a data-go="drill">{ic:shield}避難訓練</a>
+      <a data-go="shift">{ic:tableg}シフト表</a>
+      <a data-go="docgen">{ic:fileplus}書類作成</a>
+      <a data-go="docs">{ic:folder}書類格納</a>
       <div class="nav-label">管理</div>
       <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
       <a data-go="templates">{ic:doc}メールテンプレート</a>
@@ -157,6 +183,11 @@
       <section data-page="deliveries" hidden></section>
       <section data-page="staff" hidden></section>
       <section data-page="audit" hidden></section>
+      <section data-page="records" hidden></section>
+      <section data-page="drill" hidden></section>
+      <section data-page="shift" hidden></section>
+      <section data-page="docgen" hidden></section>
+      <section data-page="docs" hidden></section>
       <section data-page="settings" hidden></section>
     </div>
   </div>
@@ -187,7 +218,13 @@ var ICONS={
   audit:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><path d="m9 14 2 2 4-4"/>',
   clipboard:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/>',
   staff:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
-  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'
+  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  tableg:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/>',
+  folder:'<path d="M4 4h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>',
+  fileplus:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/>',
+  printer:'<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>'
 };
 function ic(n){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[n]||'')+'</svg>';}
 
@@ -352,41 +389,86 @@ function kenshinStatus(d){var nd=kenshinNext(d);if(!nd)return{lab:'未登録',bg
 var AUDIT_CATS=[
   {cat:'① 児童関係',items:[
     {key:'jido_meibo',name:'児童名簿',place:'入園者名簿・月間名簿・退園者ファイル',when:'運営中',sys:'contacts'},
-    {key:'shusseki',name:'出席簿（利用記録）',place:'生徒出席簿ファイル',when:'運営中',sys:null},
-    {key:'shintai',name:'身体測定記録（昨年度含む）',place:'身体測定記録表・個別 健康手帳',when:'運営中',sys:null},
-    {key:'keiyaku',name:'利用契約書',place:'規約・料金表・利用にあたって（掲示）',when:'年度前',sys:'settings'}
+    {key:'shusseki',name:'出席簿（利用記録）',place:'生徒出席簿ファイル',when:'運営中',sys:'records'},
+    {key:'shintai',name:'身体測定記録（昨年度含む）',place:'身体測定記録表・個別 健康手帳',when:'運営中',sys:'records'},
+    {key:'keiyaku',name:'利用契約書',place:'規約・料金表・利用にあたって（掲示）',when:'年度前',sys:'docs'}
   ]},
   {cat:'② 職員関係',items:[
     {key:'roudou_meibo',name:'労働者名簿',place:'従業員名簿ファイル',when:'年度前',sys:'staff'},
-    {key:'chingin',name:'賃金台帳',place:'会社Google Drive【経理用】',when:'運営中',sys:null},
-    {key:'roudou_shorui',name:'労働関係書類',place:'従業員名簿ファイル',when:'年度前',sys:'staff'},
-    {key:'shift',name:'勤務表（シフト表）',place:'出勤調整申請書ファイル',when:'運営中',sys:null},
+    {key:'chingin',name:'賃金台帳',place:'会社Google Drive【経理用】',when:'運営中',sys:'docs'},
+    {key:'roudou_shorui',name:'労働関係書類',place:'従業員名簿ファイル',when:'年度前',sys:'docs'},
+    {key:'shift',name:'勤務表（シフト表）',place:'出勤調整申請書ファイル',when:'運営中',sys:'shift'},
     {key:'shukkin',name:'出勤簿（タイムカード）',place:'はいチーズシステム',when:'運営中',sys:null},
     {key:'shikaku',name:'資格証明書（控え）',place:'従業員名簿ファイル',when:'年度前',sys:'staff'},
     {key:'kenshin',name:'職員健康診断記録',place:'従業員名簿ファイル',when:'年度前',sys:'staff'}
   ]},
   {cat:'③ 非常災害対策',items:[
-    {key:'kunren',name:'消火・避難訓練 実施記録',place:'消防設備届出ファイル',when:'運営中',sys:null},
-    {key:'shobo',name:'消防計画・避難確保計画',place:'消防設備届出ファイル',when:'年度前',sys:null},
+    {key:'kunren',name:'消火・避難訓練 実施記録',place:'消防設備届出ファイル',when:'運営中',sys:'drill'},
+    {key:'shobo',name:'消防計画・避難確保計画',place:'消防設備届出ファイル',when:'年度前',sys:'docs'},
     {key:'kinkyu_h',name:'保護者の緊急連絡票',place:'保護者 名簿ファイル',when:'年度前',sys:'contacts'},
-    {key:'kinkyu_b',name:'病院等の緊急連絡先一覧',place:'電話横 壁 掲示',when:'年度前',sys:null},
-    {key:'anzen',name:'安全点検チェックシート',place:'—',when:'運営中',sys:null},
-    {key:'baisho',name:'賠償責任保険証書',place:'—',when:'年度前',sys:null}
+    {key:'kinkyu_b',name:'病院等の緊急連絡先一覧',place:'電話横 壁 掲示',when:'年度前',sys:'docs'},
+    {key:'anzen',name:'安全点検チェックシート',place:'システム内・日常記録',when:'運営中',sys:'records'},
+    {key:'baisho',name:'賠償責任保険証書',place:'—',when:'年度前',sys:'docs'}
   ]},
   {cat:'④ 保育内容',items:[
     {key:'shidou',name:'指導計画',place:'カリキュラム',when:'年度前',sys:'curriculum'},
     {key:'daily',name:'デイリープログラム',place:'月間スケジュール',when:'運営中',sys:'curriculum'},
-    {key:'nisshi',name:'業務日報・保育日誌',place:'業務・保育日誌ファイル',when:'運営中',sys:null},
-    {key:'gosui',name:'午睡チェック',place:'生徒出席簿ファイル',when:'運営中',sys:null},
-    {key:'kenko',name:'健康チェック',place:'—',when:'運営中',sys:null},
-    {key:'kega',name:'怪我発熱等記録表',place:'怪我発熱等記録ファイル',when:'運営中',sys:null},
-    {key:'gyakutai',name:'虐待防止チェックシート',place:'（本部）QSCチェックファイル',when:'運営中',sys:null}
+    {key:'nisshi',name:'業務日報・保育日誌',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
+    {key:'gosui',name:'午睡チェック',place:'システム内・日常記録',when:'運営中',sys:'records'},
+    {key:'kenko',name:'健康チェック',place:'システム内・日常記録',when:'運営中',sys:'records'},
+    {key:'kega',name:'怪我発熱等記録表',place:'怪我発熱等記録ファイル',when:'運営中',sys:'records'},
+    {key:'gyakutai',name:'虐待防止チェックシート',place:'（本部）QSCチェックファイル',when:'運営中',sys:'records'}
   ]},
   {cat:'⑤ 給食',items:[
-    {key:'kondate',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:null}
+    {key:'kondate',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'}
   ]}
 ];
-var SYS_PAGE={contacts:'連絡先',staff:'職員管理',curriculum:'カリキュラム',settings:'設定'};
+var SYS_PAGE={contacts:'連絡先',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
+
+/* generic store helpers */
+function stGet(key,def){try{var v=JSON.parse(localStorage.getItem('cocoas_'+key));return v==null?def:v;}catch(e){return def;}}
+function stSet(key,v){localStorage.setItem('cocoas_'+key,JSON.stringify(v));}
+
+/* 日常記録 constants */
+var SAFETY_ITEMS=['園庭・遊具の破損','室内設備・家具の固定','玩具の破損・誤飲リスク','避難経路・非常口の確保','門・柵・施錠の確認','救急用品・救急箱の在庫','電気コード・コンセント','窓・ベランダの施錠'];
+var GYAKUTAI_ITEMS=['大声での叱責・威圧的な言動がないか','子どもの人格を尊重した声かけができているか','食事・午睡の強要がないか','長時間の放置・無視がないか','身体的な罰を与えていないか','特定の子どもへの差別的な対応がないか','記録・情報共有が適切に行われているか','気になる対応を職員間で相談できる雰囲気があるか'];
+var HOSP_DEFAULT=[
+  {id:1,name:'さいたま市立病院',type:'総合病院',tel:'048-873-4111'},
+  {id:2,name:'（提携小児科を登録）',type:'小児科',tel:''},
+  {id:3,name:'埼玉県救急電話相談',type:'救急相談',tel:'#7119'},
+  {id:4,name:'与野消防署',type:'消防・救急',tel:'119'}
+];
+var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','消防計画・避難確保計画','損害賠償保険証書','献立表'];
+var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',shobo:'消防計画・避難確保計画',baisho:'損害賠償保険証書',kondate:'献立表'};
+var RKEY={'安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','ヒヤリハット・怪我':'rec_hiyari','業務日報・保育日誌':'rec_日報','虐待防止チェック':'rec_虐待防止'};
+function auditDataInfo(key){
+  switch(key){
+    case 'anzen': return Object.keys(stGet('rec_安全点検',{})).length+'日分の記録あり';
+    case 'gosui': return Object.keys(stGet('rec_午睡チェック',{})).length+'日分の記録あり';
+    case 'kenko': return Object.keys(stGet('rec_健康チェック',{})).length+'日分の記録あり';
+    case 'shintai': return Object.keys(stGet('rec_身体測定',{})).length+'ヶ月分の記録あり';
+    case 'kega': return stGet('rec_hiyari',[]).length+'件の記録あり';
+    case 'nisshi': return Object.keys(stGet('rec_日報',{})).length+'日分の記録あり';
+    case 'gyakutai': return Object.keys(stGet('rec_虐待防止',{})).length+'回分の記録あり';
+    case 'kunren': return stGet('drills',[]).length+'回の訓練記録あり';
+    case 'shift': return Object.keys(stGet('shifts',{})).length+'ヶ月分あり';
+    case 'kinkyu_b': return stGet('hospitals',HOSP_DEFAULT).length+'件登録済み';
+    case 'jido_meibo': return enrolled().length+'名登録済み';
+    case 'kinkyu_h': return enrolled().length+'名分あり';
+    case 'roudou_meibo': case 'shikaku': case 'kenshin': return DB.staff.length+'名登録済み';
+    case 'shidou': case 'daily': return '今月分あり';
+    default:
+      var slot=AUDIT_DOC_SLOT[key];
+      if(slot){var d=stGet('docs',{})[slot];return (d&&d.url)?'格納済み':'未格納';}
+      return '';
+  }
+}
+function printDoc(title,bodyHtml){
+  var area=$('#printArea');
+  if(!area){area=el('div',{id:'printArea'});document.body.appendChild(area);}
+  area.innerHTML='<h1>'+title+'</h1>'+bodyHtml+'<div class="print-foot">'+SET.school+'　／　出力日：'+fmt(todayISO())+'</div>';
+  window.print();
+}
 function auditItemsFlat(){return AUDIT_CATS.reduce(function(a,c){return a.concat(c.items);},[]);}
 function auditState(){var st=DB.auditStatus;var out={};auditItemsFlat().forEach(function(it){out[it.key]=st[it.key]||(it.sys?'対応中':'未');});return out;}
 function auditSet(k,v){var st=DB.auditStatus;st[k]=v;DB.auditStatus=st;}
@@ -428,12 +510,12 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],contacts:['管理','連絡先管理'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -463,6 +545,9 @@ function renderDash(){
       metrics.map(function(m){return '<div class="card"><div class="metric"><div class="ico" style="background:'+m.bg+';color:'+m.c+'">'+ic(m.ic)+'</div><div><div class="num">'+m.num+'</div><div class="lab">'+m.lab+'</div></div></div></div>';}).join('')+
     '</div>'+
     '<div class="cal-banner" style="margin-bottom:16px;background:'+aph.bg+';border-color:'+aph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+aph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">監査準備：'+aph.label+'</div><div class="muted">'+aph.desc+' ・ 準備状況 '+adone+'/'+atot+' 済</div></div><button class="btn btn-primary" data-task="audit">監査対応へ</button></div>'+
+    '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:13.5px;font-weight:600;">'+ic('activity').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px;color:#0F6E56;"')+' 本日の記録</span>'+
+      [['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=!!stGet(t[1],{})[todayISO()];return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
+      '<span class="spacer"></span><button class="btn btn-sm" data-task="records">記録する</button></div>'+
     '<div class="grid" style="grid-template-columns:1.3fr 1fr;align-items:start;">'+
       '<div class="card"><h3>'+ic('clock')+'本日のフォロータスク</h3>'+
         (tasks.length?tasks.map(function(t){return '<div class="task"><span class="tdot" style="background:'+t.color+'"></span><div style="flex:1"><div class="row-name">'+t.c.name+' 様 <span class="row-sub">／ '+t.c.child+'</span></div><div class="row-sub">'+t.type+'メール'+(t.c.date?' ・ 体験 '+fmt(t.c.date):'')+'</div></div><button class="btn btn-sm btn-primary" data-task="'+t.go.join('|')+'">作成</button></div>';}).join(''):'<div class="empty">本日のフォロータスクはありません</div>')+
@@ -833,7 +918,8 @@ function renderAudit(){
     '</div>'+
     '<div class="card" style="margin-bottom:16px;"><h3>'+ic('clipboard')+'準備状況</h3>'+
       '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;"><div><div style="font-size:24px;font-weight:600;">'+done+' / '+tot+'</div><div class="muted">全体 済</div></div><div><div style="font-size:24px;font-weight:600;color:#185FA5;">'+preDone+' / '+pre.length+'</div><div class="muted">年度前に準備</div></div><div><div style="font-size:24px;font-weight:600;color:#854F0B;">'+opeDone+' / '+ope.length+'</div><div class="muted">運営中に揃える</div></div></div>'+
-      '<div class="pbar"><div style="width:'+Math.round(done/tot*100)+'%"></div></div></div>'+
+      '<div class="pbar"><div style="width:'+Math.round(done/tot*100)+'%"></div></div>'+
+      '<div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn btn-primary" id="auPrint">'+ic('printer')+'監査パッケージ（最終チェックリスト）を出力</button><span class="muted">提出漏れ防止用。全書類の状態・保管場所・システム内データ量を一覧で印刷できます。</span></div></div>'+
     AUDIT_CATS.map(function(c){return '<div class="card" style="margin-bottom:14px;"><h3>'+c.cat+'</h3><table><tbody>'+
       c.items.map(function(it){var cur=stt[it.key];var opt=['未','対応中','済'].map(function(o){return '<option'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('');var wc=it.when==='年度前'?'background:#E6F1FB;color:#0C447C':'background:#FAEEDA;color:#854F0B';return '<tr>'+
         '<td style="width:110px;"><select data-st="'+it.key+'" style="background:'+STO[cur].bg+';color:'+STO[cur].fg+';font-weight:500;">'+opt+'</select></td>'+
@@ -846,6 +932,365 @@ function renderAudit(){
   $('#auDate').onchange=function(e){SET.docAuditDate=e.target.value;DB.settings=SET;upd();};
   s.querySelectorAll('[data-st]').forEach(function(sl){sl.onchange=function(){auditSet(sl.getAttribute('data-st'),sl.value);renderAudit();};});
   s.querySelectorAll('[data-sys]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-sys'));};});
+  $('#auPrint').onclick=function(){
+    var stt2=auditState();
+    var body=AUDIT_CATS.map(function(c){
+      return '<h2>'+c.cat+'</h2><table><thead><tr><th style="width:60px;">状態</th><th>書類名</th><th>保管場所</th><th style="width:70px;">区分</th><th>システム内データ</th></tr></thead><tbody>'+
+        c.items.map(function(it){return '<tr><td>'+stt2[it.key]+'</td><td>'+it.name+'</td><td>'+it.place+'</td><td>'+it.when+'</td><td>'+(auditDataInfo(it.key)||'—')+'</td></tr>';}).join('')+'</tbody></table>';
+    }).join('');
+    printDoc('監査書類 最終チェックリスト',body);
+  };
+}
+
+/* ---------- 日常記録 ---------- */
+var recType='安全点検',recDate=null,recMonth=null,recQuarter=null;
+function curQuarter(){var m=addDays(0).getMonth()+1;return addDays(0).getFullYear()+'-Q'+Math.ceil(m/3);}
+function napSlots(){var a=[],h,m;for(h=12;h<15;h++)for(m=0;m<60;m+=10)a.push(pad(h)+':'+pad(m));a.push('15:00');return a;}
+function childName(c){return c.child.replace(/ちゃん|くん/g,'');}
+function renderRecords(){
+  if(!recDate)recDate=todayISO();
+  if(!recMonth)recMonth=todayISO().slice(0,7);
+  if(!recQuarter)recQuarter=curQuarter();
+  var s=$('section[data-page="records"]');
+  s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;" id="recChips">'+Object.keys(RKEY).map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+t+'">'+t+'</span>';}).join('')+'</div></div><div id="recBody"></div>';
+  s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecords();};});
+  ({'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'業務日報・保育日誌':edNippo,'虐待防止チェック':edGyakutai})[recType]();
+}
+function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
+function edSafety(){
+  var K=RKEY['安全点検'],data=stGet(K,{}),d=data[recDate]||{items:{},memo:'',by:''};
+  var last7='';for(var i=6;i>=0;i--){var dt=iso(addDays(-i));var has=data[dt];last7+='<span class="tag" style="'+(has?'background:#EAF3DE;color:#27500A;':'')+'">'+dt.slice(5).replace('-','/')+(has?' ✓':' —')+'</span> ';}
+  $('#recBody').innerHTML='<div class="card">'+recHead('施設安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力</button>')+
+    '<table><tbody>'+SAFETY_ITEMS.map(function(it,i){var v=d.items[i];return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-si="'+i+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">良</button> <button class="btn btn-sm" data-si="'+i+'" data-v="ng" style="'+(v==='ng'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">要対応</button></td></tr>';}).join('')+'</tbody></table>'+
+    '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容など）</label><input id="sfMemo" value="'+(d.memo||'')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="sfBy" value="'+(d.by||'')+'"></div></div>'+
+    '<div class="muted" style="margin-top:12px;">直近7日：'+last7+'</div></div>';
+  function save(){data[recDate]=d;stSet(K,data);}
+  $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#sfMemo').onchange=function(e){d.memo=e.target.value;save();};
+  $('#sfBy').onchange=function(e){d.by=e.target.value;save();};
+  document.querySelectorAll('[data-si]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-si'),v=b.getAttribute('data-v');d.items[i]=(d.items[i]===v?null:v);save();edSafety();};});
+  $('#sfPrint').onclick=function(){
+    var mo=recDate.slice(0,7),days=Object.keys(data).filter(function(k){return k.slice(0,7)===mo;}).sort();
+    var body='<table><thead><tr><th>日付</th>'+SAFETY_ITEMS.map(function(it){return '<th style="font-size:10px;">'+it+'</th>';}).join('')+'<th>メモ</th><th>記録者</th></tr></thead><tbody>'+
+      days.map(function(k){var r=data[k];return '<tr><td>'+fmt(k)+'</td>'+SAFETY_ITEMS.map(function(_,i){return '<td>'+(r.items[i]==='ok'?'✓':r.items[i]==='ng'?'✕':'—')+'</td>';}).join('')+'<td>'+(r.memo||'')+'</td><td>'+(r.by||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('施設安全点検記録票（'+mo.replace('-','年')+'月）',body);
+  };
+}
+function edNap(){
+  var K=RKEY['午睡チェック'],data=stGet(K,{}),d=data[recDate]||{klass:'Pre',by:'',cells:{}};
+  var slots=napSlots(),kids=classOf(d.klass);
+  $('#recBody').innerHTML='<div class="card">'+recHead('午睡チェック表','<input type="date" id="npDate" value="'+recDate+'" style="width:160px;"><select id="npKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="npPrint">'+ic('printer')+'本日分を出力</button>')+
+    '<div class="muted" style="margin-bottom:10px;">セルをタップで記録：仰向け → 横向き → うつ伏せ（要注意・赤） → 消去。※確認間隔は自治体基準に合わせて設定できます（0歳児5分／1歳以上10分。現在10分間隔）。</div>'+
+    '<div class="scrollx"><table><thead><tr><th style="min-width:90px;">園児</th>'+slots.map(function(t){return '<th style="font-size:10px;padding:4px 2px;">'+t+'</th>';}).join('')+'</tr></thead><tbody>'+
+    kids.map(function(c){return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'</td>'+slots.map(function(t){var v=d.cells[c.id+'|'+t]||'';return '<td style="padding:2px;"><button class="napcell v'+v+'" data-nc="'+c.id+'|'+t+'">'+(v||'・')+'</button></td>';}).join('')+'</tr>';}).join('')+
+    '</tbody></table></div>'+
+    '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="npBy" value="'+(d.by||'')+'"></div></div>';
+  function save(){data[recDate]=d;stSet(K,data);}
+  $('#npDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#npKlass').onchange=function(e){d.klass=e.target.value;save();edNap();};
+  $('#npBy').onchange=function(e){d.by=e.target.value;save();};
+  document.querySelectorAll('[data-nc]').forEach(function(b){b.onclick=function(){
+    var k=b.getAttribute('data-nc'),order=['','仰','横','伏'],cur=d.cells[k]||'',nx=order[(order.indexOf(cur)+1)%4];
+    if(nx)d.cells[k]=nx;else delete d.cells[k];save();
+    b.className='napcell v'+(nx||'');b.textContent=nx||'・';
+  };});
+  $('#npPrint').onclick=function(){
+    var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childName(c)+'</td>'+slots.map(function(t){return '<td>'+(d.cells[c.id+'|'+t]||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table><p>記録者：'+(d.by||'　　　　')+'　／　確認間隔：10分</p>';
+    printDoc('午睡チェック表（'+fmt(recDate)+'・'+d.klass+'）',body);
+  };
+}
+function edHealth(){
+  var K=RKEY['健康チェック'],data=stGet(K,{}),d=data[recDate]||{rows:{},by:''};
+  var kids=enrolled();
+  function rowOf(id){return d.rows[id]||(d.rows[id]={temp:'',nose:'—',cough:'—',mood:'—',memo:''});}
+  var OPT=['—','なし','あり'],MOOD=['—','良好','ややぐずり','不機嫌'];
+  $('#recBody').innerHTML='<div class="card">'+recHead('健康チェック（登園時）','<input type="date" id="hlDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
+    '<div class="scrollx"><table><thead><tr><th>園児</th><th>体温</th><th>鼻水</th><th>咳</th><th>機嫌</th><th>メモ</th></tr></thead><tbody>'+
+    kids.map(function(c){var r=rowOf(c.id);return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'<div class="row-sub">'+c.klass+'</div></td>'+
+      '<td><input data-h="'+c.id+'|temp" type="number" step="0.1" value="'+r.temp+'" style="width:80px;" placeholder="36.5"></td>'+
+      '<td><select data-h="'+c.id+'|nose" style="width:80px;">'+OPT.map(function(o){return '<option'+(o===r.nose?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'+
+      '<td><select data-h="'+c.id+'|cough" style="width:80px;">'+OPT.map(function(o){return '<option'+(o===r.cough?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'+
+      '<td><select data-h="'+c.id+'|mood" style="width:110px;">'+MOOD.map(function(o){return '<option'+(o===r.mood?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'+
+      '<td><input data-h="'+c.id+'|memo" value="'+(r.memo||'')+'"></td></tr>';}).join('')+'</tbody></table></div>'+
+    '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'')+'"></div></div>';
+  function save(){data[recDate]=d;stSet(K,data);}
+  $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#hlBy').onchange=function(e){d.by=e.target.value;save();};
+  document.querySelectorAll('[data-h]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-h').split('|');rowOf(+p[0])[p[1]]=inp.value;save();};});
+  $('#hlPrint').onclick=function(){
+    var body='<table><thead><tr><th>園児</th><th>体温</th><th>鼻水</th><th>咳</th><th>機嫌</th><th>メモ</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+childName(c)+'</td><td>'+(r.temp||'')+'</td><td>'+(r.nose||'')+'</td><td>'+(r.cough||'')+'</td><td>'+(r.mood||'')+'</td><td>'+(r.memo||'')+'</td></tr>';}).join('')+'</tbody></table><p>記録者：'+(d.by||'　　　　')+'</p>';
+    printDoc('健康チェック表（'+fmt(recDate)+'）',body);
+  };
+}
+function edBody(){
+  var K=RKEY['身体測定'],data=stGet(K,{}),d=data[recMonth]||{rows:{}};
+  var kids=enrolled();
+  function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
+  function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
+  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+recMonth+'" style="width:160px;"><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+    '<table><thead><tr><th>園児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数（自動）</th></tr></thead><tbody>'+
+    kids.map(function(c){var r=rowOf(c.id);return '<tr><td class="row-name">'+childName(c)+'<div class="row-sub">'+c.klass+'</div></td>'+
+      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+r.h+'" style="width:100px;"></td>'+
+      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+r.w+'" style="width:100px;"></td>'+
+      '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>'+
+    '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
+  function save(){data[recMonth]=d;stSet(K,data);}
+  $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecords();};
+  document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
+  $('#bmPrint').onclick=function(){
+    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+childName(c)+'</td><td>'+c.klass+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('身体測定記録（'+recMonth.replace('-','年')+'月）',body);
+  };
+}
+function edHiyari(){
+  var K=RKEY['ヒヤリハット・怪我'],log=stGet(K,[]);
+  var kids=enrolled();
+  $('#recBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.3fr;align-items:start;">'+
+    '<div class="card"><h3>'+ic('alert')+'新規記録</h3>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>発生日</label><input type="date" id="hyDate" value="'+recDate+'"></div><div class="field"><label>時刻</label><input id="hyTime" placeholder="10:30頃"></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>種別</label><select id="hyType"><option>ヒヤリハット</option><option>怪我</option><option>発熱</option><option>事故</option></select></div><div class="field"><label>児童</label><select id="hyChild"><option>—</option>'+kids.map(function(c){return '<option>'+childName(c)+'</option>';}).join('')+'</select></div></div>'+
+      '<div class="field"><label>場所</label><input id="hyPlace" placeholder="園庭・保育室 など"></div>'+
+      '<div class="field"><label>状況</label><textarea id="hyDesc" rows="2"></textarea></div>'+
+      '<div class="field"><label>対応・処置</label><textarea id="hyAction" rows="2"></textarea></div>'+
+      '<div class="field"><label>報告者</label><input id="hyBy"></div>'+
+      '<button class="btn btn-primary" id="hyAdd">'+ic('plus')+'記録を追加</button></div>'+
+    '<div class="card">'+recHead('記録一覧（怪我発熱等記録表・ヒヤリハット）','<button class="btn btn-sm" id="hyPrint">'+ic('printer')+'年間一覧を出力</button>')+
+      (log.length?'<table><thead><tr><th>発生日</th><th>種別</th><th>児童</th><th>状況</th><th></th></tr></thead><tbody>'+log.slice().reverse().map(function(r){return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(r.type==='ヒヤリハット'?'#FAEEDA':'#FCEBEB')+';color:'+(r.type==='ヒヤリハット'?'#854F0B':'#A32D2D')+';">'+r.type+'</span></td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+r.desc+'<div class="row-sub">対応：'+(r.action||'—')+'</div></td><td><button class="btn btn-sm btn-ghost" data-del="'+r.id+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">記録はまだありません</div>')+
+    '</div></div>';
+  $('#hyAdd').onclick=function(){
+    if(!$('#hyDesc').value.trim()){alert('状況を入力してください');return;}
+    log.push({id:Date.now(),date:$('#hyDate').value,time:$('#hyTime').value,type:$('#hyType').value,child:$('#hyChild').value,place:$('#hyPlace').value,desc:$('#hyDesc').value,action:$('#hyAction').value,by:$('#hyBy').value});
+    stSet(K,log);edHiyari();
+  };
+  document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){stSet(K,log.filter(function(r){return r.id!==+b.getAttribute('data-del');}));edHiyari();};});
+  $('#hyPrint').onclick=function(){
+    var body='<table><thead><tr><th>発生日時</th><th>種別</th><th>児童</th><th>場所</th><th>状況</th><th>対応</th><th>報告者</th></tr></thead><tbody>'+log.map(function(r){return '<tr><td>'+fmt(r.date)+' '+(r.time||'')+'</td><td>'+r.type+'</td><td>'+(r.child||'—')+'</td><td>'+(r.place||'')+'</td><td>'+r.desc+'</td><td>'+(r.action||'')+'</td><td>'+(r.by||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('怪我発熱等記録表・ヒヤリハット記録（年間一覧）',body);
+  };
+}
+function edNippo(){
+  var K=RKEY['業務日報・保育日誌'],data=stGet(K,{}),d=data[recDate]||{diary:'',absent:'',early:'',sick:'',note:'',by:''};
+  $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
+    '<div class="field"><label>保育日誌（その日の活動記録）※デイリーメールの本文を流用できます</label><textarea id="npoDiary" rows="4">'+(d.diary||'')+'</textarea></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+
+      '<div class="field"><label>欠席</label><input id="npoAbsent" value="'+(d.absent||'')+'" placeholder="○○（発熱）"></div>'+
+      '<div class="field"><label>早退</label><input id="npoEarly" value="'+(d.early||'')+'"></div>'+
+      '<div class="field"><label>体調不良・怪我</label><input id="npoSick" value="'+(d.sick||'')+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+(d.note||'')+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+(d.by||'')+'"></div></div>'+
+    '<div class="muted">入力は自動保存されます。</div></div>';
+  function save(){data[recDate]=d;stSet(K,data);}
+  $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  [['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoSick','sick'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
+  $('#npoPrint').onclick=function(){
+    var body='<h2>保育日誌</h2><p>'+(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+(d.early||'なし')+'</td></tr><tr><th>体調不良・怪我</th><td>'+(d.sick||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+(d.by||'')+'</td></tr></tbody></table>';
+    printDoc('業務日報・保育日誌（'+fmt(recDate)+'）',body);
+  };
+}
+function edGyakutai(){
+  var K=RKEY['虐待防止チェック'],data=stGet(K,{}),d=data[recQuarter]||{items:{},date:'',by:'',note:''};
+  var y=addDays(0).getFullYear();var qs=[];[y-1,y].forEach(function(yy){[1,2,3,4].forEach(function(q){qs.push(yy+'-Q'+q);});});
+  $('#recBody').innerHTML='<div class="card">'+recHead('虐待防止チェックシート（3ヶ月に1回）','<select id="gyQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="gyPrint">'+ic('printer')+'出力</button>')+
+    '<table><tbody>'+GYAKUTAI_ITEMS.map(function(it,i){var v=d.items[i];return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-gi="'+i+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">問題なし</button> <button class="btn btn-sm" data-gi="'+i+'" data-v="issue" style="'+(v==='issue'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">課題あり</button></td></tr>';}).join('')+'</tbody></table>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 2fr;margin-top:12px;"><div class="field" style="margin:0;"><label>実施日</label><input type="date" id="gyDate" value="'+(d.date||'')+'"></div><div class="field" style="margin:0;"><label>実施者</label><input id="gyBy" value="'+(d.by||'')+'"></div><div class="field" style="margin:0;"><label>特記事項・改善策</label><input id="gyNote" value="'+(d.note||'')+'"></div></div></div>';
+  function save(){data[recQuarter]=d;stSet(K,data);}
+  $('#gyQ').onchange=function(e){recQuarter=e.target.value;renderRecords();};
+  $('#gyDate').onchange=function(e){d.date=e.target.value;save();};
+  $('#gyBy').onchange=function(e){d.by=e.target.value;save();};
+  $('#gyNote').onchange=function(e){d.note=e.target.value;save();};
+  document.querySelectorAll('[data-gi]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-gi'),v=b.getAttribute('data-v');d.items[i]=(d.items[i]===v?null:v);save();edGyakutai();};});
+  $('#gyPrint').onclick=function(){
+    var body='<table><thead><tr><th>チェック項目</th><th style="width:90px;">結果</th></tr></thead><tbody>'+GYAKUTAI_ITEMS.map(function(it,i){return '<tr><td>'+it+'</td><td>'+(d.items[i]==='ok'?'問題なし':d.items[i]==='issue'?'課題あり':'—')+'</td></tr>';}).join('')+'</tbody></table><p>実施日：'+(d.date?fmt(d.date):'　　　　')+'　実施者：'+(d.by||'　　　　')+'<br>特記事項：'+(d.note||'—')+'</p>';
+    printDoc('虐待防止チェックシート（'+recQuarter+'）',body);
+  };
+}
+
+/* ---------- 避難訓練 ---------- */
+function renderDrill(){
+  var drills=stGet('drills',[]),s=$('section[data-page="drill"]');
+  s.innerHTML='<div class="grid" style="grid-template-columns:1fr 1.3fr;align-items:start;">'+
+    '<div class="card"><h3>'+ic('shield')+'訓練を記録</h3>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>実施日</label><input type="date" id="drDate" value="'+todayISO()+'"></div><div class="field"><label>種別</label><select id="drKind"><option>避難訓練（火災）</option><option>避難訓練（地震）</option><option>不審者対応訓練</option><option>水害対応訓練</option><option>引き渡し訓練</option><option>消火訓練</option></select></div></div>'+
+      '<div class="field"><label>想定内容</label><input id="drScenario" placeholder="給食室から出火を想定 など"></div>'+
+      '<div class="field"><label>避難先</label><input id="drDest" placeholder="第一避難場所（○○公園）など"></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field"><label>所要（分）</label><input type="number" id="drMin" value="3"></div><div class="field"><label>（秒）</label><input type="number" id="drSec" value="0"></div><div class="field"><label>参加児童</label><input type="number" id="drKids" value="'+enrolled().length+'"></div><div class="field"><label>参加職員</label><input type="number" id="drStaff" value="'+DB.staff.length+'"></div></div>'+
+      '<div class="field"><label>欠席児童（いれば）</label><input id="drAbsent"></div>'+
+      '<div class="field"><label>振り返り（良かった点・課題）</label><textarea id="drReview" rows="2"></textarea></div>'+
+      '<div class="field"><label>記録者</label><input id="drBy"></div>'+
+      '<button class="btn btn-primary" id="drAdd">'+ic('plus')+'訓練記録を追加</button></div>'+
+    '<div class="card">'+recHead('年間訓練記録一覧','<button class="btn btn-sm" id="drPrint">'+ic('printer')+'年間一覧を出力</button>')+
+      (drills.length?'<table><thead><tr><th>実施日</th><th>種別</th><th>所要</th><th>参加</th><th></th></tr></thead><tbody>'+drills.slice().sort(function(a,b){return a.date<b.date?1:-1;}).map(function(r){return '<tr><td>'+fmt(r.date)+'</td><td>'+r.kind+'<div class="row-sub">'+(r.scenario||'')+'</div></td><td>'+r.min+'分'+r.sec+'秒</td><td>児童'+r.kids+'・職員'+r.staffN+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-roster="'+r.id+'" title="参加者名簿">'+ic('users')+'</button><button class="btn btn-sm btn-ghost" data-del="'+r.id+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">訓練記録はまだありません。左のフォームから追加してください。</div>')+
+      '<div class="muted" style="margin-top:10px;">※ 消防計画・避難確保計画（避難経路マップ）は資料受領後にテンプレート化予定。「書類作成 → 危機管理マニュアル」で避難場所・経路を登録できます。</div>'+
+    '</div></div>';
+  $('#drAdd').onclick=function(){
+    drills.push({id:Date.now(),date:$('#drDate').value,kind:$('#drKind').value,scenario:$('#drScenario').value,dest:$('#drDest').value,min:+$('#drMin').value||0,sec:+$('#drSec').value||0,kids:+$('#drKids').value||0,staffN:+$('#drStaff').value||0,absent:$('#drAbsent').value,review:$('#drReview').value,by:$('#drBy').value});
+    stSet('drills',drills);renderDrill();
+  };
+  s.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){stSet('drills',drills.filter(function(r){return r.id!==+b.getAttribute('data-del');}));renderDrill();};});
+  s.querySelectorAll('[data-roster]').forEach(function(b){b.onclick=function(){
+    var r=drills.filter(function(x){return x.id===+b.getAttribute('data-roster');})[0];
+    var body='<h2>'+r.kind+'（'+fmt(r.date)+'）参加者名簿</h2><table><thead><tr><th>区分</th><th>氏名</th><th>クラス／役職</th></tr></thead><tbody>'+
+      enrolled().map(function(c){return '<tr><td>園児</td><td>'+childName(c)+'</td><td>'+c.klass+'</td></tr>';}).join('')+
+      DB.staff.map(function(x){return '<tr><td>職員</td><td>'+x.name+'</td><td>'+x.role+'</td></tr>';}).join('')+
+      '</tbody></table><p>欠席：'+(r.absent||'なし')+'　／　避難先：'+(r.dest||'—')+'　／　所要時間：'+r.min+'分'+r.sec+'秒</p>';
+    printDoc('避難訓練 参加者名簿',body);
+  };});
+  $('#drPrint').onclick=function(){
+    var body='<table><thead><tr><th>実施日</th><th>種別</th><th>想定</th><th>避難先</th><th>所要時間</th><th>参加</th><th>振り返り</th><th>記録者</th></tr></thead><tbody>'+drills.slice().sort(function(a,b){return a.date<b.date?-1:1;}).map(function(r){return '<tr><td>'+fmt(r.date)+'</td><td>'+r.kind+'</td><td>'+(r.scenario||'')+'</td><td>'+(r.dest||'')+'</td><td>'+r.min+'分'+r.sec+'秒</td><td>児童'+r.kids+'・職員'+r.staffN+'</td><td>'+(r.review||'')+'</td><td>'+(r.by||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('消火・避難訓練 実施記録（年間一覧）',body);
+  };
+}
+
+/* ---------- シフト表 ---------- */
+var shiftMonth=null;
+function renderShift(){
+  if(!shiftMonth)shiftMonth=todayISO().slice(0,7);
+  var all=stGet('shifts',{});
+  var m=all[shiftMonth]||{pat:{'早':'8:00-17:00','日':'8:45-17:45','遅':'9:30-18:30'},cells:{}};
+  var p=shiftMonth.split('-'),y=+p[0],mo=+p[1],dim=new Date(y,mo,0).getDate();
+  var s=$('section[data-page="shift"]');
+  var days=[];for(var i=1;i<=dim;i++)days.push(i);
+  s.innerHTML='<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+shiftMonth+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="shPrint">'+ic('printer')+'ワンクリック出力</button>')+
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">'+
+      ['早','日','遅'].map(function(k){return '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+k+'" value="'+m.pat[k]+'" style="width:110px;font-size:12px;padding:5px 8px;"></span>';}).join('')+
+      '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s休" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">休</span>休み</span>'+
+      '<span class="muted">セルをタップ：早 → 日 → 遅 → 休 → 消去</span></div>'+
+    '<div class="scrollx"><table><thead><tr><th style="min-width:110px;">職員</th>'+days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();return '<th style="padding:4px 2px;font-size:10px;text-align:center;'+(wd===0?'color:#A32D2D;':wd===6?'color:#185FA5;':'')+'">'+dd+'<br>'+WD[wd]+'</th>';}).join('')+'</tr></thead><tbody>'+
+    DB.staff.map(function(st){return '<tr><td class="row-name" style="white-space:nowrap;">'+st.name+'<div class="row-sub">'+st.role+'</div></td>'+days.map(function(dd){var v=(m.cells[st.id]||{})[dd]||'';return '<td style="padding:2px;text-align:center;"><button class="shiftcell s'+v+'" data-sc="'+st.id+'|'+dd+'">'+(v||'・')+'</button></td>';}).join('')+'</tr>';}).join('')+
+    '</tbody></table></div>'+
+    '<div class="muted" style="margin-top:10px;">※ 出勤簿（実績・タイムカード）は既存の勤怠システム連携 or 手動入力に対応予定。シフトは自動保存されます。</div></div>';
+  function save(){all[shiftMonth]=m;stSet('shifts',all);}
+  $('#shMonth').onchange=function(e){shiftMonth=e.target.value;renderShift();};
+  s.querySelectorAll('[data-pat]').forEach(function(inp){inp.onchange=function(){m.pat[inp.getAttribute('data-pat')]=inp.value;save();};});
+  s.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){
+    var pp=b.getAttribute('data-sc').split('|'),sid=pp[0],dd=pp[1];
+    var order=['','早','日','遅','休'];if(!m.cells[sid])m.cells[sid]={};
+    var cur=m.cells[sid][dd]||'',nx=order[(order.indexOf(cur)+1)%5];
+    if(nx)m.cells[sid][dd]=nx;else delete m.cells[sid][dd];
+    save();b.className='shiftcell s'+(nx||'');b.textContent=nx||'・';
+  };});
+  $('#shPrint').onclick=function(){
+    var body='<table><thead><tr><th>職員</th>'+days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();return '<th style="font-size:9px;">'+dd+'('+WD[wd]+')</th>';}).join('')+'</tr></thead><tbody>'+
+      DB.staff.map(function(st){return '<tr><td>'+st.name+'</td>'+days.map(function(dd){var v=(m.cells[st.id]||{})[dd]||'';return '<td style="font-size:9px;">'+(v==='休'?'休':(v?m.pat[v]:''))+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'+
+      '<p>早番：'+m.pat['早']+'　日勤：'+m.pat['日']+'　遅番：'+m.pat['遅']+'</p>';
+    printDoc('勤務表（'+y+'年'+mo+'月）',body);
+  };
+}
+
+/* ---------- 書類作成（自動生成） ---------- */
+var dgType='危機管理マニュアル';
+function renderDocgen(){
+  var s=$('section[data-page="docgen"]');
+  var types=['危機管理マニュアル','運営状況報告書','保育安全計画'];
+  s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;">'+types.map(function(t){return '<span class="chip'+(t===dgType?' on':'')+'" data-dg="'+t+'">'+t+'</span>';}).join('')+'</div></div><div id="dgBody"></div>';
+  s.querySelectorAll('[data-dg]').forEach(function(b){b.onclick=function(){dgType=b.getAttribute('data-dg');renderDocgen();};});
+  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen})[dgType]();
+}
+function dgStore(){return stGet('docgen',{});}
+function dgSave(k,v){var st=dgStore();st[k]=v;stSet('docgen',st);}
+function dgKiki(){
+  var d=Object.assign({place1:'',place2:'',route:'',leader:'',reporter:'',fire:'与野消防署（119）',parent:'メール一斉配信（本システム）＋電話'},dgStore().kiki||{});
+  function manual(){
+    return '【1. 目的】\n本マニュアルは、'+SET.school+'における災害・緊急時の対応を定め、園児および職員の安全確保を目的とする。\n\n'+
+    '【2. 防災体制】\n防災責任者：'+(d.leader||'（未設定）')+'　／　通報・連絡担当：'+(d.reporter||'（未設定）')+'\n\n'+
+    '【3. 地震発生時の対応】\n(1) 園児をテーブルの下など安全な場所へ誘導し、頭部を保護する。\n(2) 揺れが収まり次第、人数確認を行い、避難準備を開始する。\n(3) 施設内の安全が確認できない場合は避難場所へ避難する。\n\n'+
+    '【4. 火災発生時の対応】\n(1) 発見者は大声で周囲へ知らせ、初期消火を試みる。\n(2) 同時に119番通報（担当：'+(d.reporter||'通報担当')+'／通報先：'+d.fire+'）。\n(3) 園児を出火場所から遠ざけ、直ちに避難を開始する。\n\n'+
+    '【5. 避難場所・経路】\n第一避難場所：'+(d.place1||'（未設定）')+'\n第二避難場所：'+(d.place2||'（未設定）')+'\n避難経路：'+(d.route||'（未設定）')+'\n\n'+
+    '【6. 保護者への連絡】\n'+d.parent+' により、発生後速やかに園児の状況と引き渡し場所を連絡する。\n\n'+
+    '【7. 園児の引き渡し】\n保護者の緊急連絡票と照合のうえ引き渡しを行い、引き渡し時刻・引き取り者を記録する。';
+  }
+  $('#dgBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;">'+
+    '<div class="card"><h3>'+ic('fileplus')+'施設固有の情報（ここだけ入力）</h3>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>第一避難場所</label><input data-kk="place1" value="'+d.place1+'" placeholder="○○公園"></div><div class="field"><label>第二避難場所</label><input data-kk="place2" value="'+d.place2+'"></div></div>'+
+      '<div class="field"><label>避難経路</label><input data-kk="route" value="'+d.route+'" placeholder="正門 → ○○通り → 公園東口"></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>防災責任者</label><input data-kk="leader" value="'+d.leader+'"></div><div class="field"><label>通報・連絡担当</label><input data-kk="reporter" value="'+d.reporter+'"></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>消防署 連絡先</label><input data-kk="fire" value="'+d.fire+'"></div><div class="field"><label>保護者への連絡手段</label><input data-kk="parent" value="'+d.parent+'"></div></div>'+
+      '<div class="muted">共通部分はテンプレート化済み。施設固有の情報だけ入力すれば完成します。</div></div>'+
+    '<div class="card">'+recHead('生成プレビュー','<button class="btn btn-sm" id="kkPrint">'+ic('printer')+'マニュアルを出力</button>')+'<div class="preview" id="kkPrev" style="max-height:460px;"></div></div></div>';
+  function upd(){$('#kkPrev').textContent='危機管理マニュアル（'+SET.school+'）\n\n'+manual();}
+  document.querySelectorAll('[data-kk]').forEach(function(inp){inp.oninput=function(){d[inp.getAttribute('data-kk')]=inp.value;dgSave('kiki',d);upd();};});
+  $('#kkPrint').onclick=function(){printDoc('危機管理マニュアル',manual().replace(/\n/g,'<br>'));};
+  upd();
+}
+function dgUnei(){
+  var d=Object.assign({capPre:'20',capKinder:'15',hours:'8:45〜18:00（延長含む）',changes:''},dgStore().unei||{});
+  function report(){
+    var pre=classOf('Pre').length,kin=classOf('Kinder').length;
+    var rows='<h2>1. 施設概要</h2><table><tbody><tr><th>施設名</th><td>'+SET.school+'</td></tr><tr><th>所在地</th><td>埼玉県さいたま市中央区下落合6-4-5 NK2ビル2階</td></tr><tr><th>開所時間</th><td>'+d.hours+'</td></tr></tbody></table>'+
+    '<h2>2. 児童の状況（システムの児童名簿から自動反映）</h2><table><thead><tr><th>クラス</th><th>定員</th><th>現員</th></tr></thead><tbody><tr><td>Preschool</td><td>'+d.capPre+'</td><td>'+pre+'</td></tr><tr><td>Kindergarten</td><td>'+d.capKinder+'</td><td>'+kin+'</td></tr><tr><td>合計</td><td>'+(+d.capPre + +d.capKinder)+'</td><td>'+(pre+kin)+'</td></tr></tbody></table>'+
+    '<h2>3. 職員の状況（システムの職員名簿から自動反映）</h2><table><thead><tr><th>氏名</th><th>役職</th><th>雇用形態</th><th>保有資格</th></tr></thead><tbody>'+DB.staff.map(function(x){return '<tr><td>'+x.name+'</td><td>'+x.role+'</td><td>'+x.employ+'</td><td>'+x.qual+'</td></tr>';}).join('')+'</tbody></table>'+
+    '<h2>4. 前年度からの変更点</h2><p>'+(d.changes||'特になし').replace(/\n/g,'<br>')+'</p>';
+    return rows;
+  }
+  $('#dgBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;">'+
+    '<div class="card"><h3>'+ic('fileplus')+'入力（変更点だけでOK）</h3>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>定員（Pre）</label><input data-un="capPre" type="number" value="'+d.capPre+'"></div><div class="field"><label>定員（Kinder）</label><input data-un="capKinder" type="number" value="'+d.capKinder+'"></div></div>'+
+      '<div class="field"><label>開所時間</label><input data-un="hours" value="'+d.hours+'"></div>'+
+      '<div class="field"><label>前年度からの変更点（設備・体制など）</label><textarea data-un="changes" rows="3">'+d.changes+'</textarea></div>'+
+      '<div class="cal-banner" style="padding:12px 14px;"><div style="flex:1;font-size:12.5px;">児童数 <b>'+enrolled().length+'名</b>・職員 <b>'+DB.staff.length+'名</b> はシステムのデータから<b>自動反映</b>されます。毎年の更新作業が不要になります。</div></div></div>'+
+    '<div class="card">'+recHead('生成プレビュー','<button class="btn btn-sm" id="unPrint">'+ic('printer')+'報告書を出力</button>')+'<div class="preview" id="unPrev" style="max-height:460px;"></div></div></div>';
+  function upd(){$('#unPrev').innerHTML='<div style="font-weight:600;margin-bottom:8px;">運営状況報告書（'+addDays(0).getFullYear()+'年度）</div>'+report();}
+  document.querySelectorAll('[data-un]').forEach(function(inp){inp.oninput=function(){d[inp.getAttribute('data-un')]=inp.value;dgSave('unei',d);upd();};});
+  $('#unPrint').onclick=function(){printDoc('運営状況報告書（'+addDays(0).getFullYear()+'年度）',report());};
+  upd();
+}
+function dgAnzen(){
+  var d=dgStore().anzen||{};
+  if(!d.rows)d={rows:[
+    {m:'4月',c:'避難訓練（地震）・防犯訓練',t:'全職員'},
+    {m:'6月',c:'救命救急・心肺蘇生（AED）研修',t:'全職員'},
+    {m:'9月',c:'不審者対応訓練',t:'全職員'},
+    {m:'11月',c:'感染症対策・嘔吐処理研修',t:'全職員'},
+    {m:'1月',c:'引き渡し訓練',t:'全職員・保護者'},
+    {m:'3月',c:'年間安全の振り返り・次年度計画策定',t:'全職員'}
+  ],parent:'・4月：保育安全計画を配布・説明\n・毎月：デイリーメールで安全・保健情報を配信\n・訓練実施後：実施報告を配信'};
+  function save(){dgSave('anzen',d);}
+  function plan(){
+    return '<h2>1. 年間研修・訓練計画</h2><table><thead><tr><th>時期</th><th>内容</th><th>対象</th></tr></thead><tbody>'+d.rows.map(function(r){return '<tr><td>'+r.m+'</td><td>'+r.c+'</td><td>'+r.t+'</td></tr>';}).join('')+'</tbody></table>'+
+    '<h2>2. 保護者への周知計画</h2><p>'+(d.parent||'').replace(/\n/g,'<br>')+'</p>';
+  }
+  $('#dgBody').innerHTML='<div class="grid" style="grid-template-columns:1.1fr 1fr;align-items:start;">'+
+    '<div class="card">'+recHead('年間研修・訓練計画','<button class="btn btn-sm btn-ghost" id="azAdd">'+ic('plus')+'行を追加</button>')+
+      '<table><thead><tr><th style="width:80px;">時期</th><th>内容</th><th style="width:120px;">対象</th><th></th></tr></thead><tbody>'+
+      d.rows.map(function(r,i){return '<tr><td><input data-az="'+i+'|m" value="'+r.m+'"></td><td><input data-az="'+i+'|c" value="'+r.c+'"></td><td><input data-az="'+i+'|t" value="'+r.t+'"></td><td><button class="btn btn-sm btn-ghost" data-azdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>'+
+      '<div class="field" style="margin-top:12px;"><label>保護者への周知計画</label><textarea id="azParent" rows="3">'+(d.parent||'')+'</textarea></div></div>'+
+    '<div class="card">'+recHead('生成プレビュー','<button class="btn btn-sm" id="azPrint">'+ic('printer')+'安全計画を出力</button>')+'<div class="preview" id="azPrev" style="max-height:460px;"></div></div></div>';
+  function upd(){$('#azPrev').innerHTML='<div style="font-weight:600;margin-bottom:8px;">保育安全計画（'+addDays(0).getFullYear()+'年度）</div>'+plan();}
+  document.querySelectorAll('[data-az]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-az').split('|');d.rows[+p[0]][p[1]]=inp.value;save();upd();};});
+  document.querySelectorAll('[data-azdel]').forEach(function(b){b.onclick=function(){d.rows.splice(+b.getAttribute('data-azdel'),1);save();dgAnzen();};});
+  $('#azAdd').onclick=function(){d.rows.push({m:'',c:'',t:'全職員'});save();dgAnzen();};
+  $('#azParent').onchange=function(e){d.parent=e.target.value;save();upd();};
+  $('#azPrint').onclick=function(){printDoc('保育安全計画（'+addDays(0).getFullYear()+'年度）',plan());};
+  upd();
+}
+
+/* ---------- 書類格納・緊急連絡先 ---------- */
+function renderDocs(){
+  var docs=stGet('docs',{}),hosp=stGet('hospitals',HOSP_DEFAULT),s=$('section[data-page="docs"]');
+  s.innerHTML='<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
+    '<div class="muted" style="margin-bottom:12px;">PDF等はDriveに保存し、そのURLをここに登録。監査チェックリスト・最終チェックリスト出力に「格納済み」として反映されます。</div>'+
+    '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th></tr></thead><tbody>'+
+    DOC_SLOTS.map(function(name){var r=docs[name]||{};return '<tr><td class="row-name" style="white-space:nowrap;">'+name+'</td><td><input data-du="'+name+'" value="'+(r.url||'')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+name+'" value="'+(r.memo||'')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td></tr>';}).join('')+
+    '</tbody></table><div style="margin-top:12px;"><button class="btn btn-primary" id="dcSave">'+ic('check')+'保存</button> <span class="muted" id="dcMsg"></span></div></div>'+
+    '<div class="card"><h3>'+ic('alert')+'病院等の緊急連絡先一覧（壁掲示用）</h3>'+
+    '<table><thead><tr><th>機関名</th><th>種別</th><th>電話</th><th></th></tr></thead><tbody>'+
+    hosp.map(function(h,i){return '<tr><td><input data-hn="'+i+'" value="'+h.name+'"></td><td><input data-ht="'+i+'" value="'+h.type+'" style="max-width:130px;"></td><td><input data-hp="'+i+'" value="'+h.tel+'" style="max-width:150px;"></td><td><button class="btn btn-sm btn-ghost" data-hdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')+
+    '</tbody></table><div style="margin-top:12px;display:flex;gap:8px;"><button class="btn" id="hpAdd">'+ic('plus')+'追加</button><button class="btn" id="hpSave">'+ic('check')+'保存</button><button class="btn btn-primary" id="hpPrint">'+ic('printer')+'壁掲示用に出力</button></div></div>';
+  $('#dcSave').onclick=function(){
+    DOC_SLOTS.forEach(function(name){
+      var url=s.querySelector('[data-du="'+name+'"]').value.trim(),memo=s.querySelector('[data-dm="'+name+'"]').value.trim();
+      if(url||memo)docs[name]={url:url,memo:memo,updated:todayISO()};else delete docs[name];
+    });
+    stSet('docs',docs);$('#dcMsg').textContent='保存しました';setTimeout(function(){renderDocs();},600);
+  };
+  function readHosp(){return hosp.map(function(h,i){return {id:h.id||i+1,name:s.querySelector('[data-hn="'+i+'"]').value,type:s.querySelector('[data-ht="'+i+'"]').value,tel:s.querySelector('[data-hp="'+i+'"]').value};});}
+  $('#hpSave').onclick=function(){stSet('hospitals',readHosp());renderDocs();};
+  $('#hpAdd').onclick=function(){var h=readHosp();h.push({id:Date.now(),name:'',type:'',tel:''});stSet('hospitals',h);renderDocs();};
+  s.querySelectorAll('[data-hdel]').forEach(function(b){b.onclick=function(){var h=readHosp();h.splice(+b.getAttribute('data-hdel'),1);stSet('hospitals',h);renderDocs();};});
+  $('#hpPrint').onclick=function(){
+    var h=readHosp();
+    var body='<table><thead><tr><th>機関名</th><th>種別</th><th>電話番号</th></tr></thead><tbody>'+h.map(function(x){return '<tr><td style="font-size:14px;">'+x.name+'</td><td style="font-size:14px;">'+x.type+'</td><td style="font-size:16px;font-weight:600;">'+x.tel+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('病院等の緊急連絡先一覧',body);
+  };
 }
 
 /* ---------- start ---------- */
