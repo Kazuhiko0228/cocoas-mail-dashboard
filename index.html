@@ -362,7 +362,7 @@ function weekOfMonth(s){var d=+s.split('-')[2];return Math.min(CUR.weeks.length,
 function curDaily(){if(!CUR.daily)CUR.daily={};return CUR.daily;}
 function curDayPlan(cls,wk,day){var d=curDaily();return (((d[cls]||{})[wk]||{})[day])||{};}
 function curDaySet(cls,wk,day,type,val){var d=curDaily();d[cls]=d[cls]||{};d[cls][wk]=d[cls][wk]||{};d[cls][wk][day]=d[cls][wk][day]||{};if(val)d[cls][wk][day][type]=val;else delete d[cls][wk][day][type];DB.curriculum=CUR;}
-function curDayText(cls,wk,day){var pl=curDayPlan(cls,wk,day);return (ACTIVITY_TYPES[cls]||[]).filter(function(t){return pl[t];}).map(function(t){return t+'：'+pl[t];}).join('\n');}
+function curDayText(cls,wk,day){var pl=curDayPlan(cls,wk,day);return actTypes(cls).filter(function(t){return pl[t];}).map(function(t){return t+'：'+pl[t];}).join('\n');}
 
 /* recurring delivery schedule */
 var DELIVERIES=[
@@ -399,6 +399,7 @@ var AUDIT_CATS=[
     {key:'jido_meibo',name:'児童名簿',place:'入園者名簿・月間名簿・退園者ファイル',when:'運営中',sys:'contacts'},
     {key:'shusseki',name:'出席簿（利用記録）',place:'生徒出席簿ファイル',when:'運営中',sys:'records'},
     {key:'shintai',name:'身体測定記録（昨年度含む）',place:'身体測定記録表・個別 健康手帳',when:'運営中',sys:'records'},
+    {key:'hattatsu',name:'生徒個人発達記録（3ヶ月ごと）',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'keiyaku',name:'利用契約書',place:'規約・料金表・利用にあたって（掲示）',when:'年度前',sys:'docs'}
   ]},
   {cat:'② 職員関係',items:[
@@ -466,7 +467,7 @@ var HOSP_DEFAULT=[
 ];
 var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','消防計画・避難確保計画','損害賠償保険証書','献立表'];
 var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',shobo:'消防計画・避難確保計画',baisho:'損害賠償保険証書',kondate:'献立表'};
-var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','ヒヤリハット・怪我':'rec_hiyari','業務日報・保育日誌':'rec_日報'};
+var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','ヒヤリハット・怪我':'rec_hiyari','生徒個人発達記録':'rec_発達','業務日報・保育日誌':'rec_日報'};
 function attendedToday(id){var sh=stGet('rec_登園シート',{})[todayISO()];return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
 var DRILL_PROC_DEFAULT='①日本人スタッフ1人 → 避難経路ドア（地震時）確保／火元の場所確認（火事時）\n　必要書類（健康管理手帳）、避難袋、最終確認\n　日本人スタッフ1人 → 子どもたちを安全な場所へ移動させる\n　※棚やモノが落ちてきそうなところは避けて、お昼寝マットで子どもの頭を守る\n　安全確認、子どもたちの靴を袋に入れて一番小さい子どもを連れて一番先に外へ出る\n　外国人スタッフ1人 → 子供たちを安全な場所に移動させ、子どもたちを連れて外へ避難\n②自動ドア外 or 正面玄関外に避難したら子供たちに靴を履かせる\n③子供たちをならばせ人数をチェック後、横の駐車場へ避難し再度人数チェック\n④必要であれば第2・3避難場所の小学校へ避難';
@@ -498,6 +499,7 @@ function auditDataInfo(key){
     case 'gosui': return Object.keys(stGet('rec_午睡チェック',{})).length+'日分の記録あり';
     case 'kenko': return Object.keys(stGet('rec_健康チェック',{})).length+'日分の記録あり';
     case 'shintai': return Object.keys(stGet('rec_身体測定',{})).length+'ヶ月分の記録あり';
+    case 'hattatsu': var dv=stGet('rec_発達',{}),dn=0;Object.keys(dv).forEach(function(k){dn+=Object.keys(dv[k]).length;});return dn+'件の記録あり';
     case 'kega': return stGet('rec_hiyari',[]).length+'件の記録あり';
     case 'nisshi': return Object.keys(stGet('rec_日報',{})).length+'日分の記録あり';
     case 'gyakutai': return Object.keys(stGet('rec_虐待防止',{})).length+'回分の記録あり';
@@ -564,7 +566,8 @@ function statusColor(s){return ({
 })[s]||'#888780';}
 function statusPill(s){return '<span class="pill" style="background:'+statusColor(s)+';color:#fff;">'+s+'</span>';}
 function statusGroup(s){if(s==='入園 確定')return 'confirmed';if(['体験後 検討中','🔥入園見込み','長期見込み','連絡不通'].indexOf(s)>-1)return 'post';if(s==='NG')return 'ng';return 'trial';}
-var ACTIVITY_TYPES={Pre:['Game','Gym','Motorskill','Phonics','Outside','Craft'],Kinder:['Circle Time','Phonics','Motorskill','SDGs','Show and Tell','Outside','Craft']};
+var ACTIVITY_TYPES={Pre:['Game','Gym','Motorskill','Phonics','Outside','Craft'],Kinder:['Reading','Writing','Show & Tell','ICT(プログラミング)','Math','Science','Geography','Art & Craft','Cooking','rythmique（外部講師）','P.E（外部講師）']};
+function actTypes(cls){var st=(typeof SET!=='undefined'&&SET.activityTypes)||{};return (st[cls]&&st[cls].length)?st[cls]:(ACTIVITY_TYPES[cls]||[]);}
 var WEEKDAYS=[['Mon','月'],['Tue','火'],['Wed','水'],['Thu','木'],['Fri','金']];
 function spinSvg(){return '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#185FA5" stroke-width="2"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9"/></svg>';}
 
@@ -913,7 +916,7 @@ function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
   var y=CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
   function v(x){return (x||'').replace(/"/g,'&quot;');}
-  var types=ACTIVITY_TYPES[curClass]||[];
+  var types=actTypes(curClass);
   s.innerHTML='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('book')+'月次項目（'+y+'年 '+mo+'月・デイリーメール用）</h3>'+
     '<div class="field"><label>Monthly Theme（今月のテーマ）</label><input id="curTheme" value="'+v(CUR.theme)+'"></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Phonics Letter</label><input id="curPL" value="'+v(CUR.phonicsLetter)+'"></div><div class="field"><label>Phonics Song</label><input id="curPS" value="'+v(CUR.phonicsSong)+'"></div></div>'+
@@ -972,6 +975,7 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','Daycare 通常料金',SET.daycareFeeNormal)+f('s_dcE','Daycare 延長料金',SET.daycareFeeExt)+f('s_dcL','スクールランチ',SET.daycareLunch)+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','Daycare フォームURL',SET.daycareFormUrl)+f('s_survey','アンケートURL',SET.surveyUrl)+'</div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。ランチ・ロングステイなど、園に合わせて自由に追加・変更・削除できます。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類。各学校ヒヤリングに合わせて自由に追加・変更できます。</div><div id="actTypeBox"></div></div>'+
     '<button class="btn btn-primary" id="s_save">'+ic('check')+'保存</button> <span class="muted" id="s_msg"></span>'+
     '<div class="card" style="max-width:620px;margin-top:16px;"><h3>'+ic('gear')+'サンプルデータ</h3><div class="muted" style="margin-bottom:10px;">連絡先・職員を最新のサンプル（生年月日・通園曜日・Lunch/Long入り）で再読込します。入力済みデータは消えます。</div><button class="btn" id="s_reseed">サンプルデータを再読込</button></div>';
   $('#s_save').onclick=function(){
@@ -992,6 +996,15 @@ function renderSettings(){
   }
   renderOpts();
   $('#optAdd').onclick=function(){var v=$('#optNew').value.trim();if(!v)return;if(!SET.attendOptions)SET.attendOptions=[];SET.attendOptions.push(v);DB.settings=SET;$('#optNew').value='';renderOpts();};
+  function renderActTypes(){
+    if(!SET.activityTypes)SET.activityTypes={};
+    function ensure(cls){if(!SET.activityTypes[cls])SET.activityTypes[cls]=actTypes(cls).slice();}
+    $('#actTypeBox').innerHTML=CLASSES.map(function(cls){var list=actTypes(cls);return '<div style="margin-bottom:14px;"><div style="font-weight:500;font-size:13px;margin-bottom:6px;">'+cls+'</div>'+list.map(function(o,i){return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><input value="'+o.replace(/"/g,'&quot;')+'" data-atc="'+cls+'" data-ati="'+i+'" style="max-width:280px;"><button class="btn btn-sm btn-ghost" data-atd="'+cls+'|'+i+'">'+ic('trash')+'</button></div>';}).join('')+'<div style="display:flex;gap:8px;margin-top:4px;"><input data-atnew="'+cls+'" placeholder="'+cls+'に種類を追加" style="max-width:240px;"><button class="btn btn-sm" data-atadd="'+cls+'">'+ic('plus')+'追加</button></div></div>';}).join('');
+    $('#actTypeBox').querySelectorAll('[data-atc]').forEach(function(inp){inp.onchange=function(){var cls=inp.getAttribute('data-atc');ensure(cls);SET.activityTypes[cls][+inp.getAttribute('data-ati')]=inp.value.trim();DB.settings=SET;};});
+    $('#actTypeBox').querySelectorAll('[data-atd]').forEach(function(b){b.onclick=function(){var p=b.getAttribute('data-atd').split('|');ensure(p[0]);SET.activityTypes[p[0]].splice(+p[1],1);DB.settings=SET;renderActTypes();};});
+    $('#actTypeBox').querySelectorAll('[data-atadd]').forEach(function(b){b.onclick=function(){var cls=b.getAttribute('data-atadd'),inp=$('#actTypeBox').querySelector('[data-atnew="'+cls+'"]'),v=inp.value.trim();if(!v)return;ensure(cls);SET.activityTypes[cls].push(v);DB.settings=SET;renderActTypes();};});
+  }
+  renderActTypes();
 }
 
 /* ---------- staff ---------- */
@@ -1096,7 +1109,7 @@ function renderRecords(){
   var s=$('section[data-page="records"]');
   s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;" id="recChips">'+Object.keys(RKEY).map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+t+'">'+t+'</span>';}).join('')+'</div></div><div id="recBody"></div>';
   s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecords();};});
-  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'業務日報・保育日誌':edNippo})[recType]();
+  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
 }
 function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
 function edTouen(){
@@ -1246,30 +1259,88 @@ function edBody(){
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月）',body);
   };
 }
+function bodyFigSVG(marks,side,editable){
+  var dots=(marks||[]).filter(function(x){return x.side===side;}).map(function(x){return '<circle cx="'+x.x+'" cy="'+x.y+'" r="4" fill="#E24B4A" stroke="#fff" stroke-width="1"/>';}).join('');
+  return '<svg viewBox="0 0 100 200" data-side="'+side+'" style="width:88px;height:176px;background:#fff;border:1px solid var(--line);border-radius:8px;'+(editable?'cursor:crosshair;':'')+'"><g fill="#F5C4B3" stroke="#B4B2A9" stroke-width="1"><circle cx="50" cy="20" r="13"/><rect x="37" y="34" width="26" height="58" rx="11"/><rect x="19" y="38" width="14" height="46" rx="7"/><rect x="67" y="38" width="14" height="46" rx="7"/><rect x="38" y="89" width="11" height="62" rx="5"/><rect x="51" y="89" width="11" height="62" rx="5"/></g>'+dots+'<text x="50" y="197" text-anchor="middle" font-size="9" fill="#5F5E5A">'+(side==='front'?'前':'後')+'</text></svg>';
+}
 function edHiyari(){
-  var K=RKEY['ヒヤリハット・怪我'],log=stGet(K,[]);
-  var kids=enrolled();
-  $('#recBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.3fr;align-items:start;">'+
-    '<div class="card"><h3>'+ic('alert')+'新規記録</h3>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>発生日</label><input type="date" id="hyDate" value="'+recDate+'"></div><div class="field"><label>時刻</label><input id="hyTime" placeholder="10:30頃"></div></div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>種別</label><select id="hyType"><option>ヒヤリハット</option><option>怪我</option><option>発熱</option><option>事故</option></select></div><div class="field"><label>児童</label><select id="hyChild"><option>—</option>'+kids.map(function(c){return '<option>'+childName(c)+'</option>';}).join('')+'</select></div></div>'+
-      '<div class="field"><label>場所</label><input id="hyPlace" placeholder="園庭・保育室 など"></div>'+
-      '<div class="field"><label>状況</label><textarea id="hyDesc" rows="2"></textarea></div>'+
-      '<div class="field"><label>対応・処置</label><textarea id="hyAction" rows="2"></textarea></div>'+
-      '<div class="field"><label>報告者</label><input id="hyBy"></div>'+
-      '<button class="btn btn-primary" id="hyAdd">'+ic('plus')+'記録を追加</button></div>'+
-    '<div class="card">'+recHead('記録一覧（怪我発熱等記録表・ヒヤリハット）','<button class="btn btn-sm" id="hyPrint">'+ic('printer')+'年間一覧を出力</button>')+
-      (log.length?'<table><thead><tr><th>発生日</th><th>種別</th><th>児童</th><th>状況</th><th></th></tr></thead><tbody>'+log.slice().reverse().map(function(r){return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(r.type==='ヒヤリハット'?'#FAEEDA':'#FCEBEB')+';color:'+(r.type==='ヒヤリハット'?'#854F0B':'#A32D2D')+';">'+r.type+'</span></td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+r.desc+'<div class="row-sub">対応：'+(r.action||'—')+'</div></td><td><button class="btn btn-sm btn-ghost" data-del="'+r.id+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">記録はまだありません</div>')+
-    '</div></div>';
-  $('#hyAdd').onclick=function(){
-    if(!$('#hyDesc').value.trim()){alert('状況を入力してください');return;}
-    log.push({id:Date.now(),date:$('#hyDate').value,time:$('#hyTime').value,type:$('#hyType').value,child:$('#hyChild').value,place:$('#hyPlace').value,desc:$('#hyDesc').value,action:$('#hyAction').value,by:$('#hyBy').value});
-    stSet(K,log);edHiyari();
-  };
-  document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){stSet(K,log.filter(function(r){return r.id!==+b.getAttribute('data-del');}));edHiyari();};});
+  var K='rec_hiyari',log=stGet(K,[]);
+  $('#recBody').innerHTML='<div class="card">'+recHead('怪我・発熱等 記録表 ／ ヒヤリハット','<button class="btn btn-sm btn-primary" id="hyAdd">'+ic('plus')+'記録を追加</button><button class="btn btn-sm" id="hyPrint">'+ic('printer')+'年間一覧を出力</button>')+
+    '<div class="muted" style="margin-bottom:10px;">怪我・発熱・ヒヤリハットを記録。人型のイラストをタップして部位を記録できます（前面・背面）。</div>'+
+    (log.length?'<table><thead><tr><th>発生日時</th><th>内容</th><th>児童</th><th>状況・対応・今後</th><th></th></tr></thead><tbody>'+log.slice().sort(function(a,b){return (a.date+(a.time||''))<(b.date+(b.time||''))?1:-1;}).map(function(r){var idx=log.indexOf(r);var types=(r.types||[]).join('・')||r.type||'';var hy=types.indexOf('ヒヤリ')>-1&&types.indexOf('怪我')<0;return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(hy?'#FAEEDA;color:#854F0B':'#FCEBEB;color:#A32D2D')+';">'+(types||'—')+'</span>'+((r.marks||[]).length?'<div class="row-sub">部位図あり</div>':'')+'</td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+(r.content||r.desc||'')+'<div class="row-sub">対応：'+(r.treatment||r.action||'—')+(r.future?' ／ 今後：'+r.future:'')+'</div></td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hyedit="'+idx+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+idx+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">記録はまだありません。「記録を追加」から。</div>')+
+    '</div>';
+  $('#hyAdd').onclick=function(){hiyariModal(null,log,K);};
+  document.querySelectorAll('[data-hyedit]').forEach(function(b){b.onclick=function(){hiyariModal(+b.getAttribute('data-hyedit'),log,K);};});
+  document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){log.splice(+b.getAttribute('data-del'),1);stSet(K,log);edHiyari();};});
   $('#hyPrint').onclick=function(){
-    var body='<table><thead><tr><th>発生日時</th><th>種別</th><th>児童</th><th>場所</th><th>状況</th><th>対応</th><th>報告者</th></tr></thead><tbody>'+log.map(function(r){return '<tr><td>'+fmt(r.date)+' '+(r.time||'')+'</td><td>'+r.type+'</td><td>'+(r.child||'—')+'</td><td>'+(r.place||'')+'</td><td>'+r.desc+'</td><td>'+(r.action||'')+'</td><td>'+(r.by||'')+'</td></tr>';}).join('')+'</tbody></table>';
-    printDoc('怪我発熱等記録表・ヒヤリハット記録（年間一覧）',body);
+    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつける点</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr></tbody></table>';}).join(''):'<p>記録なし</p>';
+    printDoc('怪我・発熱等 記録表／ヒヤリハット（年間一覧）',body);
+  };
+}
+function hiyariModal(idx,log,K){
+  var kids=enrolled();
+  var r=idx!=null?JSON.parse(JSON.stringify(log[idx])):{date:recDate,time:'',child:'',types:[],other:'',content:'',treatment:'',future:'',remarks:'',by:'',marks:[]};
+  if(!r.types)r.types=[];if(!r.marks)r.marks=[];
+  function v(x){return (x||'').replace(/"/g,'&quot;');}
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  function collect(){if($('#hy_content')){r.date=$('#hy_date').value;r.time=$('#hy_time').value;r.child=$('#hy_child').value;r.other=$('#hy_other').value;r.content=$('#hy_content').value;r.treatment=$('#hy_treat').value;r.future=$('#hy_future').value;r.remarks=$('#hy_remarks').value;r.by=$('#hy_by').value;}}
+  function render(){
+    m.innerHTML='<div class="modal" style="width:680px;"><h2>怪我・発熱等 記録</h2>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1.2fr;"><div class="field"><label>発生日</label><input type="date" id="hy_date" value="'+(r.date||'')+'"></div><div class="field"><label>時刻</label><input id="hy_time" value="'+v(r.time)+'" placeholder="10:30頃"></div><div class="field"><label>児童</label><select id="hy_child"><option value="">—</option>'+kids.map(function(c){return '<option'+(childName(c)===r.child?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select></div></div>'+
+      '<div class="field"><label>内容</label><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">'+['怪我','発熱','ヒヤリハット'].map(function(t){var on=r.types.indexOf(t)>-1;return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" data-hytype="'+t+'" style="width:auto;"'+(on?' checked':'')+'>'+t+'</label>';}).join('')+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;">その他<input id="hy_other" value="'+v(r.other)+'" style="width:150px;"></label></div></div>'+
+      '<div class="grid" style="grid-template-columns:1.4fr 1fr;align-items:start;">'+
+        '<div><div class="field"><label>内容（状況）</label><textarea id="hy_content" rows="2">'+(r.content||'')+'</textarea></div>'+
+        '<div class="field"><label>処置対応</label><textarea id="hy_treat" rows="2">'+(r.treatment||'')+'</textarea></div>'+
+        '<div class="field"><label>今後気をつける点</label><textarea id="hy_future" rows="2">'+(r.future||'')+'</textarea></div>'+
+        '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>備考</label><input id="hy_remarks" value="'+v(r.remarks)+'"></div><div class="field"><label>報告者</label><input id="hy_by" value="'+v(r.by)+'"></div></div></div>'+
+        '<div><label style="margin-bottom:6px;display:block;">部位（人型をタップ）<button class="btn btn-sm btn-ghost" id="hy_clear" style="float:right;padding:2px 8px;">クリア</button></label><div style="display:flex;gap:6px;justify-content:center;">'+bodyFigSVG(r.marks,'front',true)+bodyFigSVG(r.marks,'back',true)+'</div></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="hy_cancel">キャンセル</button><button class="btn btn-primary" id="hy_save">保存</button></div></div>';
+    m.querySelectorAll('svg[data-side]').forEach(function(svg){svg.onclick=function(e){collect();var rc=svg.getBoundingClientRect();r.marks.push({side:svg.getAttribute('data-side'),x:Math.round((e.clientX-rc.left)/rc.width*100),y:Math.round((e.clientY-rc.top)/rc.height*200)});render();};});
+    m.querySelectorAll('[data-hytype]').forEach(function(cb){cb.onchange=function(){var t=cb.getAttribute('data-hytype'),i=r.types.indexOf(t);if(cb.checked&&i<0)r.types.push(t);else if(!cb.checked&&i>-1)r.types.splice(i,1);};});
+    $('#hy_clear').onclick=function(){collect();r.marks=[];render();};
+    $('#hy_cancel').onclick=function(){m.remove();};
+    $('#hy_save').onclick=function(){collect();if(!r.id)r.id=Date.now();if(idx!=null)log[idx]=r;else log.push(r);stSet(K,log);m.remove();edHiyari();};
+  }
+  render();
+}
+
+var DEV_O3=['自力で出来る','補助ありで出来る','自力では難しい'];
+var DEV_CATS=[
+  {cat:'みじたく',items:[['靴を脱ぐ',DEV_O3],['靴を履く',DEV_O3],['靴下を脱ぐ',DEV_O3],['靴下を履く',DEV_O3],['ズボンの着脱',DEV_O3],['自分の荷物を片付ける',['正しい場所へ入れられる','箱へ入れられる','自力では難しい']],['タオルを洗濯ばさみに挟む',['自力で挟める','補助があれば出来る','自力では難しい']],['ロッカーにモノの出し入れ',DEV_O3]]},
+  {cat:'トイレ',items:[['トイレ・手洗いの順番を待つ',['出来る','難しい']],['オムツの着脱',DEV_O3],['手洗い',DEV_O3],['トイレ／子ども用トイレに座る',DEV_O3],['排泄をトイレ中に行う',['自力で行える','自力では難しい']],['排泄の申告',['大人に伝えられる','伝えるのは難しい']]]},
+  {cat:'食事',items:[['食事の準備',DEV_O3],['口に入れる量を調節して食べる',DEV_O3],['スプーン・フォークで食べる',DEV_O3],['片付け',DEV_O3],['ウェットティッシュで手や口を拭く',DEV_O3]]},
+  {cat:'午睡',items:[['自分の布団の場所に向かう',DEV_O3],['入眠時の寝かしつけ',['必要','不要','午睡の必要なし']],['ブランケットを畳む',DEV_O3]]},
+  {cat:'歯磨き',items:[['歯ブラシで歯磨き',DEV_O3],['うがい（水を口に含み吐き出す）',['含ませ吐き出せる','吐き出せる','自力では難しい']]]},
+  {cat:'発育・発達',items:[['保育者とのやりとりを繰り返し楽しむ',['できる','育ちつつある','まだ']],['保育者に甘える／泣いて助けを求める',['できる','育ちつつある','まだ']],['保育者に興味をもち模倣しようとする',['できる','育ちつつある','まだ']],['しぐさや言葉で気持ちを伝えようとする',['できる','育ちつつある','まだ']],['保育者の言葉を繰り返そうとする',['できる','育ちつつある','まだ']],['座って待つことができる',['できる','育ちつつある','まだ']],['話しかけられた時に目を見て聞ける',['できる','育ちつつある','まだ']]]}
+];
+var devChild=null;
+function edDev(){
+  var K='rec_発達',data=stGet(K,{});
+  if(!recQuarter)recQuarter=curQuarter();
+  var kids=enrolled();
+  if(!devChild&&kids.length)devChild=kids[0].id;
+  var rec=(data[devChild]&&data[devChild][recQuarter])||{items:{},memo:'',by:''};
+  var cur=kids.filter(function(c){return c.id===devChild;})[0];
+  var y=addDays(0).getFullYear();var qs=[];[y-1,y].forEach(function(yy){[1,2,3,4].forEach(function(q){qs.push(yy+'-Q'+q);});});
+  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（3ヶ月ごと）','<select id="dvChild" style="width:150px;">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===devChild?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select><select id="dvQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="dvPrint">'+ic('printer')+'出力</button>')+
+    (cur?'<div class="muted" style="margin-bottom:10px;">'+childName(cur)+'（'+ageClassOf(cur)+'）の発達状況を3ヶ月ごとに記録します。監査書類（生徒個人発達記録）に対応。</div>':'<div class="empty">在園児がいません</div>')+
+    (cur?DEV_CATS.map(function(c,ci){return '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:13px;background:#F1EFE8;padding:6px 10px;border-radius:6px;margin-bottom:2px;">'+c.cat+'</div><table><tbody>'+
+      c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+key+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
+      '</tbody></table></div>';}).join('')+
+    '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+(rec.memo||'').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="dvBy" value="'+(rec.by||'').replace(/"/g,'&quot;')+'"></div></div>':'')+'</div>';
+  function save(){data[devChild]=data[devChild]||{};data[devChild][recQuarter]=rec;stSet(K,data);}
+  $('#dvChild').onchange=function(e){devChild=+e.target.value;edDev();};
+  $('#dvQ').onchange=function(e){recQuarter=e.target.value;edDev();};
+  document.querySelectorAll('[data-dv]').forEach(function(sl){sl.onchange=function(){rec.items[sl.getAttribute('data-dv')]=sl.value;save();};});
+  if($('#dvMemo'))$('#dvMemo').onchange=function(e){rec.memo=e.target.value;save();};
+  if($('#dvBy'))$('#dvBy').onchange=function(e){rec.by=e.target.value;save();};
+  $('#dvPrint').onclick=function(){
+    var body='<p>'+(cur?childName(cur)+'（'+ageClassOf(cur)+'）':'')+'　記録：'+recQuarter+'　記録者：'+(rec.by||'')+'</p>'+
+      DEV_CATS.map(function(c,ci){return '<h3>'+c.cat+'</h3><table><tbody>'+c.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rec.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+
+      '<p>メモ：'+(rec.memo||'')+'</p>';
+    printDoc('生徒個人発達記録（'+(cur?childName(cur):'')+'・'+recQuarter+'）',body);
   };
 }
 function edNippo(){
