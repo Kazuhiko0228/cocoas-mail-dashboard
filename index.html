@@ -335,7 +335,8 @@ var SET=Object.assign({
   bankName:"ゆうちょ銀行",bankBranch:"ニイチハチ支店",bankType:"普通",bankNo:"",bankHolder:"ココアス(カ)",
   photoUrl:"https://with.8122.jp/",photoCodePre:"",photoCodeKinder:"",
   daycareFeeNormal:"5,500",daycareFeeExt:"6,600",daycareLunch:"550",
-  daycareFormUrl:"",surveyUrl:"",docAuditDate:"",attendOptions:['ランチ','ロングステイ']
+  daycareFormUrl:"",surveyUrl:"",docAuditDate:"",attendOptions:['ランチ','ロングステイ'],
+  pricing:{plans:{'週2':30000,'週3':42000,'週4':52000,'週5':58000},lunch:550,extended:1000,material:3000,admission:30000}
 },DB.settings);
 if(!SET.attendOptions||!SET.attendOptions.length)SET.attendOptions=['ランチ','ロングステイ'];
 DB.settings=SET;
@@ -359,10 +360,14 @@ function defaultCurriculum(){return {month:curMonthKey(),
 var CUR=(DB.curriculum&&DB.curriculum.month===curMonthKey())?Object.assign(defaultCurriculum(),DB.curriculum):defaultCurriculum();
 DB.curriculum=CUR;
 function weekOfMonth(s){var d=+s.split('-')[2];return Math.min(CUR.weeks.length,Math.max(1,Math.ceil(d/7)));}
-function curDaily(){if(!CUR.daily)CUR.daily={};return CUR.daily;}
-function curDayPlan(cls,wk,day){var d=curDaily();return (((d[cls]||{})[wk]||{})[day])||{};}
-function curDaySet(cls,wk,day,type,val){var d=curDaily();d[cls]=d[cls]||{};d[cls][wk]=d[cls][wk]||{};d[cls][wk][day]=d[cls][wk][day]||{};if(val)d[cls][wk][day][type]=val;else delete d[cls][wk][day][type];DB.curriculum=CUR;}
-function curDayText(cls,wk,day){var pl=curDayPlan(cls,wk,day);return actTypes(cls).filter(function(t){return pl[t];}).map(function(t){return t+'：'+pl[t];}).join('\n');}
+function curSched(){if(!CUR.schedule)CUR.schedule={};return CUR.schedule;}
+function curSchedGet(cls,date){var s=curSched();return ((s[cls]||{})[date])||{am:'',pm:'',daycare:false,memo:''};}
+function curSchedSet(cls,date,obj){var s=curSched();s[cls]=s[cls]||{};s[cls][date]=obj;DB.curriculum=CUR;}
+function curCont(){if(!CUR.content)CUR.content={};return CUR.content;}
+function curContGet(cls,wk,type){var c=curCont();return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
+function curContSet(cls,wk,type,obj){var c=curCont();c[cls]=c[cls]||{};c[cls][wk]=c[cls][wk]||{};c[cls][wk][type]=obj;DB.curriculum=CUR;}
+function curDayActivities(cls,date){var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));function txt(t){if(!t)return '';if(t==='Daycare')return '1日託児保育（Daycare）';var ct=curContGet(cls,wk,t);return t+(ct.plan?'：'+ct.plan:'');}if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:''};return {morning:txt(sc.am),afternoon:txt(sc.pm)};}
+function curDayText(cls,date){var a=curDayActivities(cls,date);return [a.morning?'【午前】'+a.morning:'',a.afternoon?'【午後】'+a.afternoon:''].filter(Boolean).join('\n');}
 
 /* recurring delivery schedule */
 var DELIVERIES=[
@@ -385,10 +390,10 @@ function daysUntil(t){return Math.round((t-addDays(0))/86400000);}
 
 /* staff (職員) */
 function staffSeed(){return [
-  {id:101,name:"白神 美咲",kana:"シラガ ミサキ",role:"スクールマネージャー",employ:"正社員",qual:"保育士・幼稚園教諭",qualNo:"埼玉-第12345号",joinDate:"2023-04-01",kenshinDate:"2025-10-15"},
-  {id:102,name:"田村 さやか",kana:"タムラ サヤカ",role:"主任保育士",employ:"正社員",qual:"保育士",qualNo:"埼玉-第23456号",joinDate:"2024-04-01",kenshinDate:"2025-05-10"},
-  {id:103,name:"John Smith",kana:"ジョン スミス",role:"英語講師",employ:"契約社員",qual:"TEFL Certificate",qualNo:"TEFL-778899",joinDate:"2024-09-01",kenshinDate:"2026-04-20"},
-  {id:104,name:"佐々木 葵",kana:"ササキ アオイ",role:"保育補助",employ:"パート",qual:"子育て支援員",qualNo:"—",joinDate:"2025-04-01",kenshinDate:"2026-02-01"}
+  {id:101,name:"白神 美咲",kana:"シラガ ミサキ",role:"スクールマネージャー",employ:"正社員",qual:"保育士・幼稚園教諭",qualNo:"埼玉-第12345号",joinDate:"2023-04-01",kenshinDate:"2025-10-15",baseShift:"日"},
+  {id:102,name:"田村 さやか",kana:"タムラ サヤカ",role:"主任保育士",employ:"正社員",qual:"保育士",qualNo:"埼玉-第23456号",joinDate:"2024-04-01",kenshinDate:"2025-05-10",baseShift:"早"},
+  {id:103,name:"John Smith",kana:"ジョン スミス",role:"英語講師",employ:"契約社員",qual:"TEFL Certificate",qualNo:"TEFL-778899",joinDate:"2024-09-01",kenshinDate:"2026-04-20",baseShift:"遅"},
+  {id:104,name:"佐々木 葵",kana:"ササキ アオイ",role:"保育補助",employ:"パート",qual:"子育て支援員",qualNo:"—",joinDate:"2025-04-01",kenshinDate:"2026-02-01",baseShift:"日"}
 ];}
 function kenshinNext(d){if(!d)return null;var p=d.split('-');return new Date(+p[0]+1,+p[1]-1,+p[2]);}
 function kenshinStatus(d){var nd=kenshinNext(d);if(!nd)return{lab:'未登録',bg:'#F1EFE8',fg:'#5F5E5A'};var du=daysUntil(nd);if(du<0)return{lab:'期限切れ',bg:'#FCEBEB',fg:'#A32D2D'};if(du<=30)return{lab:'要更新',bg:'#FAEEDA',fg:'#854F0B'};return{lab:'OK',bg:'#EAF3DE',fg:'#27500A'};}
@@ -651,9 +656,10 @@ function renderDash(){
       '</div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('mail')+'最近の送信履歴</h3>'+
-      (hist.length?'<table><thead><tr><th>日時</th><th>種別</th><th>宛先</th></tr></thead><tbody>'+hist.slice(-8).reverse().map(function(h){return '<tr><td class="row-sub">'+h.time+'</td><td>'+h.tpl+'</td><td>'+h.to+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ送信履歴はありません</div>')+
+      (hist.length?'<div class="muted" style="margin-bottom:8px;">行をクリックすると送信済みメールの本文を確認できます。</div><table><thead><tr><th>日時</th><th>種別</th><th>宛先</th><th></th></tr></thead><tbody>'+hist.slice(-10).reverse().map(function(h){var gi=hist.indexOf(h);return '<tr style="cursor:pointer;" data-mail="'+gi+'"><td class="row-sub">'+h.time+'</td><td>'+h.tpl+'</td><td>'+h.to+'</td><td style="text-align:right;color:var(--tx3);">'+ic('mail').replace('<svg','<svg style="width:15px;height:15px;vertical-align:-2px;"')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ送信履歴はありません</div>')+
     '</div>';
   s.querySelectorAll('[data-task]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-task').split('|');routeTo(p);});});
+  s.querySelectorAll('[data-mail]').forEach(function(r){r.onclick=function(){sentMailModal(DB.history[+r.getAttribute('data-mail')]);};});
   s.querySelectorAll('[data-per]').forEach(function(b){b.onclick=function(){dashPeriod=b.getAttribute('data-per');renderDash();};});
   var pf=$('#perFY');if(pf)pf.onchange=function(e){dashFY=+e.target.value;renderDash();};
   var pm=$('#perMonth');if(pm)pm.onchange=function(e){dashMonth=e.target.value;renderDash();};
@@ -775,7 +781,7 @@ function renderCompose(){
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('send')+'送信</h3>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;"><div><label>送信元</label><input value="'+SET.sender+'" readonly style="background:#f7f8f6;"></div><div><label>BCC（本部共有・自動付与）</label><input value="'+SET.bcc+'" readonly style="background:#f7f8f6;"></div></div>'+
-      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;"><button class="btn btn-primary" id="cmpSend">'+ic('send')+'選択した宛先へ順番に送信</button><span class="muted" id="cmpCount"></span></div>'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="cmpSend">'+ic('send')+'選択した宛先へ順番に送信</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="cmpSchedAt" style="width:200px;"><button class="btn" id="cmpSched">'+ic('clock')+'予約</button><span class="muted" id="cmpCount"></span></div>'+
       '<div class="pbar"><div id="cmpBar"></div></div><div class="send-log" id="cmpLog"></div></div>';
   var sel=$('#cmpTpl');sel.innerHTML=Object.keys(TEMPLATES).map(function(k){return '<option value="'+k+'">'+TEMPLATES[k].label+'</option>';}).join('');sel.value=composeTpl;
   $('#cmpCycle').innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(function(m){return '<option value="'+m+'"'+(m===composeCycle?' selected':'')+'>'+m+'月</option>';}).join('');
@@ -794,15 +800,16 @@ function renderCompose(){
   function preview(){var sc=selC();var c=sc.length?sc[0]:cs[0];$('#cmpPreview').textContent=(sc.length?'宛先: '+c.name+' 様（プレビュー）\n':'')+'件名: '+fillTokens($('#cmpSubject').value,c,ctx())+'\n\n'+fillTokens($('#cmpBody').value,c,ctx());}
   $('#cmpTpl').onchange=function(e){composeTpl=e.target.value;loadTpl();};
   $('#cmpCycle').onchange=function(e){composeCycle=+e.target.value;preview();};
-  $('#cmpAuto').onclick=function(){var t=TEMPLATES[composeTpl];composeSel={};cs.forEach(function(c){if(t.enrolledOnly){if(c.kind==='enrolled')composeSel[c.id]=true;}else if(t.targets){if(c.kind==='lead'&&t.targets.indexOf(c.status)>-1)composeSel[c.id]=true;}});list();};
+  $('#cmpAuto').onclick=function(){var t=TEMPLATES[composeTpl];composeSel={};cs.forEach(function(c){if(t.enrolledOnly){if(c.kind==='enrolled')composeSel[c.id]=true;}else if(t.targets){if(c.kind==='lead'&&t.targets.indexOf(c.status)>-1)composeSel[c.id]=true;}});list();var n=Object.keys(composeSel).filter(function(k){return composeSel[k];}).length;if(!n)alert('このテンプレの対象（'+(t.enrolledOnly?'在園児':(t.targets||[]).join('・'))+'）に該当する連絡先がありません。連絡先の進捗フェーズをご確認ください。');};
   $('#cmpAll').onclick=function(e){shown().forEach(function(c){composeSel[c.id]=e.target.checked;});list();};
   $('#cmpSubject').oninput=preview;$('#cmpBody').oninput=preview;
-  $('#cmpSend').onclick=function(){sendSeq(selC(),TEMPLATES[composeTpl].label,$('#cmpBody').value,ctx(),$('#cmpSend'),$('#cmpLog'),$('#cmpBar'),true);};
+  $('#cmpSend').onclick=function(){sendSeq(selC(),TEMPLATES[composeTpl].label,$('#cmpSubject').value,$('#cmpBody').value,ctx(),$('#cmpSend'),$('#cmpLog'),$('#cmpBar'),true);};
+  $('#cmpSched').onclick=function(){var when=$('#cmpSchedAt').value;var sc=selC();if(!when){alert('予約日時を選んでください');return;}if(!sc.length){alert('送信先を選択してください');return;}var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'個別メール',label:TEMPLATES[composeTpl].label,count:sc.length,to:sc.map(function(c){return c.name;}).join('・'),subject:$('#cmpSubject').value,body:$('#cmpBody').value});stSet('scheduled',q);$('#cmpLog').innerHTML='<div class="li"><span style="color:#0F6E56;font-weight:600;">'+when.replace('T',' ')+' に '+sc.length+'件の配信を予約しました（配信カレンダーで確認）</span></div>';};
   chips();loadTpl();list();
 }
 
 /* shared sequential sender */
-function sendSeq(list,tplLabel,bodyTpl,ctx,btn,log,bar,perPerson){
+function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson){
   if(!list.length){log.innerHTML='<div class="li" style="color:#A32D2D;">送信先が選択されていません。</div>';return;}
   btn.disabled=true;log.innerHTML='';bar.style.width='0%';
   var i=0,now=new Date(),stamp=pad(now.getHours())+':'+pad(now.getMinutes());
@@ -810,7 +817,7 @@ function sendSeq(list,tplLabel,bodyTpl,ctx,btn,log,bar,perPerson){
     if(i>=list.length){
       btn.disabled=false;
       var done=el('div',{class:'li'},ic('check')+'<span style="color:#0F6E56;font-weight:600;">'+list.length+'件の送信が完了しました（BCC: '+SET.bcc+'）</span>');done.querySelector('svg').style.cssText='width:16px;height:16px;color:#1D9E75;';log.appendChild(done);
-      var h=DB.history;list.forEach(function(c){h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:tplLabel,to:c.name+' 様',from:SET.sender});});DB.history=h;
+      var h=DB.history;list.forEach(function(c){h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:tplLabel,to:c.name+' 様',email:c.email,from:SET.sender,subject:perPerson?fillTokens(subjectTpl,c,ctx):subjectTpl,body:perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl});});DB.history=h;
       return;
     }
     var c=list[i];
@@ -818,6 +825,22 @@ function sendSeq(list,tplLabel,bodyTpl,ctx,btn,log,bar,perPerson){
     setTimeout(function(){row.innerHTML=ic('check')+'<span>'+c.name+' 様 へ送信完了</span>';row.querySelector('svg').style.cssText='width:15px;height:15px;color:#1D9E75;';i++;bar.style.width=Math.round(i/list.length*100)+'%';setTimeout(step,240);},560);
   }
   step();
+}
+
+function sentMailModal(h){
+  if(!h)return;
+  var m=el('div',{class:'modal-bg'});
+  m.innerHTML='<div class="modal" style="width:600px;"><h2>送信済みメール</h2>'+
+    '<div class="muted" style="margin-bottom:10px;">'+(h.time||'')+' ・ '+(h.tpl||'')+'</div>'+
+    '<table style="width:100%;font-size:13px;margin-bottom:10px;"><tbody>'+
+    '<tr><td style="color:var(--tx2);width:64px;">宛先</td><td>'+(h.to||'')+(h.email?'（'+h.email+'）':'')+'</td></tr>'+
+    '<tr><td style="color:var(--tx2);">送信元</td><td>'+(h.from||'')+'　BCC：'+SET.bcc+'</td></tr>'+
+    '<tr><td style="color:var(--tx2);">件名</td><td>'+(h.subject||'（記録なし）')+'</td></tr></tbody></table>'+
+    '<div class="preview" style="max-height:360px;">'+((h.body||'（本文の記録がありません。旧バージョンで送信された履歴です）')).replace(/</g,'&lt;')+'</div>'+
+    '<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn btn-primary" id="sm_close">閉じる</button></div></div>';
+  $('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  $('#sm_close').onclick=function(){m.remove();};
 }
 
 /* ---------- broadcast ---------- */
@@ -836,7 +859,7 @@ function renderBroadcast(){
     '<div class="card" style="margin-top:16px;"><h3>'+ic('cast')+'全体配信</h3>'+
       '<label>配信先（在園児・クラス別）</label><div class="chips" id="bChips" style="margin-top:6px;"></div>'+
       '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin:2px 0 6px;"><input type="checkbox" id="bToday" style="width:auto;">本日登園した児童のみに配信（日常記録「登園（出席）」の出席●から自動抽出）</label>'+
-      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'全体配信する</button><span class="muted" id="bCount"></span></div>'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'全体配信する</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
       '<div class="pbar"><div id="bBar"></div></div><div class="send-log" id="bLog"></div></div>';
   $('#bTpl').onchange=function(e){bTpl=e.target.value;bSel=null;bManual=false;renderBroadcast();};
   buildEditor();chips();preview();count();
@@ -875,7 +898,7 @@ function renderBroadcast(){
           ?'<div class="field"><label>Morning Activity</label><textarea id="bM1" rows="3">本日はoutsideの代わりにindoorで沢山体を動かしました🎵\n2歳児さんたちは主にリレーとボールキックを楽しみ、1歳児さんたちは音楽に合わせてexcercieを楽しみました😊\n皆とても楽しそうに活動できていましたよ😊✨</textarea></div><div class="field"><label>Afternoon Activity</label><textarea id="bA1" rows="2">Motorskillでは、opposite wordsを学びました。本日はflower paperをripして"soft"の手触りを実体験する事を楽しんだPreさんたちです🌼</textarea></div>'
           :'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Morning Activity 1</label><textarea id="bM1" rows="2">実施したこと2〜3文</textarea></div><div class="field"><label>Morning Activity 2</label><textarea id="bM2" rows="2">実施したこと2〜3文</textarea></div></div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Afternoon Activity 1</label><textarea id="bA1" rows="2">実施したこと2〜3文</textarea></div><div class="field"><label>Afternoon Activity 2</label><textarea id="bA2" rows="2">実施したこと2〜3文</textarea></div></div>')+
         '<div class="field"><label>お知らせ</label><textarea id="bNotice" rows="3">'+(pre?'☆お子様のすべての持ち物にご記名いただいているか再度ご確認をお願いいたします。\nオムツ・洋服・下着・靴下・フルーツのアイスパックにも必ずご記名ください。ご協力ありがとうございます！':'今月から徐々に今年度の教材を自宅にお返ししていきます。テキストブックが入る大きいバッグの持参をお願いいたします。')+'</textarea></div>';
-      $('#bFillCur').onclick=function(){$('#bTheme').value=CUR.theme;if(pre){$('#bPL').value=CUR.phonicsLetter;$('#bPS').value=CUR.phonicsSong;$('#bSE').value=CUR.songEN;$('#bSJ').value=CUR.songJP;}preview();};
+      $('#bFillCur').onclick=function(){$('#bTheme').value=CUR.theme;if(pre){$('#bPL').value=CUR.phonicsLetter;$('#bPS').value=CUR.phonicsSong;$('#bSE').value=CUR.songEN;$('#bSJ').value=CUR.songJP;}var act=curDayActivities(def.daily,$('#bDate').value);if(act.morning&&$('#bM1'))$('#bM1').value=act.morning;if(act.afternoon&&$('#bA1'))$('#bA1').value=act.afternoon;preview();};
       $('#bEditDirect').onclick=function(){var a=assembleDaily();bManualSub=a.subject;bManualBody=a.body;bManual=true;buildEditor();preview();};
       e.querySelectorAll('input,textarea').forEach(function(x){x.oninput=preview;x.onchange=preview;});
     } else {
@@ -896,7 +919,8 @@ function renderBroadcast(){
     $('#bChips').querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-c');bSel[k]=!bSel[k];chips();count();};});
   }
   var bt=$('#bToday');if(bt){bt.checked=bTodayOnly;bt.onchange=function(){bTodayOnly=bt.checked;count();};}
-  $('#bSend').onclick=function(){var e=buildEmail();sendSeq(recip(),def.label,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false);};
+  $('#bSend').onclick=function(){var e=buildEmail();sendSeq(recip(),def.label,e.subject,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false);};
+  var bs=$('#bSched');if(bs)bs.onclick=function(){var when=$('#bSchedAt').value,rc=recip();if(!when){alert('予約日時を選んでください');return;}if(!rc.length){alert('配信先がありません');return;}var e=buildEmail();var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'全体配信',label:def.label,count:rc.length,to:rc.length+'名（'+Object.keys(bSel).filter(function(k){return bSel[k];}).join('・')+'）',subject:e.subject,body:e.body});stSet('scheduled',q);$('#bLog').innerHTML='<div class="li"><span style="color:#0F6E56;font-weight:600;">'+when.replace('T',' ')+' に '+rc.length+'名への配信を予約しました（配信カレンダーで確認）</span></div>';};
 }
 
 /* ---------- templates ---------- */
@@ -911,31 +935,41 @@ function renderTemplates(){
 }
 
 /* ---------- curriculum ---------- */
-var curClass='Pre',curWeek='W1';
+var curClass='Pre',curWeek='W1',curTab='schedule';
 function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
-  var y=CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
+  var y=+CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
   function v(x){return (x||'').replace(/"/g,'&quot;');}
   var types=actTypes(curClass);
-  s.innerHTML='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('book')+'月次項目（'+y+'年 '+mo+'月・デイリーメール用）</h3>'+
-    '<div class="field"><label>Monthly Theme（今月のテーマ）</label><input id="curTheme" value="'+v(CUR.theme)+'"></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Phonics Letter</label><input id="curPL" value="'+v(CUR.phonicsLetter)+'"></div><div class="field"><label>Phonics Song</label><input id="curPS" value="'+v(CUR.phonicsSong)+'"></div></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Monthly Song（English）</label><input id="curSE" value="'+v(CUR.songEN)+'"></div><div class="field"><label>Monthly Song（Japanese）</label><input id="curSJ" value="'+v(CUR.songJP)+'"></div></div></div>'+
-    '<div class="card"><h3>'+ic('book')+'日別カリキュラム（月〜金 × Week1〜5・毎日別に入力）</h3>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+k+'">'+k+'</span>';}).join('')+'</div><span style="flex:1;"></span><div class="chips" style="margin:0;">'+[1,2,3,4,5].map(function(n){var w='W'+n;return '<span class="chip'+(w===curWeek?' on':'')+'" data-cw="'+w+'">Week'+n+'</span>';}).join('')+'</div></div>'+
-      '<div class="muted" style="margin-bottom:10px;">アクティビティの種類ごとに、その日の内容を入力します（'+curClass+'：'+types.join('・')+'）。種類は「設定」で園ごとに調整予定。</div>'+
-      '<div class="scrollx"><table><thead><tr><th style="min-width:70px;">曜日</th>'+types.map(function(t){return '<th>'+t+'</th>';}).join('')+'</tr></thead><tbody>'+
-      WEEKDAYS.map(function(wd){return '<tr><td class="row-name">'+wd[1]+'<div class="row-sub">'+wd[0]+'</div></td>'+types.map(function(t){var val=curDayPlan(curClass,curWeek,wd[0])[t]||'';return '<td><input data-dc="'+wd[0]+'|'+t+'" value="'+val.replace(/"/g,'&quot;')+'" placeholder="—" style="min-width:110px;"></td>';}).join('')+'</tr>';}).join('')+
-      '</tbody></table></div>'+
-      '<div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div></div>';
+  function actOpts(sel){return '<option value="">—</option>'+types.map(function(t){return '<option'+(t===sel?' selected':'')+'>'+t+'</option>';}).join('');}
+  var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'月間カリキュラム</h3>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+k+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+CUR.month+'" style="width:150px;margin-left:auto;"></div>'+
+    '<div class="chips" style="margin:0;">'+[['schedule','日別スケジュール'],['content','アクティビティ内容（Week1-4）']].map(function(t){return '<span class="chip'+(t[0]===curTab?' on':'')+'" data-ctab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>'+
+    '<div class="card" style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:8px;">月次項目（デイリーメール用）</div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field" style="margin:0 0 8px;"><label>Monthly Theme</label><input id="curTheme" value="'+v(CUR.theme)+'"></div><div class="field" style="margin:0 0 8px;"><label>Phonics Letter</label><input id="curPL" value="'+v(CUR.phonicsLetter)+'"></div><div class="field" style="margin:0;"><label>Phonics Song</label><input id="curPS" value="'+v(CUR.phonicsSong)+'"></div><div class="field" style="margin:0;"><label>Monthly Song（EN／JP）</label><input id="curSE" value="'+v(CUR.songEN)+'" placeholder="English"></div></div></div>';
+  var bodyHtml;
+  if(curTab==='schedule'){
+    var dim=new Date(y,mo,0).getDate(),rows='';
+    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+date+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+date+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+date+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+date+'" value="'+v(sc.memo)+'" placeholder="メモ"></td></tr>';}
+    bodyHtml='<div class="card"><div class="muted" style="margin-bottom:10px;">日付ごとに午前・午後のアクティビティをプルダウンで選択。1日託児（Daycare）の日はチェック。日付つきなのでデイリーメールと連携します。</div><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:88px;">Daycare</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  } else {
+    bodyHtml='<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">週</span><div class="chips" style="margin:0;">'+['W1','W2','W3','W4'].map(function(w,i){return '<span class="chip'+(w===curWeek?' on':'')+'" data-cw="'+w+'">Week'+(i+1)+'</span>';}).join('')+'</div></div>'+
+      '<div class="muted" style="margin-bottom:10px;">'+curClass+' の各アクティビティの内容（テーマ・担当・計画）を週ごとに記入。日別スケジュールで選ぶとこの内容がデイリーメール等に反映されます（毎月MTGで先生が記入）。</div>'+
+      types.map(function(t){var ct=curContGet(curClass,curWeek,t);return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;"><div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;">'+t+'</span><input data-cont="'+t+'|theme" value="'+v(ct.theme)+'" placeholder="テーマ／Title" style="flex:1;min-width:140px;"><input data-cont="'+t+'|teacher" value="'+v(ct.teacher)+'" placeholder="担当" style="width:110px;"></div><textarea data-cont="'+t+'|plan" rows="2" placeholder="内容・計画">'+(ct.plan||'')+'</textarea></div>';}).join('')+'</div>';
+  }
+  s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
   $('#curTheme').oninput=function(e){CUR.theme=e.target.value;};
   $('#curPL').oninput=function(e){CUR.phonicsLetter=e.target.value;};
   $('#curPS').oninput=function(e){CUR.phonicsSong=e.target.value;};
   $('#curSE').oninput=function(e){CUR.songEN=e.target.value;};
-  $('#curSJ').oninput=function(e){CUR.songJP=e.target.value;};
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
+  s.querySelectorAll('[data-ctab]').forEach(function(b){b.onclick=function(){curTab=b.getAttribute('data-ctab');renderCurriculum();};});
   s.querySelectorAll('[data-cw]').forEach(function(b){b.onclick=function(){curWeek=b.getAttribute('data-cw');renderCurriculum();};});
-  s.querySelectorAll('[data-dc]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-dc').split('|');curDaySet(curClass,curWeek,p[0],p[1],inp.value.trim());};});
+  var cm=$('#curMonth');if(cm)cm.onchange=function(e){CUR.month=e.target.value;DB.curriculum=CUR;renderCurriculum();};
+  s.querySelectorAll('[data-sam]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-sam'),sc=curSchedGet(curClass,d);sc.am=sl.value;curSchedSet(curClass,d,sc);};});
+  s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
+  s.querySelectorAll('[data-sdc]').forEach(function(cb){cb.onchange=function(){var d=cb.getAttribute('data-sdc'),sc=curSchedGet(curClass,d);sc.daycare=cb.checked;curSchedSet(curClass,d,sc);renderCurriculum();};});
+  s.querySelectorAll('[data-smemo]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-smemo'),sc=curSchedGet(curClass,d);sc.memo=inp.value;curSchedSet(curClass,d,sc);};});
+  s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-cont').split('|'),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);};});
   $('#curSave').onclick=function(){DB.curriculum=CUR;$('#curMsg').textContent='保存しました';setTimeout(function(){$('#curMsg').textContent='';},1600);};
   $('#curToAct').onclick=function(){DB.curriculum=CUR;routeTo(['broadcast','dailyPre']);};
 }
@@ -945,7 +979,9 @@ function renderDeliveries(){
   var s=$('section[data-page="deliveries"]');
   var rows=DELIVERIES.map(function(d){var t=nextDelivery(d);return {d:d,t:t};});
   var leads=DB.contacts.filter(function(c){return c.kind==='lead'&&c.date&&new Date(c.date)>=addDays(-1);}).sort(function(a,b){return a.date<b.date?-1:1;});
+  var sched=stGet('scheduled',[]).slice().sort(function(a,b){return a.when<b.when?-1:1;});
   s.innerHTML=
+    (sched.length?'<div class="card" style="margin-bottom:16px;"><h3>'+ic('clock')+'予約済み配信（'+sched.length+'件）</h3><div class="muted" style="margin-bottom:8px;">※ 実送信は次フェーズ。現在は予約の記録のみです。行クリックで内容確認。</div><table><thead><tr><th>予約日時</th><th>種別</th><th>内容</th><th>宛先</th><th></th></tr></thead><tbody>'+sched.map(function(q){return '<tr><td class="row-name">'+q.when.replace('T',' ')+'</td><td>'+q.kind+'</td><td>'+q.label+'</td><td class="row-sub">'+q.count+'件</td><td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm btn-ghost" data-schview="'+q.id+'">'+ic('mail')+'</button><button class="btn btn-sm btn-ghost" data-schdel="'+q.id+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table></div>':'')+
     '<div class="card" style="margin-bottom:16px;"><h3>'+ic('cal')+'定期配信スケジュール</h3>'+
       '<table><thead><tr><th>配信</th><th>配信時期</th><th>対象</th><th>次回予定</th><th></th></tr></thead><tbody>'+
         rows.map(function(r){var nd=r.t?(fmt(iso(r.t))+(daysUntil(r.t)<=0?' <span class="tag">本日</span>':' <span class="row-sub">'+daysUntil(r.t)+'日後</span>')):'<span class="row-sub">都度</span>';return '<tr><td class="row-name">'+r.d.label+'</td><td class="row-sub">'+r.d.when+'</td><td>'+r.d.to+'</td><td>'+nd+'</td><td style="text-align:right;"><button class="btn btn-sm btn-primary" data-go2="'+r.d.go.join('|')+'">作成</button></td></tr>';}).join('')+
@@ -955,6 +991,8 @@ function renderDeliveries(){
       (leads.length?leads.map(function(c){var sd=fmtShort(c.date);return '<div class="agenda"><div class="date"><div class="d">'+sd.d+'</div><div class="m">'+sd.m+'</div></div><div style="flex:1;"><div class="row-name">'+c.name+' 様 ／ '+c.child+'</div><div class="row-sub">'+fmt(c.date)+' '+(c.trialTime||'10:00')+'〜 ・ '+(c.format||'')+(c.trialBy?' ・ 担当'+c.trialBy:'')+'</div></div>'+statusPill(c.status)+'</div>';}).join(''):'<div class="empty">予定がありません</div>')+
     '</div>';
   s.querySelectorAll('[data-go2]').forEach(function(b){b.addEventListener('click',function(){routeTo(b.getAttribute('data-go2').split('|'));});});
+  s.querySelectorAll('[data-schview]').forEach(function(b){b.onclick=function(){var q=sched.filter(function(x){return x.id===+b.getAttribute('data-schview');})[0];sentMailModal({time:q.when.replace('T',' ')+'（予約）',tpl:q.label,to:q.to,from:SET.sender,subject:q.subject,body:q.body});};});
+  s.querySelectorAll('[data-schdel]').forEach(function(b){b.onclick=function(){stSet('scheduled',stGet('scheduled',[]).filter(function(x){return x.id!==+b.getAttribute('data-schdel');}));renderDeliveries();};});
 }
 
 /* ---------- settings ---------- */
@@ -976,6 +1014,9 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','Daycare フォームURL',SET.daycareFormUrl)+f('s_survey','アンケートURL',SET.surveyUrl)+'</div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。ランチ・ロングステイなど、園に合わせて自由に追加・変更・削除できます。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類。各学校ヒヤリングに合わせて自由に追加・変更できます。</div><div id="actTypeBox"></div></div>'+
+    (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
+      '<div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">コースプラン（月額）</div><div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+Object.keys(P.plans).map(function(k){return '<div class="field" style="margin:0 0 8px;"><label>'+k+'</label><input type="number" data-price="plans|'+k+'" value="'+P.plans[k]+'"></div>';}).join('')+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field" style="margin:0;"><label>ランチ/回</label><input type="number" data-price="lunch" value="'+P.lunch+'"></div><div class="field" style="margin:0;"><label>延長/回</label><input type="number" data-price="extended" value="'+P.extended+'"></div><div class="field" style="margin:0;"><label>教材費</label><input type="number" data-price="material" value="'+P.material+'"></div><div class="field" style="margin:0;"><label>入園金</label><input type="number" data-price="admission" value="'+P.admission+'"></div></div></div>';})()+
     '<button class="btn btn-primary" id="s_save">'+ic('check')+'保存</button> <span class="muted" id="s_msg"></span>'+
     '<div class="card" style="max-width:620px;margin-top:16px;"><h3>'+ic('gear')+'サンプルデータ</h3><div class="muted" style="margin-bottom:10px;">連絡先・職員を最新のサンプル（生年月日・通園曜日・Lunch/Long入り）で再読込します。入力済みデータは消えます。</div><button class="btn" id="s_reseed">サンプルデータを再読込</button></div>';
   $('#s_save').onclick=function(){
@@ -1005,6 +1046,7 @@ function renderSettings(){
     $('#actTypeBox').querySelectorAll('[data-atadd]').forEach(function(b){b.onclick=function(){var cls=b.getAttribute('data-atadd'),inp=$('#actTypeBox').querySelector('[data-atnew="'+cls+'"]'),v=inp.value.trim();if(!v)return;ensure(cls);SET.activityTypes[cls].push(v);DB.settings=SET;renderActTypes();};});
   }
   renderActTypes();
+  s.querySelectorAll('[data-price]').forEach(function(inp){inp.onchange=function(){if(!SET.pricing)SET.pricing={plans:{},lunch:0,extended:0,material:0,admission:0};var p=inp.getAttribute('data-price').split('|');if(p[0]==='plans'){SET.pricing.plans[p[1]]=+inp.value||0;}else{SET.pricing[p[0]]=+inp.value||0;}DB.settings=SET;};});
 }
 
 /* ---------- staff ---------- */
@@ -1028,20 +1070,20 @@ function renderStaff(){
   s.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){if(confirm('この職員を削除しますか？')){DB.staff=DB.staff.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderStaff();}};});
 }
 function staffModal(id){
-  var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:''};
+  var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:'',baseShift:''};
   var emOpts=['正社員','契約社員','パート','業務委託'].map(function(o){return '<option'+(o===x.employ?' selected':'')+'>'+o+'</option>';}).join('');
   var m=el('div',{class:'modal-bg'});
   m.innerHTML='<div class="modal"><h2>'+(id?'職員を編集':'職員を追加')+'</h2>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>氏名</label><input id="st_name" value="'+x.name+'"></div><div class="field"><label>ふりがな</label><input id="st_kana" value="'+(x.kana||'')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>役職</label><input id="st_role" value="'+x.role+'"></div><div class="field"><label>雇用形態</label><select id="st_emp">'+emOpts+'</select></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>保有資格</label><input id="st_qual" value="'+(x.qual||'')+'" placeholder="保育士 等"></div><div class="field"><label>資格証番号</label><input id="st_qno" value="'+(x.qualNo||'')+'"></div></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>入社日</label><input type="date" id="st_join" value="'+(x.joinDate||'')+'"></div><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+(x.kenshinDate||'')+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>入社日</label><input type="date" id="st_join" value="'+(x.joinDate||'')+'"></div><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+(x.kenshinDate||'')+'"></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+o+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="st_cancel">キャンセル</button><button class="btn btn-primary" id="st_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
   $('#st_cancel').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#st_save').onclick=function(){
-    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,qual:$('#st_qual').value.trim(),qualNo:$('#st_qno').value.trim(),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value};
+    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,qual:$('#st_qual').value.trim(),qualNo:$('#st_qno').value.trim(),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value};
     if(!nx.name){alert('氏名は必須です');return;}
     var a=DB.staff;if(id){a=a.map(function(o){return o.id===id?nx:o;});}else{a.push(nx);}DB.staff=a;m.remove();renderStaff();
   };
@@ -1090,7 +1132,7 @@ function renderAudit(){
 }
 
 /* ---------- 日常記録 ---------- */
-var recType='登園（出席）',recDate=null,recMonth=null,recQuarter=null;
+var recType='登園（出席）',recDate=null,recMonth=null,recQuarter=null,bmKlass='すべて';
 function curQuarter(){var m=addDays(0).getMonth()+1;return addDays(0).getFullYear()+'-Q'+Math.ceil(m/3);}
 function napSlots(){var a=[],t;for(t=11*60+30;t<=13*60+30;t+=10)a.push(pad(Math.floor(t/60))+':'+pad(t%60));return a;}
 function ageClassOf(c){
@@ -1120,7 +1162,7 @@ function edTouen(){
   function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};opts.forEach(function(op){if(!(op in r.opts))r.opts[op]=(op==='ランチ'?!!c.lunch:op==='ロングステイ'?!!c.long:false);});return r;}
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+recDate+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;max-width:560px;margin-bottom:12px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+(d.weather||'')+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+(d.temp||'')+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+(d.hum||'')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="tsBy" value="'+(d.by||'')+'"></div></div>'+
-    '<div class="muted" style="margin-bottom:10px;">この曜日に通園予定の園児のみ表示。先生が記録するのは<b>出欠と体温</b>。オプション（'+(opts.join('・')||'未設定')+'）はタップで選択。オプションは「設定 → 登園記録のオプション」で園ごとに変更できます。</div>'+
+    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0F6E56;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0F6E56;line-height:1.6;">この曜日に通園予定の園児のみ表示。先生が記録するのは <b>出欠・体温</b> の2つだけ。<br>オプション（'+(opts.join('・')||'未設定')+'）はタップで選択。<span style="color:#085041;">オプションは「設定 → 登園記録のオプション」で園ごとに変更できます。</span></div></div>'+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+op+'</th>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c);return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag">'+ageClassOf(c)+'</span></td>'+
       '<td><button class="btn btn-sm" data-ta="'+c.id+'" style="'+(r.att==='●'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':r.att==='休'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;':'')+'">'+(r.att||'—')+'</button></td>'+
@@ -1153,7 +1195,7 @@ function edSafety(){
   $('#recBody').innerHTML='<div class="card">'+recHead('園施設 安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力（月間表）</button>')+
     '<div class="muted" style="margin-bottom:10px;">場所ごとに毎日点検。良／要対応をタップ。要対応があればメモに対応を記載。月末に月間表として監査提出できます。</div>'+
     '<table><tbody>'+rows+'</tbody></table>'+
-    '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+(d.memo||'')+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><input id="sfBy" value="'+(d.by||'')+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+(d.memo||'')+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><select id="sfBy"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===d.by?' selected':'')+'>'+st.name+'</option>';}).join('')+'</select></div></div>'+
     '<div class="muted" style="margin-top:12px;">直近7日：'+last7+'</div></div>';
   function save(){data[recDate]=d;stSet(K,data);}
   $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecords();};
@@ -1205,18 +1247,19 @@ function edHealth(){
   if(!d.entries)d.entries=[];
   function save(){data[recDate]=d;stSet(K,data);}
   var feverish=enrolled().filter(function(c){return +tempOf(c.id,recDate)>=37.5;});
-  $('#recBody').innerHTML='<div class="card">'+recHead('健康チェック（症状のある子のみ記録）','<input type="date" id="hlDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="hlAdd">'+ic('plus')+'症状を記録</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
-    '<div class="muted" style="margin-bottom:10px;">症状のある子だけを記録します。体温は「登園（出席）」で入力した値が自動反映されます。'+(feverish.length?'<span style="color:#A32D2D;font-weight:500;"> 発熱の可能性（37.5℃以上）：'+feverish.map(function(c){return childName(c)+'（'+tempOf(c.id,recDate)+'℃）';}).join('・')+'</span>':'')+'</div>'+
+  $('#recBody').innerHTML='<div class="card">'+recHead('健康チェック（症状のある子のみ記録）','<input type="date" id="hlDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="hlAdd">'+ic('plus')+'症状を記録</button><button class="btn btn-sm" id="hlAllHealthy" style="'+(d.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'+(d.allHealthy?'✓ 全員健康 記録済':'全員健康（症状なし）を記録')+'</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
+    '<div class="muted" style="margin-bottom:10px;">毎日の健康チェック証跡。症状のある子だけ記録し、症状がなければ「全員健康」を押せば当日の記録になります。体温は「登園（出席）」の値が自動反映。'+(feverish.length?'<span style="color:#A32D2D;font-weight:500;"> 発熱の可能性（37.5℃以上）：'+feverish.map(function(c){return childName(c)+'（'+tempOf(c.id,recDate)+'℃）';}).join('・')+'</span>':'')+(d.allHealthy?'<span style="color:#27500A;font-weight:500;"> ／ 本日は全員健康を記録済み</span>':'')+'</div>'+
     (d.entries.length?'<table><thead><tr><th>園児</th><th>体温</th><th>症状</th><th>その他・対応</th><th></th></tr></thead><tbody>'+
       d.entries.map(function(en,i){var c=enrolled().filter(function(x){return x.id===en.childId;})[0];var nm=c?childName(c):'（不明）';var symp=(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ');var t=tempOf(en.childId,recDate)||en.temp||'';return '<tr><td class="row-name">'+nm+'</td><td>'+(t?t+'℃':'—')+(+t>=37.5?' <span class="pill" style="background:#FCEBEB;color:#A32D2D;">発熱</span>':'')+'</td><td style="font-size:12.5px;">'+(symp||'—')+(en.other?'<div class="row-sub">その他：'+en.other+'</div>':'')+'</td><td style="font-size:12.5px;">'+(en.action||'—')+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hedit="'+i+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-hdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">本日、症状の記録はありません。「症状を記録」から追加してください。</div>')+
     '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'')+'"></div></div>';
   $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecords();};
   $('#hlBy').onchange=function(e){d.by=e.target.value;save();};
+  $('#hlAllHealthy').onclick=function(){d.allHealthy=!d.allHealthy;save();edHealth();};
   $('#hlAdd').onclick=function(){healthModal(null,d,save);};
   document.querySelectorAll('[data-hedit]').forEach(function(b){b.onclick=function(){healthModal(+b.getAttribute('data-hedit'),d,save);};});
   document.querySelectorAll('[data-hdel]').forEach(function(b){b.onclick=function(){d.entries.splice(+b.getAttribute('data-hdel'),1);save();edHealth();};});
   $('#hlPrint').onclick=function(){
-    var body=(d.entries.length?'<table><thead><tr><th>園児</th><th>体温</th><th>症状</th><th>その他</th><th>対応</th></tr></thead><tbody>'+d.entries.map(function(en){var c=enrolled().filter(function(x){return x.id===en.childId;})[0];return '<tr><td>'+(c?childName(c):'')+'</td><td>'+(tempOf(en.childId,recDate)||en.temp||'')+'</td><td>'+(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ')+'</td><td>'+(en.other||'')+'</td><td>'+(en.action||'')+'</td></tr>';}).join('')+'</tbody></table>':'<p>症状のある園児はいませんでした。</p>')+'<p>記録者：'+(d.by||'　　　　')+'</p>';
+    var body=(d.allHealthy?'<p><b>本日は全員健康（症状なし）を確認しました。</b></p>':'')+(d.entries.length?'<table><thead><tr><th>園児</th><th>体温</th><th>症状</th><th>その他</th><th>対応</th></tr></thead><tbody>'+d.entries.map(function(en){var c=enrolled().filter(function(x){return x.id===en.childId;})[0];return '<tr><td>'+(c?childName(c):'')+'</td><td>'+(tempOf(en.childId,recDate)||en.temp||'')+'</td><td>'+(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ')+'</td><td>'+(en.other||'')+'</td><td>'+(en.action||'')+'</td></tr>';}).join('')+'</tbody></table>':(d.allHealthy?'':'<p>症状のある園児はいませんでした。</p>'))+'<p>記録者：'+(d.by||'　　　　')+'</p>';
     printDoc('健康チェック記録（'+fmt(recDate)+'）',body);
   };
 }
@@ -1240,23 +1283,26 @@ function healthModal(idx,d,save){
   $('#he_save').onclick=function(){en.childId=+$('#he_child').value;en.other=$('#he_other').value;en.action=$('#he_action').value;if(!en.childId){alert('園児を選択してください');return;}if(idx!=null)d.entries[idx]=en;else d.entries.push(en);save();m.remove();edHealth();};
 }
 function edBody(){
-  var K=RKEY['身体測定'],data=stGet(K,{}),d=data[recMonth]||{rows:{}};
-  var kids=enrolled();
+  var K='rec_身体測定',data=stGet(K,{}),d=data[recMonth]||{rows:{}};
+  var kids=enrolled().filter(function(c){return bmKlass==='すべて'||c.klass===bmKlass;});
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
-  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+recMonth+'" style="width:160px;"><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
-    '<table><thead><tr><th>園児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数（自動）</th></tr></thead><tbody>'+
-    kids.map(function(c){var r=rowOf(c.id);return '<tr><td class="row-name">'+childName(c)+'<div class="row-sub">'+c.klass+'</div></td>'+
+  var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
+  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+recMonth+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+    '<div class="muted" style="margin-bottom:10px;">クラスを選ぶと、そのクラスの園児一覧が表示されます。身長・体重を入力するとカウプ指数が自動計算されます。</div>'+
+    '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数（自動）</th></tr></thead><tbody>'+
+    (kids.length?kids.map(function(c){var r=rowOf(c.id);return '<tr><td class="row-name">'+childName(c)+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+c.klass+'</td>'+
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+r.h+'" style="width:100px;"></td>'+
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+r.w+'" style="width:100px;"></td>'+
-      '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>'+
+      '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   function save(){data[recMonth]=d;stSet(K,data);}
   $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecords();};
+  $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
   document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
   $('#bmPrint').onclick=function(){
-    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+childName(c)+'</td><td>'+c.klass+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
-    printDoc('身体測定記録（'+recMonth.replace('-','年')+'月）',body);
+    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+childName(c)+'</td><td>'+c.klass+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
   };
 }
 function bodyFigSVG(marks,side,editable){
@@ -1273,7 +1319,7 @@ function edHiyari(){
   document.querySelectorAll('[data-hyedit]').forEach(function(b){b.onclick=function(){hiyariModal(+b.getAttribute('data-hyedit'),log,K);};});
   document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){log.splice(+b.getAttribute('data-del'),1);stSet(K,log);edHiyari();};});
   $('#hyPrint').onclick=function(){
-    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつける点</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr></tbody></table>';}).join(''):'<p>記録なし</p>';
+    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつける点</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr>'+((r.marks||[]).length?'<tr><th>部位図</th><td>'+bodyFigSVG(r.marks,'front',false)+' '+bodyFigSVG(r.marks,'back',false)+'</td></tr>':'')+'</tbody></table>';}).join(''):'<p>記録なし</p>';
     printDoc('怪我・発熱等 記録表／ヒヤリハット（年間一覧）',body);
   };
 }
@@ -1324,7 +1370,7 @@ function edDev(){
   var rec=(data[devChild]&&data[devChild][recQuarter])||{items:{},memo:'',by:''};
   var cur=kids.filter(function(c){return c.id===devChild;})[0];
   var y=addDays(0).getFullYear();var qs=[];[y-1,y].forEach(function(yy){[1,2,3,4].forEach(function(q){qs.push(yy+'-Q'+q);});});
-  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（3ヶ月ごと）','<select id="dvChild" style="width:150px;">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===devChild?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select><select id="dvQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="dvPrint">'+ic('printer')+'出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（3ヶ月ごと）','<select id="dvChild" style="width:150px;">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===devChild?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select><select id="dvQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="dvPrint">'+ic('printer')+'この子を出力</button><button class="btn btn-sm btn-primary" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>')+
     (cur?'<div class="muted" style="margin-bottom:10px;">'+childName(cur)+'（'+ageClassOf(cur)+'）の発達状況を3ヶ月ごとに記録します。監査書類（生徒個人発達記録）に対応。</div>':'<div class="empty">在園児がいません</div>')+
     (cur?DEV_CATS.map(function(c,ci){return '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:13px;background:#F1EFE8;padding:6px 10px;border-radius:6px;margin-bottom:2px;">'+c.cat+'</div><table><tbody>'+
       c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+key+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
@@ -1342,29 +1388,33 @@ function edDev(){
       '<p>メモ：'+(rec.memo||'')+'</p>';
     printDoc('生徒個人発達記録（'+(cur?childName(cur):'')+'・'+recQuarter+'）',body);
   };
+  $('#dvPrintAll').onclick=function(){
+    var body=kids.map(function(c){var rc=(data[c.id]&&data[c.id][recQuarter])||{items:{},memo:'',by:''};return '<h2>'+childName(c)+'（'+ageClassOf(c)+'）</h2><p>記録者：'+(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+(rc.memo||'')+'</p>';}).join('<div style="page-break-after:always;"></div>');
+    printDoc('生徒個人発達記録 全員分（'+recQuarter+'）',body);
+  };
 }
 function edNippo(){
   var K='rec_日報',data=stGet(K,{}),d=data[recDate]||{actual:'',diary:'',absent:'',early:'',sick:'',note:'',by:''};
   var wnum=weekOfMonth(recDate),wk=CUR.weeks[wnum-1]||CUR.weeks[0];
   var dp2=recDate.split('-'),jsD=new Date(+dp2[0],+dp2[1]-1,+dp2[2]).getDay(),dkey=['','Mon','Tue','Wed','Thu','Fri'][jsD]||'';
-  var dtext=dkey?curDayText('Pre','W'+wnum,dkey):'';
+  var dtext=dkey?curDayText('Pre',recDate):'';
   var currText=dtext||('【Morning】'+wk.morning+'\n【Afternoon】'+wk.afternoon);
   var actualVal=d.actual||currText;
   $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     '<div class="field"><label>活動実績（月間カリキュラムの'+(dkey?('その日（Week'+wnum+' '+dkey+'・Pre）'):'今週')+'から自動反映・修正可）<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから再取込</button></label><textarea id="npoActual" rows="4">'+actualVal+'</textarea></div>'+
     '<div class="field"><label>保育日誌（その日の様子・エピソード）</label><textarea id="npoDiary" rows="3">'+(d.diary||'')+'</textarea></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
       '<div class="field"><label>欠席</label><input id="npoAbsent" value="'+(d.absent||'')+'" placeholder="○○（発熱）"></div>'+
-      '<div class="field"><label>早退</label><input id="npoEarly" value="'+(d.early||'')+'"></div>'+
-      '<div class="field"><label>体調不良・怪我</label><input id="npoSick" value="'+(d.sick||'')+'"></div></div>'+
+      '<div class="field"><label>早退</label><input id="npoEarly" value="'+(d.early||'')+'"></div></div>'+
+    '<div class="muted" style="margin-bottom:8px;">※ 体調不良・怪我は「健康チェック」「怪我・発熱等 記録表」で記録します（二重入力を避けるため業務日報からは削除）。</div>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+(d.note||'')+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+(d.by||'')+'"></div></div>'+
     '<div class="muted">入力は自動保存されます。</div></div>';
   function save(){data[recDate]=d;stSet(K,data);}
   $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecords();};
   $('#npoCurr').onclick=function(){$('#npoActual').value=currText;d.actual=currText;save();};
-  [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoSick','sick'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
+  [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
   $('#npoPrint').onclick=function(){
-    var body='<h2>活動実績</h2><p>'+(d.actual||actualVal).replace(/\n/g,'<br>')+'</p><h2>保育日誌</h2><p>'+(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+(d.early||'なし')+'</td></tr><tr><th>体調不良・怪我</th><td>'+(d.sick||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+(d.by||'')+'</td></tr></tbody></table>';
+    var body='<h2>活動実績</h2><p>'+(d.actual||actualVal).replace(/\n/g,'<br>')+'</p><h2>保育日誌</h2><p>'+(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+(d.early||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+(d.by||'')+'</td></tr></tbody></table>';
     printDoc('業務日報・保育日誌（'+fmt(recDate)+'）',body);
   };
 }
@@ -1505,7 +1555,7 @@ function renderShift(){
   var p=shiftMonth.split('-'),y=+p[0],mo=+p[1],dim=new Date(y,mo,0).getDate();
   var s=$('section[data-page="shift"]');
   var days=[];for(var i=1;i<=dim;i++)days.push(i);
-  s.innerHTML='<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+shiftMonth+'" style="width:160px;"><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm btn-primary" id="shPrint">'+ic('printer')+'ワンクリック出力</button>')+
+  s.innerHTML='<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+shiftMonth+'" style="width:160px;"><button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm btn-primary" id="shPrint">'+ic('printer')+'ワンクリック出力</button>')+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">'+
       ['早','日','遅'].map(function(k){return '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+k+'" value="'+m.pat[k]+'" style="width:110px;font-size:12px;padding:5px 8px;"></span>';}).join('')+
       '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s休" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">休</span>休み</span>'+
@@ -1517,6 +1567,13 @@ function renderShift(){
   function save(){all[shiftMonth]=m;stSet('shifts',all);}
   $('#shMonth').onchange=function(e){shiftMonth=e.target.value;renderShift();};
   $('#shImport').onclick=function(){shiftImportModal(m,save,renderShift);};
+  $('#shBulk').onclick=function(){
+    var withBase=DB.staff.filter(function(st){return st.baseShift;});
+    if(!withBase.length){alert('職員の「基本シフト」が未設定です。職員管理で各職員の基本シフト（早/日/遅）を設定すると一括反映できます。');return;}
+    if(!confirm(shiftMonth+' の平日を各職員の基本シフト、土日を休で一括反映します。既存の入力は上書きされます。よろしいですか？'))return;
+    DB.staff.forEach(function(st){if(!st.baseShift)return;m.cells[st.id]=m.cells[st.id]||{};for(var dd=1;dd<=dim;dd++){var wd=new Date(y,mo-1,dd).getDay();m.cells[st.id][dd]=(wd===0||wd===6)?'休':st.baseShift;}});
+    save();renderShift();
+  };
   s.querySelectorAll('[data-pat]').forEach(function(inp){inp.onchange=function(){m.pat[inp.getAttribute('data-pat')]=inp.value;save();};});
   s.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){
     var pp=b.getAttribute('data-sc').split('|'),sid=pp[0],dd=pp[1];
@@ -1571,13 +1628,61 @@ function shiftImportModal(m,save,rerender){
 var dgType='危機管理マニュアル';
 function renderDocgen(){
   var s=$('section[data-page="docgen"]');
-  var types=['危機管理マニュアル','運営状況報告書','保育安全計画'];
+  var types=['危機管理マニュアル','運営状況報告書','保育安全計画','請求書作成'];
   s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;">'+types.map(function(t){return '<span class="chip'+(t===dgType?' on':'')+'" data-dg="'+t+'">'+t+'</span>';}).join('')+'</div></div><div id="dgBody"></div>';
   s.querySelectorAll('[data-dg]').forEach(function(b){b.onclick=function(){dgType=b.getAttribute('data-dg');renderDocgen();};});
-  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen})[dgType]();
+  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen,'請求書作成':dgInvoice})[dgType]();
 }
 function dgStore(){return stGet('docgen',{});}
 function dgSave(k,v){var st=dgStore();st[k]=v;stSet('docgen',st);}
+function dgInvoice(){
+  var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
+  var st=dgStore().invoice||{childId:null,plan:'週3',month:(addDays(0).getMonth()+2>12?1:addDays(0).getMonth()+2),lunchN:0,extN:0,material:false,admission:false,due:''};
+  var kids=enrolled();
+  if(!st.childId&&kids.length)st.childId=kids[0].id;
+  function save(){dgSave('invoice',st);}
+  function planOpts(){return Object.keys(P.plans).map(function(k){return '<option'+(k===st.plan?' selected':'')+'>'+k+'</option>';}).join('');}
+  function lines(){
+    var c=kids.filter(function(x){return x.id===st.childId;})[0];
+    var L=[];
+    if(st.admission)L.push(['入園金',P.admission,1,P.admission]);
+    L.push([st.plan+' 保育料',P.plans[st.plan]||0,1,P.plans[st.plan]||0]);
+    if(st.material)L.push(['教材費',P.material,1,P.material]);
+    if(st.lunchN>0)L.push(['ランチ（'+st.lunchN+'回）',P.lunch,st.lunchN,P.lunch*st.lunchN]);
+    if(st.extN>0)L.push(['延長保育（'+st.extN+'回）',P.extended,st.extN,P.extended*st.extN]);
+    var total=L.reduce(function(a,x){return a+x[3];},0);
+    return {c:c,L:L,total:total};
+  }
+  function invoiceHTML(){
+    var r=lines();
+    return '<div style="font-weight:600;font-size:15px;margin-bottom:6px;">'+st.month+'月分 保育料 請求書</div>'+
+      '<p>'+(r.c?r.c.name+' 様（'+childName(r.c)+'・'+r.c.klass+'）':'')+'</p>'+
+      '<table><thead><tr><th>項目</th><th style="text-align:right;">単価</th><th style="text-align:right;">数量</th><th style="text-align:right;">金額</th></tr></thead><tbody>'+
+      r.L.map(function(x){return '<tr><td>'+x[0]+'</td><td style="text-align:right;">'+yen(x[1])+'</td><td style="text-align:right;">'+x[2]+'</td><td style="text-align:right;">'+yen(x[3])+'</td></tr>';}).join('')+
+      '<tr><td colspan="3" style="text-align:right;font-weight:600;">合計</td><td style="text-align:right;font-weight:600;">'+yen(r.total)+'</td></tr></tbody></table>'+
+      '<p>お支払期日：'+(st.due?fmt(st.due):'（未設定）')+'</p>'+
+      '<p>振込先：'+SET.bankName+' '+SET.bankBranch+' '+SET.bankType+' '+(SET.bankNo||'（設定で入力）')+' '+SET.bankHolder+'<br>※振込名義はお子様のお名前でお願いいたします。</p>';
+  }
+  $('#dgBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;">'+
+    '<div class="card"><h3>'+ic('yen')+'請求内容</h3>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>園児</label><select id="iv_child">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===st.childId?' selected':'')+'>'+childName(c)+'（'+c.klass+'）</option>';}).join('')+'</select></div><div class="field"><label>コースプラン</label><select id="iv_plan">'+planOpts()+'</select></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>請求月</label><select id="iv_month">'+[1,2,3,4,5,6,7,8,9,10,11,12].map(function(m){return '<option'+(m===st.month?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div><div class="field"><label>お支払期日</label><input type="date" id="iv_due" value="'+(st.due||'')+'"></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>ランチ回数</label><input type="number" id="iv_lunch" min="0" value="'+(st.lunchN||0)+'"></div><div class="field"><label>延長回数</label><input type="number" id="iv_ext" min="0" value="'+(st.extN||0)+'"></div></div>'+
+      '<div style="display:flex;gap:16px;margin-bottom:10px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="iv_mat" style="width:auto;"'+(st.material?' checked':'')+'>教材費</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="iv_adm" style="width:auto;"'+(st.admission?' checked':'')+'>入園金（初回）</label></div>'+
+      '<div class="muted">単価は「設定 → 料金設定」で変更できます。コースプラン・オプションを変えると金額が自動計算されます。</div></div>'+
+    '<div class="card">'+recHead('請求書プレビュー','<button class="btn btn-sm btn-primary" id="ivPrint">'+ic('printer')+'請求書を出力</button>')+'<div class="preview" id="ivPrev" style="max-height:480px;"></div></div></div>';
+  function upd(){$('#ivPrev').innerHTML=invoiceHTML();}
+  $('#iv_child').onchange=function(e){st.childId=+e.target.value;save();upd();};
+  $('#iv_plan').onchange=function(e){st.plan=e.target.value;save();upd();};
+  $('#iv_month').onchange=function(e){st.month=+e.target.value;save();upd();};
+  $('#iv_due').onchange=function(e){st.due=e.target.value;save();upd();};
+  $('#iv_lunch').oninput=function(e){st.lunchN=+e.target.value||0;save();upd();};
+  $('#iv_ext').oninput=function(e){st.extN=+e.target.value||0;save();upd();};
+  $('#iv_mat').onchange=function(e){st.material=e.target.checked;save();upd();};
+  $('#iv_adm').onchange=function(e){st.admission=e.target.checked;save();upd();};
+  $('#ivPrint').onclick=function(){var r=lines();printDoc(st.month+'月分 保育料 請求書'+(r.c?'（'+childName(r.c)+'）':''),invoiceHTML());};
+  upd();
+}
 function dgKiki(){
   var d=Object.assign({places:[{place:'',route:''}],leader:'',reporter:'',fire:'与野消防署（119）',parent:'メール一斉配信（本システム）＋電話'},dgStore().kiki||{});
   if(!d.places||!d.places.length)d.places=[{place:'',route:''}];
@@ -1587,8 +1692,13 @@ function dgKiki(){
     '【3. 地震発生時の対応】\n(1) 園児をテーブルの下など安全な場所へ誘導し、頭部を保護する。\n(2) 揺れが収まり次第、人数確認を行い、避難準備を開始する。\n(3) 施設内の安全が確認できない場合は避難場所へ避難する。\n\n'+
     '【4. 火災発生時の対応】\n(1) 発見者は大声で周囲へ知らせ、初期消火を試みる。\n(2) 同時に119番通報（担当：'+(d.reporter||'通報担当')+'／通報先：'+d.fire+'）。\n(3) 園児を出火場所から遠ざけ、直ちに避難を開始する。\n\n'+
     '【5. 避難場所・避難経路】\n'+d.places.map(function(p,i){return '■避難場所'+(i+1)+'：'+(p.place||'（未設定）')+'\n　避難経路：'+(p.route||'（未設定）');}).join('\n')+'\n\n'+
-    '【6. 保護者への連絡】\n'+d.parent+' により、発生後速やかに園児の状況と引き渡し場所を連絡する。\n\n'+
-    '【7. 園児の引き渡し】\n保護者の緊急連絡票と照合のうえ引き渡しを行い、引き渡し時刻・引き取り者を記録する。';
+    '【6. 不審者侵入時の対応】\n(1) 発見者は合言葉で職員に周知し、園児を安全な保育室へ集めて施錠する。\n(2) 通報担当が110番通報。可能な範囲で不審者の特徴を記録する。\n(3) 園児を刺激しないよう落ち着いて誘導し、安全確認まで室内で待機する。\n\n'+
+    '【7. アレルギー・アナフィラキシー対応】\n(1) 誤食・症状発生時は速やかに状況を確認し、必要に応じてエピペン等を使用する。\n(2) 直ちに救急要請（119）し、保護者・かかりつけ医へ連絡する。\n(3) 発症時刻・症状・対応を記録する。\n\n'+
+    '【8. 感染症・体調急変時の対応】\n(1) 発熱・嘔吐・下痢等の症状は速やかに別室で安静にし、保護者へ連絡する。\n(2) 嘔吐物は適切に処理し、二次感染を防止する。\n(3) 感染症が疑われる場合は関係機関へ報告する。\n\n'+
+    '【9. 風水害・台風時の対応】\n(1) 気象警報・避難情報を確認し、必要に応じて休園・引き渡しを判断する。\n(2) 浸水のおそれがある場合は上階または高台の避難場所へ避難する。\n\n'+
+    '【10. 保護者への連絡】\n'+d.parent+' により、発生後速やかに園児の状況と引き渡し場所を連絡する。\n\n'+
+    '【11. 園児の引き渡し】\n保護者の緊急連絡票と照合のうえ引き渡しを行い、引き渡し時刻・引き取り者を記録する。事前に登録された引き取り者以外には引き渡さない。\n\n'+
+    '【12. 平常時の備え】\n・毎月1回の避難訓練を実施し記録する。\n・非常持ち出し品・備蓄品を定期点検する。\n・緊急連絡網・引き渡しカードを最新に保つ。';
   }
   $('#dgBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;">'+
     '<div class="card"><h3>'+ic('fileplus')+'施設固有の情報（ここだけ入力）</h3>'+
