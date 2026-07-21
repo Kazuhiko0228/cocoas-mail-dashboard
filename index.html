@@ -126,7 +126,7 @@
   .shiftcell.s休{background:#F1EFE8;color:#90998f;}
   #printArea{display:none;}
   @media print{
-    .app,#modalRoot{display:none !important;}
+    .app,#modalRoot,#aiFab,#aiPanel{display:none !important;}
     #printArea{display:block;position:absolute;left:0;top:0;width:100%;background:#fff;color:#000;font-size:12px;}
     #printArea h1{font-size:18px;margin:0 0 4px;}
     #printArea h2{font-size:14px;margin:14px 0 6px;}
@@ -135,6 +135,30 @@
     #printArea .print-foot{margin-top:16px;font-size:11px;color:#333;}
   }
   @media(max-width:880px){.sidebar{display:none;}.content{padding:18px;}}
+  /* ===== 保育AIアシスタント ウィジェット ===== */
+  #aiFab{position:fixed;right:22px;bottom:22px;z-index:900;width:58px;height:58px;border-radius:50%;background:var(--teal);color:#fff;border:none;box-shadow:0 8px 22px rgba(15,110,86,.42);display:flex;align-items:center;justify-content:center;font-size:25px;cursor:pointer;transition:transform .1s;}
+  #aiFab:hover{transform:scale(1.06);}
+  #aiFab .dot{position:absolute;top:3px;right:3px;width:13px;height:13px;background:#f0a23a;border-radius:50%;border:2px solid #fff;}
+  #aiPanel{position:fixed;right:22px;bottom:92px;z-index:900;width:384px;max-width:calc(100vw - 32px);height:566px;max-height:calc(100vh - 130px);background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 44px rgba(0,0,0,.22);display:none;flex-direction:column;overflow:hidden;}
+  #aiPanel.open{display:flex;}
+  .ai-head{background:var(--teal);color:#fff;padding:13px 15px;display:flex;align-items:center;gap:10px;}
+  .ai-head .t{font-weight:700;font-size:14.5px;flex:1;line-height:1.25;}
+  .ai-head .t small{display:block;font-weight:400;font-size:10.5px;opacity:.85;}
+  .ai-head button{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:8px;width:28px;height:28px;font-size:17px;cursor:pointer;line-height:1;}
+  .ai-body{flex:1;overflow-y:auto;padding:14px;background:var(--bg);display:flex;flex-direction:column;gap:10px;}
+  .ai-msg{max-width:86%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.65;white-space:pre-wrap;}
+  .ai-msg.bot{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;align-self:flex-start;}
+  .ai-msg.me{background:var(--teal);color:#fff;border-bottom-right-radius:4px;align-self:flex-end;}
+  .ai-sec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;align-self:flex-start;max-width:94%;}
+  .ai-sec .st{font-weight:700;color:var(--teal-d);margin-bottom:3px;font-size:12.5px;}
+  .ai-sec .ss{color:var(--tx2);font-size:12px;line-height:1.55;}
+  .ai-sec button{margin:8px 6px 0 0;background:var(--teal);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:600;cursor:pointer;}
+  .ai-chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 14px 10px;background:var(--bg);}
+  .ai-chips button{background:#fff;border:1px solid var(--teal-l);color:var(--teal-d);border-radius:99px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;}
+  .ai-foot{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;background:#fff;}
+  .ai-foot input{flex:1;border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:13px;font-family:inherit;}
+  .ai-foot button{background:var(--teal);color:#fff;border:none;border-radius:11px;width:44px;font-size:16px;cursor:pointer;}
+  .ai-note{font-size:10px;color:var(--tx3);text-align:center;padding:0 12px 9px;background:#fff;line-height:1.4;}
 </style>
 </head>
 <body>
@@ -154,6 +178,7 @@
       <a data-go="drill">{ic:shield}避難訓練</a>
       <a data-go="shift">{ic:tableg}シフト表</a>
       <a data-go="docgen">{ic:fileplus}書類作成</a>
+      <a data-go="reqnav">{ic:clipboard}提出書類ナビ</a>
       <a data-go="docs">{ic:folder}書類格納</a>
       <div class="nav-label">管理</div>
       <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
@@ -188,6 +213,7 @@
       <section data-page="drill" hidden></section>
       <section data-page="shift" hidden></section>
       <section data-page="docgen" hidden></section>
+      <section data-page="reqnav" hidden></section>
       <section data-page="docs" hidden></section>
       <section data-page="settings" hidden></section>
     </div>
@@ -581,12 +607,12 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -1944,9 +1970,143 @@ function renderDocs(){
   };
 }
 
+/* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========
+   種別×自治体プロフィールから「出すべき書類・証明書」を提示。データは保守的な暫定シード。
+   将来：バックエンド+AIが公式情報から最新要件を自動取得してREQ_DATAを更新する設計。 */
+var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。当システムの書類自動生成に対応。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。当システムの書類自動生成機能に対応。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "月間カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムの月間カリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "業務日報・保育日誌", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの業務日報・保育日誌に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}]}]};
+var REQ_ASOF='2026-07';
+var REQ_CATCOLOR={'設置・認可':'#185FA5','運営体制':'#0F6E56','日常記録':'#854F0B','届出・報告':'#3C3489','証明書・資格':'#72243E','安全・衛生':'#27500A'};
+var REQ_STATUSES=['未着手','準備中','完了'];
+function reqProfile(){return stGet('reqProfile',{type:'ninkagai',muni:'',cap:''});}
+function reqSaveProfile(p){stSet('reqProfile',p);}
+function reqStatusAll(){return stGet('reqStatus',{});}
+function reqSetStatus(k,v){var s=reqStatusAll();s[k]=v;stSet('reqStatus',s);}
+function reqTypeById(id){return (REQ_DATA.types||[]).filter(function(t){return t.id===id;})[0]||REQ_DATA.types[0];}
+function reqTarget(sd){
+  if(!sd)return null;
+  if(/危機管理マニュアル/.test(sd))return {page:'docgen',dg:'危機管理マニュアル'};
+  if(/運営(状況)?報告書/.test(sd))return {page:'docgen',dg:'運営状況報告書'};
+  if(/保育安全計画/.test(sd))return {page:'docgen',dg:'保育安全計画'};
+  if(/避難訓練/.test(sd))return {page:'drill'};
+  if(/シフト/.test(sd))return {page:'shift'};
+  if(/職員/.test(sd))return {page:'staff'};
+  if(/カリキュラム/.test(sd))return {page:'curriculum'};
+  if(/安全点検/.test(sd))return {page:'records',rec:'安全点検'};
+  if(/午睡|SIDS/.test(sd))return {page:'records',rec:'午睡チェック'};
+  if(/健康チェック/.test(sd))return {page:'records',rec:'健康チェック'};
+  if(/身体測定/.test(sd))return {page:'records',rec:'身体測定'};
+  if(/ヒヤリハット|事故/.test(sd))return {page:'records',rec:'ヒヤリハット・怪我'};
+  if(/業務日報|保育日誌/.test(sd))return {page:'records',rec:'業務日報・保育日誌'};
+  if(/発達/.test(sd))return {page:'records',rec:'生徒個人発達記録'};
+  return null;
+}
+function renderReqNav(){
+  var s=$('section[data-page="reqnav"]');
+  var prof=reqProfile();var t=reqTypeById(prof.type);var st=reqStatusAll();
+  var done=t.items.filter(function(it){return st[t.id+'|'+it.name]==='完了';}).length;
+  var h='<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+'施設プロフィール</h3>'
+    +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;">種別を選ぶと、その施設が行政に提出・整備すべき書類の一覧に切り替わります。</div>'
+    +'<div class="grid" style="grid-template-columns:2fr 1.3fr 0.8fr;gap:12px;">'
+    +'<div class="field" style="margin:0;"><label>施設種別</label><select id="rqType">'+REQ_DATA.types.map(function(x){return '<option value="'+x.id+'"'+(x.id===prof.type?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div>'
+    +'<div class="field" style="margin:0;"><label>自治体（市区町村）</label><input id="rqMuni" value="'+(prof.muni||'').replace(/"/g,'&quot;')+'" placeholder="例：さいたま市"></div>'
+    +'<div class="field" style="margin:0;"><label>定員</label><input id="rqCap" type="number" value="'+(prof.cap||'')+'" placeholder="例：19"></div>'
+    +'</div></div>';
+  h+='<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:11px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12.5px;color:#6b3f08;line-height:1.6;">この一覧は<b>暫定（確認日 '+REQ_ASOF+'）</b>です。全国共通の基本項目を中心に整理しています。<b>自治体ごとの様式・上乗せ要件や最新の制度改正は、必ず各自治体の公式情報でご確認ください。</b>「要確認」は特に自治体差が出やすい項目です。将来AI連携で最新情報の自動更新に対応予定。</div></div>';
+  h+='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">'+esc(t.label)+'</span><span class="muted">の主な提出・整備書類</span><span style="flex:1;"></span><span class="tag" style="background:#EAF3DE;color:#27500A;">完了 '+done+' / '+t.items.length+'</span></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:10px;">'+t.items.map(function(it){
+    var key=t.id+'|'+it.name;var cur=st[key]||'未着手';var tgt=reqTarget(it.systemDoc);var catc=REQ_CATCOLOR[it.category]||'#888780';
+    var stcol=cur==='完了'?'#EAF3DE;color:#27500A;border-color:#639922':(cur==='準備中'?'#FAEEDA;color:#854F0B;border-color:#E9C88B':'#fff;color:#5f6b64');
+    return '<div class="card" style="padding:14px;"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+      +'<div style="flex:1;min-width:250px;">'
+      +'<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:14px;">'+esc(it.name)+'</span>'
+      +'<span class="pill" style="background:'+catc+';color:#fff;font-size:10.5px;">'+esc(it.category)+'</span>'
+      +(it.confidence==='要確認'?'<span class="pill" style="background:#FAEEDA;color:#854F0B;font-size:10.5px;">要確認</span>':'<span class="pill" style="background:#EAF3DE;color:#27500A;font-size:10.5px;">全国共通</span>')+'</div>'
+      +'<div class="muted" style="font-size:12px;line-height:1.55;"><b>根拠</b>：'+esc(it.basis)+'　／　<b>提出先</b>：'+esc(it.submitTo||'—')+'　／　<b>頻度</b>：'+esc(it.frequency)+'</div>'
+      +(it.note?'<div style="font-size:11.5px;color:var(--tx3);margin-top:5px;line-height:1.55;">'+esc(it.note)+'</div>':'')
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:150px;">'
+      +'<select data-rqst="'+esc(key)+'" style="width:150px;background:'+stcol+';font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
+      +(tgt?'<button class="btn btn-sm" data-rqgo="'+esc(it.systemDoc)+'">'+ic('fileplus')+'このシステムで作る</button>':'<span class="muted" style="font-size:11px;text-align:center;">システム外で用意</span>')+'</div>'
+      +'</div></div>';
+  }).join('')+'</div>';
+  s.innerHTML=h;
+  $('#rqType').onchange=function(){var p=reqProfile();p.type=this.value;reqSaveProfile(p);renderReqNav();};
+  $('#rqMuni').oninput=function(){var p=reqProfile();p.muni=this.value;reqSaveProfile(p);};
+  $('#rqCap').oninput=function(){var p=reqProfile();p.cap=this.value;reqSaveProfile(p);};
+  s.querySelectorAll('[data-rqst]').forEach(function(sel){sel.onchange=function(){reqSetStatus(sel.getAttribute('data-rqst'),sel.value);renderReqNav();};});
+  s.querySelectorAll('[data-rqgo]').forEach(function(b){b.onclick=function(){var tgt=reqTarget(b.getAttribute('data-rqgo'));if(!tgt)return;if(tgt.dg)dgType=tgt.dg;if(tgt.rec)recType=tgt.rec;go(tgt.page);};});
+}
+
+/* ========== 保育AIアシスタント（DB連動・ルールベース／将来Claude API接続） ==========
+   将来設計：aiRoute(q) を差し替え、施設DB(記録・カリキュラム・危機管理マニュアル等)を文脈として
+   バックエンド経由でLLMに渡せば、自由会話＋DB根拠つき回答に昇格できる。 */
+var AI_OPEN=false, aiStarted=false;
+function initAI(){
+  if(document.getElementById('aiFab'))return;
+  var fab=el('button',{id:'aiFab',title:'保育アシスタント'},'💬<span class="dot"></span>');
+  var panel=el('div',{id:'aiPanel'});
+  panel.innerHTML='<div class="ai-head"><span style="font-size:20px;">🤖</span><div class="t">保育アシスタント<small>DB連動サポート（β）</small></div><button id="aiClose">×</button></div>'
+    +'<div class="ai-body" id="aiBody"></div>'
+    +'<div class="ai-chips" id="aiChips"></div>'
+    +'<div class="ai-foot"><input id="aiInput" placeholder="質問を入力（例：発熱の対応は？）"><button id="aiSend">➤</button></div>'
+    +'<div class="ai-note">現在はDB連動のルールベース応答。将来AI接続で自由な会話に対応予定。</div>';
+  document.body.appendChild(panel);document.body.appendChild(fab);
+  fab.onclick=function(){AI_OPEN=!AI_OPEN;panel.classList.toggle('open',AI_OPEN);var dot=fab.querySelector('.dot');if(dot)dot.style.display='none';if(AI_OPEN&&!aiStarted){aiStarted=true;aiGreet();}};
+  $('#aiClose').onclick=function(){AI_OPEN=false;panel.classList.remove('open');};
+  $('#aiSend').onclick=aiSubmit;
+  $('#aiInput').addEventListener('keydown',function(e){if(e.key==='Enter')aiSubmit();});
+  var chips=['今日やること','発熱の対応','誤飲・窒息','不審者対応','メールを作る','今月のカリキュラム'];
+  $('#aiChips').innerHTML=chips.map(function(c){return '<button data-aichip="'+c+'">'+c+'</button>';}).join('');
+  $('#aiChips').querySelectorAll('[data-aichip]').forEach(function(b){b.onclick=function(){if(!AI_OPEN){AI_OPEN=true;panel.classList.add('open');}aiAsk(b.getAttribute('data-aichip'));};});
+}
+function aiPush(role,html){var b=$('#aiBody');var d=el('div',{class:role==='me'?'ai-msg me':'ai-msg bot'},html);b.appendChild(d);b.scrollTop=b.scrollHeight;}
+function aiGreet(){aiPush('bot','こんにちは！保育の実務をサポートします🌿\nカリキュラム作成・やること管理・メール作成・トラブル対処などを、下のボタンか入力からどうぞ。');}
+function aiSubmit(){var v=$('#aiInput').value.trim();if(!v)return;$('#aiInput').value='';aiAsk(v);}
+function aiAsk(q){aiPush('me',escapeHtmlAI(q));var r=aiRoute(q);setTimeout(function(){aiRender(r);},160);}
+function escapeHtmlAI(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function aiRoute(q){
+  if(/(今日|やること|タスク|todo|記録|未記入|やり残|終わって|進捗)/i.test(q)) return aiToday();
+  if(/(メール|お知らせ|配信|送信|文面|下書き|連絡帳|おたより)/.test(q)) return {text:'メール作成をサポートします。用途に合わせて開いてください。既存テンプレート・連絡先・トークン差し込みが使えます。',nav:[{label:'個別メールを作る',page:'compose'},{label:'全体配信を作る',page:'broadcast'}]};
+  if(/(カリキュラム|アクティビティ|今月|活動|プログラム|予定表|月間)/.test(q)) return aiCurriculum();
+  return aiTrouble(q);
+}
+function aiToday(){
+  var keys=[['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']];
+  var done=[],undone=[];keys.forEach(function(k){(stGet(k[1],{})[todayISO()]?done:undone).push(k[0]);});
+  var t='📋 本日（'+fmt(todayISO())+'）の記録状況\n✅ 記録済み：'+(done.length?done.join('・'):'なし')+'\n🔲 未記録：'+(undone.length?undone.join('・'):'なし ✨ すべて完了！');
+  return {text:t,nav:undone.length?[{label:'日常記録を開く',page:'records'},{label:'監査チェックを見る',page:'audit'}]:[{label:'監査チェックを見る',page:'audit'}]};
+}
+function aiCurriculum(){
+  var t='🗓 今月のカリキュラム（'+(CUR.month||curMonthKey())+'）\nテーマ：'+(CUR.theme||'未設定');
+  var dtxt=(typeof curDayText==='function')?curDayText('Pre',todayISO()):'';
+  if(dtxt)t+='\n本日(Pre)：'+dtxt;
+  return {text:t,nav:[{label:'カリキュラムを開く',page:'curriculum'},{label:'デイリーメールを作る',page:'broadcast'}]};
+}
+function aiTrouble(q){
+  var terms=q.replace(/[はをにがのでとやへも、。・？?！!　\s]+/g,' ').split(' ').filter(function(w){return w.length>=2;});
+  if(!terms.length)terms=[q];
+  var scored=(typeof KIKI_SECTIONS!=='undefined'?KIKI_SECTIONS:[]).map(function(sec){
+    var hay=sec.title+' '+sec.body;var sc=0;terms.forEach(function(w){if(hay.indexOf(w)>-1)sc+=(sec.title.indexOf(w)>-1?3:1);});return {sec:sec,sc:sc};
+  }).filter(function(x){return x.sc>0;}).sort(function(a,b){return b.sc-a.sc;}).slice(0,3);
+  if(!scored.length)return {text:'該当する対処が見つかりませんでした🙏\n「発熱」「誤飲」「不審者」「けいれん」「アレルギー」「地震」などのキーワードで聞いてみてください。'};
+  var secs=scored.map(function(x){var body=(typeof kikiSubstPlain==='function')?kikiSubstPlain(kikiBody(x.sec)):x.sec.body;var snip=body.replace(/\n+/g,' ').slice(0,180);return {id:x.sec.id,title:x.sec.title,snip:snip+(body.length>180?'…':'')};});
+  return {text:'「'+q+'」に関する危機管理マニュアルの該当箇所です👇',sections:secs};
+}
+function aiRender(r){
+  var b=$('#aiBody');
+  if(r.text)aiPush('bot',escapeHtmlAI(r.text));
+  if(r.sections&&r.sections.length){r.sections.forEach(function(s){var d=el('div',{class:'ai-sec'},'<div class="st">🛡 '+escapeHtmlAI(s.title)+'</div><div class="ss">'+escapeHtmlAI(s.snip)+'</div><button data-aiopen="'+s.id+'">危機管理マニュアルで開く →</button>');b.appendChild(d);});}
+  if(r.nav&&r.nav.length){var d=el('div',{class:'ai-sec'});r.nav.forEach(function(a){var bt=el('button',{'data-ainav':a.page},a.label);d.appendChild(bt);});b.appendChild(d);}
+  b.scrollTop=b.scrollHeight;
+  b.querySelectorAll('[data-aiopen]').forEach(function(btn){btn.onclick=function(){aiOpenSection(btn.getAttribute('data-aiopen'));};});
+  b.querySelectorAll('[data-ainav]').forEach(function(btn){btn.onclick=function(){AI_OPEN=false;$('#aiPanel').classList.remove('open');go(btn.getAttribute('data-ainav'));};});
+}
+function aiOpenSection(id){AI_OPEN=false;$('#aiPanel').classList.remove('open');dgType='危機管理マニュアル';kikiSel=id;go('docgen');}
+
 /* ---------- start ---------- */
 $('#navContacts').textContent=DB.contacts.length;
 go('dashboard');
+initAI();
 </script>
 </body>
 </html>
