@@ -159,9 +159,13 @@ function demoPwFor(c){return DEMO_PW[c.id]||('cocoas'+c.id);}
 function seedAll(){
   if(!localStorage.getItem('cocoas_contacts')) stSet('contacts',seedEnrolled());
   var en=enrolled();
-  // parent accounts: email -> {childId, pw}（在園児それぞれに個別のデモPW。既存は上書きしない）
+  // parent accounts: email -> {childId, pw}
+  // 既知のデモ児(11-15)は毎回パスワードを確定（古い保存 'cocoas' 等を上書きして、画面表示と必ず一致させる）
   var acc=stGet('parentAccounts',null)||{};
-  en.forEach(function(c){ if(!acc[c.email]) acc[c.email]={childId:c.id,pw:demoPwFor(c)}; });
+  en.forEach(function(c){
+    if(DEMO_PW[c.id]) acc[c.email]={childId:c.id,pw:DEMO_PW[c.id]};
+    else if(!acc[c.email]) acc[c.email]={childId:c.id,pw:demoPwFor(c)};
+  });
   stSet('parentAccounts',acc);
   // body-measure sample (rec_身体測定): 直近4ヶ月
   if(!localStorage.getItem('cocoas_rec_身体測定')){
@@ -259,7 +263,7 @@ function wireAuth(){
     };
     $('li_pw').addEventListener('keydown',function(e){if(e.key==='Enter')$('li_go').click();});
     $('li_forgot').onclick=function(){authView='reset';render();};
-    document.querySelectorAll('[data-fill]').forEach(function(b){b.onclick=function(){var p=b.getAttribute('data-fill').split('|');$('li_email').value=p[0]||'';$('li_pw').value=p[1]||'';$('loginErr').style.display='none';toast('自動入力しました。「ログイン」を押してください');};});
+    document.querySelectorAll('[data-fill]').forEach(function(b){b.onclick=function(){var p=b.getAttribute('data-fill').split('|');$('li_email').value=p[0]||'';$('li_pw').value=p[1]||'';$('loginErr').style.display='none';if(login((p[0]||'').toLowerCase(),p[1]||'')){render();}else{toast('自動入力しました。「ログイン」を押してください');}};});
     if($('li_reset'))$('li_reset').onclick=function(){resetDemo();render();toast('テスト用アカウントを作り直しました');};
   } else if(authView==='reset'){
     $('rs_go').onclick=function(){var em=($('rs_email').value||'').trim().toLowerCase();var acc=stGet('parentAccounts',{});if(!em){toast('メールアドレスを入力してください');return;}resetEmail=em;authView='newpw';render();toast('再設定リンクを送信しました（デモ）');};
