@@ -197,7 +197,13 @@ function seedAll(){
 
 /* ---- session ---- */
 function sessionChild(){var id=sessionStorage.getItem('cocoas_psession');if(!id)return null;return enrolled().filter(function(c){return c.id===+id;})[0]||null;}
-function login(email,pw){var acc=stGet('parentAccounts',{});var a=acc[(email||'').trim().toLowerCase()];if(a&&a.pw===pw){sessionStorage.setItem('cocoas_psession',a.childId);return true;}return false;}
+function login(email,pw){
+  email=(email||'').trim().toLowerCase();pw=(pw||'').trim();
+  var acc=stGet('parentAccounts',{});var a=acc[email];
+  // デモのため寛容に：登録PW／全国共通の 'cocoas'／その子の既定PW のいずれでもログイン可
+  if(a && (pw===String(a.pw)||pw==='cocoas'||pw===DEMO_PW[a.childId])){sessionStorage.setItem('cocoas_psession',a.childId);return true;}
+  return false;
+}
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
 function logout(){sessionStorage.removeItem('cocoas_psession');render();}
 function resetDemo(){
@@ -226,8 +232,8 @@ function loginHTML(){
   return '<div class="login-wrap">'
     +'<div class="brand"><div class="logo">🧸</div><h1>COCOAS KIDS 保護者ページ</h1><div class="sub">大宮与野校</div></div>'
     +'<div class="err" id="loginErr"></div>'
-    +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username"></div>'
-    +'<div class="field"><label>パスワード</label><input id="li_pw" type="password" placeholder="パスワード" autocomplete="current-password"></div>'
+    +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
+    +'<div class="field"><label>パスワード</label><input id="li_pw" type="text" placeholder="パスワード" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<button class="btn" id="li_go">ログイン</button>'
     +'<div style="text-align:center;margin-top:12px;"><button class="link" id="li_forgot">パスワードをお忘れですか？</button></div>'
     +'<div class="divider">テスト用アカウント（タップで自動入力）</div>'
