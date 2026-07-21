@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>COCOAS KIDS ｜ 保護者ページ</title>
+<style>
+  :root{
+    --teal:#0F6E56;--teal-d:#0a4d3c;--teal-l:#1D9E75;--accent:#2bb789;
+    --bg:#eef2ef;--card:#ffffff;--line:#e2e5e0;--line2:#eef0ec;
+    --tx:#1d2420;--tx2:#5f6b64;--tx3:#97a099;
+    --amber:#f0a23a;--pink:#E8618C;--blue:#3f76c9;
+    --radius:16px;--shadow:0 2px 14px rgba(20,50,40,.08);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased;}
+  .phone{max-width:480px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;display:flex;flex-direction:column;box-shadow:0 0 40px rgba(0,0,0,.06);}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;font-size:15px;width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--tx);}
+  input:focus,select,textarea:focus{outline:none;border-color:var(--teal-l);}
+  textarea{resize:vertical;line-height:1.6;}
+  label{font-size:12.5px;color:var(--tx2);font-weight:600;display:block;margin-bottom:5px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:13px 18px;font-size:15px;font-weight:600;width:100%;transition:transform .05s;}
+  .btn:active{transform:scale(.98);}
+  .btn.sec{background:#fff;color:var(--teal);border:1.5px solid var(--teal);}
+  .btn.ghost{background:transparent;color:var(--tx2);border:none;font-weight:500;width:auto;padding:8px;}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px;}
+  .muted{color:var(--tx2);font-size:12.5px;}
+  .demo-ribbon{background:#2c2c2c;color:#fff;font-size:11px;text-align:center;padding:4px;letter-spacing:.04em;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--line2);color:var(--tx);border:1px solid var(--line);border-radius:99px;padding:8px 13px;font-size:13px;font-weight:500;}
+
+  /* ===== Login ===== */
+  .login-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:26px 22px 40px;}
+  .brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:26px;}
+  .brand .logo{width:64px;height:64px;border-radius:18px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 6px 18px rgba(15,110,86,.28);}
+  .brand h1{font-size:19px;margin:2px 0 0;font-weight:700;}
+  .brand .sub{font-size:12.5px;color:var(--tx2);}
+  .field{margin-bottom:13px;}
+  .link{color:var(--teal);font-weight:600;font-size:13.5px;background:none;border:none;text-decoration:underline;}
+  .divider{display:flex;align-items:center;gap:12px;color:var(--tx3);font-size:12px;margin:20px 0 14px;}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  .sample-fam{display:flex;flex-direction:column;gap:8px;}
+  .fam-btn{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:11px 13px;text-align:left;width:100%;}
+  .fam-btn .av{width:38px;height:38px;border-radius:50%;background:var(--teal-l);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:15px;}
+  .fam-btn .nm{font-weight:600;font-size:14.5px;}
+  .fam-btn .em{font-size:11.5px;color:var(--tx2);}
+  .err{background:#FCEBEB;color:#A32D2D;border-radius:11px;padding:10px 13px;font-size:13px;margin-bottom:12px;display:none;}
+
+  /* ===== Portal ===== */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--teal);color:#fff;padding:13px 16px;display:flex;align-items:center;gap:12px;}
+  .topbar .av{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
+  .topbar .who{flex:1;min-width:0;}
+  .topbar .who .p{font-size:11px;opacity:.85;line-height:1.2;}
+  .topbar .who .n{font-size:15.5px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .topbar .out{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:600;}
+  .scroll{flex:1;overflow-y:auto;padding:16px 15px 90px;}
+  h2.sec{font-size:15px;font-weight:700;margin:4px 2px 11px;display:flex;align-items:center;gap:8px;}
+  .sec-more{margin-left:auto;font-size:12px;color:var(--teal);font-weight:600;background:none;border:none;}
+
+  /* Campaign banner */
+  .promo{border-radius:18px;padding:20px 18px;color:#fff;position:relative;overflow:hidden;margin-bottom:16px;box-shadow:0 8px 22px rgba(0,0,0,.14);}
+  .promo .tag{display:inline-block;background:rgba(255,255,255,.25);border-radius:99px;padding:3px 11px;font-size:11px;font-weight:700;margin-bottom:9px;letter-spacing:.03em;}
+  .promo h3{margin:0 0 5px;font-size:21px;font-weight:800;line-height:1.25;}
+  .promo p{margin:0 0 13px;font-size:13px;opacity:.95;}
+  .promo .cta{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#222;border:none;border-radius:11px;padding:10px 16px;font-weight:700;font-size:13.5px;}
+  .promo .emoji{position:absolute;right:-6px;bottom:-14px;font-size:96px;opacity:.22;transform:rotate(-12deg);pointer-events:none;}
+
+  /* posts */
+  .post{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--line2);}
+  .post:first-child{border-top:none;}
+  .post .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+  .post .bd{flex:1;min-width:0;}
+  .post .t{font-weight:600;font-size:14px;display:flex;align-items:center;gap:7px;}
+  .post .d{font-size:11.5px;color:var(--tx3);margin-top:1px;}
+  .post .x{font-size:13px;color:var(--tx2);margin-top:4px;white-space:pre-wrap;}
+  .new{background:var(--pink);color:#fff;font-size:9.5px;font-weight:700;border-radius:99px;padding:1px 7px;letter-spacing:.03em;}
+
+  /* SNS */
+  .sns-row{display:flex;gap:10px;}
+  .sns-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 6px;color:var(--tx);text-decoration:none;position:relative;}
+  .sns-btn .e{font-size:24px;}
+  .sns-btn .l{font-size:11.5px;font-weight:600;}
+  .sns-btn .dot{position:absolute;top:8px;right:12px;width:9px;height:9px;background:var(--pink);border-radius:50%;border:2px solid #fff;}
+
+  /* attendance */
+  .seg{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px;}
+  .seg button{flex:1;min-width:66px;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:10px 6px;font-size:13px;font-weight:600;color:var(--tx2);}
+  .seg button.on{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .att-item{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line2);}
+  .att-item .dt{font-weight:700;font-size:13px;min-width:64px;}
+  .badge-k{font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px;}
+
+  /* growth */
+  .g-table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  .g-table th,.g-table td{padding:9px 6px;text-align:center;border-bottom:1px solid var(--line2);}
+  .g-table th{font-size:11.5px;color:var(--tx2);font-weight:600;}
+  .g-table td.mo{text-align:left;font-weight:600;}
+  .spark{display:flex;align-items:flex-end;gap:7px;height:82px;padding:8px 2px 0;}
+  .spark .b{flex:1;background:linear-gradient(180deg,var(--teal-l),var(--teal));border-radius:6px 6px 0 0;position:relative;min-height:5px;}
+  .spark .b span{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:10px;color:var(--tx2);font-weight:600;}
+  .spark .b em{position:absolute;bottom:-19px;left:0;right:0;text-align:center;font-size:10px;color:var(--tx3);font-style:normal;}
+
+  /* bottom nav */
+  .tabbar{position:sticky;bottom:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));}
+  .tabbar button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;color:var(--tx3);font-size:10.5px;font-weight:600;}
+  .tabbar button .e{font-size:20px;}
+  .tabbar button.on{color:var(--teal);}
+
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+  .empty{text-align:center;color:var(--tx3);padding:26px 10px;font-size:13.5px;}
+  .info{background:#E6F1FB;color:#0C447C;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="demo-ribbon">デモ版（プロトタイプ）｜ ログイン・データはこの端末内のみ。本番は認証・DBをサーバ側で保護します</div>
+  <div id="root"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   COCOAS KIDS 保護者ページ（プロトタイプ）
+   - 職員ダッシュボード(index.html)と同一オリジンのlocalStorageでデータ共有
+   - 出欠連絡は職員側の rec_登園シート に反映 / 身体測定・配信は共有データを表示
+   - デモ認証（本物のセキュリティではない）。将来バックエンドに載せ替え可能な設計。
+   ========================================================================= */
+
+/* ---- shared storage helpers (index.html と同じ prefix 'cocoas_') ---- */
+function stGet(k,d){try{var v=JSON.parse(localStorage.getItem('cocoas_'+k));return v==null?d:v;}catch(e){return d;}}
+function stSet(k,v){localStorage.setItem('cocoas_'+k,JSON.stringify(v));}
+function pad(n){return String(n).padStart(2,'0');}
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function addDaysISO(n){var d=new Date();d.setDate(d.getDate()+n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+var WD=['日','月','火','水','木','金','土'];
+function fmtDate(s){if(!s)return'';var p=s.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);return (+p[1])+'/'+(+p[2])+'（'+WD[d.getDay()]+'）';}
+function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function childName(c){return (c.child||'').replace(/ちゃん|くん/g,'');}
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2200);}
+
+/* ---- seed sample data if empty (standalone で動くように・実データは入れない) ---- */
+function seedEnrolled(){return [
+  {id:11,kind:'enrolled',klass:'Pre',name:"高橋 さくら",child:"心春ちゃん",email:"takahashi@example.com",dob:"2023-05-10",days:"月・水・金",lunch:true,long:false},
+  {id:12,kind:'enrolled',klass:'Pre',name:"渡辺 直樹",child:"大翔くん",email:"watanabe@example.com",dob:"2023-09-15",days:"火・木・金",lunch:true,long:true},
+  {id:13,kind:'enrolled',klass:'Pre',name:"加藤 麻衣",child:"美桜ちゃん",email:"kato@example.com",dob:"2024-07-20",days:"月・火・木・金",lunch:false,long:false},
+  {id:14,kind:'enrolled',klass:'Kinder',name:"山田 健太",child:"結菜ちゃん",email:"yamada@example.com",dob:"2022-06-18",days:"月・火・水・木・金",lunch:true,long:true},
+  {id:15,kind:'enrolled',klass:'Kinder',name:"松本 千夏",child:"湊くん",email:"matsumoto@example.com",dob:"2022-11-02",days:"月・火・水・木・金",lunch:true,long:false}
+];}
+function enrolled(){return (stGet('contacts',null)||[]).filter(function(c){return c.kind==='enrolled';});}
+
+function seedAll(){
+  if(!localStorage.getItem('cocoas_contacts')) stSet('contacts',seedEnrolled());
+  var en=enrolled();
+  // parent accounts: email -> {childId, pw}
+  if(!localStorage.getItem('cocoas_parentAccounts')){
+    var acc={};en.forEach(function(c){acc[c.email]={childId:c.id,pw:'cocoas'};});
+    stSet('parentAccounts',acc);
+  }
+  // body-measure sample (rec_身体測定): 直近4ヶ月
+  if(!localStorage.getItem('cocoas_rec_身体測定')){
+    var bm={};var base={11:[88,12.2],12:[92,13.5],13:[80,10.4],14:[104,16.8],15:[101,16.0]};
+    for(var i=3;i>=0;i--){
+      var d=new Date();d.setMonth(d.getMonth()-i);var mk=d.getFullYear()+'-'+pad(d.getMonth()+1);
+      bm[mk]={rows:{}};en.forEach(function(c){var b=base[c.id]||[95,14];var g=(3-i);bm[mk].rows[c.id]={h:(b[0]+g*0.7).toFixed(1),w:(b[1]+g*0.3).toFixed(1)};});
+    }
+    stSet('rec_身体測定',bm);
+  }
+  // campaign banner
+  if(!localStorage.getItem('cocoas_campaign')){
+    stSet('campaign',{on:true,tag:'夏の特別イベント',title:'サマーキャンプ 2026 🏕️',sub:'8/5(水)〜8/7(金)｜英語で夏を遊びつくす3日間。先着20名・受付中！',emoji:'🏖️',bg:'linear-gradient(135deg,#ff8a5b,#ff5f7e)',ctaText:'くわしく見る・申し込む',ctaUrl:'#'});
+  }
+  // SNS config
+  if(!localStorage.getItem('cocoas_sns')){
+    stSet('sns',{instagram:'https://instagram.com/',line:'https://line.me/',youtube:'https://youtube.com/'});
+  }
+  // posts / おたより feed
+  if(!localStorage.getItem('cocoas_posts')){
+    stSet('posts',[
+      {id:1,date:todayISO(),type:'sns',title:'Instagramに新しい投稿をしました 📷',body:'今日の水あそびの様子をアップしました！ぜひご覧ください。',url:'https://instagram.com/'},
+      {id:2,date:todayISO(),type:'daily',title:'本日のデイリー（Pre）',body:'午前：リズム運動・サーキットあそび\n午後：Motor skill（colors / 形あそび）\nみんな元気に過ごしました🌿'},
+      {id:3,date:addDaysISO(-1),type:'news',title:'7月の身体測定を実施しました',body:'測定結果は「せいちょう」タブからご確認いただけます。'},
+      {id:4,date:addDaysISO(-2),type:'daily',title:'昨日のデイリー（Kinder）',body:'Show & Tell：夏休みの思い出を英語で発表しました。'}
+    ]);
+  }
+}
+
+/* ---- session ---- */
+function sessionChild(){var id=sessionStorage.getItem('cocoas_psession');if(!id)return null;return enrolled().filter(function(c){return c.id===+id;})[0]||null;}
+function login(email,pw){var acc=stGet('parentAccounts',{});var a=acc[(email||'').trim().toLowerCase()];if(a&&a.pw===pw){sessionStorage.setItem('cocoas_psession',a.childId);return true;}return false;}
+function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
+function logout(){sessionStorage.removeItem('cocoas_psession');render();}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+var tab='home', authView='login', resetEmail='';
+
+function render(){
+  var c=sessionChild();
+  document.getElementById('root').innerHTML = c ? portalHTML(c) : loginHTML();
+  if(c){wirePortal(c);} else {wireAuth();}
+}
+
+/* ---------- LOGIN / PW flow ---------- */
+function loginHTML(){
+  if(authView==='reset') return resetHTML();
+  if(authView==='newpw') return newpwHTML();
+  var en=enrolled();
+  return '<div class="login-wrap">'
+    +'<div class="brand"><div class="logo">🧸</div><h1>COCOAS KIDS 保護者ページ</h1><div class="sub">大宮与野校</div></div>'
+    +'<div class="err" id="loginErr"></div>'
+    +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username"></div>'
+    +'<div class="field"><label>パスワード</label><input id="li_pw" type="password" placeholder="パスワード" autocomplete="current-password"></div>'
+    +'<button class="btn" id="li_go">ログイン</button>'
+    +'<div style="text-align:center;margin-top:12px;"><button class="link" id="li_forgot">パスワードをお忘れですか？</button></div>'
+    +'<div class="divider">またはサンプル家庭で体験</div>'
+    +'<div class="sample-fam">'+en.map(function(c){return '<button class="fam-btn" data-fam="'+c.id+'"><div class="av">'+esc(childName(c).slice(0,1))+'</div><div><div class="nm">'+esc(childName(c))+' の保護者</div><div class="em">'+esc(c.email)+'</div></div></button>';}).join('')+'</div>'
+    +'<div class="muted" style="text-align:center;margin-top:16px;line-height:1.6;">デモ用パスワードは <b>cocoas</b> です。<br>実際の運用では家庭ごとに安全な認証を行います。</div>'
+    +'</div>';
+}
+function resetHTML(){
+  return '<div class="login-wrap">'
+    +'<div class="brand"><div class="logo">🔑</div><h1>パスワードの再設定</h1><div class="sub">ご登録のメールアドレスを入力してください</div></div>'
+    +'<div class="field"><label>メールアドレス</label><input id="rs_email" type="email" placeholder="you@example.com"></div>'
+    +'<button class="btn" id="rs_go">再設定リンクを送る</button>'
+    +'<div style="text-align:center;margin-top:14px;"><button class="link" id="rs_back">← ログインに戻る</button></div>'
+    +'<div class="info" style="margin-top:18px;">デモ版のため、実際のメールは送信されません。「送る」を押すと、その場で新しいパスワードの設定画面に進みます。</div>'
+    +'</div>';
+}
+function newpwHTML(){
+  return '<div class="login-wrap">'
+    +'<div class="brand"><div class="logo">🔒</div><h1>新しいパスワード</h1><div class="sub">'+esc(resetEmail)+'</div></div>'
+    +'<div class="err" id="npErr"></div>'
+    +'<div class="field"><label>新しいパスワード</label><input id="np_pw" type="password" placeholder="6文字以上"></div>'
+    +'<div class="field"><label>もう一度入力</label><input id="np_pw2" type="password" placeholder="確認のためもう一度"></div>'
+    +'<button class="btn" id="np_go">パスワードを変更してログイン</button>'
+    +'<div style="text-align:center;margin-top:14px;"><button class="link" id="np_back">← ログインに戻る</button></div>'
+    +'</div>';
+}
+function wireAuth(){
+  var $=function(id){return document.getElementById(id);};
+  if(authView==='login'){
+    $('li_go').onclick=function(){
+      if(login($('li_email').value.toLowerCase(),$('li_pw').value)){render();}
+      else{var e=$('loginErr');e.textContent='メールアドレスまたはパスワードが違います。';e.style.display='block';}
+    };
+    $('li_pw').addEventListener('keydown',function(e){if(e.key==='Enter')$('li_go').click();});
+    $('li_forgot').onclick=function(){authView='reset';render();};
+    document.querySelectorAll('[data-fam]').forEach(function(b){b.onclick=function(){loginByChild(+b.getAttribute('data-fam'));render();};});
+  } else if(authView==='reset'){
+    $('rs_go').onclick=function(){var em=($('rs_email').value||'').trim().toLowerCase();var acc=stGet('parentAccounts',{});if(!em){toast('メールアドレスを入力してください');return;}resetEmail=em;authView='newpw';render();toast('再設定リンクを送信しました（デモ）');};
+    $('rs_back').onclick=function(){authView='login';render();};
+  } else if(authView==='newpw'){
+    $('np_go').onclick=function(){
+      var p=$('np_pw').value,p2=$('np_pw2').value;var e=$('npErr');
+      if(p.length<6){e.textContent='パスワードは6文字以上にしてください。';e.style.display='block';return;}
+      if(p!==p2){e.textContent='パスワードが一致しません。';e.style.display='block';return;}
+      var acc=stGet('parentAccounts',{});
+      if(acc[resetEmail]){acc[resetEmail].pw=p;stSet('parentAccounts',acc);loginByChild(acc[resetEmail].childId);render();toast('パスワードを変更しました');}
+      else{ // demo: unknown email -> just go back
+        authView='login';render();toast('このメールは登録されていません（デモ）');}
+    };
+    $('np_back').onclick=function(){authView='login';render();};
+  }
+}
+
+/* ---------- PORTAL ---------- */
+function portalHTML(c){
+  return '<div class="topbar">'
+    +'<div class="av">'+esc(childName(c).slice(0,1))+'</div>'
+    +'<div class="who"><div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+'</div></div>'
+    +'<button class="out" id="logout">ログアウト</button></div>'
+    +'<div class="scroll" id="scroll"></div>'
+    +'<div class="tabbar">'
+    + tabBtn('home','🏠','ホーム')
+    + tabBtn('att','📅','出欠連絡')
+    + tabBtn('growth','📈','せいちょう')
+    + tabBtn('news','📢','おしらせ')
+    +'</div>';
+}
+function tabBtn(id,e,l){return '<button data-tab="'+id+'" class="'+(tab===id?'on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
+
+function wirePortal(c){
+  document.getElementById('logout').onclick=logout;
+  document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.getAttribute('data-tab');render();};});
+  var sc=document.getElementById('scroll');
+  if(tab==='home') sc.innerHTML=homeHTML(c);
+  else if(tab==='att') sc.innerHTML=attHTML(c);
+  else if(tab==='growth') sc.innerHTML=growthHTML(c);
+  else if(tab==='news') sc.innerHTML=newsHTML(c);
+  wireCommon(c);
+  if(tab==='att') wireAtt(c);
+}
+
+/* ---- shared bits ---- */
+function promoHTML(){
+  var cp=stGet('campaign',{});if(!cp.on)return'';
+  return '<div class="promo" style="background:'+esc(cp.bg||'linear-gradient(135deg,#ff8a5b,#ff5f7e)')+';">'
+    +'<span class="emoji">'+esc(cp.emoji||'🎉')+'</span>'
+    +(cp.tag?'<span class="tag">'+esc(cp.tag)+'</span>':'')
+    +'<h3>'+esc(cp.title||'')+'</h3><p>'+esc(cp.sub||'')+'</p>'
+    +'<button class="cta" data-cta="'+esc(cp.ctaUrl||'#')+'">'+esc(cp.ctaText||'くわしく見る')+' →</button></div>';
+}
+function postIcon(type){return {sns:'📷',daily:'📖',news:'📢',event:'🎪'}[type]||'📩';}
+function postIconBg(type){return {sns:'#FBEAF0',daily:'#EAF3DE',news:'#E6F1FB',event:'#FAEEDA'}[type]||'#eef0ec';}
+function seenPosts(){return stGet('posts_seen_'+ (sessionStorage.getItem('cocoas_psession')||'x'), []);}
+function markSeen(ids){stSet('posts_seen_'+(sessionStorage.getItem('cocoas_psession')||'x'), ids);}
+function allPosts(){
+  var posts=(stGet('posts',[])||[]).slice();
+  // 職員の全体配信(history)も おたより として取り込む
+  var hist=stGet('history',[])||[];
+  hist.forEach(function(h,i){ if(h && h.body && (String(h.tpl||'').indexOf('デイリー')>-1||String(h.tpl||'').indexOf('配信')>-1||String(h.tpl||'').indexOf('お知らせ')>-1)){
+    posts.push({id:'h'+i,date:(h.time||todayISO()).slice(0,10),type:'daily',title:esc(h.subject||h.tpl||'園からのおたより'),body:h.body});
+  }});
+  posts.sort(function(a,b){return (a.date<b.date)?1:(a.date>b.date?-1:0);});
+  return posts;
+}
+function postRow(p,isNew){
+  return '<div class="post"><div class="ic" style="background:'+postIconBg(p.type)+';">'+postIcon(p.type)+'</div>'
+    +'<div class="bd"><div class="t">'+esc(p.title)+(isNew?'<span class="new">NEW</span>':'')+'</div>'
+    +'<div class="d">'+fmtDate(p.date)+'</div>'
+    +'<div class="x">'+esc(p.body||'')+'</div>'
+    +(p.url?'<button class="link" style="margin-top:5px;" data-open="'+esc(p.url)+'">開く →</button>':'')+'</div></div>';
+}
+function snsHTML(){
+  var s=stGet('sns',{});
+  var posts=allPosts();var seen=seenPosts();
+  var newSns=posts.some(function(p){return p.type==='sns'&&seen.indexOf(p.id)<0;});
+  return '<div class="card"><h2 class="sec">🔗 SNS・最新情報</h2><div class="sns-row">'
+    +'<a class="sns-btn" href="'+esc(s.instagram||'#')+'" target="_blank" rel="noopener"><span class="e">📷</span><span class="l">Instagram</span>'+(newSns?'<span class="dot"></span>':'')+'</a>'
+    +'<a class="sns-btn" href="'+esc(s.line||'#')+'" target="_blank" rel="noopener"><span class="e">💬</span><span class="l">LINE</span></a>'
+    +'<a class="sns-btn" href="'+esc(s.youtube||'#')+'" target="_blank" rel="noopener"><span class="e">▶️</span><span class="l">YouTube</span></a>'
+    +'</div>'+(newSns?'<div class="muted" style="margin-top:10px;">📷 Instagramに新しい投稿があります。</div>':'')+'</div>';
+}
+function wireCommon(c){
+  document.querySelectorAll('[data-cta],[data-open]').forEach(function(b){b.onclick=function(){var u=b.getAttribute('data-cta')||b.getAttribute('data-open');if(u&&u!=='#')window.open(u,'_blank','noopener');else toast('リンク先はデモのため未設定です');};});
+}
+
+/* ---- HOME ---- */
+function homeHTML(c){
+  var posts=allPosts();var seen=seenPosts();
+  var latest=posts.slice(0,3);
+  // mark home-visible posts as seen
+  setTimeout(function(){markSeen(posts.map(function(p){return p.id;}));},1200);
+  var newCount=posts.filter(function(p){return seen.indexOf(p.id)<0;}).length;
+  return promoHTML()
+    +'<div class="card"><h2 class="sec">📩 園からのおたより'+(newCount?' <span class="new">'+newCount+'件の新着</span>':'')+'<button class="sec-more" data-tab2="news">すべて見る</button></h2>'
+    +(latest.length?latest.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):'<div class="empty">まだおたよりはありません</div>')+'</div>'
+    + snsHTML()
+    +'<div class="card"><h2 class="sec">📅 おやすみの連絡</h2><div class="muted" style="margin-bottom:11px;">当日・事前のおやすみ／遅刻などを園に連絡できます。</div><button class="btn sec" data-tab2="att">出欠連絡をひらく</button></div>';
+}
+
+/* ---- ATTENDANCE ---- */
+var attKind='欠席';
+function attStoreKey(){return 'rec_登園シート';}
+function submitAbsence(c,date,kind,reason){
+  var K=attStoreKey();var data=stGet(K,{});
+  var day=data[date]||{klass:c.klass,rows:{},weather:'',temp:'',hum:'',memo:'',by:''};
+  if(!day.rows)day.rows={};
+  var mark = kind==='欠席'?'×':(kind==='遅刻'?'△':(kind==='早退'?'▲':'○'));
+  var prev=day.rows[c.id]||{};
+  day.rows[c.id]=Object.assign(prev,{att:mark,absent:kind==='欠席',parentNote:{kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')}});
+  data[date]=day;stSet(K,data);
+  // parent-side log
+  var log=stGet('absence_log',[]);log.push({childId:c.id,date:date,kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')});stSet('absence_log',log);
+}
+function myAbsences(c){return (stGet('absence_log',[])||[]).filter(function(a){return a.childId===c.id;}).sort(function(a,b){return a.date<b.date?1:-1;});}
+function attHTML(c){
+  var list=myAbsences(c);
+  return '<div class="card"><h2 class="sec">📅 おやすみ・遅刻の連絡</h2>'
+    +'<div class="info" style="margin-bottom:14px;">送信すると、園の出欠記録にすぐ反映されます。前日までのご連絡にご協力ください。</div>'
+    +'<div class="field"><label>日付</label><input id="at_date" type="date" value="'+addDaysISO(1)+'" min="'+todayISO()+'"></div>'
+    +'<div class="field"><label>区分</label><div class="seg" id="at_seg">'
+      +['欠席','遅刻','早退','お迎え変更'].map(function(k){return '<button data-k="'+k+'" class="'+(k===attKind?'on':'')+'">'+k+'</button>';}).join('')+'</div></div>'
+    +'<div class="field"><label>理由・伝えたいこと</label><textarea id="at_reason" rows="3" placeholder="例：発熱のためお休みします（37.8度）"></textarea></div>'
+    +'<button class="btn" id="at_send">この内容で園に連絡する</button></div>'
+    +'<div class="card"><h2 class="sec">🗒 連絡の履歴</h2>'
+    +(list.length?list.map(function(a){var col=a.kind==='欠席'?'#FCEBEB;color:#A32D2D':(a.kind==='遅刻'||a.kind==='早退'?'#FAEEDA;color:#854F0B':'#E6F1FB;color:#0C447C');return '<div class="att-item"><div class="dt">'+fmtDate(a.date)+'</div><div style="flex:1;"><span class="badge-k" style="background:'+col+';">'+esc(a.kind)+'</span><div class="muted" style="margin-top:4px;">'+esc(a.reason||'（理由なし）')+'</div><div style="font-size:10.5px;color:var(--tx3);margin-top:2px;">送信：'+esc(a.at)+'</div></div></div>';}).join(''):'<div class="empty">まだ連絡はありません</div>')+'</div>';
+}
+function wireAtt(c){
+  var $=function(id){return document.getElementById(id);};
+  $('at_seg').querySelectorAll('[data-k]').forEach(function(b){b.onclick=function(){attKind=b.getAttribute('data-k');$('at_seg').querySelectorAll('[data-k]').forEach(function(x){x.classList.toggle('on',x===b);});};});
+  $('at_send').onclick=function(){
+    var date=$('at_date').value;var reason=$('at_reason').value.trim();
+    if(!date){toast('日付を選んでください');return;}
+    submitAbsence(c,date,attKind,reason);
+    toast('園に連絡しました（'+attKind+'）');
+    tab='att';render();
+  };
+}
+
+/* ---- GROWTH (身体測定) ---- */
+function kaupVal(h,w){h=parseFloat(h);w=parseFloat(w);if(!h||!w)return null;return (w*10000/(h*h));}
+function growthHTML(c){
+  var bm=stGet('rec_身体測定',{})||{};
+  var months=Object.keys(bm).sort();
+  var rows=months.map(function(mk){var r=(bm[mk].rows||{})[c.id]||{};return {mk:mk,h:r.h,w:r.w};}).filter(function(r){return r.h||r.w;});
+  var head='<div class="card"><h2 class="sec">📈 '+esc(c.child)+'のせいちょう</h2>';
+  if(!rows.length) return head+'<div class="empty">まだ身体測定の記録がありません。<br>測定後にこちらに反映されます。</div></div>';
+  // spark for height
+  var hs=rows.map(function(r){return parseFloat(r.h)||0;});var mn=Math.min.apply(null,hs),mx=Math.max.apply(null,hs);var rng=(mx-mn)||1;
+  var spark='<div class="muted" style="margin:2px 0 22px;">身長の推移（cm）</div><div class="spark">'+rows.map(function(r){var h=parseFloat(r.h)||0;var pct=18+((h-mn)/rng)*78;return '<div class="b" style="height:'+pct+'%;"><span>'+(r.h||'-')+'</span><em>'+r.mk.slice(5)+'月</em></div>';}).join('')+'</div>';
+  var table='<table class="g-table" style="margin-top:14px;"><thead><tr><th style="text-align:left;">月</th><th>身長</th><th>体重</th><th>カウプ指数</th></tr></thead><tbody>'
+    +rows.map(function(r){var k=kaupVal(r.h,r.w);return '<tr><td class="mo">'+r.mk.replace('-','年')+'月</td><td>'+(r.h||'-')+'</td><td>'+(r.w||'-')+'</td><td>'+(k?k.toFixed(1):'-')+'</td></tr>';}).join('')+'</tbody></table>';
+  return head+spark+table+'<div class="muted" style="margin-top:12px;">カウプ指数の目安：15〜17がふつうです。ご心配な点は園にご相談ください。</div></div>';
+}
+
+/* ---- NEWS (all posts) ---- */
+function newsHTML(c){
+  var posts=allPosts();var seen=seenPosts();
+  setTimeout(function(){markSeen(posts.map(function(p){return p.id;}));},1200);
+  return promoHTML()+'<div class="card"><h2 class="sec">📢 園からのおたより・お知らせ</h2>'
+    +(posts.length?posts.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):'<div class="empty">まだおたよりはありません</div>')+'</div>'
+    + snsHTML();
+}
+
+/* wire sec-more / tab2 buttons (delegated after render) */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-tab2]');if(t){tab=t.getAttribute('data-tab2');render();}
+});
+
+/* ---- boot ---- */
+seedAll();
+render();
+</script>
+</body>
+</html>
