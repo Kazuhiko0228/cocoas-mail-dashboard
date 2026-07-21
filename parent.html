@@ -152,14 +152,17 @@ function seedEnrolled(){return [
 ];}
 function enrolled(){return (stGet('contacts',null)||[]).filter(function(c){return c.kind==='enrolled';});}
 
+/* 子どもごとの分かりやすいデモ用パスワード（画面に表示するので秘密ではない） */
+var DEMO_PW={11:'kokoro',12:'hiroto',13:'mio',14:'yuna',15:'minato'};
+function demoPwFor(c){return DEMO_PW[c.id]||('cocoas'+c.id);}
+
 function seedAll(){
   if(!localStorage.getItem('cocoas_contacts')) stSet('contacts',seedEnrolled());
   var en=enrolled();
-  // parent accounts: email -> {childId, pw}
-  if(!localStorage.getItem('cocoas_parentAccounts')){
-    var acc={};en.forEach(function(c){acc[c.email]={childId:c.id,pw:'cocoas'};});
-    stSet('parentAccounts',acc);
-  }
+  // parent accounts: email -> {childId, pw}（在園児それぞれに個別のデモPW。既存は上書きしない）
+  var acc=stGet('parentAccounts',null)||{};
+  en.forEach(function(c){ if(!acc[c.email]) acc[c.email]={childId:c.id,pw:demoPwFor(c)}; });
+  stSet('parentAccounts',acc);
   // body-measure sample (rec_身体測定): 直近4ヶ月
   if(!localStorage.getItem('cocoas_rec_身体測定')){
     var bm={};var base={11:[88,12.2],12:[92,13.5],13:[80,10.4],14:[104,16.8],15:[101,16.0]};
@@ -193,6 +196,12 @@ function sessionChild(){var id=sessionStorage.getItem('cocoas_psession');if(!id)
 function login(email,pw){var acc=stGet('parentAccounts',{});var a=acc[(email||'').trim().toLowerCase()];if(a&&a.pw===pw){sessionStorage.setItem('cocoas_psession',a.childId);return true;}return false;}
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
 function logout(){sessionStorage.removeItem('cocoas_psession');render();}
+function resetDemo(){
+  ['parentAccounts','absence_log'].forEach(function(k){localStorage.removeItem('cocoas_'+k);});
+  Object.keys(localStorage).filter(function(k){return k.indexOf('cocoas_posts_seen_')===0;}).forEach(function(k){localStorage.removeItem(k);});
+  sessionStorage.removeItem('cocoas_psession');
+  seedAll();
+}
 
 /* =========================================================================
    RENDER
@@ -217,9 +226,9 @@ function loginHTML(){
     +'<div class="field"><label>パスワード</label><input id="li_pw" type="password" placeholder="パスワード" autocomplete="current-password"></div>'
     +'<button class="btn" id="li_go">ログイン</button>'
     +'<div style="text-align:center;margin-top:12px;"><button class="link" id="li_forgot">パスワードをお忘れですか？</button></div>'
-    +'<div class="divider">またはサンプル家庭で体験</div>'
-    +'<div class="sample-fam">'+en.map(function(c){return '<button class="fam-btn" data-fam="'+c.id+'"><div class="av">'+esc(childName(c).slice(0,1))+'</div><div><div class="nm">'+esc(childName(c))+' の保護者</div><div class="em">'+esc(c.email)+'</div></div></button>';}).join('')+'</div>'
-    +'<div class="muted" style="text-align:center;margin-top:16px;line-height:1.6;">デモ用パスワードは <b>cocoas</b> です。<br>実際の運用では家庭ごとに安全な認証を行います。</div>'
+    +'<div class="divider">テスト用アカウント（タップで自動入力）</div>'
+    +'<div class="sample-fam">'+en.map(function(c){var acc=stGet('parentAccounts',{})[c.email]||{};return '<button class="fam-btn" data-fill="'+esc(c.email)+'|'+esc(acc.pw||'')+'"><div class="av">'+esc(childName(c).slice(0,1))+'</div><div style="flex:1;min-width:0;"><div class="nm">'+esc(c.child)+'（'+esc(c.klass)+'）</div><div class="em">'+esc(c.email)+'</div><div class="em" style="color:var(--teal);font-weight:700;">PW：'+esc(acc.pw||'')+'</div></div><span style="font-size:11px;color:var(--teal);font-weight:600;white-space:nowrap;">自動入力→</span></button>';}).join('')+'</div>'
+    +'<div class="muted" style="text-align:center;margin-top:14px;line-height:1.7;">上のアカウントをタップ → メールとパスワードが入ります。「ログイン」を押すと実際のログインを体験できます。<br><button class="link" id="li_reset" style="margin-top:6px;">テスト用アカウントを作り直す</button></div>'
     +'</div>';
 }
 function resetHTML(){
@@ -250,7 +259,8 @@ function wireAuth(){
     };
     $('li_pw').addEventListener('keydown',function(e){if(e.key==='Enter')$('li_go').click();});
     $('li_forgot').onclick=function(){authView='reset';render();};
-    document.querySelectorAll('[data-fam]').forEach(function(b){b.onclick=function(){loginByChild(+b.getAttribute('data-fam'));render();};});
+    document.querySelectorAll('[data-fill]').forEach(function(b){b.onclick=function(){var p=b.getAttribute('data-fill').split('|');$('li_email').value=p[0]||'';$('li_pw').value=p[1]||'';$('loginErr').style.display='none';toast('自動入力しました。「ログイン」を押してください');};});
+    if($('li_reset'))$('li_reset').onclick=function(){resetDemo();render();toast('テスト用アカウントを作り直しました');};
   } else if(authView==='reset'){
     $('rs_go').onclick=function(){var em=($('rs_email').value||'').trim().toLowerCase();var acc=stGet('parentAccounts',{});if(!em){toast('メールアドレスを入力してください');return;}resetEmail=em;authView='newpw';render();toast('再設定リンクを送信しました（デモ）');};
     $('rs_back').onclick=function(){authView='login';render();};
