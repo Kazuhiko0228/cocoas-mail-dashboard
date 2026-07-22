@@ -160,6 +160,8 @@
   .ai-foot button{background:var(--teal);color:#fff;border:none;border-radius:11px;width:44px;font-size:16px;cursor:pointer;}
   .ai-note{font-size:10px;color:var(--tx3);text-align:center;padding:0 12px 9px;background:#fff;line-height:1.4;}
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
 <body>
 <div class="app">
@@ -182,6 +184,7 @@
       <a data-go="docs">{ic:folder}書類格納</a>
       <div class="nav-label">管理</div>
       <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
+      <a data-go="roster">{ic:idcard}生徒台帳</a>
       <a data-go="templates">{ic:doc}メールテンプレート</a>
       <a data-go="curriculum">{ic:book}月間カリキュラム</a>
       <a data-go="deliveries">{ic:cal}配信カレンダー</a>
@@ -204,6 +207,7 @@
       <section data-page="compose" hidden></section>
       <section data-page="broadcast" hidden></section>
       <section data-page="contacts" hidden></section>
+      <section data-page="roster" hidden></section>
       <section data-page="templates" hidden></section>
       <section data-page="curriculum" hidden></section>
       <section data-page="deliveries" hidden></section>
@@ -251,7 +255,10 @@ var ICONS={
   tableg:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/>',
   folder:'<path d="M4 4h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>',
   fileplus:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/>',
-  printer:'<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>'
+  printer:'<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  idcard:'<rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="8.5" cy="10" r="2"/><path d="M14 9h4M14 13h4M5 16h9"/>',
+  map:'<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>',
+  pin:'<path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z"/><circle cx="12" cy="11" r="2"/>'
 };
 function ic(n){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[n]||'')+'</svg>';}
 
@@ -607,12 +614,12 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,roster:renderRoster,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -1968,6 +1975,166 @@ function renderDocs(){
     var body='<table><thead><tr><th>機関名</th><th>種別</th><th>電話番号</th></tr></thead><tbody>'+h.map(function(x){return '<tr><td style="font-size:14px;">'+x.name+'</td><td style="font-size:14px;">'+x.type+'</td><td style="font-size:16px;font-weight:600;">'+x.tel+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('病院等の緊急連絡先一覧',body);
   };
+}
+
+/* ========== 生徒台帳（生徒情報を1か所に集約）＋自宅マップ ==========
+   拡張プロフィールは studentProfiles（この端末のブラウザ内のみ）に保存。
+   ★実在の氏名・住所・口座番号などは公開ソースに入れない（サンプルのみ／口座欄は空）。将来は認証つきバックエンドで管理。 */
+var rosterSel=null, rosterTab='list', rosterMap=null;
+var SP_GROUPS=[
+  {g:'基本情報',f:[
+    {k:'sid',label:'生徒番号'},{k:'schoolType',label:'スクールタイプ',opts:['','インターナショナル','プリスクール','幼稚園','保育園','学童']},
+    {k:'klass',label:'クラス',opts:['','Pre','Kinder','一般']},
+    {k:'lastName',label:'お子様 姓'},{k:'firstName',label:'お子様 名'},
+    {k:'lastKana',label:'姓（フリガナ）'},{k:'firstKana',label:'名（フリガナ）'},{k:'romaji',label:'英語表記'},
+    {k:'sex',label:'性別',opts:['','男の子','女の子']},{k:'blood',label:'血液型',opts:['','不明','A','B','O','AB']},
+    {k:'grade',label:'学年'},{k:'dob',label:'生年月日',type:'date'},{k:'prevSchool',label:'在籍中の園・小学校等'}
+  ]},
+  {g:'入会・在籍',f:[{k:'applyDate',label:'お申し込み日',type:'date'},{k:'joinDate',label:'入会日',type:'date'}]},
+  {g:'住所・自宅（地図に使用）',f:[{k:'zip',label:'郵便番号'},{k:'address',label:'住所',wide:true},{k:'telHome',label:'TEL（自宅）'}]},
+  {g:'お父様',f:[
+    {k:'fName',label:'氏名'},{k:'fKana',label:'フリガナ'},{k:'fTel',label:'TEL（携帯）'},{k:'fMail',label:'メール'},
+    {k:'fJob',label:'職業'},{k:'fWork',label:'勤務先名'},{k:'fWorkAddr',label:'勤務先住所',wide:true},{k:'fWorkTel',label:'TEL（勤務先）'}
+  ]},
+  {g:'お母様',f:[
+    {k:'mName',label:'氏名'},{k:'mKana',label:'フリガナ'},{k:'mTel',label:'TEL（携帯）'},{k:'mMail',label:'メール'},
+    {k:'mJob',label:'職業'},{k:'mWork',label:'勤務先名'},{k:'mWorkAddr',label:'勤務先住所',wide:true},{k:'mWorkTel',label:'TEL（勤務先）'}
+  ]},
+  {g:'スクール・緊急連絡',f:[
+    {k:'schoolMail',label:'送信先メール（スクール情報）'},
+    {k:'emg1',label:'緊急連絡先(1)'},{k:'emg1rel',label:'続柄(1)'},
+    {k:'emg2',label:'緊急連絡先(2)'},{k:'emg2rel',label:'続柄(2)'},
+    {k:'emg3',label:'緊急連絡先(3)'},{k:'emg3rel',label:'続柄(3)'},
+    {k:'parentNote',label:'保護者からの連絡事項',type:'textarea',wide:true}
+  ]},
+  {g:'健康情報',f:[
+    {k:'allergy',label:'アレルギー'},{k:'doctor',label:'かかりつけ医'},{k:'normalTemp',label:'平熱'},
+    {k:'history',label:'既往症',opts:['無','有']},{k:'hospital',label:'入院歴',opts:['無','有']},
+    {k:'febrile',label:'ひきつけ/熱性痙攣',opts:['無','有']},{k:'respiratory',label:'呼吸・心疾患',opts:['無','有']},
+    {k:'otherDx',label:'その他 医師の診断',type:'textarea',wide:true}
+  ]},
+  {g:'お支払い（口座情報はこの端末内のみ・公開されません）',f:[
+    {k:'payMethod',label:'支払い方法',opts:['','口座振替','口座振込']},
+    {k:'bankNo',label:'引落 銀行番号',sensitive:true},{k:'bankName',label:'引落 銀行名',sensitive:true},
+    {k:'branchNo',label:'引落 支店番号',sensitive:true},{k:'branchName',label:'引落 支店名',sensitive:true},
+    {k:'acctType',label:'預金種目',opts:['','普通','当座']},{k:'acctNo',label:'口座番号',sensitive:true}
+  ]}
+];
+var DEFAULT_MAP={school:{lat:35.8817,lng:139.6297,name:'COCOAS KIDS 大宮与野校（サンプル位置）'},
+  shelters:[
+    {name:'一次避難場所（例：近隣公園）',lat:35.8840,lng:139.6265,type:'一次避難場所'},
+    {name:'二次避難場所（例：小学校）',lat:35.8770,lng:139.6350,type:'二次避難場所'},
+    {name:'広域避難場所（例：総合公園）',lat:35.8720,lng:139.6220,type:'広域避難場所'}
+  ]};
+var SP_SEED={
+  11:{sid:'CKI-P01',schoolType:'インターナショナル',romaji:'Kokoro',sex:'女の子',blood:'O',prevSchool:'—',zip:'338-0001',address:'さいたま市中央区（サンプル1-1）',telHome:'048-000-0011',fName:'高橋 健',fTel:'090-2001-1001',fJob:'会社員',allergy:'卵',doctor:'与野こどもクリニック（例）',normalTemp:'36.6',febrile:'有',emg1:'090-2001-1001',emg1rel:'父',emg2:'090-2001-0001',emg2rel:'母',lat:35.8852,lng:139.6362},
+  12:{sid:'CKI-P02',schoolType:'インターナショナル',romaji:'Hiroto',sex:'男の子',blood:'A',zip:'338-0002',address:'さいたま市中央区（サンプル2-2）',telHome:'048-000-0012',allergy:'なし',doctor:'なし',normalTemp:'36.8',emg1:'090-2002-0002',emg1rel:'母',lat:35.8792,lng:139.6212},
+  13:{sid:'CKI-P03',schoolType:'インターナショナル',romaji:'Mio',sex:'女の子',blood:'B',zip:'338-0003',address:'さいたま市中央区（サンプル3-3）',telHome:'048-000-0013',allergy:'そば・落花生',doctor:'中央小児科（例）',normalTemp:'36.5',respiratory:'有',emg1:'090-2003-0003',emg1rel:'母',lat:35.8735,lng:139.6305},
+  14:{sid:'CKI-K01',schoolType:'インターナショナル',romaji:'Yuna',sex:'女の子',blood:'AB',zip:'338-0004',address:'さいたま市中央区（サンプル4-4）',telHome:'048-000-0014',allergy:'なし',doctor:'よの耳鼻科（例）',normalTemp:'36.7',emg1:'090-2004-0004',emg1rel:'母',lat:35.8882,lng:139.6282},
+  15:{sid:'CKI-K02',schoolType:'インターナショナル',romaji:'Minato',sex:'男の子',blood:'A',zip:'338-0005',address:'さいたま市中央区（サンプル5-5）',telHome:'048-000-0015',allergy:'牛乳',doctor:'なし',normalTemp:'36.9',history:'有',emg1:'090-2005-0005',emg1rel:'母',lat:35.8762,lng:139.6402}
+};
+function spSeed(){var s=stGet('studentProfiles',null);if(!s){stSet('studentProfiles',SP_SEED);}if(!stGet('mapConfig',null)){stSet('mapConfig',DEFAULT_MAP);}}
+function spStore(){return stGet('studentProfiles',{});}
+function mapCfg(){return stGet('mapConfig',DEFAULT_MAP);}
+function spDefaults(c){var nm=(c.name||'').split(/[\s　]+/);return {klass:c.klass||'',grade:c.klass||'',lastName:nm[0]||'',firstName:childName(c),dob:c.dob||'',joinDate:c.admissionDate||'',schoolMail:c.email||'',mName:c.name||'',mTel:c.phone||'',mMail:c.email||'',history:'無',hospital:'無',febrile:'無',respiratory:'無'};}
+function spGet(id){var c=DB.contacts.filter(function(x){return x.id===id;})[0]||{};return Object.assign({},spDefaults(c),spStore()[id]||{});}
+function spSet(id,obj){var s=spStore();s[id]=obj;stSet('studentProfiles',s);}
+function spAge(dob){if(!dob)return '';var d=new Date(dob),n=new Date();var a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a>=0?a+'歳':'';}
+
+function renderRoster(){
+  spSeed();
+  var kids=enrolled();
+  if(!rosterSel||!kids.filter(function(c){return c.id===rosterSel;}).length)rosterSel=kids.length?kids[0].id:null;
+  var s=$('section[data-page="roster"]');
+  var tabs=[['list','一覧','users'],['profile','個別プロフィール','idcard'],['map','自宅マップ','map']];
+  var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
+    +tabs.map(function(t){return '<button class="btn btn-sm'+(rosterTab===t[0]?' btn-primary':'')+'" data-rtab="'+t[0]+'">'+ic(t[2])+t[1]+'</button>';}).join('')
+    +'<span style="flex:1;"></span><span class="muted" style="font-size:12px;">在園 '+kids.length+'名</span></div>'
+    +'<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:10px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12px;color:#6b3f08;line-height:1.55;">氏名・住所・健康・口座などの生徒情報は<b>この端末のブラウザ内だけ</b>に保存され、公開ソースには含まれません（表示はサンプル・口座欄は空）。本番運用は認証つきバックエンドで管理します。</div></div>';
+  if(rosterTab==='list')h+=rosterList(kids);
+  else if(rosterTab==='profile')h+=rosterProfile(kids);
+  else h+=rosterMapHtml(kids);
+  s.innerHTML=h;
+  s.querySelectorAll('[data-rtab]').forEach(function(b){b.onclick=function(){rosterTab=b.getAttribute('data-rtab');renderRoster();};});
+  if(rosterTab==='list')wireRosterList();
+  else if(rosterTab==='profile')wireRosterProfile();
+  else wireRosterMap(kids);
+}
+function rosterList(kids){
+  return '<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
+    +'<table><thead><tr><th>生徒番号</th><th>お子様</th><th>クラス</th><th>学年</th><th>年齢</th><th>保護者</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
+    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-sub">'+esc(p.sid||'—')+'</td><td class="row-name">'+esc(childName(c))+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+esc(p.grade||'')+'</td><td>'+spAge(p.dob)+'</td><td class="row-sub">'+esc(c.name||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+c.id+'">開く</button></td></tr>';}).join('')
+    +'</tbody></table></div>';
+}
+function wireRosterList(){
+  if($('#rosterPrint'))$('#rosterPrint').onclick=function(){
+    var kids=enrolled();
+    var body='<table><thead><tr><th>生徒番号</th><th>お子様</th><th>クラス</th><th>学年</th><th>年齢</th><th>保護者</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
+      +kids.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(p.sid||'')+'</td><td>'+esc(childName(c))+'</td><td>'+esc(p.klass||'')+'</td><td>'+esc(p.grade||'')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('生徒名簿',body);
+  };
+  document.querySelectorAll('[data-rprof]').forEach(function(b){b.onclick=function(){rosterSel=+b.getAttribute('data-rprof');rosterTab='profile';renderRoster();};});
+}
+function rosterProfile(kids){
+  if(!rosterSel)return '<div class="empty">在園の生徒がいません</div>';
+  var p=spGet(rosterSel);
+  var sel='<select id="rpSel" style="width:200px;">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===rosterSel?' selected':'')+'>'+esc(childName(c))+'（'+esc(c.klass)+'）</option>';}).join('')+'</select>';
+  var h='<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><h3 style="margin:0;">'+ic('idcard')+'個別プロフィール</h3>'+sel+'<span style="flex:1;"></span><button class="btn btn-sm" id="rpMapBtn">'+ic('pin')+'この子を地図で見る</button><button class="btn btn-primary btn-sm" id="rpSave">'+ic('check')+'保存</button> <span class="muted" id="rpMsg"></span></div>';
+  h+=SP_GROUPS.map(function(grp){
+    return '<div class="card" style="margin-bottom:12px;"><h3 style="font-size:14px;">'+esc(grp.g)+'</h3><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'
+      +grp.f.map(function(f){
+        var v=p[f.k]==null?'':p[f.k];var wide=f.wide?' style="grid-column:1/-1;"':'';
+        var inp;
+        if(f.opts)inp='<select data-rp="'+f.k+'">'+f.opts.map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
+        else if(f.type==='textarea')inp='<textarea data-rp="'+f.k+'" rows="2">'+esc(v)+'</textarea>';
+        else inp='<input data-rp="'+f.k+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末内のみ）"':'')+'>';
+        return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+(f.k==='dob'&&p.dob?'　<span class="muted">'+spAge(p.dob)+'</span>':'')+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
+      }).join('')
+      +'</div></div>';
+  }).join('');
+  return h;
+}
+function wireRosterProfile(){
+  if($('#rpSel'))$('#rpSel').onchange=function(){rosterSel=+this.value;renderRoster();};
+  if($('#rpMapBtn'))$('#rpMapBtn').onclick=function(){rosterTab='map';renderRoster();};
+  if($('#rpSave'))$('#rpSave').onclick=function(){
+    var obj=spGet(rosterSel);
+    document.querySelectorAll('[data-rp]').forEach(function(el){obj[el.getAttribute('data-rp')]=el.value;});
+    spSet(rosterSel,obj);$('#rpMsg').textContent='保存しました';setTimeout(function(){if($('#rpMsg'))$('#rpMsg').textContent='';},1500);
+  };
+}
+function rosterMapHtml(kids){
+  var noloc=kids.filter(function(c){return spGet(c.id).lat==null;}).length;
+  return '<div class="card" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+    +'<span style="font-weight:700;">'+ic('map')+'自宅マップ</span>'
+    +'<span class="muted" style="font-size:12px;">🏫 スクール　🏠 生徒自宅　🚩 避難場所</span><span style="flex:1;"></span>'
+    +'<span class="muted" style="font-size:12px;">自宅ピン設定：</span><select id="rmPinSel" style="width:170px;"><option value="">（生徒を選ぶ）</option>'+kids.map(function(c){return '<option value="'+c.id+'">'+esc(childName(c))+'</option>';}).join('')+'</select>'
+    +'<button class="btn btn-sm" id="rmClearPin">選択解除</button></div>'
+    +'<div class="muted" style="font-size:12px;margin:-4px 2px 10px;">'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' 生徒を選んで地図をクリックすると自宅ピンを置けます（住所を外部に送信しません）。学校→避難所の経路確認は監査でも使えます。'+(noloc?'　未設定：'+noloc+'名':'')+'</div>'
+    +'<div id="rosterMap" style="height:500px;width:100%;border-radius:14px;border:1px solid var(--line);z-index:0;"></div>'
+    +'<div id="rmPinMsg" class="muted" style="font-size:12px;margin-top:8px;"></div>';
+}
+function wireRosterMap(kids){
+  var box=document.getElementById('rosterMap');
+  if(typeof L==='undefined'){box.innerHTML='<div style="padding:24px;text-align:center;color:var(--tx2);">地図ライブラリを読み込めませんでした。<br>インターネット接続をご確認のうえ、ページを再読み込みしてください。</div>';return;}
+  var cfg=mapCfg();
+  if(rosterMap){rosterMap.remove();rosterMap=null;}
+  var map=L.map('rosterMap',{scrollWheelZoom:true}).setView([cfg.school.lat,cfg.school.lng],14);
+  rosterMap=map;
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  function pin(emoji,color){return L.divIcon({html:'<div style="font-size:22px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));">'+emoji+'</div>',className:'',iconSize:[26,26],iconAnchor:[13,24]});}
+  L.marker([cfg.school.lat,cfg.school.lng],{icon:pin('🏫')}).addTo(map).bindPopup('<b>'+esc(cfg.school.name)+'</b>');
+  (cfg.shelters||[]).forEach(function(sh){L.marker([sh.lat,sh.lng],{icon:pin('🚩')}).addTo(map).bindPopup('<b>'+esc(sh.name)+'</b><br>'+esc(sh.type||''));});
+  var bounds=[[cfg.school.lat,cfg.school.lng]];
+  kids.forEach(function(c){var p=spGet(c.id);if(p.lat!=null&&p.lng!=null){L.marker([p.lat,p.lng],{icon:pin('🏠')}).addTo(map).bindPopup('<b>'+esc(childName(c))+'</b><br>'+esc(p.address||''));bounds.push([p.lat,p.lng]);}});
+  setTimeout(function(){map.invalidateSize();if(bounds.length>1)map.fitBounds(bounds,{padding:[45,45],maxZoom:16});else map.setView([cfg.school.lat,cfg.school.lng],15);},160);
+  map.on('click',function(e){
+    var id=$('#rmPinSel').value;
+    if(!id){$('#rmPinMsg').textContent='先に上で生徒を選んでください。';return;}
+    id=+id;var obj=spGet(id);obj.lat=+e.latlng.lat.toFixed(6);obj.lng=+e.latlng.lng.toFixed(6);spSet(id,obj);
+    $('#rmPinMsg').textContent=childName(DB.contacts.filter(function(x){return x.id===id;})[0])+'の自宅ピンを設定しました。';
+    wireRosterMap(enrolled());
+  });
 }
 
 /* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========
