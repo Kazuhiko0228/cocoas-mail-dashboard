@@ -329,10 +329,10 @@ var BBODY={
 };
 
 function seed(){return [
-  {id:1,kind:'lead',name:"田中 美咲",child:"結愛ちゃん",dob:"2023-08-10",email:"m.tanaka@example.com",phone:"090-1111-2222",status:"体験後 検討中",wishKlass:"Pre",format:"オフライン",date:todayISO(),trialTime:"10:00",trialBy:"白神",nextAction:iso(addDays(5)),receivedDate:iso(addDays(-6)),source:"HPフォーム",concerns:"",note:"HP経由"},
-  {id:2,kind:'lead',name:"中村 彩",child:"陽菜ちゃん",dob:"2024-01-15",email:"nakamura.a@example.com",phone:"090-3333-4444",status:"🔥入園見込み",wishKlass:"Pre",format:"オフライン",date:todayISO(),trialTime:"10:00",trialBy:"白神",nextAction:iso(addDays(2)),receivedDate:iso(addDays(-8)),source:"Gフォーム",concerns:"金額面が気になっている",note:""},
-  {id:3,kind:'lead',name:"佐藤 健一",child:"蓮くん",dob:"2022-11-20",email:"sato.k@example.com",phone:"080-5555-6666",status:"体験前 日程調整済",wishKlass:"Kinder",format:"オフライン",date:iso(addDays(1)),trialTime:"10:00",trialBy:"白神",receivedDate:iso(addDays(-4)),source:"LINE",concerns:"",note:"LINE経由"},
-  {id:4,kind:'lead',name:"小林 翔",child:"大和くん",dob:"2023-05-05",email:"kobayashi@example.com",phone:"080-7777-8888",status:"体験前 日程調整中",wishKlass:"Pre",format:"オフライン",date:"",trialBy:"白神",receivedDate:iso(addDays(-2)),source:"紹介",concerns:"",note:"在園児からの紹介"},
+  {id:1,kind:'lead',name:"田中 美咲",child:"結愛ちゃん",dob:"2023-08-10",email:"m.tanaka@example.com",phone:"090-1111-2222",status:"体験後 検討中",wishKlass:"Pre",format:"オフライン",date:todayISO(),trialTime:"10:00",trialBy:"白神",nextAction:iso(addDays(5)),nextMethod:"電話",receivedDate:iso(addDays(-6)),source:"HPフォーム",concerns:"",note:"HP経由"},
+  {id:2,kind:'lead',name:"中村 彩",child:"陽菜ちゃん",dob:"2024-01-15",email:"nakamura.a@example.com",phone:"090-3333-4444",status:"🔥入園見込み",wishKlass:"Pre",format:"オフライン",date:todayISO(),trialTime:"10:00",trialBy:"白神",nextAction:iso(addDays(2)),nextMethod:"対面",receivedDate:iso(addDays(-8)),source:"Gフォーム",concerns:"金額面が気になっている",note:""},
+  {id:3,kind:'lead',name:"佐藤 健一",child:"蓮くん",dob:"2022-11-20",email:"sato.k@example.com",phone:"080-5555-6666",status:"体験前 日程調整済",wishKlass:"Kinder",format:"オフライン",date:iso(addDays(1)),trialTime:"10:00",trialBy:"白神",nextAction:iso(addDays(1)),nextMethod:"LINE",receivedDate:iso(addDays(-4)),source:"LINE",concerns:"",note:"LINE経由"},
+  {id:4,kind:'lead',name:"小林 翔",child:"大和くん",dob:"2023-05-05",email:"kobayashi@example.com",phone:"080-7777-8888",status:"体験前 日程調整中",wishKlass:"Pre",format:"オフライン",date:"",trialBy:"白神",nextAction:iso(addDays(3)),nextMethod:"メール",receivedDate:iso(addDays(-2)),source:"紹介",concerns:"",note:"在園児からの紹介"},
   {id:5,kind:'lead',name:"鈴木 由香",child:"莉子ちゃん",dob:"2024-03-10",email:"suzuki.y@example.com",phone:"070-9999-0000",status:"長期見込み",wishKlass:"Kinder",format:"オンライン",date:iso(addDays(-4)),receivedDate:iso(addDays(-35)),source:"Gフォーム",concerns:"送迎時間に不安あり",nextAction:iso(addDays(7)),note:"来年度Kinder希望"},
   {id:6,kind:'lead',name:"山本 大輔",child:"颯太くん",dob:"2023-09-01",email:"yamamoto@example.com",phone:"090-1212-3434",status:"体験前 日程調整中",wishKlass:"Pre",format:"オフライン",date:"",receivedDate:iso(addDays(0)),source:"HPフォーム",concerns:"英語レベルを知りたい",note:"HP問い合わせ"},
   {id:7,kind:'lead',name:"森田 直人",child:"葵ちゃん",dob:"2022-10-05",email:"morita@example.com",phone:"090-7777-1111",status:"入園 確定",wishKlass:"Pre",format:"オフライン",date:iso(addDays(-10)),trialBy:"白神",briefingDate:iso(addDays(5)),invoiceStatus:"作成済",firstDay:iso(addDays(14)),receivedDate:iso(addDays(-45)),source:"訪問",concerns:"",note:"願書提出済"},
@@ -633,39 +633,56 @@ function leadInPeriod(c){
   return fyOf(dt)===dashFY;
 }
 function renderDash(){
+  if(typeof spSeed==='function')spSeed();
   var cs=DB.contacts,hist=DB.history,en=enrolled();
   var thanksDue=cs.filter(function(c){return c.kind==='lead'&&c.date===todayISO();});
   var remindDue=cs.filter(function(c){return c.kind==='lead'&&c.date===iso(addDays(1));});
-  var thisMonth=hist.filter(function(h){return h.date&&h.date.slice(0,7)===todayISO().slice(0,7);}).length;
   if(dashFY==null)dashFY=curFY();
   if(dashMonth==null)dashMonth=todayISO().slice(0,7);
   var leads=cs.filter(function(c){return c.kind==='lead';});
   var pleads=leads.filter(leadInPeriod);
   var byStatus={};LEAD_STATUSES.forEach(function(s){byStatus[s]=pleads.filter(function(c){return c.status===s;}).length;});
   var maxF=Math.max(1,Math.max.apply(null,Object.keys(byStatus).map(function(k){return byStatus[k];})));
-  var bySource={};LEAD_SOURCES.forEach(function(sc){bySource[sc]=pleads.filter(function(c){return c.source===sc;}).length;});
-  var maxS=Math.max(1,Math.max.apply(null,LEAD_SOURCES.map(function(sc){return bySource[sc];})));
   var fyList=[curFY()-2,curFY()-1,curFY()];
   var perLabel=dashPeriod==='all'?'累計（全期間）':dashPeriod==='fy'?(dashFY+'年度（'+dashFY+'/4〜'+(dashFY+1)+'/3）'):(dashMonth.split('-')[0]+'年'+(+dashMonth.split('-')[1])+'月');
   var perPicker=dashPeriod==='fy'?('<select id="perFY" style="width:130px;">'+fyList.map(function(f){return '<option value="'+f+'"'+(f===dashFY?' selected':'')+'>'+f+'年度</option>';}).join('')+'</select>'):dashPeriod==='month'?('<input type="month" id="perMonth" value="'+dashMonth+'" style="width:160px;">'):'';
   var perToggle=[['all','全期間'],['fy','年度'],['month','月']].map(function(p){return '<span class="chip'+(p[0]===dashPeriod?' on':'')+'" data-per="'+p[0]+'">'+p[1]+'</span>';}).join('');
-  var metrics=[
-    {ic:'users',c:'#0F6E56',bg:'#E1F5EE',num:en.length,lab:'在園児（配信対象）'},
-    {ic:'spark',c:'#854F0B',bg:'#FAEEDA',num:thanksDue.length,lab:'本日のサンクス対象'},
-    {ic:'clock',c:'#185FA5',bg:'#E6F1FB',num:remindDue.length,lab:'明日のリマインド対象'},
-    {ic:'mail',c:'#3B6D11',bg:'#EAF3DE',num:thisMonth,lab:'今月の送信数'}
-  ];
+  // ---- 今月の指標 ----
+  var mkNow=todayISO().slice(0,7),fyNow=curFY();
+  function inMonth(d){return d&&d.slice(0,7)===mkNow;}
+  function inFYd(d){if(!d)return false;var y=+d.slice(0,4),m=+d.slice(5,7);return ((m>=4)?y:y-1)===fyNow;}
+  function inqBucket(sc){sc=sc||'';if(/フォーム|HP/.test(sc))return 'HP';if(sc==='LINE')return 'LINE';if(sc==='電話')return '電話';return 'その他';}
+  var inqMonth=leads.filter(function(c){return inMonth(c.receivedDate);});
+  var iqM={HP:0,LINE:0,'電話':0,'その他':0};inqMonth.forEach(function(c){iqM[inqBucket(c.source)]++;});
+  var trialMonth=leads.filter(function(c){return inMonth(c.date);});
+  var trFace=trialMonth.filter(function(c){return c.format!=='オンライン';}).length,trOnline=trialMonth.filter(function(c){return c.format==='オンライン';}).length;
+  var joinMonth=cs.filter(function(c){return c.kind==='enrolled'&&inMonth(c.admissionDate);}).length;
+  var leaveMonth=cs.filter(function(c){return c.kind==='withdrawn'&&inMonth(c.withdrawDate);}).length;
+  var enClass={};CLASSES.forEach(function(k){enClass[k]=en.filter(function(c){return c.klass===k;});});
+  function genderOf(c){var p=(typeof spStore==='function')?spStore()[c.id]:null;return (p&&p.sex)||'';}
+  function classGender(k){var b=0,g=0,u=0;enClass[k].forEach(function(c){var s=genderOf(c);if(s==='男の子')b++;else if(s==='女の子')g++;else u++;});return {b:b,g:g,u:u};}
+  var iqFY={};LEAD_SOURCES.forEach(function(sc){iqFY[sc]=leads.filter(function(c){return c.source===sc&&inFYd(c.receivedDate);}).length;});
+  var iqFYtot=leads.filter(function(c){return inFYd(c.receivedDate);}).length;
+  var maxFY=Math.max(1,Math.max.apply(null,LEAD_SOURCES.map(function(sc){return iqFY[sc];})));
+  var activeLeads=leads.filter(function(c){return ['長期見込み','連絡不通','入園 確定','NG'].indexOf(c.status)<0;}).sort(function(a,b){var x=a.nextAction||'9999-99-99',y=b.nextAction||'9999-99-99';return x<y?-1:x>y?1:0;});
+  // ---- 上部カード ----
+  function bigCard(icn,color,bg,num,lab,sub,go){return '<div class="card" style="cursor:pointer;" data-task="'+go+'"><div class="metric"><div class="ico" style="background:'+bg+';color:'+color+'">'+ic(icn)+'</div><div><div class="num">'+num+'</div><div class="lab">'+lab+'</div></div></div><div class="muted" style="margin-top:7px;font-size:11.5px;line-height:1.5;">'+sub+'</div></div>';}
+  var enrollCard='<div class="card"><div class="metric"><div class="ico" style="background:#E1F5EE;color:#0F6E56">'+ic('users')+'</div><div><div class="num">'+en.length+'</div><div class="lab">在園児</div></div></div>'
+    +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;position:relative;">'+CLASSES.map(function(k){return '<span class="chip" data-clsg="'+k+'" style="cursor:pointer;">'+k+' '+enClass[k].length+'</span>';}).join('')+'<div id="clsBubble" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;background:#222;color:#fff;padding:8px 12px;border-radius:10px;font-size:12px;z-index:5;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.25);"></div></div>'
+    +'<div class="muted" style="margin-top:6px;font-size:11px;">クラスをタップで男女比</div></div>';
+  var topCards=enrollCard
+    +bigCard('mail','#185FA5','#E6F1FB',inqMonth.length,'今月の問い合わせ数','HP '+iqM.HP+' ・ LINE '+iqM.LINE+' ・ 電話 '+iqM['電話']+' ・ その他 '+iqM['その他'],'contacts')
+    +bigCard('spark','#854F0B','#FAEEDA',trialMonth.length,'今月の体験数','対面 '+trFace+' ・ オンライン '+trOnline,'deliveries')
+    +bigCard('users','#3B6D11','#EAF3DE',(joinMonth+leaveMonth),'今月の入退園者数','入園 '+joinMonth+' ・ 退園 '+leaveMonth,'contacts');
+  var up=DELIVERIES.map(function(d){var t=nextDelivery(d);return {d:d,t:t,du:t?daysUntil(t):999};}).filter(function(x){return x.t&&x.du<=10;}).sort(function(a,b){return a.du-b.du;});
   var tasks=[].concat(
     thanksDue.map(function(c){return {c:c,type:'サンクス',color:'#EF9F27',go:['compose','thanks',c.id]};}),
     remindDue.map(function(c){return {c:c,type:'前日リマインド',color:'#378ADD',go:['compose','reminder',c.id]};})
   );
-  var up=DELIVERIES.map(function(d){var t=nextDelivery(d);return {d:d,t:t,du:t?daysUntil(t):999};}).filter(function(x){return x.t&&x.du<=10;}).sort(function(a,b){return a.du-b.du;});
   var aph=auditPhase(),ast=auditState(),aflat=auditItemsFlat(),adone=aflat.filter(function(it){return ast[it.key]==='済';}).length,atot=aflat.length;
   var s=$('section[data-page="dashboard"]');
   s.innerHTML=
-    '<div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">'+
-      metrics.map(function(m){return '<div class="card"><div class="metric"><div class="ico" style="background:'+m.bg+';color:'+m.c+'">'+ic(m.ic)+'</div><div><div class="num">'+m.num+'</div><div class="lab">'+m.lab+'</div></div></div></div>';}).join('')+
-    '</div>'+
+    '<div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">'+topCards+'</div>'+
     '<div class="cal-banner" style="margin-bottom:16px;background:'+aph.bg+';border-color:'+aph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+aph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">監査準備：'+aph.label+'</div><div class="muted">'+aph.desc+' ・ 準備状況 '+adone+'/'+atot+' 済</div></div><button class="btn btn-primary" data-task="audit">監査対応へ</button></div>'+
     '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:13.5px;font-weight:600;">'+ic('activity').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px;color:#0F6E56;"')+' 本日の記録</span>'+
       [['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=!!stGet(t[1],{})[todayISO()];return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
@@ -683,21 +700,24 @@ function renderDash(){
         '<div class="muted" style="margin:0 0 12px;">'+perLabel+'：'+pleads.length+' 件'+(dashPeriod==='all'?'':'（受付日ベース）')+'</div>'+
         Object.keys(byStatus).map(function(k){var w=Math.round(byStatus[k]/maxF*100);return '<div class="funnel-row"><div class="fl">'+k+'</div><div class="funnel-bar"><div style="width:'+Math.max(w,8)+'%;background:'+statusColor(k)+'">'+byStatus[k]+'</div></div></div>';}).join('')+
       '</div>'+
-      '<div class="card"><h3>'+ic('users')+'問合せ方法 内訳</h3>'+
-        '<div class="muted" style="margin:0 0 12px;">'+perLabel+' の受付リード</div>'+
-        LEAD_SOURCES.map(function(sc){var w=Math.round(bySource[sc]/maxS*100);return '<div class="funnel-row"><div class="fl">'+sc+'</div><div class="funnel-bar"><div style="width:'+Math.max(w,6)+'%;background:#534AB7">'+bySource[sc]+'</div></div></div>';}).join('')+
+      '<div class="card"><h3>'+ic('users')+'今年度の問い合わせ件数 内訳</h3>'+
+        '<div class="muted" style="margin:0 0 12px;">'+fyNow+'年度 累計：'+iqFYtot+' 件</div>'+
+        LEAD_SOURCES.map(function(sc){var w=Math.round(iqFY[sc]/maxFY*100);return '<div class="funnel-row"><div class="fl">'+sc+'</div><div class="funnel-bar"><div style="width:'+Math.max(w,6)+'%;background:#534AB7">'+iqFY[sc]+'</div></div></div>';}).join('')+
       '</div>'+
     '</div>'+
-    '<div class="card" style="margin-top:16px;"><h3>'+ic('mail')+'最近の送信履歴</h3>'+
-      (hist.length?'<div class="muted" style="margin-bottom:8px;">行をクリックすると送信済みメールの本文を確認できます。</div><table><thead><tr><th>日時</th><th>種別</th><th>宛先</th><th></th></tr></thead><tbody>'+hist.slice(-10).reverse().map(function(h){var gi=hist.indexOf(h);return '<tr style="cursor:pointer;" data-mail="'+gi+'"><td class="row-sub">'+h.time+'</td><td>'+h.tpl+'</td><td>'+h.to+'</td><td style="text-align:right;color:var(--tx3);">'+ic('mail').replace('<svg','<svg style="width:15px;height:15px;vertical-align:-2px;"')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ送信履歴はありません</div>')+
+    '<div class="card" style="margin-top:16px;"><h3>'+ic('users')+'やり取り中の連絡リスト</h3>'+
+      '<div class="muted" style="margin-bottom:8px;">対応中のリード（長期見込み・連絡不通・入園確定・NG を除く）。行をクリックで詳細を編集できます。</div>'+
+      (activeLeads.length?'<table><thead><tr><th>名前</th><th>状況</th><th>次回アクション</th><th>方法</th></tr></thead><tbody>'+activeLeads.map(function(c){var age=(typeof spAge==='function')?spAge(c.dob):'';return '<tr style="cursor:pointer;" data-lead="'+c.id+'"><td class="row-name">'+c.name+' <span class="row-sub">'+(c.child||'')+(age?' '+age:'')+'</span></td><td>'+statusPill(c.status)+'</td><td class="row-sub">'+(c.nextAction?fmt(c.nextAction):'—')+'</td><td>'+(c.nextMethod?'<span class="tag">'+c.nextMethod+'</span>':'<span class="muted">—</span>')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">対応中のリードはありません</div>')+
     '</div>';
   s.querySelectorAll('[data-task]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-task').split('|');routeTo(p);});});
-  s.querySelectorAll('[data-mail]').forEach(function(r){r.onclick=function(){sentMailModal(DB.history[+r.getAttribute('data-mail')]);};});
-  s.querySelectorAll('[data-per]').forEach(function(b){b.onclick=function(){dashPeriod=b.getAttribute('data-per');renderDash();};});
+  s.querySelectorAll('[data-lead]').forEach(function(r){r.onclick=function(){contactModal(+r.getAttribute('data-lead'));};});
+  s.querySelectorAll('[data-clsg]').forEach(function(ch){ch.onclick=function(e){e.stopPropagation();var k=ch.getAttribute('data-clsg');var g=classGender(k);var tot=g.b+g.g+g.u;var pct=function(n){return tot?Math.round(n/tot*100):0;};var bub=$('#clsBubble');bub.innerHTML='<b>'+k+'</b>（'+tot+'名）　👦 男児 '+g.b+'（'+pct(g.b)+'%）　👧 女児 '+g.g+'（'+pct(g.g)+'%）'+(g.u?'　不明 '+g.u:'');bub.style.display='block';bub.style.left=(ch.offsetLeft)+'px';};});
+  document.addEventListener('click',function hide(ev){var b=$('#clsBubble');if(b&&!ev.target.getAttribute('data-clsg')){b.style.display='none';}},{once:true});
   var pf=$('#perFY');if(pf)pf.onchange=function(e){dashFY=+e.target.value;renderDash();};
   var pm=$('#perMonth');if(pm)pm.onchange=function(e){dashMonth=e.target.value;renderDash();};
   $('#navContacts').textContent=cs.length;
 }
+
 function routeTo(p){
   if(p[0]==='compose'){composePreset=p[1]||null;composeSelectId=p[2]?+p[2]:null;go('compose');}
   else if(p[0]==='broadcast'){broadcastPreset=p[1]||null;go('broadcast');}
@@ -762,7 +782,7 @@ function contactModal(id){
     '<div id="leadFields">'+
       '<div class="grid" style="grid-template-columns:1.5fr 1fr 1fr;"><div class="field"><label>進捗フェーズ（温度感）</label><select id="f_status">'+stOpts+'</select></div><div class="field"><label>受付日</label><input type="date" id="f_recv" value="'+(c.receivedDate||'')+'"></div><div class="field"><label>問合せ方法</label><select id="f_source">'+srcOpts+'</select></div></div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>希望クラス</label><select id="f_wklass">'+wkOpts+'</select></div><div class="field"><label>体験形式</label><select id="f_format">'+fmtOpts+'</select></div><div class="field"><label>担当</label><input id="f_by" value="'+(c.trialBy||'').replace(/"/g,'&quot;')+'"></div></div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>体験日</label><input type="date" id="f_date" value="'+(c.date||'')+'"></div><div class="field"><label>体験時刻</label><input id="f_ttime" value="'+(c.trialTime||'').replace(/"/g,'&quot;')+'" placeholder="10:00"></div><div class="field"><label>次回アクション日</label><input type="date" id="f_next" value="'+(c.nextAction||'')+'"></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field"><label>体験日</label><input type="date" id="f_date" value="'+(c.date||'')+'"></div><div class="field"><label>体験時刻</label><input id="f_ttime" value="'+(c.trialTime||'').replace(/"/g,'&quot;')+'" placeholder="10:00"></div><div class="field"><label>次回アクション日</label><input type="date" id="f_next" value="'+(c.nextAction||'')+'"></div><div class="field"><label>アクション方法</label><select id="f_nmethod">'+['','メール','電話','対面','LINE'].map(function(o){return '<option'+((c.nextMethod||'')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div></div>'+
       '<div class="field"><label>お子様の生年月日（年齢表示に使用）</label><input type="date" id="f_ldob" value="'+(c.dob||'')+'"></div>'+
       '<div class="field"><label>懸念点・要望（体験時のヒアリング）</label><textarea id="f_concerns" rows="2" placeholder="例：送迎時間・料金・英語レベルなど気になっている点">'+(c.concerns||'')+'</textarea></div>'+
       '<div id="leadPost" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">見込み追い（体験後フォロー）</label><div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">'+
@@ -786,7 +806,7 @@ function contactModal(id){
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#f_save').onclick=function(){
     var nc={id:id||Date.now(),kind:kind,name:$('#f_name').value.trim(),child:$('#f_child').value.trim(),email:$('#f_email').value.trim(),phone:$('#f_phone').value.trim(),note:$('#f_note').value.trim()};
-    if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.dob=$('#f_ldob').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
+    if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.dob=$('#f_ldob').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.nextMethod=$('#f_nmethod').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
     else{nc.klass=$('#f_klass').value;nc.feeAmount=+$('#f_fee').value;nc.withdrawDay=+$('#f_wd').value;nc.admissionDate=$('#f_adm').value;nc.dob=$('#f_dob').value;nc.days=$('#f_days').value.trim();nc.lunch=$('#f_lunch').checked;nc.long=$('#f_long').checked;if(kind==='withdrawn')nc.withdrawDate=$('#f_wdate').value;}
     if(!nc.name||!nc.email){alert('保護者名とメールアドレスは必須です');return;}
     var arr=DB.contacts;if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
