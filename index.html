@@ -572,6 +572,35 @@ function printDoc(title,bodyHtml){
   area.innerHTML='<h1>'+title+'</h1>'+bodyHtml+'<div class="print-foot">'+SET.school+'　／　出力日：'+fmt(todayISO())+'</div>';
   window.print();
 }
+function dlFile(name,content,mime){var blob=new Blob(["﻿"+content],{type:(mime||'text/html')+';charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
+function tableToHtml(t){
+  var out='<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;">';
+  [].slice.call(t.querySelectorAll('tr')).forEach(function(tr){out+='<tr>';
+    [].slice.call(tr.children).forEach(function(cell){
+      var tag=cell.tagName==='TH'?'th':'td',cs=cell.getAttribute('colspan'),rs=cell.getAttribute('rowspan');
+      var val='',inp=cell.querySelector('input,select,textarea');
+      if(inp){val=inp.tagName==='SELECT'?(inp.options[inp.selectedIndex]?inp.options[inp.selectedIndex].text:''):inp.value;}
+      else{var btn=cell.querySelector('button');val=(btn?btn.textContent:cell.textContent).replace(/\s+/g,' ').trim();}
+      if(val==='—')val='';
+      out+='<'+tag+(cs?' colspan="'+cs+'"':'')+(rs?' rowspan="'+rs+'"':'')+'>'+val.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</'+tag+'>';
+    });
+    out+='</tr>';});
+  return out+'</table>';
+}
+function recExport(){
+  var body=document.getElementById('recBody');if(!body)return;
+  var tables=body.querySelectorAll('table');
+  if(!tables.length){alert('この記録には保存できる表がありません。');return;}
+  var stamp=(recType==='身体測定'?recMonth:recType==='生徒個人発達記録'?recQuarter:recDate);
+  var html='<html><head><meta charset="utf-8"></head><body><h2>'+recType+'（'+stamp+'）</h2>'+[].slice.call(tables).map(tableToHtml).join('<br>')+'<p style="font-size:11px;color:#888;">'+SET.school+'　出力日 '+fmt(todayISO())+'</p></body></html>';
+  dlFile(recType+'_'+stamp+'.xls',html,'application/vnd.ms-excel');
+}
+function sentMailCard(title,filter){
+  var h=DB.history.filter(filter||function(){return true;});
+  return '<div class="card" style="margin-top:16px;"><h3>'+ic('mail')+(title||'送信済みメール')+'</h3>'+
+    (h.length?'<div class="muted" style="margin-bottom:8px;">行をクリックすると送信済みメールの本文を確認できます。</div><table><thead><tr><th>日時</th><th>種別</th><th>宛先</th><th></th></tr></thead><tbody>'+h.slice(-15).reverse().map(function(x){var gi=DB.history.indexOf(x);return '<tr style="cursor:pointer;" data-smail="'+gi+'"><td class="row-sub">'+x.time+'</td><td>'+x.tpl+'</td><td>'+x.to+'</td><td style="text-align:right;color:var(--tx3);">'+ic('mail').replace('<svg','<svg style="width:15px;height:15px;vertical-align:-2px;"')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ送信履歴はありません</div>')+'</div>';
+}
+function wireSentMail(root){(root||document).querySelectorAll('[data-smail]').forEach(function(r){r.onclick=function(){sentMailModal(DB.history[+r.getAttribute('data-smail')]);};});}
 function auditItemsFlat(){return AUDIT_CATS.reduce(function(a,c){return a.concat(c.items);},[]);}
 function auditState(){var st=DB.auditStatus;var out={};auditItemsFlat().forEach(function(it){out[it.key]=st[it.key]||(it.sys?'対応中':'未');});return out;}
 function auditSet(k,v){var st=DB.auditStatus;st[k]=v;DB.auditStatus=st;}
@@ -872,6 +901,7 @@ function renderCompose(){
   $('#cmpSend').onclick=function(){sendSeq(selC(),TEMPLATES[composeTpl].label,$('#cmpSubject').value,$('#cmpBody').value,ctx(),$('#cmpSend'),$('#cmpLog'),$('#cmpBar'),true);};
   $('#cmpSched').onclick=function(){var when=$('#cmpSchedAt').value;var sc=selC();if(!when){alert('予約日時を選んでください');return;}if(!sc.length){alert('送信先を選択してください');return;}var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'個別メール',label:TEMPLATES[composeTpl].label,count:sc.length,to:sc.map(function(c){return c.name;}).join('・'),subject:$('#cmpSubject').value,body:$('#cmpBody').value});stSet('scheduled',q);$('#cmpLog').innerHTML='<div class="li"><span style="color:#0F6E56;font-weight:600;">'+when.replace('T',' ')+' に '+sc.length+'件の配信を予約しました（配信カレンダーで確認）</span></div>';};
   chips();loadTpl();list();
+  var _cs=$('section[data-page="compose"]');_cs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（個別メール）'));wireSentMail(_cs);
 }
 
 /* shared sequential sender */
@@ -987,6 +1017,7 @@ function renderBroadcast(){
   var bt=$('#bToday');if(bt){bt.checked=bTodayOnly;bt.onchange=function(){bTodayOnly=bt.checked;count();};}
   $('#bSend').onclick=function(){var e=buildEmail();sendSeq(recip(),def.label,e.subject,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false);};
   var bs=$('#bSched');if(bs)bs.onclick=function(){var when=$('#bSchedAt').value,rc=recip();if(!when){alert('予約日時を選んでください');return;}if(!rc.length){alert('配信先がありません');return;}var e=buildEmail();var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'全体配信',label:def.label,count:rc.length,to:rc.length+'名（'+Object.keys(bSel).filter(function(k){return bSel[k];}).join('・')+'）',subject:e.subject,body:e.body});stSet('scheduled',q);$('#bLog').innerHTML='<div class="li"><span style="color:#0F6E56;font-weight:600;">'+when.replace('T',' ')+' に '+rc.length+'名への配信を予約しました（配信カレンダーで確認）</span></div>';};
+  var _bs=$('section[data-page="broadcast"]');_bs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（全体配信・デイリー）'));wireSentMail(_bs);
 }
 
 /* ---------- templates ---------- */
@@ -1216,11 +1247,13 @@ function renderRecords(){
   if(!recMonth)recMonth=todayISO().slice(0,7);
   if(!recQuarter)recQuarter=curQuarter();
   var s=$('section[data-page="records"]');
-  s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;" id="recChips">'+Object.keys(RKEY).map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+t+'">'+t+'</span>';}).join('')+'</div></div><div id="recBody"></div>';
+  s.innerHTML='<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="chips" style="margin:0;flex:1;" id="recChips">'+Object.keys(RKEY).map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+t+'">'+t+'</span>';}).join('')+'</div><button class="btn btn-sm" id="recExportBtn" title="この記録をExcel/スプレッドシートで開ける形式でダウンロード">'+ic('folder')+'データ保存</button></div><div id="recBody"></div>';
   s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecords();};});
+  $('#recExportBtn').onclick=recExport;
   ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
 }
 function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
+function attStyle(v){return v==='●'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':v==='休'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':v==='早'?'background:#FAEEDA;border-color:#E9C88B;color:#854F0B;font-weight:600;':v==='遅'?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'';}
 function edTouen(){
   var K='rec_登園シート',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
   var opts=SET.attendOptions||[];
@@ -1228,11 +1261,12 @@ function edTouen(){
   var kids=classOf(d.klass).filter(function(c){return !c.days||c.days.indexOf(wd)>-1;});
   function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};opts.forEach(function(op){if(!(op in r.opts))r.opts[op]=(op==='ランチ'?!!c.lunch:op==='ロングステイ'?!!c.long:false);});return r;}
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+recDate+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
-    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;max-width:560px;margin-bottom:12px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+(d.weather||'')+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+(d.temp||'')+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+(d.hum||'')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="tsBy" value="'+(d.by||'')+'"></div></div>'+
-    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0F6E56;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0F6E56;line-height:1.6;">この曜日に通園予定の園児のみ表示。先生が記録するのは <b>出欠・体温</b> の2つだけ。<br>オプション（'+(opts.join('・')||'未設定')+'）はタップで選択。<span style="color:#085041;">オプションは「設定 → 登園記録のオプション」で園ごとに変更できます。</span></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+(d.weather||'')+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+(d.temp||'')+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+(d.hum||'')+'"></div></div>'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;"><span class="muted" style="font-size:12px;font-weight:600;">記録者</span><div class="chips" style="margin:0;">'+DB.staff.map(function(st){return '<span class="chip'+(st.name===d.by?' on':'')+'" data-tsby="'+esc(st.name)+'">'+esc(st.name)+'</span>';}).join('')+'</div></div>'+
+    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0F6E56;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0F6E56;line-height:1.6;">この曜日に通園予定の園児のみ表示。先生が記録するのは <b>出欠・体温</b> の2つだけ。<br>出欠はタップで切替：<b>●</b>出席 → <b>早</b>早退 → <b>遅</b>遅刻 → <b>休</b>欠席。オプション（'+(opts.join('・')||'未設定')+'）もタップで選択。<span style="color:#085041;">オプションは「設定 → 登園記録のオプション」で園ごとに変更できます。</span></div></div>'+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+op+'</th>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c);return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag">'+ageClassOf(c)+'</span></td>'+
-      '<td><button class="btn btn-sm" data-ta="'+c.id+'" style="'+(r.att==='●'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':r.att==='休'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;':'')+'">'+(r.att||'—')+'</button></td>'+
+      '<td><button class="btn btn-sm" data-ta="'+c.id+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
       '<td><input data-tt="'+c.id+'" type="number" step="0.1" value="'+(r.temp||'')+'" style="width:80px;" placeholder="36.5"></td>'+
       opts.map(function(op,oi){var on=!!r.opts[op];return '<td><button class="btn btn-sm" data-to="'+c.id+'" data-oi="'+oi+'" style="'+(on?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'')+'">'+(on?'●':'—')+'</button></td>';}).join('')+
       '</tr>';}).join('')+
@@ -1241,8 +1275,9 @@ function edTouen(){
   function save(){data[recDate]=d;stSet(K,data);}
   $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecords();};
   $('#tsKlass').onchange=function(e){d.klass=e.target.value;save();edTouen();};
-  [['tsWeather','weather'],['tsTemp','temp'],['tsHum','hum'],['tsMemo','memo'],['tsBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
-  document.querySelectorAll('[data-ta]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-ta');})[0];var r=rowOf(c);var order=['','●','休'];r.att=order[(order.indexOf(r.att)+1)%3];save();edTouen();};});
+  [['tsWeather','weather'],['tsTemp','temp'],['tsHum','hum'],['tsMemo','memo']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
+  document.querySelectorAll('[data-tsby]').forEach(function(ch){ch.onclick=function(){d.by=ch.getAttribute('data-tsby');save();edTouen();};});
+  document.querySelectorAll('[data-ta]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-ta');})[0];var r=rowOf(c);var order=['','●','早','遅','休'];r.att=order[(order.indexOf(r.att)+1)%order.length];save();edTouen();};});
   document.querySelectorAll('[data-tt]').forEach(function(inp){inp.onchange=function(){var c=kids.filter(function(k){return k.id===+inp.getAttribute('data-tt');})[0];rowOf(c).temp=inp.value;save();};});
   document.querySelectorAll('[data-to]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-to');})[0];var op=opts[+b.getAttribute('data-oi')];var r=rowOf(c);r.opts[op]=!r.opts[op];save();b.style.cssText=r.opts[op]?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'';b.textContent=r.opts[op]?'●':'—';};});
   $('#tsPrint').onclick=function(){
@@ -1259,7 +1294,7 @@ function edSafety(){
   var idx=-1;
   var rows=SAFETY_GROUPS.map(function(g){return '<tr><td colspan="2" style="background:#F1EFE8;font-weight:600;font-size:12.5px;">'+g.loc+'</td></tr>'+
     g.items.map(function(it){idx++;var i=idx,v=d.items[i];return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;width:160px;"><button class="btn btn-sm" data-si="'+i+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">良</button> <button class="btn btn-sm" data-si="'+i+'" data-v="ng" style="'+(v==='ng'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">要対応</button></td></tr>';}).join('');}).join('');
-  $('#recBody').innerHTML='<div class="card">'+recHead('園施設 安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力（月間表）</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('園施設 安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="sfAllOk">'+ic('check')+'すべて「良」にする</button><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力（月間表）</button>')+
     '<div class="muted" style="margin-bottom:10px;">場所ごとに毎日点検。良／要対応をタップ。要対応があればメモに対応を記載。月末に月間表として監査提出できます。</div>'+
     '<table><tbody>'+rows+'</tbody></table>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+(d.memo||'')+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><select id="sfBy"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===d.by?' selected':'')+'>'+st.name+'</option>';}).join('')+'</select></div></div>'+
@@ -1268,6 +1303,7 @@ function edSafety(){
   $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecords();};
   $('#sfMemo').onchange=function(e){d.memo=e.target.value;save();};
   $('#sfBy').onchange=function(e){d.by=e.target.value;save();};
+  $('#sfAllOk').onclick=function(){var n=0;SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(){d.items[n]='ok';n++;});});save();edSafety();};
   document.querySelectorAll('[data-si]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-si'),v=b.getAttribute('data-v');d.items[i]=(d.items[i]===v?null:v);save();edSafety();};});
   $('#sfPrint').onclick=function(){
     var mo=recDate.slice(0,7),p=mo.split('-'),dim=new Date(+p[0],+p[1],0).getDate();var days=[];for(var dd=1;dd<=dim;dd++)days.push(dd);
@@ -1313,25 +1349,36 @@ function edHealth(){
   var K='rec_健康チェック',data=stGet(K,{}),d=data[recDate]||{entries:[],by:''};
   if(!d.entries)d.entries=[];
   function save(){data[recDate]=d;stSet(K,data);}
-  var feverish=enrolled().filter(function(c){return +tempOf(c.id,recDate)>=37.5;});
-  $('#recBody').innerHTML='<div class="card">'+recHead('健康チェック（症状のある子のみ記録）','<input type="date" id="hlDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="hlAdd">'+ic('plus')+'症状を記録</button><button class="btn btn-sm" id="hlAllHealthy" style="'+(d.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'+(d.allHealthy?'✓ 全員健康 記録済':'全員健康（症状なし）を記録')+'</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
-    '<div class="muted" style="margin-bottom:10px;">毎日の健康チェック証跡。症状のある子だけ記録し、症状がなければ「全員健康」を押せば当日の記録になります。体温は「登園（出席）」の値が自動反映。'+(feverish.length?'<span style="color:#A32D2D;font-weight:500;"> 発熱の可能性（37.5℃以上）：'+feverish.map(function(c){return childName(c)+'（'+tempOf(c.id,recDate)+'℃）';}).join('・')+'</span>':'')+(d.allHealthy?'<span style="color:#27500A;font-weight:500;"> ／ 本日は全員健康を記録済み</span>':'')+'</div>'+
-    (d.entries.length?'<table><thead><tr><th>園児</th><th>体温</th><th>症状</th><th>その他・対応</th><th></th></tr></thead><tbody>'+
-      d.entries.map(function(en,i){var c=enrolled().filter(function(x){return x.id===en.childId;})[0];var nm=c?childName(c):'（不明）';var symp=(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ');var t=tempOf(en.childId,recDate)||en.temp||'';return '<tr><td class="row-name">'+nm+'</td><td>'+(t?t+'℃':'—')+(+t>=37.5?' <span class="pill" style="background:#FCEBEB;color:#A32D2D;">発熱</span>':'')+'</td><td style="font-size:12.5px;">'+(symp||'—')+(en.other?'<div class="row-sub">その他：'+en.other+'</div>':'')+'</td><td style="font-size:12.5px;">'+(en.action||'—')+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hedit="'+i+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-hdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">本日、症状の記録はありません。「症状を記録」から追加してください。</div>')+
-    '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'')+'"></div></div>';
+  var touen=stGet('rec_登園シート',{})[recDate];
+  var present=enrolled().filter(function(c){var r=touen&&touen.rows&&touen.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;});
+  var showKids=present.length?present:enrolled();
+  function entryIdx(id){var x=-1;d.entries.forEach(function(en,i){if(en.childId===id)x=i;});return x;}
+  var feverish=showKids.filter(function(c){return +tempOf(c.id,recDate)>=37.5;});
+  var withSymptom=d.entries.length;
+  $('#recBody').innerHTML='<div class="card">'+recHead('健康チェック（出席児の健康状態）','<input type="date" id="hlDate" value="'+recDate+'" style="width:160px;"><button class="btn btn-sm" id="hlAllHealthy" style="'+(d.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'+(d.allHealthy?'✓ 全員健康 確認済':'全員「症状なし」を記録')+'</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
+    '<div class="muted" style="margin-bottom:10px;">その日出席した園児を一覧表示。症状のある子は「症状を記録」で記録し、それ以外は<b>症状なし</b>として証跡になります。体温は「登園（出席）」の値が自動反映。'+(present.length?'':' <span style="color:#854F0B;">※登園シート未記録のため全在園児を表示中</span>')+(feverish.length?'<span style="color:#A32D2D;font-weight:500;"> ／ 発熱の可能性（37.5℃以上）：'+feverish.map(function(c){return childName(c)+'（'+tempOf(c.id,recDate)+'℃）';}).join('・')+'</span>':'')+'</div>'+
+    '<table><thead><tr><th>園児</th><th>歳児</th><th>体温</th><th>状態</th><th></th></tr></thead><tbody>'+
+      showKids.map(function(c){var idx=entryIdx(c.id);var t=tempOf(c.id,recDate);var statusCell,act;
+        if(idx>-1){var en=d.entries[idx];var symp=(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ');statusCell='<span class="pill" style="background:#FCEBEB;color:#A32D2D;">症状あり</span> '+esc(symp||'')+(en.other?'（'+esc(en.other)+'）':'')+(en.action?'<div class="row-sub">対応：'+esc(en.action)+'</div>':'');act='<button class="btn btn-sm btn-ghost" data-hedit="'+idx+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-hdel="'+idx+'">'+ic('trash')+'</button>';}
+        else{statusCell='<span class="pill" style="background:#EAF3DE;color:#27500A;">症状なし</span>';act='<button class="btn btn-sm" data-hadd="'+c.id+'">症状を記録</button>';}
+        return '<tr><td class="row-name">'+childName(c)+'</td><td><span class="tag">'+ageClassOf(c)+'</span></td><td>'+(t?t+'℃':'—')+(+t>=37.5?' <span class="pill" style="background:#FCEBEB;color:#A32D2D;">発熱</span>':'')+'</td><td style="font-size:12.5px;">'+statusCell+'</td><td style="white-space:nowrap;">'+act+'</td></tr>';}).join('')+
+    '</tbody></table>'+
+    '<div class="muted" style="margin-top:8px;font-size:12px;">出席 '+showKids.length+'名　／　症状あり '+withSymptom+'名　／　症状なし '+(showKids.length-showKids.filter(function(c){return entryIdx(c.id)>-1;}).length)+'名</div>'+
+    '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'').replace(/"/g,'&quot;')+'"></div></div>';
   $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecords();};
   $('#hlBy').onchange=function(e){d.by=e.target.value;save();};
   $('#hlAllHealthy').onclick=function(){d.allHealthy=!d.allHealthy;save();edHealth();};
-  $('#hlAdd').onclick=function(){healthModal(null,d,save);};
+  document.querySelectorAll('[data-hadd]').forEach(function(b){b.onclick=function(){healthModal(null,d,save,+b.getAttribute('data-hadd'));};});
   document.querySelectorAll('[data-hedit]').forEach(function(b){b.onclick=function(){healthModal(+b.getAttribute('data-hedit'),d,save);};});
   document.querySelectorAll('[data-hdel]').forEach(function(b){b.onclick=function(){d.entries.splice(+b.getAttribute('data-hdel'),1);save();edHealth();};});
   $('#hlPrint').onclick=function(){
-    var body=(d.allHealthy?'<p><b>本日は全員健康（症状なし）を確認しました。</b></p>':'')+(d.entries.length?'<table><thead><tr><th>園児</th><th>体温</th><th>症状</th><th>その他</th><th>対応</th></tr></thead><tbody>'+d.entries.map(function(en){var c=enrolled().filter(function(x){return x.id===en.childId;})[0];return '<tr><td>'+(c?childName(c):'')+'</td><td>'+(tempOf(en.childId,recDate)||en.temp||'')+'</td><td>'+(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ')+'</td><td>'+(en.other||'')+'</td><td>'+(en.action||'')+'</td></tr>';}).join('')+'</tbody></table>':(d.allHealthy?'':'<p>症状のある園児はいませんでした。</p>'))+'<p>記録者：'+(d.by||'　　　　')+'</p>';
+    var body='<p>日付：'+fmt(recDate)+'　／　出席 '+showKids.length+'名</p>'+(d.allHealthy?'<p><b>本日は全員の健康（症状の有無）を確認しました。</b></p>':'')+
+      '<table><thead><tr><th>園児</th><th>体温</th><th>状態</th><th>対応</th></tr></thead><tbody>'+showKids.map(function(c){var idx=entryIdx(c.id);var t=tempOf(c.id,recDate)||'';if(idx>-1){var en=d.entries[idx];return '<tr><td>'+childName(c)+'</td><td>'+t+'</td><td>症状あり：'+(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ')+(en.other?'（'+en.other+'）':'')+'</td><td>'+(en.action||'')+'</td></tr>';}return '<tr><td>'+childName(c)+'</td><td>'+t+'</td><td>症状なし</td><td></td></tr>';}).join('')+'</tbody></table><p>記録者：'+(d.by||'　　　　')+'</p>';
     printDoc('健康チェック記録（'+fmt(recDate)+'）',body);
   };
 }
-function healthModal(idx,d,save){
-  var en=idx!=null?JSON.parse(JSON.stringify(d.entries[idx])):{childId:null,symptoms:[],other:'',action:''};
+function healthModal(idx,d,save,pre){
+  var en=idx!=null?JSON.parse(JSON.stringify(d.entries[idx])):{childId:pre||null,symptoms:[],other:'',action:''};
   function selOpts(cat){var s=(en.symptoms||[]).filter(function(x){return x.cat===cat;})[0];return s?s.opts:[];}
   var m=el('div',{class:'modal-bg'});
   m.innerHTML='<div class="modal" style="width:560px;"><h2>症状の記録</h2>'+
@@ -1355,8 +1402,8 @@ function edBody(){
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
   var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+recMonth+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
-    '<div class="muted" style="margin-bottom:10px;">クラスを選ぶと、そのクラスの園児一覧が表示されます。身長・体重を入力するとカウプ指数が自動計算されます。</div>'+
+  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+recMonth+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select><button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+    '<div class="muted" style="margin-bottom:10px;">クラスを選ぶと、そのクラスの園児一覧が表示されます。身長・体重を入力するとカウプ指数が自動計算されます。<br>「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数（自動）</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);return '<tr><td class="row-name">'+childName(c)+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+c.klass+'</td>'+
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+r.h+'" style="width:100px;"></td>'+
@@ -1370,6 +1417,21 @@ function edBody(){
   $('#bmPrint').onclick=function(){
     var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+childName(c)+'</td><td>'+c.klass+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
+  };
+  $('#bmShare').onclick=function(){
+    var targets=kids.filter(function(c){var r=d.rows[c.id]||{};return r.h&&r.w;});
+    if(!targets.length){alert('身長・体重が入力された園児がいません。先に測定値を入力してください。');return;}
+    if(!confirm(targets.length+'名の保護者に、それぞれのお子様の身体測定結果を送信します。よろしいですか？'))return;
+    var now=new Date(),stamp=('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
+    var h=DB.history,ym=recMonth.replace('-','年')+'月';
+    targets.forEach(function(c){var r=d.rows[c.id],kp=kaup(r);
+      var subj='【'+SET.school+'】'+childName(c)+'さんの身体測定結果（'+ym+'）';
+      var bd='いつもお世話になっております。\n'+ym+'の身体測定の結果をお知らせいたします。\n\nお名前：'+childName(c)+'（'+ageClassOf(c)+'）\n身長：'+r.h+' cm\n体重：'+r.w+' kg\nカウプ指数：'+kp+'\n\n保護者ページの「せいちょう」からも成長の記録をご覧いただけます。\n\n'+SET.school;
+      h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'身体測定結果',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:bd});
+      r.sharedAt=todayISO();});
+    DB.history=h;save();
+    alert(targets.length+'名の保護者へ送信しました。\n保護者ページの「せいちょう」タブに反映され、各ご家庭ではお子様ご本人の記録のみが表示されます。');
+    edBody();
   };
 }
 function bodyFigSVG(marks,side,editable){
@@ -1437,7 +1499,7 @@ function edDev(){
   var rec=(data[devChild]&&data[devChild][recQuarter])||{items:{},memo:'',by:''};
   var cur=kids.filter(function(c){return c.id===devChild;})[0];
   var y=addDays(0).getFullYear();var qs=[];[y-1,y].forEach(function(yy){[1,2,3,4].forEach(function(q){qs.push(yy+'-Q'+q);});});
-  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（3ヶ月ごと）','<select id="dvChild" style="width:150px;">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===devChild?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select><select id="dvQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="dvPrint">'+ic('printer')+'この子を出力</button><button class="btn btn-sm btn-primary" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（3ヶ月ごと）','<select id="dvChild" style="width:150px;">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===devChild?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select><select id="dvQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="dvPrint">'+ic('printer')+'選択児童を出力</button><button class="btn btn-sm btn-primary" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>')+
     (cur?'<div class="muted" style="margin-bottom:10px;">'+childName(cur)+'（'+ageClassOf(cur)+'）の発達状況を3ヶ月ごとに記録します。監査書類（生徒個人発達記録）に対応。</div>':'<div class="empty">在園児がいません</div>')+
     (cur?DEV_CATS.map(function(c,ci){return '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:13px;background:#F1EFE8;padding:6px 10px;border-radius:6px;margin-bottom:2px;">'+c.cat+'</div><table><tbody>'+
       c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+key+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
