@@ -299,6 +299,7 @@ function portalHTML(c){
     + tabBtn('home','🏠','ホーム')
     + tabBtn('att','📅','出欠連絡')
     + tabBtn('growth','📈','せいちょう')
+    + tabBtn('dm','💬','メッセージ')
     + tabBtn('news','📢','おしらせ')
     +'</div>';
 }
@@ -311,9 +312,11 @@ function wirePortal(c){
   if(tab==='home') sc.innerHTML=homeHTML(c);
   else if(tab==='att') sc.innerHTML=attHTML(c);
   else if(tab==='growth') sc.innerHTML=growthHTML(c);
+  else if(tab==='dm') sc.innerHTML=dmHTML(c);
   else if(tab==='news') sc.innerHTML=newsHTML(c);
   wireCommon(c);
   if(tab==='att') wireAtt(c);
+  if(tab==='dm') wireDM(c);
 }
 
 /* ---- shared bits ---- */
@@ -427,6 +430,47 @@ function growthHTML(c){
   var table='<table class="g-table" style="margin-top:14px;"><thead><tr><th style="text-align:left;">月</th><th>身長</th><th>体重</th><th>カウプ指数</th></tr></thead><tbody>'
     +rows.map(function(r){var k=kaupVal(r.h,r.w);return '<tr><td class="mo">'+r.mk.replace('-','年')+'月</td><td>'+(r.h||'-')+'</td><td>'+(r.w||'-')+'</td><td>'+(k?k.toFixed(1):'-')+'</td></tr>';}).join('')+'</tbody></table>';
   return head+spark+table+'<div class="muted" style="margin-top:12px;">カウプ指数の目安：15〜17がふつうです。ご心配な点は園にご相談ください。</div></div>';
+}
+
+
+/* ---- DM（園とのメッセージ） ---- */
+function dmNow(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
+function dmThread(id){var t=stGet('dmThreads',{});return t[id]||{messages:[]};}
+function dmUnreadParent(id){return dmThread(id).messages.filter(function(m){return m.from==='staff'&&!m.readByParent;}).length;}
+function dmMarkReadParent(id){var t=stGet('dmThreads',{});if(!t[id])return;t[id].messages.forEach(function(m){if(m.from==='staff')m.readByParent=true;});stSet('dmThreads',t);}
+function dmHTML(c){
+  var th=dmThread(c.id);
+  var head='<div class="card"><h2 class="sec">💬 園とのメッセージ</h2><div class="muted" style="margin-bottom:11px;">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると園に通知が届きます。</div>';
+  var log='<div id="pdmLog" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:4px 0;">'
+    +(th.messages.length?th.messages.map(function(m){var mine=m.from==='parent';
+      return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:82%;">'
+        +'<div style="font-size:10.5px;color:#98a09a;margin-bottom:2px;text-align:'+(mine?'right':'left')+';">'+(mine?'あなた':esc(m.by||'園'))+' ・ '+esc(m.at)+'</div>'
+        +'<div style="padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.65;white-space:pre-wrap;'+(mine?'background:#0F6E56;color:#fff;border-bottom-right-radius:5px;':'background:#fff;border:1px solid #e7e8e3;border-bottom-left-radius:5px;')+'">'+esc(m.text)+'</div></div>';}).join('')
+      :'<div class="empty">まだメッセージはありません</div>')+'</div>';
+  var form='<div style="margin-top:12px;"><textarea id="pdmText" rows="3" placeholder="園へのご連絡・ご相談を入力してください" style="width:100%;box-sizing:border-box;border:1px solid #e7e8e3;border-radius:12px;padding:11px;font-size:14px;font-family:inherit;"></textarea>'
+    +'<button class="btn sec" id="pdmSend" style="margin-top:8px;width:100%;">送信する</button><div class="muted" id="pdmMsg" style="margin-top:8px;"></div></div>';
+  return head+log+form+'</div>';
+}
+function wireDM(c){
+  dmMarkReadParent(c.id);
+  var log=document.getElementById('pdmLog');if(log)log.scrollTop=log.scrollHeight;
+  document.getElementById('pdmSend').onclick=function(){
+    var tx=document.getElementById('pdmText').value.trim();
+    if(!tx){alert('メッセージを入力してください');return;}
+    var t=stGet('dmThreads',{});if(!t[c.id])t[c.id]={messages:[]};
+    t[c.id].messages.push({id:Date.now(),from:'parent',by:c.name,text:tx,at:dmNow(),readByStaff:false,readByParent:true});
+    stSet('dmThreads',t);
+    /* 園へ通知メール（返信URL付き）— 実送信はバックエンド接続後 */
+    var st=stGet('settings',{})||{},school=st.school||'COCOAS KIDS International School',sender=st.sender||'omiya@cocoas-kids.com';
+    var hist=stGet('history',[])||[];
+    hist.push({date:addDaysISO(0),time:dmNow().slice(5),tpl:'DM通知（園へ）',to:school,email:sender,from:c.email||'',
+      subject:'【DM】'+c.name+' 様（'+esc(c.child||'')+'）よりメッセージが届いています',
+      body:c.name+' 様よりメッセージが届いています。\n\n----------\n'+tx+'\n----------\n\n下記より内容の確認・ご返信をお願いいたします。\n'+location.href.split('?')[0].replace(/[^\/]*$/,'')+'index.html?dm='+c.id});
+    stSet('history',hist);
+    document.getElementById('pdmText').value='';
+    render();
+    var m=document.getElementById('pdmMsg');if(m)m.innerHTML='<span style="color:#0F6E56;font-weight:600;">送信しました。園に通知が届きます。</span>';
+  };
 }
 
 /* ---- NEWS (all posts) ---- */

@@ -187,6 +187,7 @@
       <div class="nav-label">配信</div>
       <a data-go="compose">{ic:send}個別メール送信</a>
       <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
+      <a data-go="dm">{ic:mail}保護者DM<span class="badge" id="navDM" style="background:#E24B4A;"></span></a>
       <div class="nav-label">記録・書類</div>
       <a data-go="records">{ic:activity}日常記録</a>
       <a data-go="drill">{ic:shield}避難訓練</a>
@@ -197,6 +198,7 @@
       <div class="nav-label">管理</div>
       <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
       <a data-go="roster">{ic:idcard}生徒台帳</a>
+      <a data-go="enroll">{ic:yen}生徒情報（契約・オプション）</a>
       <a data-go="templates">{ic:doc}メールテンプレート</a>
       <a data-go="curriculum">{ic:book}月間カリキュラム</a>
       <a data-go="deliveries">{ic:cal}配信カレンダー</a>
@@ -218,8 +220,10 @@
       <section data-page="dashboard"></section>
       <section data-page="compose" hidden></section>
       <section data-page="broadcast" hidden></section>
+      <section data-page="dm" hidden></section>
       <section data-page="contacts" hidden></section>
       <section data-page="roster" hidden></section>
+      <section data-page="enroll" hidden></section>
       <section data-page="templates" hidden></section>
       <section data-page="curriculum" hidden></section>
       <section data-page="deliveries" hidden></section>
@@ -371,8 +375,13 @@ var DB={
   get auditStatus(){try{return JSON.parse(localStorage.getItem('cocoas_audit'))||{};}catch(e){return {};}},
   set auditStatus(v){localStorage.setItem('cocoas_audit',JSON.stringify(v));}
 };
-if(!localStorage.getItem('cocoas_contacts'))DB.contacts=seed();
-if(!localStorage.getItem('cocoas_staff'))DB.staff=staffSeed();
+/* モックデータの版数。コード側のサンプル（連絡先・職員）を更新したらここを上げると、
+   各端末の古いデータが次回アクセス時に自動で最新へ入れ替わる（データ変更は開発側でのみ行う運用）。 */
+var MOCK_VERSION=2;
+if(!localStorage.getItem('cocoas_contacts')||stGetRaw('mockVersion')!==MOCK_VERSION){
+  DB.contacts=seed();DB.staff=staffSeed();localStorage.setItem('cocoas_mockVersion',JSON.stringify(MOCK_VERSION));
+}
+function stGetRaw(k){try{return JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){return null;}}
 
 var SET=Object.assign({
   sender:"omiya@cocoas-kids.com",bcc:"omiya@cocoas-kids.com",
@@ -655,13 +664,13 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,contacts:renderContacts,roster:renderRoster,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -712,31 +721,59 @@ function renderDash(){
   var enrollCard='<div class="card"><div class="metric"><div class="ico" style="background:#E1F5EE;color:#0F6E56">'+ic('users')+'</div><div><div class="num">'+en.length+'</div><div class="lab">在園児</div></div></div>'
     +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;position:relative;">'+CLASSES.map(function(k){return '<span class="chip" data-clsg="'+k+'" style="cursor:pointer;">'+k+' '+enClass[k].length+'</span>';}).join('')+'<div id="clsBubble" style="display:none;position:absolute;top:100%;left:0;margin-top:6px;background:#222;color:#fff;padding:8px 12px;border-radius:10px;font-size:12px;z-index:5;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.25);"></div></div>'
     +'<div class="muted" style="margin-top:6px;font-size:11px;">クラスをタップで男女比</div></div>';
-  var topCards=enrollCard
-    +bigCard('mail','#185FA5','#E6F1FB',inqMonth.length,'今月の問い合わせ数','HP '+iqM.HP+' ・ LINE '+iqM.LINE+' ・ 電話 '+iqM['電話']+' ・ その他 '+iqM['その他'],'contacts')
-    +bigCard('spark','#854F0B','#FAEEDA',trialMonth.length,'今月の体験数','対面 '+trFace+' ・ オンライン '+trOnline,'deliveries')
-    +bigCard('users','#3B6D11','#EAF3DE',(joinMonth+leaveMonth),'今月の入退園者数','入園 '+joinMonth+' ・ 退園 '+leaveMonth,'contacts');
-  var up=DELIVERIES.map(function(d){var t=nextDelivery(d);return {d:d,t:t,du:t?daysUntil(t):999};}).filter(function(x){return x.t&&x.du<=10;}).sort(function(a,b){return a.du-b.du;});
+  var isIppan=(typeof currentRole==='function'&&currentRole()==='一般');
+  // 一般スタッフには営業系の数値（問い合わせ・体験・入退園）は表示しない
+  var touenToday=stGet('rec_登園シート',{})[todayISO()];
+  var presentToday=touenToday&&touenToday.rows?en.filter(function(c){var r=touenToday.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;}).length:0;
+  var absentToday=touenToday&&touenToday.rows?en.filter(function(c){var r=touenToday.rows[c.id];return r&&r.att==='休';}).length:0;
+  var topCards=isIppan
+    ? enrollCard+bigCard('activity','#185FA5','#E6F1FB',presentToday,'本日の出席','おやすみ '+absentToday+' ・ 登園シートより','records')
+    : enrollCard
+      +bigCard('mail','#185FA5','#E6F1FB',inqMonth.length,'今月の問い合わせ数','HP '+iqM.HP+' ・ LINE '+iqM.LINE+' ・ 電話 '+iqM['電話']+' ・ その他 '+iqM['その他'],'contacts')
+      +bigCard('spark','#854F0B','#FAEEDA',trialMonth.length,'今月の体験数','対面 '+trFace+' ・ オンライン '+trOnline,(typeof canView==='function'&&!canView('deliveries'))?'contacts':'deliveries')
+      +bigCard('users','#3B6D11','#EAF3DE',(joinMonth+leaveMonth),'今月の入退園者数','入園 '+joinMonth+' ・ 退園 '+leaveMonth,'contacts');
+  var delivSrc=isIppan?DELIVERIES.filter(function(d){return d.key==='daily';}):DELIVERIES;
+  var up=delivSrc.map(function(d){var t=nextDelivery(d);return {d:d,t:t,du:t?daysUntil(t):999};}).filter(function(x){return x.t&&x.du<=10;}).sort(function(a,b){return a.du-b.du;});
   var tasks=[].concat(
     thanksDue.map(function(c){return {c:c,type:'サンクス',color:'#EF9F27',go:['compose','thanks',c.id]};}),
     remindDue.map(function(c){return {c:c,type:'前日リマインド',color:'#378ADD',go:['compose','reminder',c.id]};})
   );
   var aph=auditPhase(),ast=auditState(),aflat=auditItemsFlat(),adone=aflat.filter(function(it){return ast[it.key]==='済';}).length,atot=aflat.length;
+  /* 一般スタッフ向け：本日のタスク（未対応のものへ直接ジャンプ） */
+  var myTasks=[];
+  if(isIppan){
+    [['登園（出席）シートの記録','rec_登園シート','登園（出席）','#0F6E56'],
+     ['健康チェックの記録','rec_健康チェック','健康チェック','#185FA5'],
+     ['午睡チェックの記録','rec_午睡チェック','午睡チェック','#7F77DD'],
+     ['安全点検の記録','rec_安全点検','安全点検','#639922'],
+     ['業務日報・保育日誌の記録','rec_日報','業務日報・保育日誌','#854F0B']
+    ].forEach(function(t){var dn=!!stGet(t[1],{})[todayISO()];myTasks.push({label:t[0],sub:dn?'本日分 記録済み':'本日分が未記録です',done:dn,color:t[3],go:['records',t[2]],btn:dn?'確認する':'記録する'});});
+    if(!stGet('rec_身体測定',{})[todayISO().slice(0,7)])myTasks.push({label:'今月の身体測定','sub':'今月の測定がまだ記録されていません',done:false,color:'#E24B4A',go:['records','身体測定'],btn:'記録する'});
+    myTasks.push({label:'デイリーメールの作成',sub:'毎日 17:00 ・ 保護者へ本日の様子を配信',done:false,color:'#EF9F27',go:['broadcast','dailyPre'],btn:'作成する'});
+    var un=(typeof dmUnreadTotal==='function')?dmUnreadTotal():0;
+    if(un)myTasks.unshift({label:'保護者から未読のメッセージ',sub:un+'件の未読があります',done:false,color:'#E24B4A',go:['dm'],btn:'確認する'});
+  }
   var s=$('section[data-page="dashboard"]');
   s.innerHTML=
-    '<div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">'+topCards+'</div>'+
-    '<div class="cal-banner" style="margin-bottom:16px;background:'+aph.bg+';border-color:'+aph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+aph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">監査準備：'+aph.label+'</div><div class="muted">'+aph.desc+' ・ 準備状況 '+adone+'/'+atot+' 済</div></div><button class="btn btn-primary" data-task="audit">監査対応へ</button></div>'+
+    '<div class="grid" style="grid-template-columns:repeat('+(isIppan?2:4)+',1fr);margin-bottom:16px;">'+topCards+'</div>'+
+    (isIppan?'':'<div class="cal-banner" style="margin-bottom:16px;background:'+aph.bg+';border-color:'+aph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+aph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">監査準備：'+aph.label+'</div><div class="muted">'+aph.desc+' ・ 準備状況 '+adone+'/'+atot+' 済</div></div><button class="btn btn-primary" data-task="audit">監査対応へ</button></div>')+
     '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:13.5px;font-weight:600;">'+ic('activity').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px;color:#0F6E56;"')+' 本日の記録</span>'+
       [['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=!!stGet(t[1],{})[todayISO()];return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
       '<span class="spacer"></span><button class="btn btn-sm" data-task="records">記録する</button></div>'+
     '<div class="grid" style="grid-template-columns:1.3fr 1fr;align-items:start;">'+
-      '<div class="card"><h3>'+ic('clock')+'本日のフォロータスク</h3>'+
+      (isIppan
+        ?'<div class="card"><h3>'+ic('clock')+'本日のタスク</h3>'+
+          '<div class="muted" style="margin-bottom:10px;">担当の記録・配信です。ボタンからその画面へ直接移動できます。</div>'+
+          myTasks.map(function(t){return '<div class="task"><span class="tdot" style="background:'+(t.done?'#c8ccc6':t.color)+'"></span><div style="flex:1"><div class="row-name">'+t.label+(t.done?' <span class="pill" style="background:#EAF3DE;color:#27500A;">済</span>':'')+'</div><div class="row-sub">'+t.sub+'</div></div><button class="btn btn-sm'+(t.done?'':' btn-primary')+'" data-task="'+t.go.join('|')+'">'+t.btn+'</button></div>';}).join('')+
+        '</div>'
+        :'<div class="card"><h3>'+ic('clock')+'本日のフォロータスク</h3>'+
         (tasks.length?tasks.map(function(t){return '<div class="task"><span class="tdot" style="background:'+t.color+'"></span><div style="flex:1"><div class="row-name">'+t.c.name+' 様 <span class="row-sub">／ '+t.c.child+'</span></div><div class="row-sub">'+t.type+'メール'+(t.c.date?' ・ 体験 '+fmt(t.c.date):'')+'</div></div><button class="btn btn-sm btn-primary" data-task="'+t.go.join('|')+'">作成</button></div>';}).join(''):'<div class="empty">本日のフォロータスクはありません</div>')+
-      '</div>'+
+      '</div>')+
       '<div class="card"><h3>'+ic('cal')+'今週の配信予定</h3>'+
         (up.length?up.map(function(x){var lbl=x.du<=0?'本日':(x.du+'日後');return '<div class="task"><span class="tag">'+lbl+'</span><div style="flex:1"><div class="row-name">'+x.d.label+'</div><div class="row-sub">'+x.d.when+' ・ '+x.d.to+'</div></div><button class="btn btn-sm" data-task="'+x.d.go.join('|')+'">作成</button></div>';}).join(''):'<div class="empty">直近の定期配信はありません</div>')+
       '</div>'+
     '</div>'+
+    (isIppan?'':
     '<div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;margin-top:16px;">'+
       '<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;"><h3 style="margin:0;flex:1;">'+ic('users')+'リード内訳（ステータス）</h3><div class="chips" style="margin:0;">'+perToggle+'</div>'+perPicker+'</div>'+
         '<div class="muted" style="margin:0 0 12px;">'+perLabel+'：'+pleads.length+' 件'+(dashPeriod==='all'?'':'（受付日ベース）')+'</div>'+
@@ -750,7 +787,7 @@ function renderDash(){
     '<div class="card" style="margin-top:16px;"><h3>'+ic('users')+'やり取り中の連絡リスト</h3>'+
       '<div class="muted" style="margin-bottom:8px;">対応中のリード（長期見込み・連絡不通・入園確定・NG を除く）。行をクリックで詳細を編集できます。</div>'+
       (activeLeads.length?'<table><thead><tr><th>名前</th><th>状況</th><th>次回アクション</th><th>方法</th></tr></thead><tbody>'+activeLeads.map(function(c){var age=(typeof spAge==='function')?spAge(c.dob):'';return '<tr style="cursor:pointer;" data-lead="'+c.id+'"><td class="row-name">'+c.name+' <span class="row-sub">'+(c.child||'')+(age?' '+age:'')+'</span></td><td>'+statusPill(c.status)+'</td><td class="row-sub">'+(c.nextAction?fmt(c.nextAction):'—')+'</td><td>'+(c.nextMethod?'<span class="tag">'+c.nextMethod+'</span>':'<span class="muted">—</span>')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">対応中のリードはありません</div>')+
-    '</div>';
+    '</div>');
   s.querySelectorAll('[data-task]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-task').split('|');routeTo(p);});});
   s.querySelectorAll('[data-lead]').forEach(function(r){r.onclick=function(){contactModal(+r.getAttribute('data-lead'));};});
   s.querySelectorAll('[data-clsg]').forEach(function(ch){ch.onclick=function(e){e.stopPropagation();var k=ch.getAttribute('data-clsg');var g=classGender(k);var tot=g.b+g.g+g.u;var pct=function(n){return tot?Math.round(n/tot*100):0;};var bub=$('#clsBubble');bub.innerHTML='<b>'+k+'</b>（'+tot+'名）　👦 男児 '+g.b+'（'+pct(g.b)+'%）　👧 女児 '+g.g+'（'+pct(g.g)+'%）'+(g.u?'　不明 '+g.u:'');bub.style.display='block';bub.style.left=(ch.offsetLeft)+'px';};});
@@ -763,15 +800,19 @@ function renderDash(){
 function routeTo(p){
   if(p[0]==='compose'){composePreset=p[1]||null;composeSelectId=p[2]?+p[2]:null;go('compose');}
   else if(p[0]==='broadcast'){broadcastPreset=p[1]||null;go('broadcast');}
+  else if(p[0]==='records'&&p[1]){recType=p[1];go('records');}
   else go(p[0]);
 }
 
 /* ---------- contacts ---------- */
 var contactFilter='すべて',contactSearch='';
 function renderContacts(){
-  var cs=DB.contacts;
+  /* 一般スタッフにはリード（営業・経営情報）を表示しない */
+  var noLeads=(typeof currentRole==='function'&&currentRole()==='一般');
+  var cs=DB.contacts.filter(function(c){return noLeads?c.kind!=='lead':true;});
   var s=$('section[data-page="contacts"]');
-  var filters=['すべて','リード','在園児','退園児'];
+  var filters=noLeads?['在園児','退園児']:['すべて','リード','在園児','退園児'];
+  if(noLeads&&filters.indexOf(contactFilter)<0)contactFilter='在園児';
   function match(c){
     if(contactFilter==='すべて')return true;
     if(contactFilter==='在園児')return c.kind==='enrolled';
@@ -862,7 +903,11 @@ function renderCompose(){
   if(composePreset){composeTpl=composePreset;composePreset=null;}
   if(composeSelectId){composeSel={};composeSel[composeSelectId]=true;composeSelectId=null;}
   if(composeCycle==null){composeCycle=(addDays(0).getMonth()+2);if(composeCycle>12)composeCycle-=12;}
-  var cs=DB.contacts,s=$('section[data-page="compose"]');
+  /* 一般スタッフは在園児にのみ送信可（リード＝営業情報は非表示） */
+  var onlyEnrolled=(typeof currentRole==='function'&&currentRole()==='一般');
+  if(onlyEnrolled)composeFilter='在園児';
+  var cs=DB.contacts.filter(function(c){return onlyEnrolled?c.kind==='enrolled':true;}),s=$('section[data-page="compose"]');
+  if(onlyEnrolled&&!(TEMPLATES[composeTpl]||{}).enrolledOnly){var ek=Object.keys(TEMPLATES).filter(function(k){return TEMPLATES[k].enrolledOnly;});if(ek.length)composeTpl=ek[0];}
   s.innerHTML=
     '<div class="grid" style="grid-template-columns:1fr 1.15fr;align-items:start;">'+
       '<div class="card"><h3>'+ic('users')+'送信先を選ぶ</h3><div class="chips" id="cmpChips"></div>'+
@@ -878,11 +923,13 @@ function renderCompose(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;"><div><label>送信元</label><input value="'+SET.sender+'" readonly style="background:#f7f8f6;"></div><div><label>BCC（本部共有・自動付与）</label><input value="'+SET.bcc+'" readonly style="background:#f7f8f6;"></div></div>'+
       '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="cmpSend">'+ic('send')+'選択した宛先へ順番に送信</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="cmpSchedAt" style="width:200px;"><button class="btn" id="cmpSched">'+ic('clock')+'予約</button><span class="muted" id="cmpCount"></span></div>'+
       '<div class="pbar"><div id="cmpBar"></div></div><div class="send-log" id="cmpLog"></div></div>';
-  var sel=$('#cmpTpl');sel.innerHTML=Object.keys(TEMPLATES).map(function(k){return '<option value="'+k+'">'+TEMPLATES[k].label+'</option>';}).join('');sel.value=composeTpl;
+  var tplKeys=Object.keys(TEMPLATES).filter(function(k){return (onlyEnrolled?TEMPLATES[k].enrolledOnly:true)&&tplAllowed('mail',k);});
+  if(tplKeys.length&&tplKeys.indexOf(composeTpl)<0)composeTpl=tplKeys[0];
+  var sel=$('#cmpTpl');sel.innerHTML=tplKeys.map(function(k){return '<option value="'+k+'">'+TEMPLATES[k].label+'</option>';}).join('');sel.value=composeTpl;
   $('#cmpCycle').innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(function(m){return '<option value="'+m+'"'+(m===composeCycle?' selected':'')+'>'+m+'月</option>';}).join('');
   function ctx(){return {cycleMonth:composeCycle};}
   function loadTpl(){var t=TEMPLATES[composeTpl];$('#cmpSubject').value=t.subject;$('#cmpBody').value=t.body;$('#cmpBilling').style.display=t.billing?'':'none';preview();}
-  function chips(){var f=['すべて','在園児','リード'];$('#cmpChips').innerHTML=f.map(function(x){return '<span class="chip'+(x===composeFilter?' on':'')+'" data-f="'+x+'">'+x+'</span>';}).join('');$('#cmpChips').querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){composeFilter=b.getAttribute('data-f');chips();list();};});}
+  function chips(){var f=onlyEnrolled?['在園児']:['すべて','在園児','リード'];$('#cmpChips').innerHTML=f.map(function(x){return '<span class="chip'+(x===composeFilter?' on':'')+'" data-f="'+x+'">'+x+'</span>';}).join('');$('#cmpChips').querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){composeFilter=b.getAttribute('data-f');chips();list();};});}
   function fmatch(c){if(composeFilter==='すべて')return true;if(composeFilter==='在園児')return c.kind==='enrolled';if(composeFilter==='リード')return c.kind==='lead';return c.status===composeFilter;}
   function shown(){return cs.filter(fmatch);}
   function list(){
@@ -941,13 +988,26 @@ function sentMailModal(h){
 
 /* ---------- broadcast ---------- */
 var broadcastPreset=null,bTpl='dailyPre',bSel=null,bManual=false,bManualSub='',bManualBody='',bTodayOnly=false;
+/* テンプレートごとの表示権限（役割別）。管理者が設定→テンプレートの表示権限で調整可 */
+var TPL_PERMS_VERSION=1;
+function tplPermsDefault(){
+  var o={broadcast:{},mail:{}};
+  BCAST.forEach(function(x){o.broadcast[x.key]=x.daily?['管理者','マネージャー','一般']:['管理者','マネージャー'];});
+  Object.keys(TEMPLATES).forEach(function(k){o.mail[k]=['管理者','マネージャー'];});
+  return o;
+}
+function tplPerms(){var p=stGet('tplPerms',null);if(!p||stGet('tplPermsVersion',0)!==TPL_PERMS_VERSION){p=tplPermsDefault();stSet('tplPerms',p);stSet('tplPermsVersion',TPL_PERMS_VERSION);}return p;}
+function tplAllowed(kind,key){var r=(typeof currentRole==='function')?currentRole():null;if(!r||r==='管理者')return true;var p=tplPerms()[kind]||{};var list=p[key];return !list||list.indexOf(r)>-1;}
+function bcastList(){var l=BCAST.filter(function(x){return tplAllowed('broadcast',x.key);});return l.length?l:BCAST.filter(function(x){return !!x.daily;});}
 function renderBroadcast(){
   if(broadcastPreset){bTpl=broadcastPreset;broadcastPreset=null;bSel=null;bManual=false;}
+  var avail=bcastList();
+  if(!avail.filter(function(x){return x.key===bTpl;}).length){bTpl=avail[0].key;bSel=null;bManual=false;}
   var def=BCAST.filter(function(x){return x.key===bTpl;})[0];
   if(!bSel){bSel={};(def.cls||['Pre','Kinder']).forEach(function(k){bSel[k]=true;});}
   var s=$('section[data-page="broadcast"]');
   s.innerHTML=
-    '<div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><div style="display:flex;gap:8px;align-items:center;"><span class="muted">テンプレート</span><select id="bTpl" style="max-width:280px;">'+BCAST.map(function(x){return '<option value="'+x.key+'"'+(x.key===bTpl?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div><span class="muted" style="margin-left:auto;">基本は固定テンプレ。送信前にこの場で自由に編集・追記できます。</span></div>'+
+    '<div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><div style="display:flex;gap:8px;align-items:center;"><span class="muted">テンプレート</span><select id="bTpl" style="max-width:280px;">'+avail.map(function(x){return '<option value="'+x.key+'"'+(x.key===bTpl?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div><span class="muted" style="margin-left:auto;">'+(avail.length<BCAST.length?'デイリーメールのみ編集できます。':'基本は固定テンプレ。送信前にこの場で自由に編集・追記できます。')+'</span></div>'+
     '<div class="grid" style="grid-template-columns:1.2fr 1fr;align-items:start;">'+
       '<div class="card" id="bEditor"></div>'+
       '<div class="card"><h3>'+ic('mail')+'プレビュー（送信される本文）</h3><div class="preview" id="bPreview"></div></div>'+
@@ -1764,7 +1824,16 @@ function dgInvoice(){
   var st=dgStore().invoice||{childId:null,plan:'週3',month:(addDays(0).getMonth()+2>12?1:addDays(0).getMonth()+2),lunchN:0,extN:0,material:false,admission:false,due:''};
   var kids=enrolled();
   if(!st.childId&&kids.length)st.childId=kids[0].id;
+  if(!st.month)st.month=(addDays(0).getMonth()+2>12?1:addDays(0).getMonth()+2);
+  if(!st.plan)st.plan=Object.keys(P.plans||{})[0]||'週3';
+  if(st.lunchN==null)st.lunchN=0;if(st.extN==null)st.extN=0;
   function save(){dgSave('invoice',st);}
+  /* 生徒情報（契約・オプション）から自動反映 */
+  function applyEnroll(id){
+    var c=kids.filter(function(x){return x.id===id;})[0];if(!c||typeof enrOf!=='function')return;
+    var o=enrOf(c);st.plan=o.plan||st.plan;st.lunchN=+o.lunchN||0;st.extN=+o.extN||0;st.material=!!o.material;save();
+  }
+  if(!st._enrLoaded){applyEnroll(st.childId);st._enrLoaded=true;save();}
   function planOpts(){return Object.keys(P.plans).map(function(k){return '<option'+(k===st.plan?' selected':'')+'>'+k+'</option>';}).join('');}
   function lines(){
     var c=kids.filter(function(x){return x.id===st.childId;})[0];
@@ -1796,7 +1865,7 @@ function dgInvoice(){
       '<div class="muted">単価は「設定 → 料金設定」で変更できます。コースプラン・オプションを変えると金額が自動計算されます。</div></div>'+
     '<div class="card">'+recHead('請求書プレビュー','<button class="btn btn-sm btn-primary" id="ivPrint">'+ic('printer')+'請求書を出力</button>')+'<div class="preview" id="ivPrev" style="max-height:480px;"></div></div></div>';
   function upd(){$('#ivPrev').innerHTML=invoiceHTML();}
-  $('#iv_child').onchange=function(e){st.childId=+e.target.value;save();upd();};
+  $('#iv_child').onchange=function(e){st.childId=+e.target.value;applyEnroll(st.childId);save();dgInvoice();};
   $('#iv_plan').onchange=function(e){st.plan=e.target.value;save();upd();};
   $('#iv_month').onchange=function(e){st.month=+e.target.value;save();upd();};
   $('#iv_due').onchange=function(e){st.due=e.target.value;save();upd();};
@@ -2073,25 +2142,28 @@ function renderDocs(){
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
-  {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},
+  {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},
   {p:'records',label:'日常記録'},{p:'drill',label:'避難訓練'},{p:'shift',label:'シフト表'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
-  {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'templates',label:'メールテンプレート'},
+  {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'audit',label:'監査対応'},{p:'settings',label:'設定'}
 ];
 var DEFAULT_PERMS={
   '管理者':ACCESS_PAGES.map(function(x){return x.p;}),
   'マネージャー':ACCESS_PAGES.map(function(x){return x.p;}),
-  '一般':['dashboard','compose','broadcast','records','drill','shift','contacts','curriculum','deliveries','templates']
+  /* 一般スタッフ：配信はデイリーメールのみ編集可、個別メールは在園児のみ送信可。
+     配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
+  '一般':['dashboard','dm','broadcast','records','drill','shift','contacts','curriculum']
 };
+var PERMS_VERSION=4;
 function staffAccountsSeed(){return [
   {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin'},
   {id:2,loginId:'shiraga',name:'白神 玲美',role:'マネージャー',pw:'shiraga'},
   {id:3,loginId:'staff',name:'一般 スタッフ',role:'一般',pw:'staff'}
 ];}
 function staffAccounts(){var a=stGet('staffAccounts',null);if(!a){a=staffAccountsSeed();stSet('staffAccounts',a);}return a;}
-function rolePerms(){var p=stGet('rolePerms',null);if(!p){p=DEFAULT_PERMS;stSet('rolePerms',p);}return p;}
+function rolePerms(){var p=stGet('rolePerms',null);if(!p||stGet('permsVersion',0)!==PERMS_VERSION){p=DEFAULT_PERMS;stSet('rolePerms',p);stSet('permsVersion',PERMS_VERSION);}return p;}
 function saveRolePerms(p){stSet('rolePerms',p);}
 function roleColor(r){return r==='管理者'?{bg:'#FCEBEB',fg:'#A32D2D'}:r==='マネージャー'?{bg:'#E1F5EE',fg:'#0F6E56'}:{bg:'#F1EFE8',fg:'#5F5E5A'};}
 function currentStaff(){var id=sessionStorage.getItem('cocoas_staffSession');if(!id)return null;return staffAccounts().filter(function(a){return String(a.id)===String(id);})[0]||null;}
@@ -2105,6 +2177,8 @@ function applyPerms(){
   document.querySelectorAll('#nav a[data-go]').forEach(function(a){a.style.display=canView(a.getAttribute('data-go'))?'':'none';});
   var kids=[].slice.call(nav.children);
   kids.forEach(function(node,i){if(node.classList&&node.classList.contains('nav-label')){var anyVis=false;for(var j=i+1;j<kids.length;j++){if(kids[j].classList&&kids[j].classList.contains('nav-label'))break;if(kids[j].tagName==='A'&&kids[j].style.display!=='none')anyVis=true;}node.style.display=anyVis?'':'none';}});
+  var dmb=document.getElementById('navDM');
+  if(dmb&&typeof dmUnreadTotal==='function'){var un=dmUnreadTotal();dmb.textContent=un||'';dmb.style.display=un?'':'none';}
   var foot=document.querySelector('.side-foot');
   if(foot){foot.innerHTML='<div style="color:#fff;font-weight:600;font-size:12.5px;">'+esc(s.name)+'</div><div style="color:#9fc7b8;font-size:11px;margin-bottom:6px;">'+s.role+'としてログイン中</div><button id="slLogout" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">ログアウト</button>';var lo=document.getElementById('slLogout');if(lo)lo.onclick=staffLogout;}
 }
@@ -2121,12 +2195,18 @@ function showStaffLogin(){
 function staffEnter(){
   var ov=document.getElementById('staffLogin');if(ov)ov.style.display='none';
   applyPerms();
-  var first=canView('dashboard')?'dashboard':(ACCESS_PAGES.map(function(x){return x.p;}).filter(canView)[0]||'dashboard');
+  var dl=dmDeepLink();
+  var first=(dl&&canView('dm'))?'dm':(canView('dashboard')?'dashboard':(ACCESS_PAGES.map(function(x){return x.p;}).filter(canView)[0]||'dashboard'));
+  if(dl&&canView('dm'))dmSel=dl;
   go(first);if(typeof initAI==='function')initAI();
 }
+function dmDeepLink(){var m=location.search.match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
 function staffBoot(){
   if(!currentStaff()){showStaffLogin();return;}
-  applyPerms();go('dashboard');if(typeof initAI==='function')initAI();
+  applyPerms();
+  var dl=dmDeepLink();
+  if(dl&&canView('dm')){dmSel=dl;go('dm');}else go('dashboard');
+  if(typeof initAI==='function')initAI();
 }
 /* 設定タブに追加：生徒情報リンク・職員アカウント・権限管理 */
 function renderAccessSettings(s){
@@ -2143,6 +2223,16 @@ function renderAccessSettings(s){
       +'<table><thead><tr><th style="min-width:150px;">画面</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+r+'</span></th>';}).join('')+'</tr></thead><tbody>'
       +ACCESS_PAGES.map(function(pg){return '<tr><td>'+esc(pg.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||((perms[r]||[]).indexOf(pg.p)>-1);var dis=(r==='管理者'||pg.p==='dashboard')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-pm="'+r+'|'+pg.p+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
       +'</tbody></table><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="pmSave">'+ic('check')+'権限を保存</button> <span class="muted" id="pmMsg"></span></div></div>';
+    var tp=tplPerms();
+    function tplMatrix(kind,title,items){
+      return '<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('doc')+title+'</h3><div class="muted" style="margin-bottom:10px;">チェックした役割にだけ、そのテンプレートが表示されます。（管理者は常に全件）</div>'
+        +'<table><thead><tr><th style="min-width:220px;">テンプレート</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+r+'</span></th>';}).join('')+'</tr></thead><tbody>'
+        +items.map(function(it){var list=(tp[kind]||{})[it.key]||[];return '<tr><td>'+esc(it.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||list.indexOf(r)>-1;var dis=(r==='管理者')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-tpm="'+kind+'|'+it.key+'|'+r+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
+        +'</tbody></table></div>';
+    }
+    html+=tplMatrix('broadcast','全体配信テンプレートの表示権限',BCAST.map(function(x){return {key:x.key,label:x.label};}))
+      +tplMatrix('mail','個別メールテンプレートの表示権限',Object.keys(TEMPLATES).map(function(k){return {key:k,label:TEMPLATES[k].label};}))
+      +'<div class="card" style="margin-bottom:16px;"><button class="btn btn-primary btn-sm" id="tpmSave">'+ic('check')+'テンプレート権限を保存</button> <span class="muted" id="tpmMsg"></span></div>';
   } else {
     html+='<div class="card" style="max-width:820px;"><h3>'+ic('shield')+'権限管理</h3><div class="muted">職員アカウントと権限の設定は<b>管理者</b>のみ行えます。</div></div>';
   }
@@ -2152,8 +2242,94 @@ function renderAccessSettings(s){
     document.getElementById('saAdd').onclick=function(){var a=staffAccounts();var nid=Math.max.apply(null,a.map(function(x){return x.id;}).concat([0]))+1;a.push({id:nid,loginId:'staff'+nid,name:'新規職員',role:'一般',pw:'pass'+nid});stSet('staffAccounts',a);renderSettings();};
     document.getElementById('saSave').onclick=function(){var a=staffAccounts();document.querySelectorAll('[data-sa]').forEach(function(inp){var pp=inp.getAttribute('data-sa').split('|');var acc=a.filter(function(x){return String(x.id)===pp[0];})[0];if(acc)acc[pp[1]]=inp.value;});stSet('staffAccounts',a);document.getElementById('saMsg').textContent='保存しました';applyPerms();};
     document.querySelectorAll('[data-sadel]').forEach(function(b){b.onclick=function(){if(!confirm('この職員アカウントを削除しますか？'))return;var a=staffAccounts().filter(function(x){return String(x.id)!==b.getAttribute('data-sadel');});stSet('staffAccounts',a);renderSettings();};});
+    document.getElementById('tpmSave').onclick=function(){
+      var np={broadcast:{},mail:{}};
+      BCAST.forEach(function(x){np.broadcast[x.key]=['管理者'];});
+      Object.keys(TEMPLATES).forEach(function(k){np.mail[k]=['管理者'];});
+      document.querySelectorAll('[data-tpm]').forEach(function(cb){if(cb.disabled||!cb.checked)return;var pp=cb.getAttribute('data-tpm').split('|');if(!np[pp[0]][pp[1]])np[pp[0]][pp[1]]=[];if(np[pp[0]][pp[1]].indexOf(pp[2])<0)np[pp[0]][pp[1]].push(pp[2]);});
+      stSet('tplPerms',np);stSet('tplPermsVersion',TPL_PERMS_VERSION);
+      document.getElementById('tpmMsg').textContent='保存しました';
+    };
     document.getElementById('pmSave').onclick=function(){var perms=rolePerms();STAFF_ROLES.forEach(function(r){if(r!=='管理者')perms[r]=['dashboard'];});document.querySelectorAll('[data-pm]').forEach(function(cb){if(cb.disabled)return;if(cb.checked){var pp=cb.getAttribute('data-pm').split('|');if(!perms[pp[0]])perms[pp[0]]=[];if(perms[pp[0]].indexOf(pp[1])<0)perms[pp[0]].push(pp[1]);}});saveRolePerms(perms);document.getElementById('pmMsg').textContent='保存しました。ナビに反映します。';applyPerms();};
   }
+}
+
+/* ========== 保護者DM（園 ⇄ 保護者の個別メッセージ） ==========
+   家庭（園児）ごとに1スレッド。送信すると相手に「通知メール」が飛び、
+   本文に返信用URLが入る想定で設計（実送信はバックエンド接続後）。
+   データ: dmThreads = { childId: {messages:[{id,from:'staff'|'parent',by,text,at,readByStaff,readByParent}]} } */
+var dmSel=null;
+function dmStore(){return stGet('dmThreads',{});}
+function dmSaveAll(t){stSet('dmThreads',t);}
+function dmThread(id){var t=dmStore();return t[id]||{messages:[]};}
+function dmBaseUrl(){var u=location.href.split('?')[0];return u.replace(/[^\/]*$/,'');}
+function dmNow(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
+function dmUnreadStaff(id){return dmThread(id).messages.filter(function(m){return m.from==='parent'&&!m.readByStaff;}).length;}
+function dmUnreadTotal(){var n=0;enrolled().forEach(function(c){n+=dmUnreadStaff(c.id);});return n;}
+function dmMarkReadStaff(id){var t=dmStore();if(!t[id])return;t[id].messages.forEach(function(m){if(m.from==='parent')m.readByStaff=true;});dmSaveAll(t);}
+function dmPost(childId,from,by,text){
+  var t=dmStore();if(!t[childId])t[childId]={messages:[]};
+  t[childId].messages.push({id:Date.now()+Math.floor(Math.random()*1000),from:from,by:by,text:text,at:dmNow(),readByStaff:from==='staff',readByParent:from==='parent'});
+  dmSaveAll(t);
+  return t[childId].messages[t[childId].messages.length-1];
+}
+/* 通知メール（返信URL付き）— 実送信はバックエンド接続後。いまは送信履歴に記録して可視化 */
+function dmNotify(childId,msg){
+  var c=DB.contacts.filter(function(x){return x.id===childId;})[0];if(!c)return;
+  var h=DB.history;
+  if(msg.from==='staff'){
+    h.push({date:todayISO(),time:msg.at.slice(5),tpl:'DM通知（保護者へ）',to:c.name+' 様',email:c.email,from:SET.sender,
+      subject:'【'+SET.school+'】'+(msg.by||'担当')+'よりメッセージが届いています',
+      body:c.name+' 様\n\n'+SET.school+' の '+(msg.by||'担当')+' より、'+childName(c)+'さんについてメッセージが届いています。\n\n----------\n'+msg.text+'\n----------\n\n下記より内容の確認・ご返信をお願いいたします。\n'+dmBaseUrl()+'parent.html?dm='+childId+'\n\n'+SET.school});
+  }else{
+    h.push({date:todayISO(),time:msg.at.slice(5),tpl:'DM通知（園へ）',to:SET.school,email:SET.sender,from:c.email,
+      subject:'【DM】'+c.name+' 様（'+childName(c)+'）よりメッセージが届いています',
+      body:c.name+' 様よりメッセージが届いています。\n\n----------\n'+msg.text+'\n----------\n\n下記より内容の確認・ご返信をお願いいたします。\n'+dmBaseUrl()+'index.html?dm='+childId});
+  }
+  DB.history=h;
+}
+function renderDM(){
+  var kids=enrolled();
+  if(!dmSel||!kids.filter(function(c){return c.id===dmSel;}).length)dmSel=kids.length?kids[0].id:null;
+  var s=$('section[data-page="dm"]');
+  if(!kids.length){s.innerHTML='<div class="empty">在園児が登録されていません</div>';return;}
+  var staffNames=DB.staff.map(function(x){return x.name;});
+  var me=(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:(SET.manager||'');
+  var defBy=staffNames.indexOf(me)>-1?me:(staffNames[0]||'');
+  var th=dmThread(dmSel);
+  var cur=kids.filter(function(c){return c.id===dmSel;})[0];
+  s.innerHTML='<div class="grid" style="grid-template-columns:280px 1fr;align-items:start;gap:16px;">'
+    +'<div class="card" style="padding:12px;"><h3 style="font-size:13.5px;">'+ic('users')+'家庭を選ぶ</h3>'
+      +kids.map(function(c){var t=dmThread(c.id);var last=t.messages[t.messages.length-1];var un=dmUnreadStaff(c.id);var on=c.id===dmSel;
+        return '<div data-dmk="'+c.id+'" style="padding:8px 10px;border-radius:9px;cursor:pointer;margin-bottom:3px;'+(on?'background:var(--teal);color:#fff;':'')+'">'
+          +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;font-size:13px;flex:1;">'+esc(childName(c))+'</span>'+(un?'<span style="background:#E24B4A;color:#fff;border-radius:99px;font-size:10px;padding:1px 7px;font-weight:700;">'+un+'</span>':'')+'</div>'
+          +'<div style="font-size:11px;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(last?esc(last.text.slice(0,22)):'メッセージはまだありません')+'</div></div>';}).join('')
+    +'</div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('mail')+esc(childName(cur))+'（'+esc(cur.name)+' 様）</h3><span class="muted" style="font-size:11.5px;">'+esc(cur.email)+'</span></div>'
+      +'<div class="muted" style="margin-bottom:10px;font-size:12px;">送信すると保護者へ<b>通知メール（返信URL付き）</b>が届き、保護者ページのメッセージに表示されます。</div>'
+      +'<div id="dmLog" style="max-height:380px;overflow-y:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">'
+        +(th.messages.length?th.messages.map(function(m){var mine=m.from==='staff';
+          return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%;">'
+            +'<div style="font-size:10.5px;color:var(--tx3);margin-bottom:2px;text-align:'+(mine?'right':'left')+';">'+(mine?esc(m.by||'園'):esc(cur.name)+' 様')+' ・ '+esc(m.at)+'</div>'
+            +'<div style="padding:9px 12px;border-radius:13px;font-size:13px;line-height:1.6;white-space:pre-wrap;'+(mine?'background:var(--teal);color:#fff;border-bottom-right-radius:4px;':'background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;')+'">'+esc(m.text)+'</div></div>';}).join('')
+          :'<div class="empty">まだメッセージはありません</div>')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;align-items:flex-end;margin-top:12px;flex-wrap:wrap;">'
+        +'<div class="field" style="margin:0;width:150px;"><label style="font-size:11.5px;">担当</label><select id="dmBy">'+staffNames.map(function(n){return '<option'+(n===defBy?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></div>'
+        +'<div class="field" style="margin:0;flex:1;min-width:220px;"><label style="font-size:11.5px;">メッセージ（自由入力）</label><textarea id="dmText" rows="3" placeholder="例：本日は園庭で元気に遊んでいました。お迎えの際に少しお話しさせてください。"></textarea></div>'
+        +'<button class="btn btn-primary" id="dmSend">'+ic('send')+'送信</button></div>'
+      +'<div id="dmMsg" class="muted" style="margin-top:8px;font-size:12px;"></div></div>'
+    +'</div>';
+  s.querySelectorAll('[data-dmk]').forEach(function(b){b.onclick=function(){dmSel=+b.getAttribute('data-dmk');dmMarkReadStaff(dmSel);renderDM();};});
+  dmMarkReadStaff(dmSel);
+  var log=$('#dmLog');if(log)log.scrollTop=log.scrollHeight;
+  $('#dmSend').onclick=function(){
+    var tx=$('#dmText').value.trim();if(!tx){alert('メッセージを入力してください');return;}
+    var m=dmPost(dmSel,'staff',$('#dmBy').value,tx);dmNotify(dmSel,m);
+    $('#dmText').value='';renderDM();
+    $('#dmMsg').innerHTML='<span style="color:#0F6E56;font-weight:600;">送信しました。保護者へ通知メール（返信URL付き）を送信しました。</span>';
+  };
+  var nav=$('#navDM');if(nav){var un=dmUnreadTotal();nav.textContent=un||'';nav.style.display=un?'':'none';}
 }
 
 /* ========== 生徒台帳（生徒情報を1か所に集約）＋自宅マップ ==========
@@ -2314,6 +2490,65 @@ function wireRosterMap(kids){
     $('#rmPinMsg').textContent=childName(DB.contacts.filter(function(x){return x.id===id;})[0])+'の自宅ピンを設定しました。';
     wireRosterMap(enrolled());
   });
+}
+
+/* ========== 生徒情報（契約・オプション） ==========
+   園児ごとのコースプラン／ランチ／ロングステイ（延長）／教材費などを管理し、請求書に自動反映する。
+   データ: enrollOptions = { childId:{plan,lunchN,extN,material,admission,note} } */
+function enrOpts(){return stGet('enrollOptions',{});}
+function enrSaveAll(o){stSet('enrollOptions',o);}
+function enrOf(c){
+  var o=enrOpts()[c.id];
+  if(o)return o;
+  var P=SET.pricing||{plans:{}};
+  var days=(c.days||'').split('・').filter(Boolean).length;
+  var plan=Object.keys(P.plans||{}).filter(function(k){return k==='週'+days;})[0]||'週3';
+  return {plan:plan,lunchN:c.lunch?days*4:0,extN:c.long?days*4:0,material:false,admission:false,note:''};
+}
+function enrSet(id,obj){var o=enrOpts();o[id]=obj;enrSaveAll(o);}
+function enrMonthly(o){
+  var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
+  var t=(P.plans||{})[o.plan]||0;
+  t+=(+o.lunchN||0)*(P.lunch||0);
+  t+=(+o.extN||0)*(P.extended||0);
+  if(o.material)t+=(P.material||0);
+  return t;
+}
+function renderEnroll(){
+  var s=$('section[data-page="enroll"]');
+  var kids=enrolled();
+  var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
+  var planKeys=Object.keys(P.plans||{});
+  if(!kids.length){s.innerHTML='<div class="empty">在園児が登録されていません</div>';return;}
+  s.innerHTML='<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'生徒情報（契約・オプション）</h3>'
+    +'<div class="muted" style="margin-bottom:10px;">園児ごとのコースプランとオプション（ランチ・ロングステイ・教材費）を登録します。'
+    +'ここで設定した内容は<b>請求書作成に自動で反映</b>されます。単価は「設定 → 料金設定」で変更できます。<br>'
+    +'現在の単価：ランチ '+yen(P.lunch)+'/回　ロングステイ '+yen(P.extended)+'/回　教材費 '+yen(P.material)+'　入園金 '+yen(P.admission)+'</div>'
+    +'<div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>通園曜日</th><th>コースプラン</th><th>ランチ（回/月）</th><th>ロングステイ（回/月）</th><th>教材費</th><th style="text-align:right;">月額（自動）</th><th></th></tr></thead><tbody>'
+    +kids.map(function(c){var o=enrOf(c);
+      return '<tr><td class="row-name">'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td class="row-sub">'+esc(c.days||'—')+'</td>'
+        +'<td><select data-en="'+c.id+'|plan" style="width:100px;">'+planKeys.map(function(k){return '<option'+(k===o.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></td>'
+        +'<td><input type="number" min="0" data-en="'+c.id+'|lunchN" value="'+(o.lunchN||0)+'" style="width:80px;"></td>'
+        +'<td><input type="number" min="0" data-en="'+c.id+'|extN" value="'+(o.extN||0)+'" style="width:80px;"></td>'
+        +'<td style="text-align:center;"><input type="checkbox" data-en="'+c.id+'|material"'+(o.material?' checked':'')+' style="width:auto;"></td>'
+        +'<td style="text-align:right;font-weight:600;" id="enTot'+c.id+'">'+yen(enrMonthly(o))+'</td>'
+        +'<td><button class="btn btn-sm" data-eninv="'+c.id+'">'+ic('yen')+'請求書</button></td></tr>';}).join('')
+    +'</tbody></table></div>'
+    +'<div class="muted" style="margin-top:10px;font-size:12px;">※「請求書」を押すと、その園児の内容で請求書作成が開きます（金額は自動計算されます）。</div></div>';
+  s.querySelectorAll('[data-en]').forEach(function(el){
+    el.onchange=function(){
+      var p=el.getAttribute('data-en').split('|'),id=+p[0],key=p[1];
+      var c=kids.filter(function(x){return x.id===id;})[0];var o=enrOf(c);
+      o[key]=(el.type==='checkbox')?el.checked:(el.type==='number'?(+el.value||0):el.value);
+      enrSet(id,o);
+      var tot=document.getElementById('enTot'+id);if(tot)tot.textContent=yen(enrMonthly(o));
+    };
+  });
+  s.querySelectorAll('[data-eninv]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-eninv');
+    var st=dgStore().invoice||{};st.childId=id;dgSave('invoice',st);
+    dgType='請求書作成';go('docgen');
+  };});
 }
 
 /* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========
