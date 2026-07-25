@@ -422,7 +422,29 @@ function curSchedSet(cls,date,obj){var s=curSched();s[cls]=s[cls]||{};s[cls][dat
 function curCont(){if(!CUR.content)CUR.content={};return CUR.content;}
 function curContGet(cls,wk,type){var c=curCont();return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
 function curContSet(cls,wk,type,obj){var c=curCont();c[cls]=c[cls]||{};c[cls][wk]=c[cls][wk]||{};c[cls][wk][type]=obj;DB.curriculum=CUR;}
-function curDayActivities(cls,date){var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));function txt(t){if(!t)return '';if(t==='Daycare')return '1日託児保育（Daycare）';var ct=curContGet(cls,wk,t);return t+(ct.plan?'：'+ct.plan:'');}if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:''};return {morning:txt(sc.am),afternoon:txt(sc.pm)};}
+/* クラス別の月次項目（Pre / Kinder で別々に登録） */
+function curMonthly(cls){
+  if(!CUR.byClass)CUR.byClass={};
+  if(!CUR.byClass[cls]){
+    /* 旧データ（クラス共通）は Pre に引き継ぐ */
+    CUR.byClass[cls]=(cls==='Pre')
+      ?{theme:CUR.theme||'',phonicsLetter:CUR.phonicsLetter||'',phonicsSong:CUR.phonicsSong||'',songEN:CUR.songEN||'',songJP:CUR.songJP||''}
+      :{theme:'',phonicsLetter:'',phonicsSong:'',songEN:'',songJP:''};
+  }
+  return CUR.byClass[cls];
+}
+function curMonthlySet(cls,key,val){var m=curMonthly(cls);m[key]=val;if(cls==='Pre')CUR[key]=val;DB.curriculum=CUR;}
+/* アクティビティ別の月間テーマ・目標（月に1回登録。週の内容はこれを引き継ぐ） */
+function curActM(){if(!CUR.actMonthly)CUR.actMonthly={};return CUR.actMonthly;}
+function curActMGet(cls,type){var a=curActM();return ((a[cls]||{})[type])||{theme:'',teacher:'',goal:''};}
+function curActMSet(cls,type,obj){var a=curActM();a[cls]=a[cls]||{};a[cls][type]=obj;DB.curriculum=CUR;}
+/* 週の実効値：週で上書きがあればそれ、なければ月間テーマ・担当を自動反映 */
+function curEff(cls,wk,type){
+  var ct=curContGet(cls,wk,type),m=curActMGet(cls,type);
+  return {theme:(ct.theme||m.theme||''),teacher:(ct.teacher||m.teacher||''),plan:(ct.plan||''),goal:m.goal||'',
+    themeInherited:!ct.theme&&!!m.theme,teacherInherited:!ct.teacher&&!!m.teacher};
+}
+function curDayActivities(cls,date){var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));function txt(t){if(!t)return '';if(t==='Daycare')return '1日託児保育（Daycare）';var e=curEff(cls,wk,t);var d=e.plan||e.theme||'';return t+(d?'：'+d:'');}if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:''};return {morning:txt(sc.am),afternoon:txt(sc.pm)};}
 function curDayText(cls,date){var a=curDayActivities(cls,date);return [a.morning?'【午前】'+a.morning:'',a.afternoon?'【午後】'+a.afternoon:''].filter(Boolean).join('\n');}
 
 /* recurring delivery schedule */
@@ -1063,13 +1085,13 @@ function renderBroadcast(){
       e.innerHTML='<h3>'+ic('report')+'デイリーメール（'+def.daily+'）<span style="margin-left:auto;display:flex;gap:6px;"><button class="btn btn-sm btn-ghost" id="bFillCur">カリキュラムから取込</button><button class="btn btn-sm btn-ghost" id="bEditDirect">本文を直接編集</button></span></h3>'+
         '<div class="field"><label>配信日</label><input type="date" id="bDate" value="'+todayISO()+'"></div>'+
         '<div class="field"><label>冒頭ひとこと（季節・行事）</label><textarea id="bSeason" rows="2">暖かい季節になりましたね☀️\n今週もよろしくお願い致します😊</textarea></div>'+
-        '<div class="field"><label>Monthly Theme</label><input id="bTheme" value="'+CUR.theme.replace(/"/g,'&quot;')+'"></div>'+
-        (pre?'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Phonics Letter</label><input id="bPL" value="'+CUR.phonicsLetter.replace(/"/g,'&quot;')+'"></div><div class="field"><label>Phonics Song</label><input id="bPS" value="'+CUR.phonicsSong.replace(/"/g,'&quot;')+'"></div></div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Monthly Song（English）</label><input id="bSE" value="'+CUR.songEN.replace(/"/g,'&quot;')+'"></div><div class="field"><label>Monthly Song（Japanese）</label><input id="bSJ" value="'+CUR.songJP.replace(/"/g,'&quot;')+'"></div></div>':'')+
+        '<div class="field"><label>Monthly Theme</label><input id="bTheme" value="'+String(curMonthly(def.daily).theme||'').replace(/"/g,'&quot;')+'"></div>'+
+        (pre?'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Phonics Letter</label><input id="bPL" value="'+String(curMonthly(def.daily).phonicsLetter||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>Phonics Song</label><input id="bPS" value="'+String(curMonthly(def.daily).phonicsSong||'').replace(/"/g,'&quot;')+'"></div></div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Monthly Song（English）</label><input id="bSE" value="'+String(curMonthly(def.daily).songEN||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>Monthly Song（Japanese）</label><input id="bSJ" value="'+String(curMonthly(def.daily).songJP||'').replace(/"/g,'&quot;')+'"></div></div>':'')+
         (pre
           ?'<div class="field"><label>Morning Activity</label><textarea id="bM1" rows="3">本日はoutsideの代わりにindoorで沢山体を動かしました🎵\n2歳児さんたちは主にリレーとボールキックを楽しみ、1歳児さんたちは音楽に合わせてexcercieを楽しみました😊\n皆とても楽しそうに活動できていましたよ😊✨</textarea></div><div class="field"><label>Afternoon Activity</label><textarea id="bA1" rows="2">Motorskillでは、opposite wordsを学びました。本日はflower paperをripして"soft"の手触りを実体験する事を楽しんだPreさんたちです🌼</textarea></div>'
           :'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Morning Activity 1</label><textarea id="bM1" rows="2">実施したこと2〜3文</textarea></div><div class="field"><label>Morning Activity 2</label><textarea id="bM2" rows="2">実施したこと2〜3文</textarea></div></div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>Afternoon Activity 1</label><textarea id="bA1" rows="2">実施したこと2〜3文</textarea></div><div class="field"><label>Afternoon Activity 2</label><textarea id="bA2" rows="2">実施したこと2〜3文</textarea></div></div>')+
         '<div class="field"><label>お知らせ</label><textarea id="bNotice" rows="3">'+(pre?'☆お子様のすべての持ち物にご記名いただいているか再度ご確認をお願いいたします。\nオムツ・洋服・下着・靴下・フルーツのアイスパックにも必ずご記名ください。ご協力ありがとうございます！':'今月から徐々に今年度の教材を自宅にお返ししていきます。テキストブックが入る大きいバッグの持参をお願いいたします。')+'</textarea></div>';
-      $('#bFillCur').onclick=function(){$('#bTheme').value=CUR.theme;if(pre){$('#bPL').value=CUR.phonicsLetter;$('#bPS').value=CUR.phonicsSong;$('#bSE').value=CUR.songEN;$('#bSJ').value=CUR.songJP;}var act=curDayActivities(def.daily,$('#bDate').value);if(act.morning&&$('#bM1'))$('#bM1').value=act.morning;if(act.afternoon&&$('#bA1'))$('#bA1').value=act.afternoon;preview();};
+      $('#bFillCur').onclick=function(){var _M=curMonthly(def.daily);$('#bTheme').value=_M.theme||'';if(pre){$('#bPL').value=_M.phonicsLetter||'';$('#bPS').value=_M.phonicsSong||'';$('#bSE').value=_M.songEN||'';$('#bSJ').value=_M.songJP||'';}var act=curDayActivities(def.daily,$('#bDate').value);if(act.morning&&$('#bM1'))$('#bM1').value=act.morning;if(act.afternoon&&$('#bA1'))$('#bA1').value=act.afternoon;preview();};
       $('#bEditDirect').onclick=function(){var a=assembleDaily();bManualSub=a.subject;bManualBody=a.body;bManual=true;buildEditor();preview();};
       e.querySelectorAll('input,textarea').forEach(function(x){x.oninput=preview;x.onchange=preview;});
     } else {
@@ -1117,22 +1139,33 @@ function renderCurriculum(){
   var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'月間カリキュラム</h3>'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+k+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+CUR.month+'" style="width:150px;margin-left:auto;"></div>'+
     '<div class="chips" style="margin:0;">'+[['schedule','日別スケジュール'],['content','アクティビティ内容（Week1-4）']].map(function(t){return '<span class="chip'+(t[0]===curTab?' on':'')+'" data-ctab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>'+
-    '<div class="card" style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:8px;">月次項目（デイリーメール用）</div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field" style="margin:0 0 8px;"><label>Monthly Theme</label><input id="curTheme" value="'+v(CUR.theme)+'"></div><div class="field" style="margin:0 0 8px;"><label>Phonics Letter</label><input id="curPL" value="'+v(CUR.phonicsLetter)+'"></div><div class="field" style="margin:0;"><label>Phonics Song</label><input id="curPS" value="'+v(CUR.phonicsSong)+'"></div><div class="field" style="margin:0;"><label>Monthly Song（EN／JP）</label><input id="curSE" value="'+v(CUR.songEN)+'" placeholder="English"></div></div></div>';
+    (function(){var M=curMonthly(curClass);return '<div class="card" style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">月次項目（デイリーメール用）<span class="pill" style="background:#E1F5EE;color:#0F6E56;margin-left:8px;">'+curClass+'</span></div><div class="muted" style="margin-bottom:8px;font-size:12px;">クラスごとに登録できます（Pre と Kinder で別々の内容）。</div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field" style="margin:0 0 8px;"><label>Monthly Theme</label><input id="curTheme" value="'+v(M.theme)+'"></div><div class="field" style="margin:0 0 8px;"><label>Phonics Letter</label><input id="curPL" value="'+v(M.phonicsLetter)+'"></div><div class="field" style="margin:0;"><label>Phonics Song</label><input id="curPS" value="'+v(M.phonicsSong)+'"></div><div class="field" style="margin:0;"><label>Monthly Song（EN／JP）</label><input id="curSE" value="'+v(M.songEN)+'" placeholder="English"></div></div></div>';})();
   var bodyHtml;
   if(curTab==='schedule'){
     var dim=new Date(y,mo,0).getDate(),rows='';
     for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+date+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+date+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+date+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+date+'" value="'+v(sc.memo)+'" placeholder="メモ"></td></tr>';}
     bodyHtml='<div class="card"><div class="muted" style="margin-bottom:10px;">日付ごとに午前・午後のアクティビティをプルダウンで選択。1日託児（Daycare）の日はチェック。日付つきなのでデイリーメールと連携します。</div><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:88px;">Daycare</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   } else {
-    bodyHtml='<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">週</span><div class="chips" style="margin:0;">'+['W1','W2','W3','W4'].map(function(w,i){return '<span class="chip'+(w===curWeek?' on':'')+'" data-cw="'+w+'">Week'+(i+1)+'</span>';}).join('')+'</div></div>'+
-      '<div class="muted" style="margin-bottom:10px;">'+curClass+' の各アクティビティの内容（テーマ・担当・計画）を週ごとに記入。日別スケジュールで選ぶとこの内容がデイリーメール等に反映されます（毎月MTGで先生が記入）。</div>'+
-      types.map(function(t){var ct=curContGet(curClass,curWeek,t);return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;"><div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;">'+t+'</span><input data-cont="'+t+'|theme" value="'+v(ct.theme)+'" placeholder="テーマ／Title" style="flex:1;min-width:140px;"><input data-cont="'+t+'|teacher" value="'+v(ct.teacher)+'" placeholder="担当" style="width:110px;"></div><textarea data-cont="'+t+'|plan" rows="2" placeholder="内容・計画">'+(ct.plan||'')+'</textarea></div>';}).join('')+'</div>';
+    bodyHtml='<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間テーマ・目標（'+curClass+'・月に1回登録）</div>'+
+      '<div class="muted" style="margin-bottom:10px;font-size:12px;">全体テーマ・ねらい・担当をここで登録すると、Week1〜4に自動で反映されます。週ごとに変えたい場合は、下の各週で上書きできます。</div>'+
+      types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+t+'</span><input data-actm="'+t+'|theme" value="'+v(m.theme)+'" placeholder="月間テーマ／Title" style="flex:1;min-width:150px;"><input data-actm="'+t+'|goal" value="'+v(m.goal)+'" placeholder="ねらい・目標" style="flex:1;min-width:150px;"><input data-actm="'+t+'|teacher" value="'+v(m.teacher)+'" placeholder="担当" style="width:110px;"></div>';}).join('')+'</div>'+
+      '<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">週</span><div class="chips" style="margin:0;">'+['W1','W2','W3','W4'].map(function(w,i){return '<span class="chip'+(w===curWeek?' on':'')+'" data-cw="'+w+'">Week'+(i+1)+'</span>';}).join('')+'</div></div>'+
+      '<div class="muted" style="margin-bottom:10px;">'+curClass+' の各アクティビティについて、その週に行う<b>内容</b>を記入します。テーマ・担当は月間登録から自動反映（<span style="color:#0F6E56;">自動</span>表示）。変更したい週はそのまま書き換えれば上書きされ、↺ で自動反映に戻せます。</div>'+
+      types.map(function(t){var e=curEff(curClass,curWeek,t);
+        function tag(inh){return inh?'<span class="pill" style="background:#E1F5EE;color:#0F6E56;font-size:10px;">自動</span>':'<button class="btn btn-sm btn-ghost" data-creset="'+t+'" style="padding:2px 7px;font-size:11px;" title="月間の内容に戻す">↺</button>';}
+        return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
+          +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;">'+t+'</span>'
+          +'<input data-cont="'+t+'|theme" value="'+v(e.theme)+'" placeholder="テーマ／Title" style="flex:1;min-width:140px;'+(e.themeInherited?'background:#F6FBF9;':'')+'">'
+          +'<input data-cont="'+t+'|teacher" value="'+v(e.teacher)+'" placeholder="担当" style="width:110px;'+(e.teacherInherited?'background:#F6FBF9;':'')+'">'
+          +tag(e.themeInherited&&e.teacherInherited)+'</div>'
+          +(e.goal?'<div class="muted" style="font-size:11.5px;margin:-2px 0 6px;">ねらい：'+esc(e.goal)+'</div>':'')
+          +'<textarea data-cont="'+t+'|plan" rows="2" placeholder="この週の内容">'+(e.plan||'')+'</textarea></div>';}).join('')+'</div>';
   }
   s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
-  $('#curTheme').oninput=function(e){CUR.theme=e.target.value;};
-  $('#curPL').oninput=function(e){CUR.phonicsLetter=e.target.value;};
-  $('#curPS').oninput=function(e){CUR.phonicsSong=e.target.value;};
-  $('#curSE').oninput=function(e){CUR.songEN=e.target.value;};
+  $('#curTheme').oninput=function(e){curMonthlySet(curClass,'theme',e.target.value);};
+  $('#curPL').oninput=function(e){curMonthlySet(curClass,'phonicsLetter',e.target.value);};
+  $('#curPS').oninput=function(e){curMonthlySet(curClass,'phonicsSong',e.target.value);};
+  $('#curSE').oninput=function(e){curMonthlySet(curClass,'songEN',e.target.value);};
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
   s.querySelectorAll('[data-ctab]').forEach(function(b){b.onclick=function(){curTab=b.getAttribute('data-ctab');renderCurriculum();};});
   s.querySelectorAll('[data-cw]').forEach(function(b){b.onclick=function(){curWeek=b.getAttribute('data-cw');renderCurriculum();};});
@@ -1141,7 +1174,9 @@ function renderCurriculum(){
   s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-sdc]').forEach(function(cb){cb.onchange=function(){var d=cb.getAttribute('data-sdc'),sc=curSchedGet(curClass,d);sc.daycare=cb.checked;curSchedSet(curClass,d,sc);renderCurriculum();};});
   s.querySelectorAll('[data-smemo]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-smemo'),sc=curSchedGet(curClass,d);sc.memo=inp.value;curSchedSet(curClass,d,sc);};});
-  s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-cont').split('|'),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);};});
+  s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-cont').split('|'),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
+  s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-actm').split('|'),m=curActMGet(curClass,p[0]);m[p[1]]=inp.value;curActMSet(curClass,p[0],m);renderCurriculum();};});
+  s.querySelectorAll('[data-creset]').forEach(function(b){b.onclick=function(){var t=b.getAttribute('data-creset'),ct=curContGet(curClass,curWeek,t);ct.theme='';ct.teacher='';curContSet(curClass,curWeek,t,ct);renderCurriculum();};});
   $('#curSave').onclick=function(){DB.curriculum=CUR;$('#curMsg').textContent='保存しました';setTimeout(function(){$('#curMsg').textContent='';},1600);};
   $('#curToAct').onclick=function(){DB.curriculum=CUR;routeTo(['broadcast','dailyPre']);};
 }
