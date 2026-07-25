@@ -189,7 +189,8 @@
       <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
       <a data-go="dm">{ic:mail}保護者DM<span class="badge" id="navDM" style="background:#E24B4A;"></span></a>
       <div class="nav-label">記録・書類</div>
-      <a data-go="records">{ic:activity}日常記録</a>
+      <a data-go="records">{ic:activity}日常チェック（毎日）</a>
+      <a data-go="carerec">{ic:report}保育記録</a>
       <a data-go="drill">{ic:shield}避難訓練</a>
       <a data-go="shift">{ic:tableg}シフト表</a>
       <a data-go="docgen">{ic:fileplus}書類作成</a>
@@ -230,6 +231,7 @@
       <section data-page="staff" hidden></section>
       <section data-page="audit" hidden></section>
       <section data-page="records" hidden></section>
+      <section data-page="carerec" hidden></section>
       <section data-page="drill" hidden></section>
       <section data-page="shift" hidden></section>
       <section data-page="docgen" hidden></section>
@@ -526,10 +528,23 @@ var HOSP_DEFAULT=[
 ];
 var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','消防計画・避難確保計画','損害賠償保険証書','献立表'];
 var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',shobo:'消防計画・避難確保計画',baisho:'損害賠償保険証書',kondate:'献立表'};
+var REC_DAILY=['登園（出席）','安全点検','午睡チェック','健康チェック','業務日報・保育日誌'];
+var REC_CARE=['身体測定','ヒヤリハット・怪我','生徒個人発達記録'];
+function recPageOf(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
 var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','ヒヤリハット・怪我':'rec_hiyari','生徒個人発達記録':'rec_発達','業務日報・保育日誌':'rec_日報'};
 function attendedToday(id){var sh=stGet('rec_登園シート',{})[todayISO()];return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
 var DRILL_PROC_DEFAULT='①日本人スタッフ1人 → 避難経路ドア（地震時）確保／火元の場所確認（火事時）\n　必要書類（健康管理手帳）、避難袋、最終確認\n　日本人スタッフ1人 → 子どもたちを安全な場所へ移動させる\n　※棚やモノが落ちてきそうなところは避けて、お昼寝マットで子どもの頭を守る\n　安全確認、子どもたちの靴を袋に入れて一番小さい子どもを連れて一番先に外へ出る\n　外国人スタッフ1人 → 子供たちを安全な場所に移動させ、子どもたちを連れて外へ避難\n②自動ドア外 or 正面玄関外に避難したら子供たちに靴を履かせる\n③子供たちをならばせ人数をチェック後、横の駐車場へ避難し再度人数チェック\n④必要であれば第2・3避難場所の小学校へ避難';
+/* 種別ごとの手順（スタッフ役割分担）。回ごとの計画・記録にもこのテンプレが入る */
+var DRILL_PROC_BY_KIND={
+  '地震':DRILL_PROC_DEFAULT,
+  '火事':'①発見者 → 「火事だ！」と大声で知らせる／火元の場所を確認\n　日本人スタッフ1人 → 119番通報（園名・住所・目標物を伝える）\n　日本人スタッフ1人 → 初期消火（消火器）※危険と判断したら無理をせず避難優先\n　外国人スタッフ1人 → 子どもたちを火元と反対側へ集め、口・鼻をタオル等で覆わせる\n　※煙を吸わないよう低い姿勢で移動する。防火扉・窓を閉める\n②必要書類（健康管理手帳）、避難袋、緊急連絡用携帯を持ち出す\n③自動ドア外 or 正面玄関外に避難したら子どもたちに靴を履かせる\n④子どもたちをならばせ人数をチェック後、横の駐車場へ避難し再度人数チェック\n⑤必要であれば第2・3避難場所の小学校へ避難し、保護者へ連絡',
+  '不審者':'①発見者 → あらかじめ決めた合言葉・緊急コールで全職員に知らせる（子どもを刺激しない）\n　日本人スタッフ1人 → 110番通報（不審者の特徴・人数・凶器の有無・現在地を伝える）\n　日本人スタッフ1人 → 出入口を施錠し、さすまた等で対応（複数人で・単独対応しない）\n　外国人スタッフ1人 → 子どもたちを安全な部屋（死角の少ない場所）へ誘導し施錠\n　※子どもと不審者の間に必ず職員が入る。子どもを外へ逃がす判断は状況により行う\n②室内で人数をチェックし、静かに待機。カーテンを閉め窓から離れる\n③警察到着まで園児の安全確保を最優先。負傷者がいれば119番通報\n④安全確認後、人数を再チェックし保護者へ連絡・引き渡し\n⑤不審者の特徴・時刻・逃走方向を記録し、警察・自治体へ報告'
+};
+function drillProcOf(kind){var m=stGet('drill_proc_by_kind',null);if(m&&m[kind]!=null)return m[kind];if(kind==='地震')return stGet('drill_proc',DRILL_PROC_BY_KIND['地震']);return DRILL_PROC_BY_KIND[kind]||'';}
+function drillProcSet(kind,text){var m=stGet('drill_proc_by_kind',{});m[kind]=text;stSet('drill_proc_by_kind',m);}
+var DRILL_KINDS=['地震','火事','不審者'];
+var drillProcTab='地震';
 var DRILL_KIND_DEFAULTS={
   '地震':{scenario:'地震発生を想定',cautions:'頭部を保護し安全な場所へ誘導。落下物・転倒物に注意。'},
   '火事':{scenario:'給食室からの出火を想定',cautions:'口鼻を覆い低い姿勢で避難。火元に近づかない。'},
@@ -664,13 +679,13 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],records:['記録・書類','日常記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],templates:['管理','メールテンプレート'],curriculum:['管理','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -748,7 +763,7 @@ function renderDash(){
      ['安全点検の記録','rec_安全点検','安全点検','#639922'],
      ['業務日報・保育日誌の記録','rec_日報','業務日報・保育日誌','#854F0B']
     ].forEach(function(t){var dn=!!stGet(t[1],{})[todayISO()];myTasks.push({label:t[0],sub:dn?'本日分 記録済み':'本日分が未記録です',done:dn,color:t[3],go:['records',t[2]],btn:dn?'確認する':'記録する'});});
-    if(!stGet('rec_身体測定',{})[todayISO().slice(0,7)])myTasks.push({label:'今月の身体測定','sub':'今月の測定がまだ記録されていません',done:false,color:'#E24B4A',go:['records','身体測定'],btn:'記録する'});
+    if(!stGet('rec_身体測定',{})[todayISO().slice(0,7)])myTasks.push({label:'今月の身体測定',sub:'今月の測定がまだ記録されていません',done:false,color:'#E24B4A',go:['carerec','身体測定'],btn:'記録する'});
     myTasks.push({label:'デイリーメールの作成',sub:'毎日 17:00 ・ 保護者へ本日の様子を配信',done:false,color:'#EF9F27',go:['broadcast','dailyPre'],btn:'作成する'});
     var un=(typeof dmUnreadTotal==='function')?dmUnreadTotal():0;
     if(un)myTasks.unshift({label:'保護者から未読のメッセージ',sub:un+'件の未読があります',done:false,color:'#E24B4A',go:['dm'],btn:'確認する'});
@@ -800,7 +815,7 @@ function renderDash(){
 function routeTo(p){
   if(p[0]==='compose'){composePreset=p[1]||null;composeSelectId=p[2]?+p[2]:null;go('compose');}
   else if(p[0]==='broadcast'){broadcastPreset=p[1]||null;go('broadcast');}
-  else if(p[0]==='records'&&p[1]){recType=p[1];go('records');}
+  else if((p[0]==='records'||p[0]==='carerec')&&p[1]){recType=p[1];go(recPageOf(p[1]));}
   else go(p[0]);
 }
 
@@ -1297,13 +1312,20 @@ function ageClassOf(c){
   return age+'歳児';
 }
 function childName(c){return c.child.replace(/ちゃん|くん/g,'');}
-function renderRecords(){
+function renderRecords(){renderRecGroup('records',REC_DAILY,'毎日記録する項目です。');}
+function renderCareRec(){renderRecGroup('carerec',REC_CARE,'月ごと・都度・3ヶ月ごとに記録する項目です。');}
+function renderRecGroup(page,list,note){
   if(!recDate)recDate=todayISO();
   if(!recMonth)recMonth=todayISO().slice(0,7);
   if(!recQuarter)recQuarter=curQuarter();
-  var s=$('section[data-page="records"]');
-  s.innerHTML='<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="chips" style="margin:0;flex:1;" id="recChips">'+Object.keys(RKEY).map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+t+'">'+t+'</span>';}).join('')+'</div><button class="btn btn-sm" id="recExportBtn" title="この記録をExcel/スプレッドシートで開ける形式でダウンロード">'+ic('folder')+'データ保存</button></div><div id="recBody"></div>';
-  s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecords();};});
+  if(list.indexOf(recType)<0)recType=list[0];
+  /* #recBody が両ページに重複しないよう、もう一方のグループは空にする */
+  var other=$('section[data-page="'+(page==='records'?'carerec':'records')+'"]');
+  if(other)other.innerHTML='';
+  var s=$('section[data-page="'+page+'"]');
+  s.innerHTML='<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="chips" style="margin:0;flex:1;" id="recChips">'+list.map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+t+'">'+t+'</span>';}).join('')+'</div><button class="btn btn-sm" id="recExportBtn" title="この記録をExcel/スプレッドシートで開ける形式でダウンロード">'+ic('folder')+'データ保存</button></div>'
+    +(note?'<div class="muted" style="margin:-8px 2px 12px;font-size:12px;">'+note+'</div>':'')+'<div id="recBody"></div>';
+  s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecGroup(page,list,note);};});
   $('#recExportBtn').onclick=recExport;
   ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
 }
@@ -1328,7 +1350,7 @@ function edTouen(){
     '</tbody></table></div>'+
     '<div class="field" style="margin-top:12px;"><label>MEMO</label><input id="tsMemo" value="'+(d.memo||'')+'"></div></div>';
   function save(){data[recDate]=d;stSet(K,data);}
-  $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#tsKlass').onchange=function(e){d.klass=e.target.value;save();edTouen();};
   [['tsWeather','weather'],['tsTemp','temp'],['tsHum','hum'],['tsMemo','memo']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
   document.querySelectorAll('[data-tsby]').forEach(function(ch){ch.onclick=function(){d.by=ch.getAttribute('data-tsby');save();edTouen();};});
@@ -1355,7 +1377,7 @@ function edSafety(){
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+(d.memo||'')+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><select id="sfBy"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===d.by?' selected':'')+'>'+st.name+'</option>';}).join('')+'</select></div></div>'+
     '<div class="muted" style="margin-top:12px;">直近7日：'+last7+'</div></div>';
   function save(){data[recDate]=d;stSet(K,data);}
-  $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#sfMemo').onchange=function(e){d.memo=e.target.value;save();};
   $('#sfBy').onchange=function(e){d.by=e.target.value;save();};
   $('#sfAllOk').onclick=function(){var n=0;SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(){d.items[n]='ok';n++;});});save();edSafety();};
@@ -1384,7 +1406,7 @@ function edNap(){
     kids.map(function(c){return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'</td>'+slots.map(function(t){var v=d.cells[c.id+'|'+t]||'';return '<td style="padding:2px;"><button class="napcell v'+v+'" data-nc="'+c.id+'|'+t+'">'+(v||'・')+'</button></td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table></div></div>';
   function save(){data[recDate]=d;stSet(K,data);}
-  $('#npDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#npDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#npKlass').onchange=function(e){d.klass=e.target.value;save();edNap();};
   $('#npChargeAdd').onclick=function(){d.charge.push({from:slots[0],by:''});save();edNap();};
   document.querySelectorAll('[data-cf]').forEach(function(sl){sl.onchange=function(){d.charge[+sl.getAttribute('data-cf')].from=sl.value;save();edNap();};});
@@ -1420,7 +1442,7 @@ function edHealth(){
     '</tbody></table>'+
     '<div class="muted" style="margin-top:8px;font-size:12px;">出席 '+showKids.length+'名　／　症状あり '+withSymptom+'名　／　症状なし '+(showKids.length-showKids.filter(function(c){return entryIdx(c.id)>-1;}).length)+'名</div>'+
     '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'').replace(/"/g,'&quot;')+'"></div></div>';
-  $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#hlBy').onchange=function(e){d.by=e.target.value;save();};
   $('#hlAllHealthy').onclick=function(){d.allHealthy=!d.allHealthy;save();edHealth();};
   document.querySelectorAll('[data-hadd]').forEach(function(b){b.onclick=function(){healthModal(null,d,save,+b.getAttribute('data-hadd'));};});
@@ -1466,7 +1488,7 @@ function edBody(){
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   function save(){data[recMonth]=d;stSet(K,data);}
-  $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecords();};
+  $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
   document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
   $('#bmPrint').onclick=function(){
@@ -1594,7 +1616,7 @@ function edNippo(){
     '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+(d.note||'')+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+(d.by||'')+'"></div></div>'+
     '<div class="muted">入力は自動保存されます。</div></div>';
   function save(){data[recDate]=d;stSet(K,data);}
-  $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecords();};
+  $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#npoCurr').onclick=function(){$('#npoActual').value=currText;d.actual=currText;save();};
   [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
   $('#npoPrint').onclick=function(){
@@ -1640,15 +1662,35 @@ function renderDrill(){
         '<td>'+(done?'<span class="pill" style="background:#EAF3DE;color:#27500A;">実施済</span>':'<span class="pill" style="background:#F1EFE8;color:#5F5E5A;">計画</span>')+'</td>'+
         '<td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm btn-primary" data-detail="'+i+'">計画・記録</button> <button class="btn btn-sm btn-ghost" data-print="'+i+'" title="計画・記録を印刷">'+ic('printer')+'</button></td></tr>';
       }).join('')+'</tbody></table></div></div>'+
-    '<div class="card"><h3>'+ic('shield')+'避難訓練 手順（スタッフ役割分担）</h3><textarea id="drProc" rows="10" style="font-size:13px;line-height:1.7;">'+proc+'</textarea><div class="muted" style="margin-top:8px;">編集すると自動保存。年間記録表の出力に手順も含まれます。避難場所ごとの経路は「書類作成 → 危機管理マニュアル」で管理できます。</div></div>';
+    '<div class="card"><h3>'+ic('shield')+'避難訓練 手順（スタッフ役割分担）</h3>'+
+      '<div class="muted" style="margin-bottom:8px;">災害の種別ごとに手順を登録できます。ここで登録した手順は、その種別の回の<b>「計画・記録を印刷」に自動で入ります</b>。</div>'+
+      '<div class="chips" style="margin-bottom:10px;">'+DRILL_KINDS.map(function(k){return '<span class="chip'+(k===drillProcTab?' on':'')+'" data-ptab="'+k+'">'+k+'</span>';}).join('')+'</div>'+
+      '<textarea id="drProc" rows="10" style="font-size:13px;line-height:1.7;">'+esc(drillProcOf(drillProcTab))+'</textarea>'+
+      '<div class="muted" style="margin-top:8px;">編集すると自動保存。年間記録表の出力には3種別すべての手順が含まれます。避難場所ごとの経路は「書類作成 → 危機管理マニュアル」で管理できます。</div></div>';
   s.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){drillModal(+b.getAttribute('data-detail'));};});
   s.querySelectorAll('[data-print]').forEach(function(b){b.onclick=function(){drillPrint(+b.getAttribute('data-print'));};});
-  $('#drProc').onchange=function(e){stSet('drill_proc',e.target.value);};
+  $('#drProc').onchange=function(e){drillProcSet(drillProcTab,e.target.value);};
+  s.querySelectorAll('[data-ptab]').forEach(function(b){b.onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTab,ta.value);drillProcTab=b.getAttribute('data-ptab');renderDrill();};});
   $('#dr2PrintYear').onclick=function(){
-    var body='<h2>手順</h2><p>'+stGet('drill_proc',DRILL_PROC_DEFAULT).replace(/\n/g,'<br>')+'</p><h2>年間記録（毎月1回実施）</h2><table><thead><tr><th>月</th><th>種別</th><th>実施日</th><th>対象クラス</th><th>避難場所</th><th>タイム</th><th>参加児童</th></tr></thead><tbody>'+
+    var body=DRILL_KINDS.map(function(k){return '<h2>手順（'+k+'）</h2><p>'+esc(drillProcOf(k)).replace(/\n/g,'<br>')+'</p>';}).join('')+'<h2>年間記録（毎月1回実施）</h2><table><thead><tr><th>月</th><th>種別</th><th>実施日</th><th>対象クラス</th><th>避難場所</th><th>タイム</th><th>参加児童</th></tr></thead><tbody>'+
       D.rows.map(function(r){var cnt=drillFinalCounts(r);var tot=Object.keys(cnt).reduce(function(a,k){return a+(cnt[k]||0);},0);return '<tr><td>'+r.month+'</td><td>'+r.kind+'</td><td>'+(r.record.date?fmt(r.record.date):'')+'</td><td>'+(r.record.classes||[]).join('・')+'</td><td>'+(r.record.place||r.plan.place||'')+'</td><td>'+((r.record.tm||r.record.ts)?((r.record.tm||0)+'分'+(r.record.ts||0)+'秒'):'')+'</td><td>'+(tot?tot+'名':'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('避難訓練 手順・年間記録（'+D.year+'年度）',body);
   };
+}
+/* 実施予定日の登園（出席）シートから、参加予定園児数を自動集計 */
+function drillExpectHtml(p){
+  var cls=(p.classes&&p.classes.length)?p.classes:CLASSES.slice();
+  if(!p.planDate)return '<span class="muted">実施予定日を入力すると、その日の出席から自動で反映されます。</span>';
+  var sh=stGet('rec_登園シート',{})[p.planDate];
+  var kids=enrolled().filter(function(c){return cls.indexOf(c.klass)>-1;});
+  if(!sh||!sh.rows){
+    var wd=WD[new Date(+p.planDate.slice(0,4),+p.planDate.slice(5,7)-1,+p.planDate.slice(8,10)).getDay()];
+    var plan=kids.filter(function(c){return !c.days||c.days.indexOf(wd)>-1;});
+    return '<b>'+plan.length+'名</b>（通園予定ベース：'+cls.join('・')+'）<span class="muted" style="margin-left:6px;">当日の登園シート記録後、出席実績に自動更新されます</span>';
+  }
+  var att=kids.filter(function(c){var r=sh.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;});
+  var byCls=cls.map(function(k){return k+' '+att.filter(function(c){return c.klass===k;}).length+'名';}).join('・');
+  return '<b>'+att.length+'名</b>（'+byCls+'）<span class="muted" style="margin-left:6px;">'+fmt(p.planDate)+' の出席実績から自動反映</span>';
 }
 function drillModal(i){
   var D=drillData(),r=D.rows[i],tab='plan';
@@ -1662,14 +1704,19 @@ function drillModal(i){
     if(tab==='plan'){
       var p=r.plan;
       box.innerHTML='<div class="field"><label>対象クラス（訓練するクラス）</label><div class="chips">'+CLASSES.map(function(k){var on=(p.classes||[]).indexOf(k)>-1;return '<span class="chip'+(on?' on':'')+'" data-pcls="'+k+'">'+k+'</span>';}).join('')+'</div></div>'+
-        '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>想定時刻</label><input id="p_scenTime" value="'+v(p.scenTime)+'"></div><div class="field"><label>想定発生時 活動内容</label><input id="p_scenAct" value="'+v(p.scenAct)+'"></div></div>'+
+        '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>実施予定日</label><input type="date" id="p_planDate" value="'+v(p.planDate)+'"></div><div class="field"><label>想定時刻</label><input id="p_scenTime" value="'+v(p.scenTime)+'"></div><div class="field"><label>想定発生時 活動内容</label><input id="p_scenAct" value="'+v(p.scenAct)+'"></div></div>'+
+        '<div class="field"><label>参加予定園児数（実施予定日の出席から自動反映）</label><div id="p_expect" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;">'+drillExpectHtml(p)+'</div></div>'+
         '<div class="field"><label>訓練の想定</label><input id="p_scenario" value="'+v(p.scenario)+'"></div>'+
-        '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>避難場所</label><input id="p_place" value="'+v(p.place)+'" placeholder="横の駐車場 など"></div><div class="field"><label>避難経路</label><input id="p_route" value="'+v(p.route)+'" placeholder="正門 → ○○通り"></div></div>'+
+        '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>避難場所</label><input id="p_place" value="'+v(p.place)+'" placeholder="横の駐車場 など"></div><div class="field"><label>避難経路</label><input id="p_route" value="'+v(p.route)+'" placeholder="正門 → ○○通り"></div><div class="field"><label>避難タイム（想定）</label><input id="p_targetTime" value="'+v(p.targetTime)+'" placeholder="例：3分30秒"></div></div>'+
+        '<div class="field"><label>参加予定の保育者<button class="btn btn-sm btn-ghost" id="p_staffAll" style="float:right;padding:2px 8px;">全員選択</button></label><div style="display:flex;flex-wrap:wrap;gap:8px;">'+DB.staff.map(function(st){var on=(p.staffNames||[]).indexOf(st.name)>-1;return '<span class="chip'+(on?' on':'')+'" data-pstaff="'+st.name.replace(/"/g,'&quot;')+'">'+st.name+'</span>';}).join('')+'</div></div>'+
         '<div class="field"><label>実施時注意点（計画）</label><textarea id="p_cautions" rows="2">'+(p.cautions||'')+'</textarea></div>'+
         toolsUI('p',p.tools)+
         '<div class="muted">計画は初期値が入っています。園に合わせて修正してください。実際の実施は「実施記録」タブへ。</div>';
       box.querySelectorAll('[data-pcls]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-pcls');p.classes=p.classes||[];var x=p.classes.indexOf(k);if(x>-1)p.classes.splice(x,1);else p.classes.push(k);save();b.classList.toggle('on');};});
-      [['p_scenTime','scenTime'],['p_scenAct','scenAct'],['p_scenario','scenario'],['p_place','place'],['p_route','route'],['p_cautions','cautions']].forEach(function(f){$('#'+f[0]).onchange=function(e){p[f[1]]=e.target.value;save();};});
+      [['p_planDate','planDate'],['p_scenTime','scenTime'],['p_scenAct','scenAct'],['p_scenario','scenario'],['p_place','place'],['p_route','route'],['p_targetTime','targetTime'],['p_cautions','cautions']].forEach(function(f){$('#'+f[0]).onchange=function(e){p[f[1]]=e.target.value;save();if(f[1]==='planDate'&&$('#p_expect'))$('#p_expect').innerHTML=drillExpectHtml(p);};});
+      box.querySelectorAll('[data-pstaff]').forEach(function(b){b.onclick=function(){var nm=b.getAttribute('data-pstaff');p.staffNames=p.staffNames||[];var x=p.staffNames.indexOf(nm);if(x>-1)p.staffNames.splice(x,1);else p.staffNames.push(nm);save();b.classList.toggle('on');};});
+      $('#p_staffAll').onclick=function(){p.staffNames=DB.staff.map(function(x){return x.name;});save();renderBody();};
+      box.querySelectorAll('[data-pcls]').forEach(function(b){b.addEventListener('click',function(){if($('#p_expect'))$('#p_expect').innerHTML=drillExpectHtml(p);});});
       box.querySelectorAll('[data-tool]').forEach(function(cb){cb.onchange=function(){var t=cb.getAttribute('data-tool').split('|')[1];p.tools=p.tools||{};p.tools[t]=cb.checked;save();};});
     } else {
       var rec=r.record,auto=drillAutoCounts(r),att=drillAttendees(r),ages=['0歳児','1歳児','2歳児','3歳児','4歳児','5歳児'];
@@ -1710,12 +1757,16 @@ function drillPrint(i){
   function tl(t){t=t||{};return '火の元の始末：'+(t.hi?'✓':'　')+'　非常口の確保：'+(t.exit?'✓':'　')+'　持ち出し用品：'+(t.mochi?'✓':'　')+'　消火器確認：'+(t.shoka?'✓':'　');}
   var att=drillAttendees(r);
   var body='<h2>避難訓練 実施計画</h2><table><tbody>'+
-    '<tr><th style="width:110px;">対象クラス</th><td colspan="3">'+(p.classes||[]).join('・')+'</td></tr>'+
-    '<tr><th>想定時刻</th><td>'+(p.scenTime||'')+'</td><th style="width:130px;">想定発生時活動</th><td>'+(p.scenAct||'')+'</td></tr>'+
+    '<tr><th style="width:110px;">実施予定日</th><td>'+(p.planDate?fmt(p.planDate):'')+'</td><th style="width:130px;">対象クラス</th><td>'+(p.classes||[]).join('・')+'</td></tr>'+
+    '<tr><th>想定時刻</th><td>'+(p.scenTime||'')+'</td><th>想定発生時活動</th><td>'+(p.scenAct||'')+'</td></tr>'+
     '<tr><th>訓練の想定</th><td colspan="3">'+(p.scenario||'')+'</td></tr>'+
+    '<tr><th>参加予定園児</th><td colspan="3">'+String(drillExpectHtml(p)).replace(/<[^>]*>/g,'')+'</td></tr>'+
+    '<tr><th>参加予定保育者</th><td colspan="3">'+((p.staffNames||[]).join('、')||'（未設定）')+'</td></tr>'+
     '<tr><th>避難場所</th><td>'+(p.place||'')+'</td><th>避難経路</th><td>'+(p.route||'')+'</td></tr>'+
+    '<tr><th>避難タイム（想定）</th><td colspan="3">'+(p.targetTime||'')+'</td></tr>'+
     '<tr><th>実施時注意点</th><td colspan="3">'+(p.cautions||'').replace(/\n/g,'<br>')+'</td></tr>'+
     '<tr><th>用具の確認</th><td colspan="3">'+tl(p.tools)+'</td></tr></tbody></table>'+
+    '<h2>手順・スタッフ役割分担（'+r.kind+'）</h2><p style="font-size:12px;line-height:1.7;">'+esc(drillProcOf(r.kind)).replace(/\n/g,'<br>')+'</p>'+
     '<h2>避難訓練 実施記録</h2><table><tbody>'+
     '<tr><th style="width:110px;">実施日</th><td>'+(rec.date?fmt(rec.date):'')+'</td><th style="width:60px;">天気</th><td>'+(rec.weather||'')+'</td></tr>'+
     '<tr><th>対象クラス</th><td colspan="3">'+(rec.classes||[]).join('・')+'</td></tr>'+
@@ -2143,7 +2194,7 @@ function renderDocs(){
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
   {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},
-  {p:'records',label:'日常記録'},{p:'drill',label:'避難訓練'},{p:'shift',label:'シフト表'},
+  {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'shift',label:'シフト表'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
@@ -2154,9 +2205,9 @@ var DEFAULT_PERMS={
   'マネージャー':ACCESS_PAGES.map(function(x){return x.p;}),
   /* 一般スタッフ：配信はデイリーメールのみ編集可、個別メールは在園児のみ送信可。
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
-  '一般':['dashboard','dm','broadcast','records','drill','shift','contacts','curriculum']
+  '一般':['dashboard','dm','broadcast','records','carerec','drill','shift','contacts','curriculum']
 };
-var PERMS_VERSION=4;
+var PERMS_VERSION=5;
 function staffAccountsSeed(){return [
   {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin'},
   {id:2,loginId:'shiraga',name:'白神 玲美',role:'マネージャー',pw:'shiraga'},
@@ -2615,7 +2666,7 @@ function renderReqNav(){
   $('#rqMuni').oninput=function(){var p=reqProfile();p.muni=this.value;reqSaveProfile(p);};
   $('#rqCap').oninput=function(){var p=reqProfile();p.cap=this.value;reqSaveProfile(p);};
   s.querySelectorAll('[data-rqst]').forEach(function(sel){sel.onchange=function(){reqSetStatus(sel.getAttribute('data-rqst'),sel.value);renderReqNav();};});
-  s.querySelectorAll('[data-rqgo]').forEach(function(b){b.onclick=function(){var tgt=reqTarget(b.getAttribute('data-rqgo'));if(!tgt)return;if(tgt.dg)dgType=tgt.dg;if(tgt.rec)recType=tgt.rec;go(tgt.page);};});
+  s.querySelectorAll('[data-rqgo]').forEach(function(b){b.onclick=function(){var tgt=reqTarget(b.getAttribute('data-rqgo'));if(!tgt)return;if(tgt.dg)dgType=tgt.dg;if(tgt.rec)recType=tgt.rec;go(tgt.rec?recPageOf(tgt.rec):tgt.page);};});
 }
 
 /* ========== 保育AIアシスタント（保育特化・現場サポート／将来Claude API接続） ==========
@@ -2753,7 +2804,7 @@ function aiRender(r){
   b.querySelectorAll('[data-aiopen]').forEach(function(btn){btn.onclick=function(){aiOpenSection(btn.getAttribute('data-aiopen'));};});
   b.querySelectorAll('[data-aiask]').forEach(function(btn){btn.onclick=function(){aiAsk(btn.getAttribute('data-aiask'));};});
   b.querySelectorAll('[data-aicopy]').forEach(function(btn){btn.onclick=function(){var tx=aiClip[+btn.getAttribute('data-aicopy')]||'';if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tx).then(function(){toastAI('コピーしました');},function(){toastAI('コピーできませんでした');});}else{toastAI('コピー非対応の環境です');}};});
-  b.querySelectorAll('[data-ainav]').forEach(function(btn){btn.onclick=function(){AI_OPEN=false;$('#aiPanel').classList.remove('open');if(btn.getAttribute('data-airec'))recType=btn.getAttribute('data-airec');if(btn.getAttribute('data-aidg'))dgType=btn.getAttribute('data-aidg');go(btn.getAttribute('data-ainav'));};});
+  b.querySelectorAll('[data-ainav]').forEach(function(btn){btn.onclick=function(){AI_OPEN=false;$('#aiPanel').classList.remove('open');var _r=btn.getAttribute('data-airec');if(_r)recType=_r;if(btn.getAttribute('data-aidg'))dgType=btn.getAttribute('data-aidg');var _p=btn.getAttribute('data-ainav');go(_r?recPageOf(_r):_p);};});
 }
 function toastAI(m){var t=document.getElementById('aiToast');if(!t){t=el('div',{id:'aiToast'});t.style.cssText='position:fixed;right:24px;bottom:96px;z-index:950;background:#222;color:#fff;padding:9px 15px;border-radius:10px;font-size:12.5px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:opacity .2s;';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},1800);}
 function aiOpenSection(id){AI_OPEN=false;$('#aiPanel').classList.remove('open');dgType='危機管理マニュアル';kikiSel=id;go('docgen');}
