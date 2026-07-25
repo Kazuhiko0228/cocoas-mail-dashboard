@@ -201,6 +201,7 @@
       <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
       <a data-go="roster">{ic:idcard}生徒台帳</a>
       <a data-go="enroll">{ic:yen}生徒情報（契約・オプション）</a>
+      <a data-go="billing">{ic:yen}請求管理</a>
       <a data-go="templates">{ic:doc}メールテンプレート</a>
       <a data-go="deliveries">{ic:cal}配信カレンダー</a>
       <a data-go="staff">{ic:staff}職員管理</a>
@@ -225,6 +226,7 @@
       <section data-page="contacts" hidden></section>
       <section data-page="roster" hidden></section>
       <section data-page="enroll" hidden></section>
+      <section data-page="billing" hidden></section>
       <section data-page="templates" hidden></section>
       <section data-page="curriculum" hidden></section>
       <section data-page="deliveries" hidden></section>
@@ -701,13 +703,13 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -1899,10 +1901,11 @@ function shiftImportModal(m,save,rerender){
 var dgType='危機管理マニュアル';
 function renderDocgen(){
   var s=$('section[data-page="docgen"]');
-  var types=['危機管理マニュアル','運営状況報告書','保育安全計画','請求書作成'];
+  var types=['危機管理マニュアル','運営状況報告書','保育安全計画'];
   s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;">'+types.map(function(t){return '<span class="chip'+(t===dgType?' on':'')+'" data-dg="'+t+'">'+t+'</span>';}).join('')+'</div></div><div id="dgBody"></div>';
   s.querySelectorAll('[data-dg]').forEach(function(b){b.onclick=function(){dgType=b.getAttribute('data-dg');renderDocgen();};});
-  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen,'請求書作成':dgInvoice})[dgType]();
+  if(types.indexOf(dgType)<0)dgType=types[0];
+  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen})[dgType]();
 }
 function dgStore(){return stGet('docgen',{});}
 function dgSave(k,v){var st=dgStore();st[k]=v;stSet('docgen',st);}
@@ -2232,7 +2235,7 @@ var ACCESS_PAGES=[
   {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'shift',label:'シフト表'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
-  {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'templates',label:'メールテンプレート'},
+  {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'audit',label:'監査対応'},{p:'settings',label:'設定'}
 ];
@@ -2634,9 +2637,148 @@ function renderEnroll(){
   });
   s.querySelectorAll('[data-eninv]').forEach(function(b){b.onclick=function(){
     var id=+b.getAttribute('data-eninv');
-    var st=dgStore().invoice||{};st.childId=id;dgSave('invoice',st);
-    dgType='請求書作成';go('docgen');
+    go('billing');setTimeout(function(){invModal(invMonthCur(),id);},60);
   };});
+}
+
+/* ========== 請求管理（作成 → 発行 → 送付 → 入金確認を一本の流れで） ==========
+   金額は「生徒情報（契約・オプション）」＋「設定→料金設定」から自動計算。月ごとに個別調整も可能。
+   データ: invoices = { 'YYYY-MM': { childId:{plan,lunchN,extN,material,admission,discount,discountNote,due,status,issuedAt,sentAt,paidAt,total} } } */
+var invMonth=null,INV_STATUS=['未発行','発行済','送付済','入金済'];
+function invStatusColor(s){return {'未発行':{bg:'#F1EFE8',fg:'#5F5E5A'},'発行済':{bg:'#E6F1FB',fg:'#0C447C'},'送付済':{bg:'#FAEEDA',fg:'#854F0B'},'入金済':{bg:'#EAF3DE',fg:'#27500A'}}[s]||{bg:'#F1EFE8',fg:'#5F5E5A'};}
+function invAll(){return stGet('invoices',{});}
+function invSaveAll(o){stSet('invoices',o);}
+function invMonthCur(){if(!invMonth){var d=addDays(0),m=d.getMonth()+2,y=d.getFullYear();if(m>12){m=1;y++;}invMonth=y+'-'+pad(m);}return invMonth;}
+function invRow(mk,c){
+  var all=invAll(),r=((all[mk]||{})[c.id]);
+  if(r)return r;
+  var o=(typeof enrOf==='function')?enrOf(c):{plan:'週3',lunchN:0,extN:0,material:false};
+  return {plan:o.plan,lunchN:+o.lunchN||0,extN:+o.extN||0,material:!!o.material,admission:!!o.admission,discount:0,discountNote:'',due:'',status:'未発行',issuedAt:'',sentAt:'',paidAt:''};
+}
+function invSaveRow(mk,id,r){var all=invAll();all[mk]=all[mk]||{};all[mk][id]=r;invSaveAll(all);}
+function invLines(r){
+  var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
+  var L=[];
+  if(r.admission)L.push(['入園金',P.admission||0,1,P.admission||0]);
+  L.push([(r.plan||'')+' 保育料',(P.plans||{})[r.plan]||0,1,(P.plans||{})[r.plan]||0]);
+  if(r.material)L.push(['教材費',P.material||0,1,P.material||0]);
+  if(+r.lunchN>0)L.push(['ランチ（'+r.lunchN+'回）',P.lunch||0,+r.lunchN,(P.lunch||0)*(+r.lunchN)]);
+  if(+r.extN>0)L.push(['ロングステイ（'+r.extN+'回）',P.extended||0,+r.extN,(P.extended||0)*(+r.extN)]);
+  if(+r.discount>0)L.push([(r.discountNote||'割引'),-(+r.discount),1,-(+r.discount)]);
+  return L;
+}
+function invTotal(r){return invLines(r).reduce(function(a,x){return a+x[3];},0);}
+function invHTML(mk,c,r){
+  var L=invLines(r),tot=invTotal(r),ym=mk.split('-');
+  return '<div style="font-weight:600;font-size:15px;margin-bottom:6px;">'+(+ym[1])+'月分 保育料 請求書</div>'
+    +'<p>'+esc(c.name)+' 様（'+esc(childName(c))+'・'+esc(c.klass||'')+'）</p>'
+    +'<table><thead><tr><th>項目</th><th style="text-align:right;">単価</th><th style="text-align:right;">数量</th><th style="text-align:right;">金額</th></tr></thead><tbody>'
+    +L.map(function(x){return '<tr><td>'+esc(x[0])+'</td><td style="text-align:right;">'+yen(x[1])+'</td><td style="text-align:right;">'+x[2]+'</td><td style="text-align:right;">'+yen(x[3])+'</td></tr>';}).join('')
+    +'<tr><td colspan="3" style="text-align:right;font-weight:600;">合計</td><td style="text-align:right;font-weight:600;">'+yen(tot)+'</td></tr></tbody></table>'
+    +'<p>お支払期日：'+(r.due?fmt(r.due):'（未設定）')+'</p>'
+    +'<p>振込先：'+esc(SET.bankName||'')+' '+esc(SET.bankBranch||'')+' '+esc(SET.bankType||'')+' '+esc(SET.bankNo||'（設定で入力）')+' '+esc(SET.bankHolder||'')+'<br>※振込名義はお子様のお名前でお願いいたします。</p>';
+}
+function invSend(mk,c,r){
+  var tot=invTotal(r),ym=+mk.split('-')[1];
+  var subj='【'+SET.school+'】'+ym+'月分 保育料 請求書のご案内';
+  var body=c.name+' 様\n\nいつもお世話になっております。\n'+ym+'月分の保育料の請求書をお送りいたします。\n\n'
+    +'お子様：'+childName(c)+'\n請求金額：'+yen(tot)+'\nお支払期日：'+(r.due?fmt(r.due):'（別途ご案内）')+'\n\n【内訳】\n'
+    +invLines(r).map(function(x){return '・'+x[0]+'　'+yen(x[3]);}).join('\n')
+    +'\n\n【お振込先】\n'+(SET.bankName||'')+' '+(SET.bankBranch||'')+' '+(SET.bankType||'')+' '+(SET.bankNo||'')+' '+(SET.bankHolder||'')
+    +'\n※振込名義はお子様のお名前でお願いいたします。\n\n'+SET.school;
+  var h=DB.history,now=new Date(),stamp=pad(now.getHours())+':'+pad(now.getMinutes());
+  h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'請求書（'+ym+'月分）',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:body});
+  DB.history=h;
+  r.status='送付済';r.sentAt=todayISO();invSaveRow(mk,c.id,r);
+}
+function renderBilling(){
+  var mk=invMonthCur(),kids=enrolled(),s=$('section[data-page="billing"]');
+  var rows=kids.map(function(c){return {c:c,r:invRow(mk,c)};});
+  var sum=rows.reduce(function(a,x){return a+invTotal(x.r);},0);
+  var cnt={};INV_STATUS.forEach(function(st){cnt[st]=rows.filter(function(x){return x.r.status===st;}).length;});
+  var P=SET.pricing||{};
+  s.innerHTML='<div class="card" style="margin-bottom:14px;">'+recHead('請求管理（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
+      '<input type="month" id="ivMonth" value="'+mk+'" style="width:160px;">'
+      +'<button class="btn btn-sm" id="ivIssueAll">'+ic('check')+'一括で発行</button>'
+      +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'発行済をまとめて送付</button>'
+      +'<button class="btn btn-sm" id="ivPrintAll">'+ic('printer')+'全員分を印刷</button>')
+    +'<div class="muted" style="margin-bottom:10px;">金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動計算されます。行の「明細」で今月だけの調整（回数・教材費・割引・支払期日）ができます。<br>流れ：<b>①内容を確認 → ②発行 → ③送付（メール＋保護者ページ） → ④入金確認</b></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
+    +'<span style="flex:1;"></span><span style="font-weight:700;font-size:15px;">今月の請求合計 '+yen(sum)+'</span></div></div>'
+    +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>プラン</th><th style="text-align:right;">ランチ</th><th style="text-align:right;">ロング</th><th style="text-align:right;">請求額</th><th>支払期日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
+    +(rows.length?rows.map(function(x){var col=invStatusColor(x.r.status);
+      return '<tr><td class="row-name">'+esc(childName(x.c))+'<div class="row-sub">'+esc(x.c.name)+'</div></td><td>'+esc(x.c.klass||'')+'</td><td>'+esc(x.r.plan||'')+'</td>'
+        +'<td style="text-align:right;">'+(+x.r.lunchN||0)+'回</td><td style="text-align:right;">'+(+x.r.extN||0)+'回</td>'
+        +'<td style="text-align:right;font-weight:600;">'+yen(invTotal(x.r))+'</td>'
+        +'<td class="row-sub">'+(x.r.due?fmt(x.r.due):'—')+'</td>'
+        +'<td><span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+x.r.status+'</span></td>'
+        +'<td style="white-space:nowrap;text-align:right;">'
+          +'<button class="btn btn-sm" data-ivedit="'+x.c.id+'">明細</button> '
+          +(x.r.status==='未発行'?'<button class="btn btn-sm" data-ivissue="'+x.c.id+'">発行</button> ':'')
+          +(x.r.status==='発行済'||x.r.status==='送付済'?'<button class="btn btn-sm btn-primary" data-ivsend="'+x.c.id+'">'+(x.r.status==='送付済'?'再送':'送付')+'</button> ':'')
+          +(x.r.status==='送付済'?'<button class="btn btn-sm" data-ivpaid="'+x.c.id+'">入金済</button> ':'')
+          +'<button class="btn btn-sm btn-ghost" data-ivprint="'+x.c.id+'">'+ic('printer')+'</button>'
+        +'</td></tr>';}).join(''):'<tr><td colspan="9" class="empty">在園児が登録されていません</td></tr>')
+    +'</tbody></table></div></div>';
+  $('#ivMonth').onchange=function(e){invMonth=e.target.value;renderBilling();};
+  $('#ivIssueAll').onclick=function(){
+    if(!confirm(mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分の請求書を、未発行の園児について一括で発行します。よろしいですか？'))return;
+    var n=0;rows.forEach(function(x){if(x.r.status==='未発行'){x.r.status='発行済';x.r.issuedAt=todayISO();x.r.total=invTotal(x.r);invSaveRow(mk,x.c.id,x.r);n++;}});
+    alert(n+'件を発行しました。内容を確認のうえ「送付」してください。');renderBilling();
+  };
+  $('#ivSendAll').onclick=function(){
+    var t=rows.filter(function(x){return x.r.status==='発行済';});
+    if(!t.length){alert('送付できる（発行済の）請求書がありません。先に「発行」してください。');return;}
+    if(!confirm(t.length+'件の請求書を保護者へ送付します。よろしいですか？'))return;
+    t.forEach(function(x){invSend(mk,x.c,x.r);});
+    alert(t.length+'件を送付しました。保護者ページの「請求」でも確認できます。');renderBilling();
+  };
+  $('#ivPrintAll').onclick=function(){
+    var body=rows.map(function(x){return invHTML(mk,x.c,x.r);}).join('<div style="page-break-after:always;"></div>');
+    printDoc('保育料 請求書（'+mk+'）',body);
+  };
+  s.querySelectorAll('[data-ivedit]').forEach(function(b){b.onclick=function(){invModal(mk,+b.getAttribute('data-ivedit'));};});
+  s.querySelectorAll('[data-ivissue]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivissue'),r=invRow(mk,{id:id});var c=kids.filter(function(k){return k.id===id;})[0];r=invRow(mk,c);r.status='発行済';r.issuedAt=todayISO();r.total=invTotal(r);invSaveRow(mk,id,r);renderBilling();};});
+  s.querySelectorAll('[data-ivsend]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivsend'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);
+    if(!confirm(childName(c)+'の保護者へ請求書を送付します。よろしいですか？'))return;invSend(mk,c,r);renderBilling();};});
+  s.querySelectorAll('[data-ivpaid]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivpaid'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);r.status='入金済';r.paidAt=todayISO();invSaveRow(mk,id,r);renderBilling();};});
+  s.querySelectorAll('[data-ivprint]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivprint'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);printDoc('保育料 請求書（'+mk+'・'+childName(c)+'）',invHTML(mk,c,r));};});
+}
+function invModal(mk,id){
+  var c=enrolled().filter(function(x){return x.id===id;})[0];if(!c)return;
+  var r=JSON.parse(JSON.stringify(invRow(mk,c)));
+  var P=SET.pricing||{plans:{}};
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  function body(){
+    return '<div class="modal" style="width:720px;"><h2>'+esc(childName(c))+'　'+(+mk.split('-')[1])+'月分の請求内容</h2>'
+      +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
+        +'<div class="field"><label>コースプラン</label><select id="im_plan">'+Object.keys(P.plans||{}).map(function(k){return '<option'+(k===r.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></div>'
+        +'<div class="field"><label>お支払期日</label><input type="date" id="im_due" value="'+(r.due||'')+'"></div></div>'
+      +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
+        +'<div class="field"><label>ランチ回数</label><input type="number" min="0" id="im_lunch" value="'+(+r.lunchN||0)+'"></div>'
+        +'<div class="field"><label>ロングステイ回数</label><input type="number" min="0" id="im_ext" value="'+(+r.extN||0)+'"></div></div>'
+      +'<div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">'
+        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_mat" style="width:auto;"'+(r.material?' checked':'')+'>教材費</label>'
+        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_adm" style="width:auto;"'+(r.admission?' checked':'')+'>入園金（初回）</label></div>'
+      +'<div class="grid" style="grid-template-columns:1fr 2fr;">'
+        +'<div class="field"><label>割引額</label><input type="number" min="0" id="im_disc" value="'+(+r.discount||0)+'"></div>'
+        +'<div class="field"><label>割引の名目</label><input id="im_discn" value="'+String(r.discountNote||'').replace(/"/g,'&quot;')+'" placeholder="例：兄弟割引"></div></div>'
+      +'<label>プレビュー</label><div class="preview" id="im_prev" style="max-height:280px;">'+invHTML(mk,c,r)+'</div>'
+      +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;">'
+        +'<button class="btn" id="im_cancel">閉じる</button>'
+        +'<button class="btn" id="im_print">'+ic('printer')+'印刷</button>'
+        +'<button class="btn btn-primary" id="im_save">'+ic('check')+'保存</button>'
+        +'<button class="btn btn-primary" id="im_send">'+ic('send')+'保存して送付</button></div></div>';
+  }
+  m.innerHTML=body();
+  function read(){r.plan=$('#im_plan').value;r.due=$('#im_due').value;r.lunchN=+$('#im_lunch').value||0;r.extN=+$('#im_ext').value||0;r.material=$('#im_mat').checked;r.admission=$('#im_adm').checked;r.discount=+$('#im_disc').value||0;r.discountNote=$('#im_discn').value;}
+  function upd(){read();$('#im_prev').innerHTML=invHTML(mk,c,r);}
+  ['im_plan','im_due','im_lunch','im_ext','im_mat','im_adm','im_disc','im_discn'].forEach(function(id){var el2=$('#'+id);el2.oninput=upd;el2.onchange=upd;});
+  $('#im_cancel').onclick=function(){m.remove();};
+  $('#im_print').onclick=function(){read();printDoc('保育料 請求書（'+mk+'・'+childName(c)+'）',invHTML(mk,c,r));};
+  $('#im_save').onclick=function(){read();if(r.status==='未発行'){r.status='発行済';r.issuedAt=todayISO();}r.total=invTotal(r);invSaveRow(mk,id,r);m.remove();renderBilling();};
+  $('#im_send').onclick=function(){read();if(!confirm(childName(c)+'の保護者へ請求書を送付します。よろしいですか？'))return;r.total=invTotal(r);invSaveRow(mk,id,r);invSend(mk,c,r);m.remove();renderBilling();};
 }
 
 /* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========

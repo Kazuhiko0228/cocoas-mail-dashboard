@@ -299,6 +299,7 @@ function portalHTML(c){
     + tabBtn('home','🏠','ホーム')
     + tabBtn('att','📅','出欠連絡')
     + tabBtn('growth','📈','せいちょう')
+    + tabBtn('bill','💴','請求')
     + tabBtn('dm','💬','メッセージ')
     + tabBtn('news','📢','おしらせ')
     +'</div>';
@@ -312,6 +313,7 @@ function wirePortal(c){
   if(tab==='home') sc.innerHTML=homeHTML(c);
   else if(tab==='att') sc.innerHTML=attHTML(c);
   else if(tab==='growth') sc.innerHTML=growthHTML(c);
+  else if(tab==='bill') sc.innerHTML=billHTML(c);
   else if(tab==='dm') sc.innerHTML=dmHTML(c);
   else if(tab==='news') sc.innerHTML=newsHTML(c);
   wireCommon(c);
@@ -432,6 +434,28 @@ function growthHTML(c){
   return head+spark+table+'<div class="muted" style="margin-top:12px;">カウプ指数の目安：15〜17がふつうです。ご心配な点は園にご相談ください。</div></div>';
 }
 
+
+
+/* ---- 請求（園からの請求書） ---- */
+function billHTML(c){
+  var all=stGet('invoices',{})||{};
+  var months=Object.keys(all).sort().reverse();
+  var rows=[];
+  months.forEach(function(mk){var r=(all[mk]||{})[c.id];if(r&&['送付済','入金済'].indexOf(r.status)>-1)rows.push({mk:mk,r:r});});
+  var head='<div class="card"><h2 class="sec">💴 保育料のご請求</h2>';
+  if(!rows.length)return head+'<div class="empty">現在お知らせしている請求はありません。<br>発行されるとこちらに表示されます。</div></div>';
+  return head+rows.map(function(x){
+    var paid=x.r.status==='入金済';
+    var L=[];var P=(stGet('settings',{})||{}).pricing||{plans:{}};
+    return '<div style="border:1px solid #e7e8e3;border-radius:14px;padding:13px 15px;margin-bottom:10px;">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
+      +'<span style="font-weight:700;font-size:15px;">'+(+x.mk.split('-')[1])+'月分</span>'
+      +'<span style="background:'+(paid?'#EAF3DE':'#FAEEDA')+';color:'+(paid?'#27500A':'#854F0B')+';border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;">'+(paid?'お支払い済み':'お支払いのお願い')+'</span></div>'
+      +'<div style="font-size:22px;font-weight:700;margin-bottom:4px;">¥'+Number(x.r.total||0).toLocaleString()+'</div>'
+      +'<div class="muted" style="font-size:12.5px;">お支払期日：'+(x.r.due?x.r.due:'園からのご案内をご確認ください')+'</div>'
+      +'</div>';
+  }).join('')+'<div class="muted" style="margin-top:6px;font-size:12px;">内訳・お振込先は園からお送りしたメールをご確認ください。ご不明な点は「メッセージ」からお問い合わせいただけます。</div></div>';
+}
 
 /* ---- DM（園とのメッセージ） ---- */
 function dmNow(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
