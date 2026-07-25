@@ -1250,6 +1250,7 @@ function renderSettings(){
   renderActTypes();
   s.querySelectorAll('[data-price]').forEach(function(inp){inp.onchange=function(){if(!SET.pricing)SET.pricing={plans:{},lunch:0,extended:0,material:0,admission:0};var p=inp.getAttribute('data-price').split('|');if(p[0]==='plans'){SET.pricing.plans[p[1]]=+inp.value||0;}else{SET.pricing[p[0]]=+inp.value||0;}DB.settings=SET;};});
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
+  if(typeof renderBackupSettings==='function')renderBackupSettings(s);
 }
 
 /* ---------- staff ---------- */
@@ -2288,6 +2289,7 @@ function staffEnter(){
 }
 function dmDeepLink(){var m=location.search.match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
 function staffBoot(){
+  try{autoSnapshot();}catch(e){}
   if(!currentStaff()){showStaffLogin();return;}
   applyPerms();
   var dl=dmDeepLink();
@@ -2702,6 +2704,138 @@ function renderReqNav(){
   $('#rqCap').oninput=function(){var p=reqProfile();p.cap=this.value;reqSaveProfile(p);};
   s.querySelectorAll('[data-rqst]').forEach(function(sel){sel.onchange=function(){reqSetStatus(sel.getAttribute('data-rqst'),sel.value);renderReqNav();};});
   s.querySelectorAll('[data-rqgo]').forEach(function(b){b.onclick=function(){var tgt=reqTarget(b.getAttribute('data-rqgo'));if(!tgt)return;if(tgt.dg)dgType=tgt.dg;if(tgt.rec)recType=tgt.rec;go(tgt.rec?recPageOf(tgt.rec):tgt.page);};});
+}
+
+/* ========== 変更ログ・自動バックアップ ==========
+   すべての保存操作を自動で記録し、日次スナップショットを保持する。
+   バックアップファイル（JSON）の書き出し／復元も可能。
+   ※これは「この端末（ブラウザ）内」での保護。別端末・障害時の完全な永続化はバックエンド接続後。 */
+var LOG_MAX=800, SNAP_MAX=7, LOG_SKIP={'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1,'cocoas_psession':1};
+var LOG_LABEL={
+  'cocoas_rec_登園シート':'登園（出席）','cocoas_rec_安全点検':'安全点検','cocoas_rec_午睡チェック':'午睡チェック',
+  'cocoas_rec_健康チェック':'健康チェック','cocoas_rec_身体測定':'身体測定','cocoas_rec_hiyari':'ヒヤリハット・怪我',
+  'cocoas_rec_発達':'生徒個人発達記録','cocoas_rec_日報':'業務日報・保育日誌','cocoas_curriculum':'月間カリキュラム',
+  'cocoas_drills3':'避難訓練','cocoas_drill_proc_by_kind':'避難訓練の手順','cocoas_shifts':'シフト表',
+  'cocoas_contacts':'連絡先','cocoas_staff':'職員','cocoas_studentProfiles':'生徒台帳','cocoas_enrollOptions':'生徒情報（契約・オプション）',
+  'cocoas_history':'送信履歴','cocoas_dmThreads':'保護者DM','cocoas_docgen':'書類作成','cocoas_docs':'書類格納',
+  'cocoas_settings':'設定','cocoas_rolePerms':'権限設定','cocoas_staffAccounts':'職員アカウント','cocoas_tplPerms':'テンプレート権限',
+  'cocoas_audit':'監査対応','cocoas_reqStatus':'提出書類ナビ','cocoas_scheduled':'配信予約','cocoas_hospitals':'緊急連絡先'
+};
+function logLabel(k){return LOG_LABEL[k]||k.replace(/^cocoas_/,'');}
+function logStamp(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
+/* すべての保存を横取りしてログ化（保存自体は必ず先に実行し、ログ失敗でアプリを壊さない） */
+(function(){
+  var raw=localStorage.setItem.bind(localStorage),busy=false;
+  window.__rawSet=raw;
+  localStorage.setItem=function(k,v){
+    raw(k,v);
+    if(busy||String(k).indexOf('cocoas_')!==0||LOG_SKIP[k])return;
+    busy=true;
+    try{
+      var l=[];try{l=JSON.parse(localStorage.getItem('cocoas_eventLog'))||[];}catch(e){l=[];}
+      var who='';try{who=(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:'';}catch(e){}
+      var size=(v==null?0:String(v).length);
+      var last=l[l.length-1];
+      /* 同じ項目の連続保存は1件にまとめる（入力中の連打でログが膨らむのを防ぐ） */
+      if(last&&last.key===k&&last.by===who&&last.at.slice(0,16)===logStamp().slice(0,16)){last.at=logStamp();last.size=size;last.n=(last.n||1)+1;}
+      else l.push({at:logStamp(),key:k,label:logLabel(k),by:who,size:size,n:1});
+      if(l.length>LOG_MAX)l=l.slice(-LOG_MAX);
+      raw('cocoas_eventLog',JSON.stringify(l));
+    }catch(e){}
+    busy=false;
+  };
+})();
+function eventLog(){try{return JSON.parse(localStorage.getItem('cocoas_eventLog'))||[];}catch(e){return [];}}
+/* 全データの収集・スナップショット */
+function collectAll(){
+  var o={};
+  for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+    if(String(k).indexOf('cocoas_')!==0)continue;
+    if(k==='cocoas_snapshots'||k==='cocoas_eventLog')continue;
+    o[k]=localStorage.getItem(k);}
+  return o;
+}
+function snapshots(){try{return JSON.parse(localStorage.getItem('cocoas_snapshots'))||[];}catch(e){return [];}}
+function takeSnapshot(reason){
+  try{
+    var data=collectAll(),json=JSON.stringify(data);
+    if(json.length>2500000)return false; /* 大きすぎる場合は保存しない（容量保護） */
+    var arr=snapshots();
+    arr.push({at:logStamp(),reason:reason||'自動',data:data});
+    while(arr.length>SNAP_MAX)arr.shift();
+    (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_snapshots',JSON.stringify(arr));
+    (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_lastSnap',JSON.stringify(todayISO()));
+    return true;
+  }catch(e){ /* 容量超過時は古いスナップショットを削って再試行 */
+    try{var a=snapshots();a.shift();(window.__rawSet)('cocoas_snapshots',JSON.stringify(a));}catch(e2){}
+    return false;
+  }
+}
+function autoSnapshot(){
+  var last=null;try{last=JSON.parse(localStorage.getItem('cocoas_lastSnap'));}catch(e){}
+  if(last!==todayISO())takeSnapshot('日次自動');
+}
+function restoreSnapshot(idx){
+  var arr=snapshots(),sn=arr[idx];if(!sn)return false;
+  takeSnapshot('復元前の自動保存');
+  Object.keys(sn.data).forEach(function(k){(window.__rawSet||localStorage.setItem.bind(localStorage))(k,sn.data[k]);});
+  return true;
+}
+function backupDownload(){
+  var payload={app:'COCOAS 保育管理システム',exportedAt:logStamp(),school:(SET&&SET.school)||'',data:collectAll(),log:eventLog().slice(-200)};
+  dlFile('cocoas-backup-'+todayISO()+'.json',JSON.stringify(payload,null,2),'application/json');
+}
+function backupRestoreFile(file,done){
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      var p=JSON.parse(rd.result);
+      if(!p||!p.data)throw new Error('形式が違います');
+      takeSnapshot('ファイル復元前の自動保存');
+      Object.keys(p.data).forEach(function(k){if(String(k).indexOf('cocoas_')===0)(window.__rawSet||localStorage.setItem.bind(localStorage))(k,p.data[k]);});
+      done(null,Object.keys(p.data).length);
+    }catch(e){done(e);}
+  };
+  rd.onerror=function(){done(new Error('ファイルを読み込めませんでした'));};
+  rd.readAsText(file);
+}
+/* 設定ページ用カード */
+function renderBackupSettings(s){
+  var lg=eventLog().slice(-25).reverse(),sn=snapshots().slice().reverse();
+  var used=0;try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(String(k).indexOf('cocoas_')===0)used+=(localStorage.getItem(k)||'').length;}}catch(e){}
+  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'データのバックアップ・変更ログ</h3>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">保存操作はすべて自動で記録され、1日1回そのままの状態が自動保存（スナップショット）されます。'
+    +'万一データが消えた・上書きされた場合は、ここから戻せます。<br>'
+    +'<b>この保護はこの端末（ブラウザ）内でのみ有効です。</b>端末の故障・データ削除に備え、定期的に「バックアップをダウンロード」して保管してください。'
+    +'（別端末との同期・完全な永続化はバックエンド接続後に対応）</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">'
+    +'<button class="btn btn-primary btn-sm" id="bkDl">'+ic('folder')+'バックアップをダウンロード</button>'
+    +'<button class="btn btn-sm" id="bkSnap">'+ic('check')+'いまの状態を保存</button>'
+    +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('edit')+'バックアップから復元<input type="file" id="bkFile" accept="application/json,.json" style="display:none;"></label>'
+    +'<span class="muted" style="font-size:11.5px;">使用容量 約'+Math.round(used/1024)+'KB</span><span class="muted" id="bkMsg"></span></div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;align-items:start;">'
+    +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">自動保存（スナップショット）</div>'
+    +(sn.length?'<table><thead><tr><th>日時</th><th>種別</th><th></th></tr></thead><tbody>'+sn.map(function(x,i){var realIdx=snapshots().length-1-i;return '<tr><td class="row-sub">'+esc(x.at)+'</td><td>'+esc(x.reason)+'</td><td style="text-align:right;"><button class="btn btn-sm" data-bkres="'+realIdx+'">この時点に戻す</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ自動保存はありません</div>')
+    +'</div>'
+    +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">最近の変更ログ（新しい順）</div>'
+    +(lg.length?'<table><thead><tr><th>日時</th><th>項目</th><th>操作者</th></tr></thead><tbody>'+lg.map(function(x){return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(x.at.slice(5))+'</td><td>'+esc(x.label)+(x.n>1?' <span class="muted">×'+x.n+'</span>':'')+'</td><td class="row-sub">'+esc(x.by||'—')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ記録はありません</div>')
+    +'</div></div></div>';
+  s.insertAdjacentHTML('beforeend',html);
+  document.getElementById('bkDl').onclick=backupDownload;
+  document.getElementById('bkSnap').onclick=function(){var ok=takeSnapshot('手動');document.getElementById('bkMsg').textContent=ok?'現在の状態を保存しました':'保存できませんでした（容量が不足している可能性があります）';renderSettings();};
+  document.getElementById('bkFile').onchange=function(e){
+    var f=e.target.files[0];if(!f)return;
+    if(!confirm('バックアップファイルの内容で現在のデータを上書きします。よろしいですか？（復元前の状態は自動保存されます）'))return;
+    backupRestoreFile(f,function(err,n){
+      if(err){alert('復元できませんでした：'+err.message);return;}
+      alert(n+'件のデータを復元しました。画面を再読み込みします。');location.reload();
+    });
+  };
+  s.querySelectorAll('[data-bkres]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この時点の状態に戻します。現在のデータは上書きされます（戻す前の状態も自動保存されます）。よろしいですか？'))return;
+    if(restoreSnapshot(+b.getAttribute('data-bkres'))){alert('復元しました。画面を再読み込みします。');location.reload();}
+    else alert('復元できませんでした');
+  };});
 }
 
 /* ========== 保育AIアシスタント（保育特化・現場サポート／将来Claude API接続） ==========
