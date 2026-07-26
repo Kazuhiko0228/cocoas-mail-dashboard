@@ -682,6 +682,33 @@ function fillTokens(text,c,ctx){
 function $(s,r){return (r||document).querySelector(s);}
 function el(tag,attr,html){var e=document.createElement(tag);if(attr)for(var k in attr)e.setAttribute(k,attr[k]);if(html!=null)e.innerHTML=html;return e;}
 function initials(n){var p=n.replace('　',' ').split(' ');return (p[0]||'')[0]+((p[1]||'')[0]||'');}
+/* ---- 顔写真（この端末内にのみ保存。公開ソースには含めない） ---- */
+function photoStore(){return stGet('contactPhotos',{});}
+function photoOf(id){return photoStore()[id]||'';}
+function photoSet(id,dataUri){var p=photoStore();if(dataUri)p[id]=dataUri;else delete p[id];stSet('contactPhotos',p);}
+function avatarHTML(c,size){
+  var s=size||34,ph=photoOf(c.id);
+  if(ph)return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;overflow:hidden;background:#eee;"><img src="'+ph+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>';
+  return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;font-size:'+Math.round(s*0.37)+'px;">'+initials(c.name||'')+'</span>';
+}
+/* 画像を正方形にトリミングして縮小（保存容量を抑える） */
+function photoResize(file,cb){
+  var rd=new FileReader();
+  rd.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var S=192,cv=document.createElement('canvas');cv.width=S;cv.height=S;
+      var ctx=cv.getContext('2d');
+      var side=Math.min(img.width,img.height),sx=(img.width-side)/2,sy=(img.height-side)/2;
+      ctx.drawImage(img,sx,sy,side,side,0,0,S,S);
+      cb(null,cv.toDataURL('image/jpeg',0.72));
+    };
+    img.onerror=function(){cb(new Error('画像を読み込めませんでした'));};
+    img.src=rd.result;
+  };
+  rd.onerror=function(){cb(new Error('ファイルを読み込めませんでした'));};
+  rd.readAsDataURL(file);
+}
 var LEAD_STATUSES=['体験前 日程調整中','体験前 日程調整済','オンライン前 日程調整中','オンライン後 体験日程調整中','オンライン後 体験日程調整済','体験後 検討中','🔥入園見込み','長期見込み','連絡不通','入園 確定','NG'];
 var LEAD_SOURCES=['HPフォーム','Gフォーム','電話','訪問','LINE','紹介','その他'];
 var TRIAL_FORMATS=['オフライン','オンライン'];
@@ -844,7 +871,7 @@ function routeTo(p){
 }
 
 /* ---------- contacts ---------- */
-var contactFilter='すべて',contactSearch='';
+var contactFilter='すべて',contactSearch='',contactSort='区分';
 function renderContacts(){
   /* 一般スタッフにはリード（営業・経営情報）を表示しない */
   var noLeads=(typeof currentRole==='function'&&currentRole()==='一般');
@@ -860,9 +887,22 @@ function renderContacts(){
     return c.kind==='lead'&&c.status===contactFilter;
   }
   var rows=cs.filter(function(c){return match(c)&&(c.name+c.child+c.email).indexOf(contactSearch)>-1;});
+  function kindRank(c){return c.kind==='lead'?0:(c.kind==='enrolled'?1:2);}
+  function statusRank(c){var i=LEAD_STATUSES.indexOf(c.status);return i<0?99:i;}
+  var SORTS=['区分','名前','受付日が新しい順','次回アクションが近い順'];
+  rows=rows.slice().sort(function(a,b){
+    if(contactSort==='名前')return (a.name||'').localeCompare(b.name||'','ja');
+    if(contactSort==='受付日が新しい順')return String(b.receivedDate||'').localeCompare(String(a.receivedDate||''));
+    if(contactSort==='次回アクションが近い順')return String(a.nextAction||'9999-99-99').localeCompare(String(b.nextAction||'9999-99-99'));
+    var k=kindRank(a)-kindRank(b);if(k)return k;
+    if(a.kind==='lead'&&b.kind==='lead'){var st=statusRank(a)-statusRank(b);if(st)return st;}
+    if(a.kind==='enrolled'&&b.kind==='enrolled'){var kl=String(a.klass||'').localeCompare(String(b.klass||''));if(kl)return kl;}
+    return (a.name||'').localeCompare(b.name||'','ja');
+  });
   s.innerHTML='<div class="card">'+
     '<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">'+
       '<div style="position:relative;flex:1;min-width:200px;"><span style="position:absolute;left:11px;top:9px;color:#90998f;width:16px;height:16px;display:inline-block;">'+ic('search')+'</span><input id="cSearch" placeholder="名前・お子様・メールで検索" style="padding-left:34px;" value="'+contactSearch+'"></div>'+
+      '<span class="muted" style="font-size:12px;">並べ替え</span><select id="cSort" style="width:190px;">'+SORTS.map(function(o){return '<option'+(o===contactSort?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
       '<button class="btn btn-primary" id="addContact">'+ic('plus')+'連絡先を追加</button>'+
     '</div>'+
     '<div class="chips">'+filters.map(function(f){return '<span class="chip'+(f===contactFilter?' on':'')+'" data-cf="'+f+'">'+f+'</span>';}).join('')+'</div>'+
@@ -872,8 +912,14 @@ function renderContacts(){
         var badge;
         if(c.kind==='enrolled')badge='<span class="pill st-在園">在園・'+c.klass+'</span>'+(c.dob?'<div class="row-sub" style="margin-top:4px;">'+ageClassOf(c)+(c.days?' ・ '+c.days:'')+'</div>':'');
         else if(c.kind==='withdrawn')badge='<span class="pill st-退園">退園・'+(c.klass||'')+'</span>'+(c.dob?'<div class="row-sub" style="margin-top:4px;">'+ageClassOf(c)+'</div>':'');
-        else badge=statusPill(c.status)+'<div class="row-sub" style="margin-top:4px;">'+(c.wishKlass?c.wishKlass+'希望':'')+(c.source?' ・ '+c.source:'')+(c.trialBy?' ・ 担当'+c.trialBy:'')+'</div>'+(c.concerns?'<div class="row-sub" style="color:#A32D2D;">懸念：'+c.concerns+'</div>':'');
-        return '<tr><td><div style="display:flex;align-items:center;gap:11px;"><span class="avatar">'+initials(c.name)+'</span><div><div class="row-name">'+c.name+' 様</div><div class="row-sub">'+c.child+'</div></div></div></td>'+
+        else{
+          var chase=c.chase||{},chaseList=[];
+          if(chase.ng)chaseList.push('見込み追いNG');if(chase.honbu)chaseList.push('本部');if(chase.mg)chaseList.push('MG＋本部');
+          badge=statusPill(c.status)+'<div class="row-sub" style="margin-top:4px;">'+(c.wishKlass?c.wishKlass+'希望':'')+(c.source?' ・ '+c.source:'')+(c.trialBy?' ・ 担当'+c.trialBy:'')+'</div>'
+            +(c.concerns?'<div style="margin-top:5px;display:inline-flex;align-items:flex-start;gap:5px;background:#FCEBEB;border:1px solid #F3C9C9;color:#A32D2D;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>懸念</b>'+esc(c.concerns)+'</div>':'')
+            +((chaseList.length||c.chaseNote)?'<div style="margin-top:4px;display:inline-flex;align-items:flex-start;gap:5px;background:#E6F1FB;border:1px solid #C3DCF5;color:#0C447C;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>追い状況</b>'+esc([chaseList.join('・'),c.chaseNote].filter(Boolean).join(' ／ '))+'</div>':'');
+        }
+        return '<tr><td><div style="display:flex;align-items:center;gap:11px;">'+avatarHTML(c,34)+'<div><div class="row-name">'+c.name+' 様</div><div class="row-sub">'+c.child+(c.dob?' <span style="color:var(--tx3);">'+fmt(c.dob)+'生</span>':'')+'</div></div></div></td>'+
           '<td><div>'+c.email+'</div><div class="row-sub">'+(c.phone||'')+'</div></td>'+
           '<td>'+badge+'</td><td>'+right+'</td>'+
           '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+c.id+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+c.id+'">'+ic('trash')+'</button></td></tr>';
@@ -881,6 +927,7 @@ function renderContacts(){
     '</tbody></table></div>';
   $('#cSearch').addEventListener('input',function(e){contactSearch=e.target.value;renderContacts();$('#cSearch').focus();});
   s.querySelectorAll('[data-cf]').forEach(function(b){b.addEventListener('click',function(){contactFilter=b.getAttribute('data-cf');renderContacts();});});
+  var cso=$('#cSort');if(cso)cso.onchange=function(e){contactSort=e.target.value;renderContacts();};
   $('#addContact').addEventListener('click',function(){contactModal();});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){contactModal(+b.getAttribute('data-edit'));});});
   s.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',function(){if(confirm('この連絡先を削除しますか？')){DB.contacts=DB.contacts.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderContacts();}});});
@@ -898,14 +945,18 @@ function contactModal(id){
   var m=el('div',{class:'modal-bg'});
   m.innerHTML='<div class="modal"><h2>'+(id?'連絡先を編集':'連絡先を追加')+'</h2>'+
     '<div class="field"><label>区分</label><div class="seg" id="kindSeg"><button data-kind="lead"'+(kind==='lead'?' class="on"':'')+'>リード（営業）</button><button data-kind="enrolled"'+(kind==='enrolled'?' class="on"':'')+'>在園児</button><button data-kind="withdrawn"'+(kind==='withdrawn'?' class="on"':'')+'>退園児</button></div></div>'+
+    '<div class="field"><label>顔写真（この端末内にのみ保存されます）</label><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span id="f_photoPrev">'+(id?avatarHTML(c,56):'<span class="avatar" style="width:56px;height:56px;font-size:20px;">?</span>')+'</span>'
+      +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'写真を選ぶ<input type="file" id="f_photo" accept="image/*" style="display:none;"></label>'
+      +'<button type="button" class="btn btn-sm btn-ghost" id="f_photoDel">'+ic('trash')+'削除</button>'
+      +'<span class="muted" style="font-size:11.5px;" id="f_photoMsg">正方形に自動で縮小して保存します</span></div></div>'+
     '<div class="field"><label>保護者名</label><input id="f_name" value="'+c.name+'"></div>'+
-    '<div class="field"><label>お子様のお名前</label><input id="f_child" value="'+c.child+'" placeholder="例：結愛ちゃん"></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>お子様のお名前</label><input id="f_child" value="'+c.child+'" placeholder="例：結愛ちゃん"></div><div class="field"><label>お子様の生年月日</label><input type="date" id="f_dobTop" value="'+(c.dob||'')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>メールアドレス</label><input id="f_email" value="'+c.email+'"></div><div class="field"><label>電話番号</label><input id="f_phone" value="'+(c.phone||'')+'"></div></div>'+
     '<div id="leadFields">'+
       '<div class="grid" style="grid-template-columns:1.5fr 1fr 1fr;"><div class="field"><label>進捗フェーズ（温度感）</label><select id="f_status">'+stOpts+'</select></div><div class="field"><label>受付日</label><input type="date" id="f_recv" value="'+(c.receivedDate||'')+'"></div><div class="field"><label>問合せ方法</label><select id="f_source">'+srcOpts+'</select></div></div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>希望クラス</label><select id="f_wklass">'+wkOpts+'</select></div><div class="field"><label>体験形式</label><select id="f_format">'+fmtOpts+'</select></div><div class="field"><label>担当</label><input id="f_by" value="'+(c.trialBy||'').replace(/"/g,'&quot;')+'"></div></div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field"><label>体験日</label><input type="date" id="f_date" value="'+(c.date||'')+'"></div><div class="field"><label>体験時刻</label><input id="f_ttime" value="'+(c.trialTime||'').replace(/"/g,'&quot;')+'" placeholder="10:00"></div><div class="field"><label>次回アクション日</label><input type="date" id="f_next" value="'+(c.nextAction||'')+'"></div><div class="field"><label>アクション方法</label><select id="f_nmethod">'+['','メール','電話','対面','LINE'].map(function(o){return '<option'+((c.nextMethod||'')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div></div>'+
-      '<div class="field"><label>お子様の生年月日（年齢表示に使用）</label><input type="date" id="f_ldob" value="'+(c.dob||'')+'"></div>'+
+
       '<div class="field"><label>懸念点・要望（体験時のヒアリング）</label><textarea id="f_concerns" rows="2" placeholder="例：送迎時間・料金・英語レベルなど気になっている点">'+(c.concerns||'')+'</textarea></div>'+
       '<div id="leadPost" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">見込み追い（体験後フォロー）</label><div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">'+
         [['f_cng','NG',(c.chase&&c.chase.ng)],['f_chonbu','本部対応',(c.chase&&c.chase.honbu)],['f_cmg','MG対応',(c.chase&&c.chase.mg)]].map(function(t){return '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="'+t[0]+'" style="width:auto;"'+(t[2]?' checked':'')+'>'+t[1]+'</label>';}).join('')+'</div>'+
@@ -914,7 +965,7 @@ function contactModal(id){
     '</div>'+
     '<div id="enrolledFields"><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>クラス</label><select id="f_klass">'+clOpts+'</select></div><div class="field"><label>入園日</label><input type="date" id="f_adm" value="'+(c.admissionDate||'')+'"></div></div>'+
     '<div id="withdrawRow" class="field"><label>退園日</label><input type="date" id="f_wdate" value="'+(c.withdrawDate||'')+'"></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>生年月日（歳児を自動計算）</label><input type="date" id="f_dob" value="'+(c.dob||'')+'"></div><div class="field"><label>通園曜日</label><input id="f_days" value="'+(c.days||'')+'" placeholder="例：月・水・金"></div></div>'+
+    '<div class="field"><label>通園曜日</label><input id="f_days" value="'+(c.days||'')+'" placeholder="例：月・水・金"></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field"><label>月額（円）</label><input type="number" id="f_fee" value="'+(c.feeAmount||0)+'"></div><div class="field"><label>引落日</label><input type="number" id="f_wd" value="'+(c.withdrawDay||27)+'" min="1" max="31"></div><div class="field"><label style="margin-bottom:9px;">Lunch</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="f_lunch" style="width:auto;"'+(c.lunch?' checked':'')+'>あり</label></div><div class="field"><label style="margin-bottom:9px;">Long（延長）</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="f_long" style="width:auto;"'+(c.long?' checked':'')+'>あり</label></div></div></div>'+
     '<div class="field"><label>メモ</label><input id="f_note" value="'+(c.note||'')+'"></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="f_cancel">キャンセル</button><button class="btn btn-primary" id="f_save">保存</button></div></div>';
@@ -922,17 +973,30 @@ function contactModal(id){
   function applyStatus(){var el=$('#f_status');var g=statusGroup(el?el.value:c.status);var lc=$('#leadConfirm'),lp=$('#leadPost');if(lc)lc.style.display=g==='confirmed'?'':'none';if(lp)lp.style.display=g==='post'?'':'none';}
   function applyKind(){$('#leadFields').style.display=kind==='lead'?'':'none';$('#enrolledFields').style.display=(kind==='enrolled'||kind==='withdrawn')?'':'none';var wr=$('#withdrawRow');if(wr)wr.style.display=kind==='withdrawn'?'':'none';applyStatus();}
   applyKind();
+  var pendingPhoto=null,photoCleared=false;
+  if($('#f_photo'))$('#f_photo').onchange=function(e){
+    var f=e.target.files[0];if(!f)return;
+    photoResize(f,function(err,uri){
+      if(err){$('#f_photoMsg').textContent=err.message;return;}
+      pendingPhoto=uri;photoCleared=false;
+      $('#f_photoPrev').innerHTML='<span class="avatar" style="width:56px;height:56px;overflow:hidden;background:#eee;"><img src="'+uri+'" style="width:100%;height:100%;object-fit:cover;display:block;"></span>';
+      $('#f_photoMsg').textContent='保存を押すと反映されます（約'+Math.round(uri.length/1024)+'KB）';
+    });
+  };
+  if($('#f_photoDel'))$('#f_photoDel').onclick=function(){pendingPhoto=null;photoCleared=true;$('#f_photoPrev').innerHTML='<span class="avatar" style="width:56px;height:56px;font-size:20px;">?</span>';$('#f_photoMsg').textContent='保存を押すと写真が削除されます';};
   if($('#f_status'))$('#f_status').onchange=applyStatus;
   m.querySelectorAll('#kindSeg button').forEach(function(b){b.onclick=function(){kind=b.getAttribute('data-kind');m.querySelectorAll('#kindSeg button').forEach(function(x){x.classList.toggle('on',x===b);});applyKind();};});
   $('#f_cancel').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#f_save').onclick=function(){
-    var nc={id:id||Date.now(),kind:kind,name:$('#f_name').value.trim(),child:$('#f_child').value.trim(),email:$('#f_email').value.trim(),phone:$('#f_phone').value.trim(),note:$('#f_note').value.trim()};
-    if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.dob=$('#f_ldob').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.nextMethod=$('#f_nmethod').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
-    else{nc.klass=$('#f_klass').value;nc.feeAmount=+$('#f_fee').value;nc.withdrawDay=+$('#f_wd').value;nc.admissionDate=$('#f_adm').value;nc.dob=$('#f_dob').value;nc.days=$('#f_days').value.trim();nc.lunch=$('#f_lunch').checked;nc.long=$('#f_long').checked;if(kind==='withdrawn')nc.withdrawDate=$('#f_wdate').value;}
+    var nc={id:id||Date.now(),kind:kind,name:$('#f_name').value.trim(),child:$('#f_child').value.trim(),dob:$('#f_dobTop').value,email:$('#f_email').value.trim(),phone:$('#f_phone').value.trim(),note:$('#f_note').value.trim()};
+    if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.nextMethod=$('#f_nmethod').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
+    else{nc.klass=$('#f_klass').value;nc.feeAmount=+$('#f_fee').value;nc.withdrawDay=+$('#f_wd').value;nc.admissionDate=$('#f_adm').value;nc.days=$('#f_days').value.trim();nc.lunch=$('#f_lunch').checked;nc.long=$('#f_long').checked;if(kind==='withdrawn')nc.withdrawDate=$('#f_wdate').value;}
     if(!nc.name||!nc.email){alert('保護者名とメールアドレスは必須です');return;}
     var arr=DB.contacts;if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
-    DB.contacts=arr;m.remove();renderContacts();
+    DB.contacts=arr;
+    try{if(pendingPhoto)photoSet(nc.id,pendingPhoto);else if(photoCleared)photoSet(nc.id,'');}catch(e){alert('写真を保存できませんでした（保存容量が不足している可能性があります）');}
+    m.remove();renderContacts();
   };
 }
 
@@ -2559,7 +2623,7 @@ function renderRoster(){
 function rosterList(kids){
   return '<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
     +'<table><thead><tr><th>生徒番号</th><th>お子様</th><th>クラス</th><th>学年</th><th>年齢</th><th>保護者</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
-    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-sub">'+esc(p.sid||'—')+'</td><td class="row-name">'+esc(childName(c))+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+esc(p.grade||'')+'</td><td>'+spAge(p.dob)+'</td><td class="row-sub">'+esc(c.name||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+c.id+'">開く</button></td></tr>';}).join('')
+    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-sub">'+esc(p.sid||'—')+'</td><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childName(c))+'</span></td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+esc(p.grade||'')+'</td><td>'+spAge(p.dob)+'</td><td class="row-sub">'+esc(c.name||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+c.id+'">開く</button></td></tr>';}).join('')
     +'</tbody></table></div>';
 }
 function wireRosterList(){
