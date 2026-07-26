@@ -188,6 +188,7 @@
       <a data-go="compose">{ic:send}個別メール送信</a>
       <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
       <a data-go="dm">{ic:mail}保護者DM<span class="badge" id="navDM" style="background:#E24B4A;"></span></a>
+      <a data-go="trial">{ic:clipboard}体験結果報告</a>
       <div class="nav-label">記録・書類</div>
       <a data-go="records">{ic:activity}日常チェック（毎日）</a>
       <a data-go="carerec">{ic:report}保育記録</a>
@@ -223,6 +224,7 @@
       <section data-page="compose" hidden></section>
       <section data-page="broadcast" hidden></section>
       <section data-page="dm" hidden></section>
+      <section data-page="trial" hidden></section>
       <section data-page="contacts" hidden></section>
       <section data-page="roster" hidden></section>
       <section data-page="enroll" hidden></section>
@@ -741,13 +743,13 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,shift:renderShift,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -2322,7 +2324,7 @@ function renderDocs(){
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
-  {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},
+  {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'shift',label:'シフト表'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
@@ -2334,9 +2336,9 @@ var DEFAULT_PERMS={
   'マネージャー':ACCESS_PAGES.map(function(x){return x.p;}),
   /* 一般スタッフ：配信はデイリーメールのみ編集可、個別メールは在園児のみ送信可。
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
-  '一般':['dashboard','dm','broadcast','records','carerec','drill','shift','contacts','curriculum']
+  '一般':['dashboard','dm','trial','broadcast','records','carerec','drill','shift','contacts','curriculum']
 };
-var PERMS_VERSION=5;
+var PERMS_VERSION=6;
 function staffAccountsSeed(){return [
   {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin',staffId:null},
   {id:2,loginId:'shiraga',name:'白神 美咲',role:'マネージャー',pw:'shiraga',staffId:101},
@@ -2560,6 +2562,148 @@ function renderDM(){
   var nav=$('#navDM');if(nav){var un=dmUnreadTotal();nav.textContent=un||'';nav.style.display=un?'':'none';}
 }
 
+/* ========== 体験結果報告 ==========
+   体験を担当した先生（一般アカウントでも可）が報告を入力すると、
+   ・連絡先（リード）の進捗・懸念・次回アクションへ自動反映
+   ・生徒台帳（一般は閲覧不可）にも お子様情報・ヒアリング内容を自動で引き継ぎ
+   ・LINE共有用のテキストも自動生成
+   データ: trialReports = { leadId: {...} } */
+var TR_RESULT=['入園希望（申込予定）','検討中','長期検討','再体験・見学希望','見送り（NG）'];
+var TR_TEMP=['5（とても高い）','4（高い）','3（普通）','2（低い）','1（かなり低い）'];
+var TR_FOCUS=['どちらも','英語重視','保育重視','不明'];
+var TR_JOIN=['父','母','子','祖父母','その他'];
+function trReports(){return stGet('trialReports',{});}
+function trGet(id){return trReports()[id]||null;}
+function trSave(id,r){var a=trReports();a[id]=r;stSet('trialReports',a);}
+function trStatusFrom(r){
+  var t=parseInt(String(r.temp||'3'),10);
+  if(r.result==='入園希望（申込予定）')return '🔥入園見込み';
+  if(r.result==='見送り（NG）')return 'NG';
+  if(r.result==='長期検討')return '長期見込み';
+  if(r.result==='検討中')return t>=4?'🔥入園見込み':'体験後 検討中';
+  return '体験後 検討中';
+}
+/* 報告内容を連絡先・生徒台帳へ反映（一般が入力しても、見えない場所まで届く） */
+function trApply(id,r){
+  var arr=DB.contacts,hit=false;
+  arr=arr.map(function(c){
+    if(c.id!==id)return c;
+    hit=true;
+    c.child=r.child||c.child;
+    c.dob=r.dob||c.dob;
+    c.date=r.trialDate||c.date;
+    c.trialBy=r.by||c.trialBy;
+    if(r.course)c.wishKlass=(/kinder/i.test(r.course)?'Kinder':(/pre/i.test(r.course)?'Pre':c.wishKlass));
+    if(c.kind==='lead'){
+      c.status=trStatusFrom(r);
+      var cons=[];if(r.price&&r.price!=='特になし')cons.push('料金：'+r.price);if(r.other)cons.push('他社検討：'+r.other);
+      if(cons.length)c.concerns=cons.join(' ／ ');
+      if(r.replyBy)c.nextAction=/^\d{4}-\d{2}-\d{2}$/.test(r.replyBy)?r.replyBy:c.nextAction;
+      if(r.hqAction){c.chase=c.chase||{};c.chase.honbu=true;c.chaseNote=r.hqAction;}
+      if(r.wishTime)c.note=[c.note,'入園希望時期：'+r.wishTime].filter(Boolean).join(' / ');
+    }
+    return c;
+  });
+  if(hit)DB.contacts=arr;
+  /* 生徒台帳（管理者のみ閲覧）にも引き継ぎ。入園後そのまま園児情報として使える */
+  if(typeof spSet==='function'&&typeof spStore==='function'){
+    var p=spStore()[id]||{};
+    if(r.kana){var kn=r.kana.split(/[\s　]+/);p.lastKana=p.lastKana||kn[0]||'';p.firstKana=p.firstKana||kn[1]||'';}
+    if(r.dob)p.dob=r.dob;
+    if(r.child)p.firstName=p.firstName||String(r.child).replace(/ちゃん|くん/g,'');
+    var memo=['【体験結果】'+(r.result||''),r.wishTime?'入園希望時期：'+r.wishTime:'',r.question?'ご質問：'+r.question:'',r.childState?'本人の様子：'+r.childState:'',r.extra?'追加情報：'+r.extra:''].filter(Boolean).join('\n');
+    p.parentNote=[p.parentNote,memo].filter(Boolean).join('\n');
+    spSet(id,p);
+  }
+}
+function trText(c,r){
+  var d=(r.trialDate||'').slice(5).replace('-','/');
+  return d+'　'+(SET.school||'')+'　'+(r.course||'')+'\n'
+    +'体験日：'+(r.trialDate?fmt(r.trialDate):'')+'\n体験担当：'+(r.by||'')+'\n'
+    +'お子様名前：'+(r.child||'')+(r.kana?'（'+r.kana+'）':'')+'\n生年月日：'+(r.dob||'')+'\n'
+    +'対象校舎：'+(r.campus||SET.school||'')+'\n体験コース：'+(r.course||'')+'\n参加者：'+((r.join||[]).join('・')||'')+'\n\n'
+    +'・体験結果\n'+(r.result||'')+'\n\n・体験中の様子\n入園希望時期：'+(r.wishTime||'')+'\n入園温度感：'+(String(r.temp||'').charAt(0))+'\n\n'
+    +'料金への反応：'+(r.price||'')+'\n\n英語重視 or 保育重視：'+(r.focus||'')+'\n\n他社検討：'+(r.other||'')+'\n\n'
+    +'質問内容：\n'+(r.question||'')+'\n\n本人の様子：\n'+(r.childState||'')+'\n\n追加情報：\n'+(r.extra||'')+'\n\n'
+    +'いつまでに回答がもらえるのか：\n'+(r.replyBy||'特になし')+'\n\n本部次回アクション：\n'+(r.hqAction||'')+'\n\n・キントーン入力\n'+(r.kintone||'未');
+}
+function renderTrial(){
+  var s=$('section[data-page="trial"]'),isIppan=(typeof currentRole==='function'&&currentRole()==='一般');
+  var leads=DB.contacts.filter(function(c){return c.kind==='lead'||(c.kind==='enrolled'&&trGet(c.id));});
+  leads=leads.slice().sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));});
+  var done=leads.filter(function(c){return !!trGet(c.id);}).length;
+  s.innerHTML='<div class="card" style="margin-bottom:14px;">'+recHead('体験結果報告',
+      '<span class="tag" style="background:#EAF3DE;color:#27500A;">報告済 '+done+' / '+leads.length+'</span><button class="btn btn-sm btn-primary" id="trNew">'+ic('plus')+'体験を追加して報告</button>')
+    +'<div class="muted">体験を担当した先生が入力します。保存すると、<b>連絡先の進捗・懸念・次回アクション</b>と<b>生徒台帳のお子様情報</b>へ自動で反映されます（入力者が見られない画面にも届きます）。LINE共有用のテキストも自動で作成されます。</div></div>'
+    +'<div class="card"><div class="scrollx"><table><thead><tr><th>体験日</th><th>お子様 / 保護者</th><th>体験担当</th><th>報告</th>'+(isIppan?'':'<th>結果 / 温度感</th>')+'<th style="width:150px;"></th></tr></thead><tbody>'
+    +(leads.length?leads.map(function(c){var r=trGet(c.id);
+      return '<tr><td class="row-sub" style="white-space:nowrap;">'+(c.date?fmt(c.date):'—')+'</td>'
+        +'<td class="row-name">'+esc(c.child||'—')+'<div class="row-sub">'+esc(c.name||'')+'</div></td>'
+        +'<td class="row-sub">'+esc((r&&r.by)||c.trialBy||'—')+'</td>'
+        +'<td>'+(r?'<span class="pill" style="background:#EAF3DE;color:#27500A;">報告済</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未報告</span>')+'</td>'
+        +(isIppan?'':'<td>'+(r?statusPill(trStatusFrom(r))+'<div class="row-sub">温度感 '+String(r.temp||'').charAt(0)+'</div>':'<span class="muted">—</span>')+'</td>')
+        +'<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm'+(r?'':' btn-primary')+'" data-tredit="'+c.id+'">'+(r?'報告を見る・編集':'報告を書く')+'</button></td></tr>';}).join('')
+      :'<tr><td colspan="'+(isIppan?5:6)+'" class="empty">体験の予定がありません</td></tr>')
+    +'</tbody></table></div></div>';
+  $('#trNew').onclick=function(){trialModal(null);};
+  s.querySelectorAll('[data-tredit]').forEach(function(b){b.onclick=function(){trialModal(+b.getAttribute('data-tredit'));};});
+}
+function trialModal(id){
+  var isNew=!id,c=id?DB.contacts.filter(function(x){return x.id===id;})[0]:null;
+  var r=(id&&trGet(id))||{trialDate:todayISO(),by:((typeof currentStaff==='function'&&currentStaff())?currentStaff().name:''),child:c?c.child:'',kana:'',dob:c?(c.dob||''):'',campus:SET.school||'',course:c?(c.wishKlass||'Pre'):'Pre',join:['母','子'],result:'検討中',wishTime:'',temp:'3（普通）',price:'特になし',focus:'どちらも',other:'',question:'',childState:'',extra:'',replyBy:'',hqAction:'',kintone:'未',parentName:c?c.name:'',email:c?c.email:'',phone:c?c.phone:''};
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  function f(lab,idd,val,ph){return '<div class="field"><label>'+lab+'</label><input id="'+idd+'" value="'+String(val||'').replace(/"/g,'&quot;')+'"'+(ph?' placeholder="'+ph+'"':'')+'></div>';}
+  function ta(lab,idd,val,ph){return '<div class="field"><label>'+lab+'</label><textarea id="'+idd+'" rows="3"'+(ph?' placeholder="'+ph+'"':'')+'>'+esc(val||'')+'</textarea></div>';}
+  function sel(lab,idd,opts,val){return '<div class="field"><label>'+lab+'</label><select id="'+idd+'">'+opts.map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div>';}
+  m.innerHTML='<div class="modal" style="width:760px;"><h2>体験結果報告'+(c?'　<span style="font-size:13px;color:var(--tx2);">'+esc(c.name||'')+' 様</span>':'（新規）')+'</h2>'
+    +(isNew?'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('保護者名','tr_parent',r.parentName)+f('メールアドレス','tr_email',r.email)+f('電話番号','tr_phone',r.phone)+'</div>':'')
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+'<div class="field"><label>体験日</label><input type="date" id="tr_date" value="'+(r.trialDate||'')+'"></div>'
+      +'<div class="field"><label>体験担当</label><select id="tr_by"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===r.by?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select></div>'
+      +f('体験コース','tr_course',r.course,'例：Pre0 / Pre / Kinder')+'</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('お子様名前','tr_child',r.child,'例：紬ちゃん')+f('フリガナ','tr_kana',r.kana,'例：ミヤザキ ツムギ')+'<div class="field"><label>生年月日</label><input type="date" id="tr_dob" value="'+(r.dob||'')+'"></div></div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('対象校舎','tr_campus',r.campus)
+      +'<div class="field"><label>参加者</label><div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:6px;">'+TR_JOIN.map(function(j){return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" data-trjoin="'+j+'" style="width:auto;"'+((r.join||[]).indexOf(j)>-1?' checked':'')+'>'+j+'</label>';}).join('')+'</div></div></div>'
+    +'<div style="border-top:1px solid var(--line);margin:6px 0 12px;"></div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+sel('体験結果','tr_result',TR_RESULT,r.result)+sel('入園温度感','tr_temp',TR_TEMP,r.temp)+f('入園希望時期','tr_wish',r.wishTime,'例：2027年4月〜')+'</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('料金への反応','tr_price',r.price)+sel('英語重視 or 保育重視','tr_focus',TR_FOCUS,r.focus)+f('他社検討','tr_other',r.other,'例：日本の保育園と検討中')+'</div>'
+    +ta('質問内容','tr_q',r.question,'保護者からの質問を箇条書きで')
+    +ta('本人の様子','tr_state',r.childState,'体験中のお子様の様子')
+    +ta('追加情報','tr_extra',r.extra,'家庭の状況・伝えたことなど')
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('いつまでに回答がもらえるか','tr_reply',r.replyBy,'日付（例 2026-08-10）または「特になし」')+f('本部次回アクション','tr_hq',r.hqAction)+sel('キントーン入力','tr_kintone',['未','完了'],r.kintone)+'</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:10px;">保存すると連絡先の進捗（体験結果と温度感から自動判定）・懸念・次回アクション、生徒台帳のお子様情報に反映されます。</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;"><button class="btn" id="tr_cancel">キャンセル</button><button class="btn" id="tr_copy">'+ic('doc')+'LINE用テキストをコピー</button><button class="btn btn-primary" id="tr_save">'+ic('check')+'保存して反映</button></div></div>';
+  function read(){
+    var o={trialDate:$('#tr_date').value,by:$('#tr_by').value,course:$('#tr_course').value,child:$('#tr_child').value,kana:$('#tr_kana').value,dob:$('#tr_dob').value,
+      campus:$('#tr_campus').value,join:[],result:$('#tr_result').value,temp:$('#tr_temp').value,wishTime:$('#tr_wish').value,price:$('#tr_price').value,
+      focus:$('#tr_focus').value,other:$('#tr_other').value,question:$('#tr_q').value,childState:$('#tr_state').value,extra:$('#tr_extra').value,
+      replyBy:$('#tr_reply').value,hqAction:$('#tr_hq').value,kintone:$('#tr_kintone').value};
+    m.querySelectorAll('[data-trjoin]').forEach(function(cb){if(cb.checked)o.join.push(cb.getAttribute('data-trjoin'));});
+    if(isNew){o.parentName=$('#tr_parent').value;o.email=$('#tr_email').value;o.phone=$('#tr_phone').value;}
+    return o;
+  }
+  $('#tr_cancel').onclick=function(){m.remove();};
+  $('#tr_copy').onclick=function(){
+    var o=read(),txt=trText(c||{name:o.parentName},o);
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){toastAI('LINE用テキストをコピーしました');},function(){alert(txt);});
+    else alert(txt);
+  };
+  $('#tr_save').onclick=function(){
+    var o=read();
+    if(!o.by){alert('体験担当を選択してください');return;}
+    var tid=id;
+    if(isNew){
+      if(!o.parentName||!o.email){alert('保護者名とメールアドレスを入力してください');return;}
+      tid=Date.now();
+      var arr=DB.contacts;
+      arr.push({id:tid,kind:'lead',name:o.parentName,child:o.child,email:o.email,phone:o.phone,status:'体験後 検討中',date:o.trialDate,receivedDate:todayISO(),source:'その他',wishKlass:/kinder/i.test(o.course)?'Kinder':'Pre',format:'オフライン',trialBy:o.by,dob:o.dob,note:''});
+      DB.contacts=arr;
+    }
+    o.at=todayISO();trSave(tid,o);trApply(tid,o);
+    m.remove();renderTrial();
+  };
+}
+
 /* ========== 生徒台帳（生徒情報を1か所に集約）＋自宅マップ ==========
    拡張プロフィールは studentProfiles（この端末のブラウザ内のみ）に保存。
    ★実在の氏名・住所・口座番号などは公開ソースに入れない（サンプルのみ／口座欄は空）。将来は認証つきバックエンドで管理。 */
@@ -2645,15 +2789,15 @@ function renderRoster(){
 }
 function rosterList(kids){
   return '<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
-    +'<table><thead><tr><th>生徒番号</th><th>お子様</th><th>クラス</th><th>学年</th><th>年齢</th><th>保護者</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
-    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-sub">'+esc(p.sid||'—')+'</td><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childName(c))+'</span></td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+esc(p.grade||'')+'</td><td>'+spAge(p.dob)+'</td><td class="row-sub">'+esc(c.name||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+c.id+'">開く</button></td></tr>';}).join('')
+    +'<table><thead><tr><th>生徒番号</th><th>お子様</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
+    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-sub">'+esc(p.sid||'—')+'</td><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childName(c))+'</span></td><td class="row-sub">'+(p.dob?fmt(p.dob):'—')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+c.id+'">開く</button></td></tr>';}).join('')
     +'</tbody></table></div>';
 }
 function wireRosterList(){
   if($('#rosterPrint'))$('#rosterPrint').onclick=function(){
     var kids=enrolled();
-    var body='<table><thead><tr><th>生徒番号</th><th>お子様</th><th>クラス</th><th>学年</th><th>年齢</th><th>保護者</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
-      +kids.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(p.sid||'')+'</td><td>'+esc(childName(c))+'</td><td>'+esc(p.klass||'')+'</td><td>'+esc(p.grade||'')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    var body='<table><thead><tr><th>生徒番号</th><th>お子様</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
+      +kids.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(p.sid||'')+'</td><td>'+esc(childName(c))+'</td><td>'+(p.dob?fmt(p.dob):'')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(p.klass||'')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('生徒名簿',body);
   };
   document.querySelectorAll('[data-rprof]').forEach(function(b){b.onclick=function(){rosterSel=+b.getAttribute('data-rprof');rosterTab='profile';renderRoster();};});
