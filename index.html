@@ -1314,7 +1314,7 @@ function renderSettings(){
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類。各学校ヒヤリングに合わせて自由に追加・変更できます。</div><div id="actTypeBox"></div></div>'+
     (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
       '<div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">コースプラン（月額）</div><div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+Object.keys(P.plans).map(function(k){return '<div class="field" style="margin:0 0 8px;"><label>'+k+'</label><input type="number" data-price="plans|'+k+'" value="'+P.plans[k]+'"></div>';}).join('')+'</div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field" style="margin:0;"><label>ランチ/回</label><input type="number" data-price="lunch" value="'+P.lunch+'"></div><div class="field" style="margin:0;"><label>延長/回</label><input type="number" data-price="extended" value="'+P.extended+'"></div><div class="field" style="margin:0;"><label>教材費</label><input type="number" data-price="material" value="'+P.material+'"></div><div class="field" style="margin:0;"><label>入園金</label><input type="number" data-price="admission" value="'+P.admission+'"></div></div></div>';})()+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field" style="margin:0;"><label>ランチ/回</label><input type="number" data-price="lunch" value="'+P.lunch+'"></div><div class="field" style="margin:0;"><label>延長/回</label><input type="number" data-price="extended" value="'+P.extended+'"></div><div class="field" style="margin:0;"><label>教育関連費</label><input type="number" data-price="material" value="'+P.material+'"></div><div class="field" style="margin:0;"><label>入園金</label><input type="number" data-price="admission" value="'+P.admission+'"></div></div></div>';})()+
     '<button class="btn btn-primary" id="s_save">'+ic('check')+'保存</button> <span class="muted" id="s_msg"></span>';
   $('#s_save').onclick=function(){
     SET.sender=$('#s_sender').value;SET.bcc=$('#s_bcc').value;SET.school=$('#s_school').value;SET.manager=$('#s_manager').value;
@@ -2022,7 +2022,7 @@ function dgInvoice(){
     var L=[];
     if(st.admission)L.push(['入園金',P.admission,1,P.admission]);
     L.push([st.plan+' 保育料',P.plans[st.plan]||0,1,P.plans[st.plan]||0]);
-    if(st.material)L.push(['教材費',P.material,1,P.material]);
+    if(st.material)L.push(['教育関連費',P.material,1,P.material]);
     if(st.lunchN>0)L.push(['ランチ（'+st.lunchN+'回）',P.lunch,st.lunchN,P.lunch*st.lunchN]);
     if(st.extN>0)L.push(['延長保育（'+st.extN+'回）',P.extended,st.extN,P.extended*st.extN]);
     var total=L.reduce(function(a,x){return a+x[3];},0);
@@ -2043,7 +2043,7 @@ function dgInvoice(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>園児</label><select id="iv_child">'+kids.map(function(c){return '<option value="'+c.id+'"'+(c.id===st.childId?' selected':'')+'>'+childName(c)+'（'+c.klass+'）</option>';}).join('')+'</select></div><div class="field"><label>コースプラン</label><select id="iv_plan">'+planOpts()+'</select></div></div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>請求月</label><select id="iv_month">'+[1,2,3,4,5,6,7,8,9,10,11,12].map(function(m){return '<option'+(m===st.month?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div><div class="field"><label>お支払期日</label><input type="date" id="iv_due" value="'+(st.due||'')+'"></div></div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>ランチ回数</label><input type="number" id="iv_lunch" min="0" value="'+(st.lunchN||0)+'"></div><div class="field"><label>延長回数</label><input type="number" id="iv_ext" min="0" value="'+(st.extN||0)+'"></div></div>'+
-      '<div style="display:flex;gap:16px;margin-bottom:10px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="iv_mat" style="width:auto;"'+(st.material?' checked':'')+'>教材費</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="iv_adm" style="width:auto;"'+(st.admission?' checked':'')+'>入園金（初回）</label></div>'+
+      '<div style="display:flex;gap:16px;margin-bottom:10px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="iv_mat" style="width:auto;"'+(st.material?' checked':'')+'>教育関連費</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="iv_adm" style="width:auto;"'+(st.admission?' checked':'')+'>入園金（初回）</label></div>'+
       '<div class="muted">単価は「設定 → 料金設定」で変更できます。コースプラン・オプションを変えると金額が自動計算されます。</div></div>'+
     '<div class="card">'+recHead('請求書プレビュー','<button class="btn btn-sm btn-primary" id="ivPrint">'+ic('printer')+'請求書を出力</button>')+'<div class="preview" id="ivPrev" style="max-height:480px;"></div></div></div>';
   function upd(){$('#ivPrev').innerHTML=invoiceHTML();}
@@ -2905,17 +2905,33 @@ function wireRosterMap(kids){
 }
 
 /* ========== 生徒情報（契約・オプション） ==========
-   園児ごとのコースプラン／ランチ／ロングステイ（延長）／教材費などを管理し、請求書に自動反映する。
+   園児ごとのコースプラン／ランチ／ロングステイ（延長）／教育関連費などを管理し、請求書に自動反映する。
    データ: enrollOptions = { childId:{plan,lunchN,extN,material,admission,note} } */
+/* 対象月に、その曜日が何回あるかを数える（連絡先の曜日設定から回数を自動計算） */
+function monthWeekdayCount(mk,label){
+  var y=+mk.split('-')[0],m=+mk.split('-')[1],dim=new Date(y,m,0).getDate(),idx=WEEK5.indexOf(label)+1,n=0;
+  for(var d=1;d<=dim;d++){if(new Date(y,m-1,d).getDay()===idx)n++;}
+  return n;
+}
+function dayOptCount(c,key,mk){
+  var dop=dayOptsOf(c),n=0;
+  WEEK5.forEach(function(d){if(dop[d]&&dop[d].go&&dop[d][key])n+=monthWeekdayCount(mk,d);});
+  return n;
+}
 function enrOpts(){return stGet('enrollOptions',{});}
 function enrSaveAll(o){stSet('enrollOptions',o);}
-function enrOf(c){
-  var o=enrOpts()[c.id];
-  if(o)return o;
-  var P=SET.pricing||{plans:{}};
+function enrOf(c,mk){
+  mk=mk||todayISO().slice(0,7);
+  var saved=enrOpts()[c.id]||{},P=SET.pricing||{plans:{}};
   var dop=dayOptsOf(c),days=dayCount(dop);
-  var plan=Object.keys(P.plans||{}).filter(function(k){return k==='週'+days;})[0]||'週3';
-  return {plan:plan,lunchN:dayCount(dop,'lunch')*4,extN:dayCount(dop,'long')*4,material:false,admission:false,note:''};
+  var plan=saved.plan||Object.keys(P.plans||{}).filter(function(k){return k==='週'+days;})[0]||'週3';
+  /* ランチ・ロングは「あり／なし」。回数は連絡先の曜日設定から自動計算 */
+  var lunchOn=(saved.lunchOn!=null)?!!saved.lunchOn:dayCount(dop,'lunch')>0;
+  var extOn=(saved.extOn!=null)?!!saved.extOn:dayCount(dop,'long')>0;
+  return {plan:plan,lunchOn:lunchOn,extOn:extOn,
+    lunchN:lunchOn?dayOptCount(c,'lunch',mk):0,
+    extN:extOn?dayOptCount(c,'long',mk):0,
+    material:!!saved.material,admission:!!saved.admission,note:saved.note||''};
 }
 function enrSet(id,obj){var o=enrOpts();o[id]=obj;enrSaveAll(o);}
 function enrMonthly(o){
@@ -2928,20 +2944,26 @@ function enrMonthly(o){
 }
 function renderEnroll(){
   var s=$('section[data-page="enroll"]');
-  var kids=enrolled();
+  var kids=enrolled(),mk=todayISO().slice(0,7);
   var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
   var planKeys=Object.keys(P.plans||{});
   if(!kids.length){s.innerHTML='<div class="empty">在園児が登録されていません</div>';return;}
   s.innerHTML='<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'生徒情報（契約・オプション）</h3>'
-    +'<div class="muted" style="margin-bottom:10px;">園児ごとのコースプランとオプション（ランチ・ロングステイ・教材費）を登録します。'
+    +'<div class="muted" style="margin-bottom:10px;">園児ごとのコースプランとオプション（ランチ・ロングステイ・教育関連費）を登録します。'
     +'ここで設定した内容は<b>請求書作成に自動で反映</b>されます。単価は「設定 → 料金設定」で変更できます。<br>'
-    +'現在の単価：ランチ '+yen(P.lunch)+'/回　ロングステイ '+yen(P.extended)+'/回　教材費 '+yen(P.material)+'　入園金 '+yen(P.admission)+'</div>'
-    +'<div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>通園曜日</th><th>コースプラン</th><th>ランチ（回/月）</th><th>ロングステイ（回/月）</th><th>教材費</th><th style="text-align:right;">月額（自動）</th><th></th></tr></thead><tbody>'
-    +kids.map(function(c){var o=enrOf(c);
+    +'現在の単価：ランチ '+yen(P.lunch)+'/回　ロングステイ '+yen(P.extended)+'/回　教育関連費 '+yen(P.material)+'　入園金 '+yen(P.admission)+'<br>'
+    +'ランチ・ロングステイは<b>あり／なし</b>で設定します。回数は<b>連絡先の曜日ごとの設定</b>から、その月の実際の曜日数で自動計算されます（表示は '+(+mk.split('-')[1])+'月分）。曜日の変更は「連絡先」から行ってください。</div>'
+    +'<div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>通園曜日</th><th>コースプラン</th><th>ランチ</th><th>ロングステイ</th><th>教育関連費</th><th style="text-align:right;">月額（自動）</th><th></th></tr></thead><tbody>'
+    +kids.map(function(c){var o=enrOf(c,mk),dop=dayOptsOf(c);
+      function optCell(key,onKey,cnt){
+        var days=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d][key];});
+        return '<td><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;"><input type="checkbox" data-en="'+c.id+'|'+onKey+'"'+(o[onKey]?' checked':'')+' style="width:auto;">あり</label>'
+          +'<div class="row-sub" style="font-size:11px;">'+(o[onKey]?(days.length?days.join('・')+'　'+cnt+'回/月':'<span style="color:#A32D2D;">曜日が未設定</span>'):'なし')+'</div></td>';
+      }
       return '<tr><td class="row-name">'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td class="row-sub">'+esc(c.days||'—')+'</td>'
         +'<td><select data-en="'+c.id+'|plan" style="width:100px;">'+planKeys.map(function(k){return '<option'+(k===o.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></td>'
-        +'<td><input type="number" min="0" data-en="'+c.id+'|lunchN" value="'+(o.lunchN||0)+'" style="width:80px;"></td>'
-        +'<td><input type="number" min="0" data-en="'+c.id+'|extN" value="'+(o.extN||0)+'" style="width:80px;"></td>'
+        +optCell('lunch','lunchOn',o.lunchN)
+        +optCell('long','extOn',o.extN)
         +'<td style="text-align:center;"><input type="checkbox" data-en="'+c.id+'|material"'+(o.material?' checked':'')+' style="width:auto;"></td>'
         +'<td style="text-align:right;font-weight:600;" id="enTot'+c.id+'">'+yen(enrMonthly(o))+'</td>'
         +'<td><button class="btn btn-sm" data-eninv="'+c.id+'">'+ic('yen')+'請求書</button></td></tr>';}).join('')
@@ -2952,8 +2974,8 @@ function renderEnroll(){
       var p=el.getAttribute('data-en').split('|'),id=+p[0],key=p[1];
       var c=kids.filter(function(x){return x.id===id;})[0];var o=enrOf(c);
       o[key]=(el.type==='checkbox')?el.checked:(el.type==='number'?(+el.value||0):el.value);
-      enrSet(id,o);
-      var tot=document.getElementById('enTot'+id);if(tot)tot.textContent=yen(enrMonthly(o));
+      enrSet(id,{plan:o.plan,lunchOn:o.lunchOn,extOn:o.extOn,material:o.material,admission:o.admission,note:o.note});
+      renderEnroll();
     };
   });
   s.querySelectorAll('[data-eninv]').forEach(function(b){b.onclick=function(){
@@ -2973,7 +2995,7 @@ function invMonthCur(){if(!invMonth){var d=addDays(0),m=d.getMonth()+2,y=d.getFu
 function invRow(mk,c){
   var all=invAll(),r=((all[mk]||{})[c.id]);
   if(r)return r;
-  var o=(typeof enrOf==='function')?enrOf(c):{plan:'週3',lunchN:0,extN:0,material:false};
+  var o=(typeof enrOf==='function')?enrOf(c,mk):{plan:'週3',lunchN:0,extN:0,material:false};
   return {plan:o.plan,lunchN:+o.lunchN||0,extN:+o.extN||0,material:!!o.material,admission:!!o.admission,discount:0,discountNote:'',due:'',status:'未発行',issuedAt:'',sentAt:'',paidAt:''};
 }
 function invSaveRow(mk,id,r){var all=invAll();all[mk]=all[mk]||{};all[mk][id]=r;invSaveAll(all);}
@@ -2982,7 +3004,7 @@ function invLines(r){
   var L=[];
   if(r.admission)L.push(['入園金',P.admission||0,1,P.admission||0]);
   L.push([(r.plan||'')+' 保育料',(P.plans||{})[r.plan]||0,1,(P.plans||{})[r.plan]||0]);
-  if(r.material)L.push(['教材費',P.material||0,1,P.material||0]);
+  if(r.material)L.push(['教育関連費',P.material||0,1,P.material||0]);
   if(+r.lunchN>0)L.push(['ランチ（'+r.lunchN+'回）',P.lunch||0,+r.lunchN,(P.lunch||0)*(+r.lunchN)]);
   if(+r.extN>0)L.push(['ロングステイ（'+r.extN+'回）',P.extended||0,+r.extN,(P.extended||0)*(+r.extN)]);
   if(+r.discount>0)L.push([(r.discountNote||'割引'),-(+r.discount),1,-(+r.discount)]);
@@ -3023,7 +3045,7 @@ function renderBilling(){
       +'<button class="btn btn-sm" id="ivIssueAll">'+ic('check')+'一括で発行</button>'
       +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'発行済をまとめて送付</button>'
       +'<button class="btn btn-sm" id="ivPrintAll">'+ic('printer')+'全員分を印刷</button>')
-    +'<div class="muted" style="margin-bottom:10px;">金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動計算されます。行の「明細」で今月だけの調整（回数・教材費・割引・支払期日）ができます。<br>流れ：<b>①内容を確認 → ②発行 → ③送付（メール＋保護者ページ） → ④入金確認</b></div>'
+    +'<div class="muted" style="margin-bottom:10px;">金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動計算されます。行の「明細」で今月だけの調整（回数・教育関連費・割引・支払期日）ができます。<br>流れ：<b>①内容を確認 → ②発行 → ③送付（メール＋保護者ページ） → ④入金確認</b></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
     +'<span style="flex:1;"></span><span style="font-weight:700;font-size:15px;">今月の請求合計 '+yen(sum)+'</span></div></div>'
     +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>プラン</th><th style="text-align:right;">ランチ</th><th style="text-align:right;">ロング</th><th style="text-align:right;">請求額</th><th>支払期日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
@@ -3080,7 +3102,7 @@ function invModal(mk,id){
         +'<div class="field"><label>ランチ回数</label><input type="number" min="0" id="im_lunch" value="'+(+r.lunchN||0)+'"></div>'
         +'<div class="field"><label>ロングステイ回数</label><input type="number" min="0" id="im_ext" value="'+(+r.extN||0)+'"></div></div>'
       +'<div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">'
-        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_mat" style="width:auto;"'+(r.material?' checked':'')+'>教材費</label>'
+        +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_mat" style="width:auto;"'+(r.material?' checked':'')+'>教育関連費</label>'
         +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_adm" style="width:auto;"'+(r.admission?' checked':'')+'>入園金（初回）</label></div>'
       +'<div class="grid" style="grid-template-columns:1fr 2fr;">'
         +'<div class="field"><label>割引額</label><input type="number" min="0" id="im_disc" value="'+(+r.discount||0)+'"></div>'
