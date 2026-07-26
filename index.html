@@ -506,9 +506,9 @@ var AUDIT_CATS=[
     {key:'chingin',name:'賃金台帳',place:'会社Google Drive【経理用】',when:'運営中',sys:'docs'},
     {key:'roudou_shorui',name:'労働関係書類',place:'従業員名簿ファイル',when:'年度前',sys:'docs'},
     {key:'shift',name:'勤務表（シフト表）',place:'出勤調整申請書ファイル',when:'運営中',sys:'shift'},
-    {key:'shukkin',name:'出勤簿（タイムカード）',place:'はいチーズシステム',when:'運営中',sys:null},
-    {key:'shikaku',name:'資格証明書（控え）',place:'従業員名簿ファイル',when:'年度前',sys:'staff'},
-    {key:'kenshin',name:'職員健康診断記録',place:'従業員名簿ファイル',when:'年度前',sys:'staff'}
+    {key:'shukkin',name:'出勤簿（タイムカード）',place:'システム内（シフト表→出勤簿）',when:'運営中',sys:'timecard'},
+    {key:'shikaku',name:'資格証明書（控え）',place:'従業員名簿ファイル',when:'年度前',sys:'staff:qual'},
+    {key:'kenshin',name:'職員健康診断記録',place:'従業員名簿ファイル',when:'年度前',sys:'staff:kenshin'}
   ]},
   {cat:'③ 非常災害対策',items:[
     {key:'kunren',name:'消火・避難訓練 実施記録',place:'消防設備届出ファイル',when:'運営中',sys:'drill'},
@@ -623,6 +623,11 @@ function auditDataInfo(key){
     case 'kinkyu_b': return stGet('hospitals',HOSP_DEFAULT).length+'件登録済み';
     case 'jido_meibo': return enrolled().length+'名登録済み';
     case 'kinkyu_h': return enrolled().length+'名分あり';
+    case 'shukkin': {
+      var tc=stGet('timecards',{})[todayISO().slice(0,7)]||{};
+      var n=0;Object.keys(tc).forEach(function(sid){n+=Object.keys(tc[sid]||{}).length;});
+      return n?('今月 '+n+'日分の打刻あり'):'今月の打刻はまだありません';
+    }
     case 'roudou_meibo': return DB.staff.length+'名登録済み';
     case 'shikaku': {
       var withDoc=DB.staff.filter(function(st){return (typeof staffDocsOf==='function')&&staffDocsOf(st.id).length;}).length;
@@ -1601,7 +1606,41 @@ function renderSettings(){
 }
 
 /* ---------- staff ---------- */
+var staffFocus=null; /* 'qual' | 'kenshin' | null（監査からの遷移で書類の確認ビューを開く） */
+function staffDocsHas(id,kinds){return staffDocsOf(id).some(function(d){return kinds.some(function(k){return String(d.kind||'').indexOf(k)>-1;});});}
+function renderStaffFocus(){
+  var s=$('section[data-page="staff"]'),isQual=(staffFocus==='qual');
+  var title=isQual?'資格証明書（控え）の保管状況':'職員健康診断記録の保管状況';
+  var kinds=isQual?['保育士証','幼稚園教諭','資格証']:['健康診断'];
+  var list=DB.staff;
+  var ok=list.filter(function(x){return isQual?staffDocsHas(x.id,kinds):(!!x.kenshinDate&&staffDocsHas(x.id,kinds));});
+  s.innerHTML='<div class="card" style="margin-bottom:14px;"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="btn btn-sm" id="sfBack">← 職員名簿へ戻る</button>'
+      +'<h3 style="margin:0;flex:1;">'+ic('audit')+title+'</h3>'
+      +'<span class="tag" style="background:'+(ok.length===list.length?'#EAF3DE;color:#27500A':'#FCEBEB;color:#A32D2D')+';">'+ok.length+' / '+list.length+' 名 保管済み</span></div>'
+    +'<div class="muted" style="margin-top:8px;">'+(isQual
+      ?'保育士・幼稚園教諭などの有資格者と、システム内に保管された資格証明書（控え）の状況です。「登録」から画像またはDriveのURLで保管できます。'
+      :'職員健康診断の実施日と、システム内に保管された健診結果の状況です。健診日は職員の編集画面、結果の保管は「登録」から行えます。')+'</div></div>'
+    +'<div class="card"><div class="scrollx"><table><thead><tr><th>氏名</th><th>役職 / 雇用</th>'
+      +(isQual?'<th>保有資格</th><th>資格証番号</th>':'<th>直近の健診日</th><th>次回期限</th>')
+      +'<th>システム内の保管</th><th style="width:120px;"></th></tr></thead><tbody>'
+    +list.map(function(x){
+      var has=staffDocsHas(x.id,kinds);
+      var docs=staffDocsOf(x.id).filter(function(d){return kinds.some(function(k){return String(d.kind||'').indexOf(k)>-1;});});
+      var ks=kenshinStatus(x.kenshinDate),nd=kenshinNext(x.kenshinDate);
+      var qualified=isQual?/保育士|幼稚園教諭|子育て支援員|TEFL/.test(x.qual||''):true;
+      return '<tr'+(qualified?'':' style="opacity:.6;"')+'><td class="row-name">'+esc(x.name)+'<div class="row-sub">'+esc(x.kana||'')+'</div></td>'
+        +'<td>'+esc(x.role||'')+'<div class="row-sub">'+esc(x.employ||'')+'</div></td>'
+        +(isQual
+          ?'<td>'+esc(x.qual||'—')+(qualified?'':'<div class="row-sub" style="color:#854F0B;">有資格者以外</div>')+'</td><td class="row-sub">'+esc(x.qualNo||'—')+'</td>'
+          :'<td>'+(x.kenshinDate?fmt(x.kenshinDate):'<span style="color:#A32D2D;">未登録</span>')+'</td><td>'+(nd?fmt(iso(nd)):'—')+' <span class="pill" style="background:'+ks.bg+';color:'+ks.fg+';">'+ks.lab+'</span></td>')
+        +'<td>'+(has?'<span class="pill" style="background:#EAF3DE;color:#27500A;">保管済み</span><div class="row-sub">'+docs.map(function(d){return esc(d.kind);}).join('・')+'</div>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未保管</span>')+'</td>'
+        +'<td style="text-align:right;"><button class="btn btn-sm'+(has?'':' btn-primary')+'" data-sfedit="'+x.id+'">'+(has?'確認・追加':'登録する')+'</button></td></tr>';}).join('')
+    +'</tbody></table></div></div>';
+  $('#sfBack').onclick=function(){staffFocus=null;renderStaff();};
+  s.querySelectorAll('[data-sfedit]').forEach(function(b){b.onclick=function(){staffModal(+b.getAttribute('data-sfedit'));};});
+}
 function renderStaff(){
+  if(staffFocus){renderStaffFocus();return;}
   var st=DB.staff,s=$('section[data-page="staff"]');
   var alerts=st.filter(function(x){var k=kenshinStatus(x.kenshinDate).lab;return k==='期限切れ'||k==='要更新';});
   s.innerHTML=
@@ -1750,7 +1789,7 @@ function renderAudit(){
         '<td style="width:110px;"><select data-st="'+it.key+'" style="background:'+STO[cur].bg+';color:'+STO[cur].fg+';font-weight:500;">'+opt+'</select></td>'+
         '<td><div class="row-name">'+it.name+'</div><div class="row-sub">保管：'+it.place+'</div>'+(function(){var di=auditDataInfo(it.key);return di?'<div class="row-sub" style="color:#0F6E56;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
-        '<td style="width:130px;text-align:right;">'+(it.sys?'<button class="btn btn-sm" data-sys="'+it.sys+'">'+SYS_PAGE[it.sys]+' →</button>':'<span class="row-sub">'+(it.key==='gyakutai'?'下部で実施':'外部管理')+'</span>')+'</td></tr>';}).join('')+
+        '<td style="width:130px;text-align:right;">'+(it.sys?'<button class="btn btn-sm" data-sys="'+it.sys+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.key==='gyakutai'?'下部で実施':'外部管理')+'</span>')+'</td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="card" style="margin-bottom:14px;"><div id="gyBox"></div></div>';
   renderGyakutai($('#gyBox'));
@@ -1758,7 +1797,13 @@ function renderAudit(){
   upd();
   $('#auDate').onchange=function(e){SET.docAuditDate=e.target.value;DB.settings=SET;upd();};
   s.querySelectorAll('[data-st]').forEach(function(sl){sl.onchange=function(){auditSet(sl.getAttribute('data-st'),sl.value);renderAudit();};});
-  s.querySelectorAll('[data-sys]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-sys'));};});
+  s.querySelectorAll('[data-sys]').forEach(function(b){b.onclick=function(){
+    var v=b.getAttribute('data-sys');
+    if(v==='staff:qual'){staffFocus='qual';go('staff');return;}
+    if(v==='staff:kenshin'){staffFocus='kenshin';go('staff');return;}
+    if(v==='timecard'){shiftTab='time';go('shift');return;}
+    staffFocus=null;go(v);
+  };});
   $('#auPrint').onclick=function(){
     var stt2=auditState();
     var body=AUDIT_CATS.map(function(c){
@@ -2253,6 +2298,112 @@ function drillPrint(i){
 
 /* ---------- シフト表 ---------- */
 var shiftMonth=null;
+var shiftTab='plan';
+/* ===== 出勤簿（タイムカード）：このシステム内で実績を記録 =====
+   データ: timecards = { 'YYYY-MM': { staffId: { day: {in:'8:45',out:'17:45',brk:60,note:''} } } } */
+function tcAll(){return stGet('timecards',{});}
+function tcMonth(mk){return tcAll()[mk]||{};}
+function tcGet(mk,sid,day){return ((tcMonth(mk)[sid]||{})[day])||{in:'',out:'',brk:60,note:''};}
+/* 所定労働時間（分）を超えた分を時間外として算出 */
+function tcStdMin(){return (+SET.stdWorkMin||480);}
+function tcOverMin(v){var m=tcMinutes(v);return Math.max(0,m-tcStdMin());}
+function tcHM(min){var hh=Math.floor(min/60),mm=min%60;return hh+':'+String(mm).padStart(2,'0');}
+function tcSet(mk,sid,day,v){var a=tcAll();a[mk]=a[mk]||{};a[mk][sid]=a[mk][sid]||{};
+  if(v&&(v.in||v.out||v.note))a[mk][sid][day]=v;else delete a[mk][sid][day];
+  stSet('timecards',a);}
+function tcMinutes(v){
+  if(!v||!v.in||!v.out)return 0;
+  function mins(t){var p=String(t).split(':');return (+p[0]||0)*60+(+p[1]||0);}
+  var d=mins(v.out)-mins(v.in);if(d<0)d+=24*60;
+  d-=(+v.brk||0);return Math.max(0,d);
+}
+function tcHours(min){return (min/60).toFixed(1);}
+function renderTimecard(){
+  if(!tcStaffSel&&DB.staff.length)tcStaffSel=DB.staff[0].id;
+  var mk=shiftMonth,s=$('section[data-page="shift"]');
+  var y=+mk.split('-')[0],mo=+mk.split('-')[1],dim=new Date(y,mo,0).getDate();
+  var days=[];for(var d=1;d<=dim;d++)days.push(d);
+  var staff=DB.staff;
+  var all=tcMonth(mk);
+  function staffMin(sid){var t=all[sid]||{},n=0;Object.keys(t).forEach(function(k){n+=tcMinutes(t[k]);});return n;}
+  function staffDays(sid){var t=all[sid]||{};return Object.keys(t).filter(function(k){return t[k].in&&t[k].out;}).length;}
+  s.innerHTML='<div class="card" style="margin-bottom:14px;"><div class="chips" style="margin:0;">'+[['plan','勤務表（シフト予定）'],['time','出勤簿（実績の打刻）']].map(function(t){return '<span class="chip'+(t[0]===shiftTab?' on':'')+'" data-shtab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>'
+    +'<div class="card">'+recHead('出勤簿（タイムカード）',
+      '<input type="month" id="tcMonth" value="'+mk+'" style="width:160px;"><select id="tcStaff" style="width:170px;">'+staff.map(function(st){return '<option value="'+st.id+'"'+(String(st.id)===String(tcStaffSel||staff[0]&&staff[0].id)?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select>'
+      +'<button class="btn btn-sm" id="tcFill">'+ic('check')+'シフトから一括入力</button><button class="btn btn-sm" id="tcPrint">'+ic('printer')+'この職員を出力</button><button class="btn btn-sm btn-primary" id="tcPrintAll">'+ic('printer')+'全員分を出力</button><button class="btn btn-sm" id="tcCsv">'+ic('folder')+'データ保存</button>')
+    +'<div class="muted" style="margin-bottom:10px;">実際の出退勤を記録します（労働時間は休憩を差し引いて自動計算）。「シフトから一括入力」で予定の時間を初期値として入れられます。</div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'+staff.map(function(st){return '<span class="tag" style="background:'+(String(st.id)===String(tcStaffSel)?'#E1F5EE;color:#0F6E56;font-weight:600;':'#F1EFE8;color:#5F5E5A;')+'">'+esc(st.name)+' '+staffDays(st.id)+'日 / '+tcHours(staffMin(st.id))+'h</span>';}).join('')+'</div>'
+    +'<div class="scrollx"><table><thead><tr><th style="width:78px;">日付</th><th style="width:110px;">出勤</th><th style="width:110px;">退勤</th><th style="width:90px;">休憩(分)</th><th style="width:90px;">勤務時間</th><th style="width:80px;">時間外</th><th>備考</th></tr></thead><tbody>'
+    +days.map(function(dd){
+      var wd=new Date(y,mo-1,dd).getDay(),we=(wd===0||wd===6);
+      var v=tcGet(mk,tcStaffSel,dd),min=tcMinutes(v);
+      return '<tr'+(we?' style="background:#FAFAF8;"':'')+'><td class="row-name">'+mo+'/'+dd+'<div class="row-sub">'+WD[wd]+'</div></td>'
+        +'<td><input type="time" data-tc="'+dd+'|in" value="'+(v.in||'')+'"></td>'
+        +'<td><input type="time" data-tc="'+dd+'|out" value="'+(v.out||'')+'"></td>'
+        +'<td><input type="number" min="0" step="5" data-tc="'+dd+'|brk" value="'+(v.brk==null?60:v.brk)+'" style="text-align:right;"></td>'
+        +'<td style="text-align:right;font-weight:600;">'+(min?tcHours(min)+'h':'—')+'</td>'
+        +'<td style="text-align:right;color:'+(tcOverMin(v)?'#A32D2D':'var(--tx3)')+';">'+(tcOverMin(v)?tcHours(tcOverMin(v))+'h':'—')+'</td>'
+        +'<td><input data-tc="'+dd+'|note" value="'+String(v.note||'').replace(/"/g,'&quot;')+'" placeholder="遅刻・早退・有給など"></td></tr>';}).join('')
+    +'</tbody></table></div></div>';
+  s.querySelectorAll('[data-shtab]').forEach(function(b){b.onclick=function(){shiftTab=b.getAttribute('data-shtab');renderShift();};});
+  $('#tcMonth').onchange=function(e){shiftMonth=e.target.value;renderTimecard();};
+  $('#tcStaff').onchange=function(e){tcStaffSel=+e.target.value;renderTimecard();};
+  s.querySelectorAll('[data-tc]').forEach(function(el2){el2.onchange=function(){
+    var p=el2.getAttribute('data-tc').split('|'),day=+p[0],v=tcGet(mk,tcStaffSel,day);
+    v[p[1]]=(el2.type==='number')?(+el2.value||0):el2.value;
+    tcSet(mk,tcStaffSel,day,v);renderTimecard();
+  };});
+  $('#tcFill').onclick=function(){
+    var sh=(stGet('shifts',{})[mk])||{pat:{},brk:{},cells:{}};
+    var cells=(sh.cells||{})[tcStaffSel]||{};
+    if(!Object.keys(cells).length){alert('この月のシフトが未入力です。先に勤務表を作成してください。');return;}
+    if(!confirm('シフトの予定時間を出勤簿に入力します（入力済みの日はそのまま残します）。よろしいですか？'))return;
+    var n=0;
+    Object.keys(cells).forEach(function(day){
+      var k=cells[day];if(!k||k==='休')return;
+      var cur=tcGet(mk,tcStaffSel,+day);if(cur.in||cur.out)return;
+      var pat=(sh.pat||{})[k]||'',pr=pat.split('-');
+      var bk=(sh.brk||{})[k]||'',bm=60;
+      if(bk.indexOf('-')>-1){var bp=bk.split('-');function mm(t){var q=String(t).split(':');return (+q[0]||0)*60+(+q[1]||0);}bm=Math.max(0,mm(bp[1])-mm(bp[0]));}
+      if(pr.length===2){tcSet(mk,tcStaffSel,+day,{in:pr[0].trim(),out:pr[1].trim(),brk:bm,note:''});n++;}
+    });
+    alert(n+'日分を入力しました。');renderTimecard();
+  };
+  function tcStaffTable(st){
+    var t=all[st.id]||{},tot=0,cnt=0,otot=0;
+    var rows=days.map(function(dd){
+      var wd=new Date(y,mo-1,dd).getDay(),we=(wd===0||wd===6),v=t[dd]||{},min=tcMinutes(v),ov=tcOverMin(v);
+      if(min){tot+=min;cnt++;}otot+=ov;
+      return '<tr'+(we?' style="background:#e9e9e9;"':'')+'><td>'+y+'/'+mo+'/'+dd+'</td><td style="text-align:center;">'+WD[wd]+'</td>'
+        +'<td style="text-align:center;">'+(v.in||'')+'</td><td style="text-align:center;">'+(v.out||'')+'</td>'
+        +'<td style="text-align:center;">'+(v.in?tcHM(v.brk==null?60:+v.brk):'')+'</td>'
+        +'<td style="text-align:right;">'+(min?tcHours(min):'')+'</td>'
+        +'<td style="text-align:right;">'+(ov?tcHours(ov):'')+'</td>'
+        +'<td>'+esc(v.note||'')+'</td></tr>';}).join('');
+    return '<table style="page-break-inside:auto;"><thead>'
+      +'<tr><th colspan="8" style="background:#FAF7E8;text-align:center;font-size:13px;">（'+esc(st.employ||'')+'・'+esc(st.role||'')+'）'+esc(st.name||'')+'</th></tr>'
+      +'<tr><th>年月日</th><th></th><th>出勤時間</th><th>退勤時間</th><th>休憩時間</th><th>勤務時間</th><th>時間外</th><th>備考</th></tr></thead><tbody>'
+      +rows
+      +'<tr style="font-weight:700;background:#f4f4f2;"><td>'+mo+'月</td><td style="text-align:center;">日数</td><td style="text-align:center;">'+cnt+'日</td><td style="text-align:center;">時間</td><td></td><td style="text-align:right;">'+tcHours(tot)+'</td><td style="text-align:right;">'+(otot?tcHours(otot):'')+'</td><td></td></tr>'
+      +'</tbody></table>';
+  }
+  $('#tcPrint').onclick=function(){
+    var st=DB.staff.filter(function(x){return String(x.id)===String(tcStaffSel);})[0]||{};
+    printDoc('出勤簿（'+y+'年'+mo+'月・'+(st.name||'')+'）','<p>'+esc(SET.school||'')+'</p>'+tcStaffTable(st)+'<p style="margin-top:14px;">本人確認印　　　　　　　　承認者　　　　　　　　</p>');
+  };
+  $('#tcPrintAll').onclick=function(){
+    var body='<p>'+esc(SET.school||'')+'　'+y+'年'+mo+'月</p>'
+      +DB.staff.map(function(st){return tcStaffTable(st);}).join('<div style="page-break-after:always;"></div>');
+    printDoc('出勤簿 全員分（'+y+'年'+mo+'月）',body);
+  };
+  $('#tcCsv').onclick=function(){
+    var html='<html><head><meta charset="utf-8"></head><body><h2>出勤簿 '+mk+'</h2><table border="1"><tr><th>氏名</th><th>日付</th><th>出勤</th><th>退勤</th><th>休憩(分)</th><th>実働(h)</th><th>備考</th></tr>'
+      +DB.staff.map(function(st){var t=all[st.id]||{};return Object.keys(t).sort(function(a,b){return a-b;}).map(function(dd){var v=t[dd];return '<tr><td>'+esc(st.name)+'</td><td>'+mk+'-'+pad(dd)+'</td><td>'+(v.in||'')+'</td><td>'+(v.out||'')+'</td><td>'+(v.brk==null?60:v.brk)+'</td><td>'+tcHours(tcMinutes(v))+'</td><td>'+esc(v.note||'')+'</td></tr>';}).join('');}).join('')
+      +'</table></body></html>';
+    dlFile('出勤簿_'+mk+'.xls',html,'application/vnd.ms-excel');
+  };
+}
+var tcStaffSel=null;
 function renderShift(){
   if(!shiftMonth)shiftMonth=todayISO().slice(0,7);
   var all=stGet('shifts',{});
@@ -2261,7 +2412,9 @@ function renderShift(){
   var p=shiftMonth.split('-'),y=+p[0],mo=+p[1],dim=new Date(y,mo,0).getDate();
   var s=$('section[data-page="shift"]');
   var days=[];for(var i=1;i<=dim;i++)days.push(i);
-  s.innerHTML='<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+shiftMonth+'" style="width:160px;"><button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm btn-primary" id="shPrint">'+ic('printer')+'ワンクリック出力</button>')+
+  if(shiftTab==='time'){renderTimecard();return;}
+  s.innerHTML='<div class="card" style="margin-bottom:14px;"><div class="chips" style="margin:0;">'+[['plan','勤務表（シフト予定）'],['time','出勤簿（実績の打刻）']].map(function(t){return '<span class="chip'+(t[0]===shiftTab?' on':'')+'" data-shtab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>'
+    +'<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+shiftMonth+'" style="width:160px;"><button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm" id="shPrint">'+ic('printer')+'記号で出力</button><button class="btn btn-sm btn-primary" id="shPrintTime">'+ic('printer')+'時刻表記で出力</button>')+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">'+
       ['早','日','遅'].map(function(k){return '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+k+'" value="'+m.pat[k]+'" style="width:105px;font-size:12px;padding:5px 8px;" title="勤務時間"><span class="muted" style="font-size:11px;">休憩</span><input data-brk="'+k+'" value="'+(m.brk[k]||'')+'" style="width:100px;font-size:12px;padding:5px 8px;" placeholder="12:00-13:00" title="休憩時間"></span>';}).join('')+
       '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s休" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">休</span>休み</span>'+
@@ -2269,7 +2422,7 @@ function renderShift(){
     '<div class="scrollx"><table><thead><tr><th style="min-width:110px;">職員</th>'+days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();return '<th style="padding:4px 2px;font-size:10px;text-align:center;'+(wd===0?'color:#A32D2D;':wd===6?'color:#185FA5;':'')+'">'+dd+'<br>'+WD[wd]+'</th>';}).join('')+'</tr></thead><tbody>'+
     DB.staff.map(function(st){return '<tr><td class="row-name" style="white-space:nowrap;">'+st.name+'<div class="row-sub">'+st.role+'</div></td>'+days.map(function(dd){var v=(m.cells[st.id]||{})[dd]||'';return '<td style="padding:2px;text-align:center;"><button class="shiftcell s'+v+'" data-sc="'+st.id+'|'+dd+'">'+(v||'・')+'</button></td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table></div>'+
-    '<div class="muted" style="margin-top:10px;">※ Freee等の勤怠データはCSVで取込可能（右上ボタン）。出勤簿（実績・タイムカード）はAPI連携 or 手動入力に対応予定。シフトは自動保存されます。</div></div>';
+    '<div class="muted" style="margin-top:10px;">※ Freee等の勤怠データはCSVで取込可能（右上ボタン）。出勤簿（実績の打刻）は「出勤簿」タブでこのシステム内に記録できます。シフトは自動保存されます。</div></div>';
   function save(){all[shiftMonth]=m;stSet('shifts',all);}
   $('#shMonth').onchange=function(e){shiftMonth=e.target.value;renderShift();};
   $('#shImport').onclick=function(){shiftImportModal(m,save,renderShift);};
@@ -2282,6 +2435,7 @@ function renderShift(){
   };
   s.querySelectorAll('[data-pat]').forEach(function(inp){inp.onchange=function(){m.pat[inp.getAttribute('data-pat')]=inp.value;save();};});
   s.querySelectorAll('[data-brk]').forEach(function(inp){inp.onchange=function(){m.brk[inp.getAttribute('data-brk')]=inp.value;save();};});
+  s.querySelectorAll('[data-shtab]').forEach(function(b){b.onclick=function(){shiftTab=b.getAttribute('data-shtab');renderShift();};});
   s.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){
     var pp=b.getAttribute('data-sc').split('|'),sid=pp[0],dd=pp[1];
     var order=['','早','日','遅','休'];if(!m.cells[sid])m.cells[sid]={};
@@ -2300,6 +2454,23 @@ function renderShift(){
       +[['早','早番'],['日','日勤'],['遅','遅番']].map(function(k){return '<tr><td>'+k[1]+'（'+k[0]+'）</td><td>'+esc(m.pat[k[0]]||'')+'</td><td>'+esc((m.brk||{})[k[0]]||'')+'</td></tr>';}).join('')
       +'<tr><td>公休（休）</td><td>—</td><td>—</td></tr></tbody></table>';
     printDoc('勤務表（'+y+'年'+mo+'月）',body);
+  };
+  /* 実際の提出様式（日付×職員／時刻を直接記載）での出力 */
+  $('#shPrintTime').onclick=function(){
+    var body='<div class="shift-print"><table><thead>'
+      +'<tr><th class="nm" rowspan="2">'+y+'年度</th>'+DB.staff.map(function(st){return '<th>'+esc(st.role||'')+'</th>';}).join('')+'</tr>'
+      +'<tr>'+DB.staff.map(function(st){return '<th>'+esc(st.name)+'（'+esc(st.employ||'')+'）</th>';}).join('')+'</tr></thead><tbody>'
+      +days.map(function(dd){
+        var wd=new Date(y,mo-1,dd).getDay(),we=(wd===0||wd===6);
+        return '<tr'+(we?' class="we"':'')+'><td class="nm">'+mo+'月'+dd+'日　'+WD[wd]+'</td>'
+          +DB.staff.map(function(st){var v=(m.cells[st.id]||{})[dd]||'';
+            var txt=(v==='休')?'':(v?(m.pat[v]||''):'');
+            return '<td'+(we||!txt?' class="we"':'')+'>'+esc(txt)+'</td>';}).join('')+'</tr>';}).join('')
+      +'</tbody></table></div>'
+      +'<table style="margin-top:10px;max-width:520px;"><thead><tr><th>区分</th><th>勤務時間</th><th>休憩時間</th></tr></thead><tbody>'
+      +[['早','早番'],['日','日勤'],['遅','遅番']].map(function(k){return '<tr><td>'+k[1]+'</td><td>'+esc(m.pat[k[0]]||'')+'</td><td>'+esc((m.brk||{})[k[0]]||'')+'</td></tr>';}).join('')
+      +'</tbody></table>';
+    printDoc('勤務表（'+y+'年'+mo+'月・時刻表記）',body);
   };
 }
 
