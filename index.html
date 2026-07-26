@@ -664,6 +664,25 @@ function auditPhase(){var m=addDays(0).getMonth()+1;
   if(m>=5&&m<=11)return{label:'監査シーズン（5〜11月）',desc:'現場監査は無通告。運営中に揃える記録を常に整えておく',color:'#854F0B',bg:'#FAEEDA'};
   return{label:'通常期',desc:'次の年度前準備（3月〜）に向けて随時整備',color:'#5F5E5A',bg:'#F1EFE8'};
 }
+/* ダッシュボード用の監査サマリー（現場監査・書類監査の状況をまとめて表示） */
+function auditSummary(){
+  var st=auditState(),flat=auditItemsFlat();
+  var done=flat.filter(function(it){return st[it.key]==='済';}).length;
+  var pre=flat.filter(function(it){return it.when==='年度前';}),preDone=pre.filter(function(it){return st[it.key]==='済';}).length;
+  var ope=flat.filter(function(it){return it.when==='運営中';}),opeDone=ope.filter(function(it){return st[it.key]==='済';}).length;
+  var notYet=flat.filter(function(it){return st[it.key]==='未';}).map(function(it){return it.name||it.key;});
+  var m=addDays(0).getMonth()+1,inSeason=(m>=5&&m<=11);
+  var docDate=SET.docAuditDate||'',docLeft=docDate?daysUntil(new Date(docDate)):null;
+  /* 現場監査に備えて「日々の記録」が今日そろっているか */
+  var todayRec=[['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']];
+  var recMissing=todayRec.filter(function(t){return !stGet(t[1],{})[todayISO()];}).map(function(t){return t[0];});
+  var mk=todayISO().slice(0,7);
+  var monthly=[];
+  if(!stGet('rec_身体測定',{})[mk])monthly.push('今月の身体測定');
+  try{var D=drillData();var thisMonthDrill=(D.rows||[]).filter(function(r){return r.record&&r.record.date&&r.record.date.slice(0,7)===mk;});if(!thisMonthDrill.length)monthly.push('今月の避難訓練');}catch(e){}
+  return {done:done,total:flat.length,preDone:preDone,preTotal:pre.length,opeDone:opeDone,opeTotal:ope.length,
+    notYet:notYet,inSeason:inSeason,docDate:docDate,docLeft:docLeft,recMissing:recMissing,monthly:monthly};
+}
 
 function fillTokens(text,c,ctx){
   ctx=ctx||{};
@@ -857,7 +876,32 @@ function renderDash(){
   var s=$('section[data-page="dashboard"]');
   s.innerHTML=
     '<div class="grid" style="grid-template-columns:repeat('+(isIppan?2:4)+',1fr);margin-bottom:16px;">'+topCards+'</div>'+
-    (isIppan?'':'<div class="cal-banner" style="margin-bottom:16px;background:'+aph.bg+';border-color:'+aph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+aph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">監査準備：'+aph.label+'</div><div class="muted">'+aph.desc+' ・ 準備状況 '+adone+'/'+atot+' 済</div></div><button class="btn btn-primary" data-task="audit">監査対応へ</button></div>')+
+    (isIppan?'':(function(){var A=auditSummary();
+      function chip(txt,bg,fg){return '<span class="tag" style="background:'+bg+';color:'+fg+';">'+txt+'</span>';}
+      var line2=[];
+      line2.push(chip('準備 '+A.done+'/'+A.total+' 済','#EAF3DE','#27500A'));
+      line2.push(chip('年度前 '+A.preDone+'/'+A.preTotal,'#E6F1FB','#0C447C'));
+      line2.push(chip('運営中 '+A.opeDone+'/'+A.opeTotal,'#FAEEDA','#854F0B'));
+      if(A.notYet.length)line2.push(chip('未着手 '+A.notYet.length+'件','#FCEBEB','#A32D2D'));
+      var docTxt=A.docDate?('書類監査：'+fmt(A.docDate)+(A.docLeft>=0?'（あと'+A.docLeft+'日）':'（実施済み）')):'書類監査：日程未定（自治体からの連絡待ち・実施期間の目安 5〜11月）';
+      var siteTxt='現場監査：'+(A.inSeason?'実施期間中（5〜11月・無通告／年1〜2回）':'期間外（5〜11月に実施）');
+      var todayTxt=A.recMissing.length?('本日の記録が未入力：'+A.recMissing.join('・')):'本日の記録はすべて入力済み';
+      var monTxt=A.monthly.length?('今月の未実施：'+A.monthly.join('・')):'';
+      return '<div class="card" style="margin-bottom:16px;border-left:4px solid '+aph.color+';">'
+        +'<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+        +'<div style="width:42px;height:42px;border-radius:12px;background:'+aph.bg+';color:'+aph.color+';display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('audit')+'</div>'
+        +'<div style="flex:1;min-width:240px;"><div style="font-weight:700;">監査準備：'+aph.label+'</div>'
+          +'<div class="muted" style="margin-bottom:6px;">'+aph.desc+'</div>'
+          +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'+line2.join('')+'</div>'
+          +'<div style="font-size:12.5px;line-height:1.9;">'
+            +'<div>'+ic('cal').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#185FA5;"')+' '+esc(docTxt)+'</div>'
+            +'<div>'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' '+esc(siteTxt)+'</div>'
+            +'<div style="color:'+(A.recMissing.length?'#A32D2D':'#27500A')+';">'+ic('activity').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;"')+' '+esc(todayTxt)+'</div>'
+            +(monTxt?'<div style="color:#A32D2D;">'+ic('clock').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;"')+' '+esc(monTxt)+'</div>':'')
+            +(A.notYet.length?'<div class="muted">未着手：'+esc(A.notYet.slice(0,4).join('・'))+(A.notYet.length>4?' ほか'+(A.notYet.length-4)+'件':'')+'</div>':'')
+          +'</div></div>'
+        +'<div style="display:flex;flex-direction:column;gap:6px;"><button class="btn btn-primary" data-task="audit">監査対応へ</button>'+(A.recMissing.length?'<button class="btn btn-sm" data-task="records">記録する</button>':'')+'</div>'
+        +'</div></div>';})())+
     '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:13.5px;font-weight:600;">'+ic('activity').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px;color:#0F6E56;"')+' 本日の記録</span>'+
       [['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=!!stGet(t[1],{})[todayISO()];return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
       '<span class="spacer"></span><button class="btn btn-sm" data-task="records">記録する</button></div>'+
@@ -907,6 +951,47 @@ function routeTo(p){
 
 /* ---------- contacts ---------- */
 var contactFilter='すべて',contactSearch='',contactSort='区分';
+/* ===== 連絡先の監査用出力（児童名簿・緊急連絡票・入退園一覧） ===== */
+function contactAuditPrintModal(){
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:560px;"><h2>監査用に出力</h2>'
+    +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;">監査で確認される名簿を印刷できます。生徒台帳に登録された情報（住所・緊急連絡先・健康情報）も反映されます。</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;">'
+    +'<button class="btn" data-cap="roster">'+ic('users')+'児童名簿（在園児）</button>'
+    +'<button class="btn" data-cap="emg">'+ic('alert')+'緊急連絡票（保護者・緊急連絡先）</button>'
+    +'<button class="btn" data-cap="health">'+ic('activity')+'健康・アレルギー一覧</button>'
+    +'<button class="btn" data-cap="inout">'+ic('cal')+'入退園一覧（年度）</button>'
+    +'</div><div style="display:flex;justify-content:flex-end;margin-top:14px;"><button class="btn btn-ghost" id="cap_close">閉じる</button></div></div>';
+  $('#cap_close').onclick=function(){m.remove();};
+  m.querySelectorAll('[data-cap]').forEach(function(b){b.onclick=function(){contactAuditPrint(b.getAttribute('data-cap'));m.remove();};});
+}
+function contactAuditPrint(kind){
+  var en=enrolled(),P=function(id){return (typeof spStore==='function')?(spStore()[id]||{}):{};};
+  if(kind==='roster'){
+    var body='<table><thead><tr><th>No.</th><th>氏名</th><th>ふりがな</th><th>性別</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>入園日</th><th>通園曜日</th><th>保護者</th><th>住所</th></tr></thead><tbody>'
+      +en.map(function(c,i){var p=P(c.id);return '<tr><td>'+(i+1)+'</td><td>'+esc(childName(c))+'</td><td>'+esc([p.lastKana,p.firstKana].filter(Boolean).join(' '))+'</td><td>'+esc(p.sex||'')+'</td><td>'+(c.dob?fmt(c.dob):'')+'</td><td>'+(typeof ageClassOf==='function'?ageClassOf(c):'')+'</td><td>'+esc(c.klass||'')+'</td><td>'+(c.admissionDate?fmt(c.admissionDate):'')+'</td><td>'+esc(c.days||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(p.address||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('児童名簿（在園児 '+en.length+'名）',body);return;
+  }
+  if(kind==='emg'){
+    var body2='<table><thead><tr><th>氏名</th><th>クラス</th><th>保護者</th><th>保護者連絡先</th><th>緊急連絡先(1)</th><th>続柄</th><th>緊急連絡先(2)</th><th>続柄</th><th>かかりつけ医</th></tr></thead><tbody>'
+      +en.map(function(c){var p=P(c.id);return '<tr><td>'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc([c.phone,c.email].filter(Boolean).join(' / '))+'</td><td>'+esc(p.emg1||'')+'</td><td>'+esc(p.emg1rel||'')+'</td><td>'+esc(p.emg2||'')+'</td><td>'+esc(p.emg2rel||'')+'</td><td>'+esc(p.doctor||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('緊急連絡票（在園児）',body2);return;
+  }
+  if(kind==='health'){
+    var body3='<table><thead><tr><th>氏名</th><th>クラス</th><th>アレルギー</th><th>平熱</th><th>既往症</th><th>入院歴</th><th>ひきつけ/熱性痙攣</th><th>呼吸・心疾患</th><th>かかりつけ医</th><th>その他の診断</th></tr></thead><tbody>'
+      +en.map(function(c){var p=P(c.id);return '<tr><td>'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+esc(p.allergy||'')+'</td><td>'+esc(p.normalTemp||'')+'</td><td>'+esc(p.history||'')+'</td><td>'+esc(p.hospital||'')+'</td><td>'+esc(p.febrile||'')+'</td><td>'+esc(p.respiratory||'')+'</td><td>'+esc(p.doctor||'')+'</td><td>'+esc(p.otherDx||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('健康・アレルギー一覧（在園児）',body3);return;
+  }
+  var fy=curFY(),fyStart=fy+'-04-01',fyEnd=(fy+1)+'-03-31';
+  var joined=DB.contacts.filter(function(c){return c.admissionDate&&c.admissionDate>=fyStart&&c.admissionDate<=fyEnd;});
+  var left=DB.contacts.filter(function(c){return c.withdrawDate&&c.withdrawDate>=fyStart&&c.withdrawDate<=fyEnd;});
+  var body4='<h2>入園（'+joined.length+'名）</h2><table><thead><tr><th>氏名</th><th>クラス</th><th>入園日</th><th>保護者</th></tr></thead><tbody>'
+    +(joined.map(function(c){return '<tr><td>'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmt(c.admissionDate)+'</td><td>'+esc(c.name||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')
+    +'</tbody></table><h2>退園（'+left.length+'名）</h2><table><thead><tr><th>氏名</th><th>クラス</th><th>退園日</th><th>備考</th></tr></thead><tbody>'
+    +(left.map(function(c){return '<tr><td>'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmt(c.withdrawDate)+'</td><td>'+esc(c.note||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')+'</tbody></table>';
+  printDoc('入退園一覧（'+fy+'年度）',body4);
+}
 function renderContacts(){
   /* 一般スタッフにはリード（営業・経営情報）を表示しない */
   var noLeads=(typeof currentRole==='function'&&currentRole()==='一般');
@@ -938,6 +1023,7 @@ function renderContacts(){
     '<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">'+
       '<div style="position:relative;flex:1;min-width:200px;"><span style="position:absolute;left:11px;top:9px;color:#90998f;width:16px;height:16px;display:inline-block;">'+ic('search')+'</span><input id="cSearch" placeholder="名前・お子様・メールで検索" style="padding-left:34px;" value="'+contactSearch+'"></div>'+
       '<span class="muted" style="font-size:12px;">並べ替え</span><select id="cSort" style="width:190px;">'+SORTS.map(function(o){return '<option'+(o===contactSort?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
+      '<button class="btn btn-sm" id="cPrint">'+ic('printer')+'監査用に出力</button>'+
       '<button class="btn btn-primary" id="addContact">'+ic('plus')+'連絡先を追加</button>'+
     '</div>'+
     '<div class="chips">'+filters.map(function(f){return '<span class="chip'+(f===contactFilter?' on':'')+'" data-cf="'+f+'">'+f+'</span>';}).join('')+'</div>'+
@@ -963,6 +1049,7 @@ function renderContacts(){
   $('#cSearch').addEventListener('input',function(e){contactSearch=e.target.value;renderContacts();$('#cSearch').focus();});
   s.querySelectorAll('[data-cf]').forEach(function(b){b.addEventListener('click',function(){contactFilter=b.getAttribute('data-cf');renderContacts();});});
   var cso=$('#cSort');if(cso)cso.onchange=function(e){contactSort=e.target.value;renderContacts();};
+  var cpb=$('#cPrint');if(cpb)cpb.onclick=contactAuditPrintModal;
   $('#addContact').addEventListener('click',function(){contactModal();});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){contactModal(+b.getAttribute('data-edit'));});});
   s.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',function(){if(confirm('この連絡先を削除しますか？')){DB.contacts=DB.contacts.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderContacts();}});});
@@ -1588,7 +1675,7 @@ function renderAudit(){
   s.innerHTML=
     '<div class="cal-banner" style="margin-bottom:16px;background:'+ph.bg+';border-color:'+ph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+ph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">'+ph.label+'</div><div class="muted">'+ph.desc+'</div></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">'+
-      '<div class="card"><h3>'+ic('cal')+'書類監査</h3><div class="muted" style="margin-bottom:10px;">年1回・日程は固定。実施期間 5〜11月。<b>3週間前に確定連絡</b>が来る。</div><label>確定日（連絡が来たら入力）</label><input type="date" id="auDate" value="'+(SET.docAuditDate||'')+'"><div id="auCount" class="muted" style="margin-top:8px;"></div></div>'+
+      '<div class="card"><h3>'+ic('cal')+'書類監査</h3><div class="muted" style="margin-bottom:10px;">年1回。実施期間の目安は 5〜11月。<b>日程は自治体から連絡が入り次第確定</b>します。</div><label>監査日（決まったら入力）</label><input type="date" id="auDate" value="'+(SET.docAuditDate||'')+'"><div id="auCount" class="muted" style="margin-top:8px;"></div></div>'+
       '<div class="card"><h3>'+ic('alert')+'現場監査</h3><div class="muted">指定期間（5〜11月）に<b>無通告</b>で実施。年1〜2回。いつ来てもいいよう、運営中に揃える記録を常に整えておく。</div></div>'+
     '</div>'+
     '<div class="card" style="margin-bottom:16px;"><h3>'+ic('clipboard')+'準備状況</h3>'+
@@ -1604,7 +1691,7 @@ function renderAudit(){
       '</tbody></table></div>';}).join('')+
     '<div class="card" style="margin-bottom:14px;"><div id="gyBox"></div></div>';
   renderGyakutai($('#gyBox'));
-  function upd(){var d=$('#auDate').value;if(d){var du=daysUntil(new Date(d));$('#auCount').textContent=du>=0?('書類監査まで あと '+du+'日'):'確定日は過ぎています';}else{$('#auCount').textContent='';}}
+  function upd(){var d=$('#auDate').value;if(d){var du=daysUntil(new Date(d));$('#auCount').textContent=du>=0?('書類監査まで あと '+du+'日'):'入力された監査日は過ぎています';}else{$('#auCount').textContent='';}}
   upd();
   $('#auDate').onchange=function(e){SET.docAuditDate=e.target.value;DB.settings=SET;upd();};
   s.querySelectorAll('[data-st]').forEach(function(sl){sl.onchange=function(){auditSet(sl.getAttribute('data-st'),sl.value);renderAudit();};});
