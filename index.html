@@ -207,6 +207,7 @@
       <a data-go="reqnav">{ic:clipboard}提出書類ナビ</a>
       <a data-go="docs">{ic:folder}書類格納</a>
       <div class="nav-label">管理</div>
+      <a data-go="facility">{ic:gear}施設管理</a>
       <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
       <a data-go="roster">{ic:idcard}生徒台帳</a>
       <a data-go="enroll">{ic:yen}生徒情報（契約・オプション）</a>
@@ -232,6 +233,7 @@
       <section data-page="broadcast" hidden></section>
       <section data-page="dm" hidden></section>
       <section data-page="trial" hidden></section>
+      <section data-page="facility" hidden></section>
       <section data-page="contacts" hidden></section>
       <section data-page="roster" hidden></section>
       <section data-page="enroll" hidden></section>
@@ -518,7 +520,7 @@ var AUDIT_CATS=[
     {key:'kinkyu_h',name:'保護者の緊急連絡票',place:'システム内（生徒台帳）',when:'年度前',sys:'roster'},
     {key:'kinkyu_b',name:'病院等の緊急連絡先一覧',place:'電話横 壁 掲示',when:'年度前',sys:'docs'},
     {key:'anzen',name:'安全点検チェックシート',place:'システム内・日常記録',when:'運営中',sys:'records'},
-    {key:'baisho',name:'賠償責任保険証書',place:'—',when:'年度前',sys:'docs'}
+    {key:'baisho',name:'賠償責任保険証書',place:'',when:'年度前',sys:'docs'}
   ]},
   {cat:'④ 保育内容',items:[
     {key:'shidou',name:'指導計画',place:'カリキュラム',when:'年度前',sys:'curriculum'},
@@ -689,6 +691,10 @@ function sentMailCard(title,filter){
 }
 function wireSentMail(root){(root||document).querySelectorAll('[data-smail]').forEach(function(r){r.onclick=function(){sentMailModal(DB.history[+r.getAttribute('data-smail')]);};});}
 function auditItemsFlat(){return AUDIT_CATS.reduce(function(a,c){return a.concat(c.items);},[]);}
+/* 書類の保管先は園ごとに異なるため編集可能に（未入力なら表示しない） */
+function auditPlaces(){return stGet('auditPlaces',{});}
+function auditPlaceOf(it){var p=auditPlaces();return (p[it.key]!=null)?p[it.key]:(it.place||'');}
+function auditPlaceSet(k,v){var p=auditPlaces();if(v)p[k]=v;else p[k]='';stSet('auditPlaces',p);}
 function auditState(){var st=DB.auditStatus;var out={};auditItemsFlat().forEach(function(it){out[it.key]=st[it.key]||(it.sys?'対応中':'未');});return out;}
 function auditSet(k,v){var st=DB.auditStatus;st[k]=v;DB.auditStatus=st;}
 function auditPhase(){var m=addDays(0).getMonth()+1;
@@ -816,13 +822,13 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -1796,7 +1802,9 @@ function renderAudit(){
     AUDIT_CATS.map(function(c){return '<div class="card" style="margin-bottom:14px;"><h3>'+c.cat+'</h3><table><tbody>'+
       c.items.map(function(it){var cur=stt[it.key];var opt=['未','対応中','済'].map(function(o){return '<option'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('');var wc=it.when==='年度前'?'background:#E6F1FB;color:#0C447C':'background:#FAEEDA;color:#854F0B';return '<tr>'+
         '<td style="width:110px;"><select data-st="'+it.key+'" style="background:'+STO[cur].bg+';color:'+STO[cur].fg+';font-weight:500;">'+opt+'</select></td>'+
-        '<td><div class="row-name">'+it.name+'</div><div class="row-sub">保管：'+it.place+'</div>'+(function(){var di=auditDataInfo(it.key);return di?'<div class="row-sub" style="color:#0F6E56;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
+        '<td><div class="row-name">'+it.name+'</div>'
+        +'<div class="row-sub" style="display:flex;align-items:center;gap:3px;"><span>'+(auditPlaceOf(it)?'保管：':'')+'</span><input data-place="'+it.key+'" value="'+String(auditPlaceOf(it)).replace(/"/g,'&quot;')+'" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);width:auto;min-width:160px;">'+'</div>'
+        +(function(){var di=auditDataInfo(it.key);return di?'<div class="row-sub" style="color:#0F6E56;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
         '<td style="width:130px;text-align:right;">'+(it.sys?'<button class="btn btn-sm" data-sys="'+it.sys+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.key==='gyakutai'?'下部で実施':'外部管理')+'</span>')+'</td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
@@ -1806,6 +1814,11 @@ function renderAudit(){
   upd();
   $('#auDate').onchange=function(e){SET.docAuditDate=e.target.value;DB.settings=SET;upd();};
   s.querySelectorAll('[data-st]').forEach(function(sl){sl.onchange=function(){auditSet(sl.getAttribute('data-st'),sl.value);renderAudit();};});
+  s.querySelectorAll('[data-place]').forEach(function(inp){
+    inp.onfocus=function(){inp.style.borderBottom='1px solid var(--line)';};
+    inp.onblur=function(){inp.style.borderBottom='none';};
+    inp.onchange=function(){auditPlaceSet(inp.getAttribute('data-place'),inp.value.trim());renderAudit();};
+  });
   s.querySelectorAll('[data-sys]').forEach(function(b){b.onclick=function(){
     var v=b.getAttribute('data-sys');
     if(v==='staff:qual'){staffFocus='qual';go('staff');return;}
@@ -1818,7 +1831,7 @@ function renderAudit(){
     var stt2=auditState();
     var body=AUDIT_CATS.map(function(c){
       return '<h2>'+c.cat+'</h2><table><thead><tr><th style="width:60px;">状態</th><th>書類名</th><th>保管場所</th><th style="width:70px;">区分</th><th>システム内データ</th></tr></thead><tbody>'+
-        c.items.map(function(it){return '<tr><td>'+stt2[it.key]+'</td><td>'+it.name+'</td><td>'+it.place+'</td><td>'+it.when+'</td><td>'+(auditDataInfo(it.key)||'—')+'</td></tr>';}).join('')+'</tbody></table>';
+        c.items.map(function(it){return '<tr><td>'+stt2[it.key]+'</td><td>'+it.name+'</td><td>'+esc(auditPlaceOf(it)||'')+'</td><td>'+it.when+'</td><td>'+(auditDataInfo(it.key)||'—')+'</td></tr>';}).join('')+'</tbody></table>';
     }).join('');
     printDoc('監査書類 最終チェックリスト',body);
   };
@@ -2877,7 +2890,7 @@ var ACCESS_PAGES=[
   {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
-  {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
+  {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'audit',label:'監査対応'},{p:'settings',label:'設定'}
 ];
@@ -3942,6 +3955,120 @@ function renderBouka(){
         return '<tr><td>'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;">'+esc(r.content||'')+'</td><td style="font-size:10px;text-align:center;">'+esc(r.place||'')+'</td><td style="text-align:center;">'+(r.time?esc(r.time)+' 分':'分')+'</td><td style="font-size:10px;">'+esc(r.summary||'')+'</td></tr>';}).join('')
       +'</tbody></table>';
     printDoc('消火訓練 手順・記録（'+fy+'年度）',body3);
+  };
+}
+
+/* ========== 施設管理（園の基本情報・提携先） ==========
+   園の所在地や認可区分などの詳細、提携医療機関、給食・清掃などの取引先、自由記載の項目をまとめて管理。
+   データ: facility = {info:{...}, doctors:[...], partners:[...], notes:[...]} */
+var FAC_INFO=[
+  {g:'園の基本情報',f:[
+    {k:'name',label:'施設名',ph:'例：COCOAS KIDS International School 大宮与野校'},
+    {k:'kana',label:'ふりがな'},
+    {k:'company',label:'運営法人',ph:'例：〇〇株式会社'},
+    {k:'rep',label:'代表者名'},
+    {k:'manager',label:'施設長・園長'},
+    {k:'zip',label:'郵便番号'},
+    {k:'address',label:'所在地',wide:true},
+    {k:'tel',label:'電話番号'},{k:'fax',label:'FAX'},
+    {k:'mail',label:'メールアドレス'},{k:'site',label:'ホームページ'},
+    {k:'landmark',label:'目標物（緊急通報用）',ph:'例：〇〇の角のビル2階'}
+  ]},
+  {g:'認可・届出',f:[
+    {k:'type',label:'施設種別',opts:['','認可外保育施設','小規模認可（地域型保育事業）','企業主導型保育事業','認可保育所','認定こども園','幼稚園','学童']},
+    {k:'permitNo',label:'認可・届出番号'},
+    {k:'permitDate',label:'認可・届出日',type:'date'},
+    {k:'authority',label:'所管自治体・担当課',ph:'例：さいたま市 保育施設支援課'},
+    {k:'authorityTel',label:'所管自治体 電話番号'},
+    {k:'capacity',label:'定員',type:'number'},
+    {k:'openHours',label:'開園時間',ph:'例：8:45〜18:00'},
+    {k:'closedDays',label:'休園日',ph:'例：土日祝・年末年始'},
+    {k:'buildingArea',label:'建物・保育室面積',ph:'例：保育室 60㎡'},
+    {k:'insurance',label:'加入保険',ph:'例：〇〇損保 賠償責任保険'}
+  ]}
+];
+var FAC_PARTNER_KINDS=['給食・ランチ','清掃・ごみ収集','設備・消防点検','リース・備品','写真販売','システム・IT','送迎・バス','その他'];
+function facGet(){var d=stGet('facility',null);if(!d)d={info:{},doctors:[],partners:[],notes:[]};d.info=d.info||{};d.doctors=d.doctors||[];d.partners=d.partners||[];d.notes=d.notes||[];return d;}
+function facSet(d){stSet('facility',d);}
+function renderFacility(){
+  var d=facGet(),s=$('section[data-page="facility"]');
+  function save(){facSet(d);}
+  function field(f){
+    var v=d.info[f.k]==null?'':d.info[f.k];
+    var inp;
+    if(f.opts)inp='<select data-fac="'+f.k+'">'+f.opts.map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
+    else inp='<input data-fac="'+f.k+'" type="'+(f.type||'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'"'+(f.ph?' placeholder="'+f.ph+'"':'')+'>';
+    return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+'</label>'+inp+'</div>';
+  }
+  s.innerHTML=FAC_INFO.map(function(g){
+      return '<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+esc(g.g)+'</h3><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'+g.f.map(field).join('')+'</div></div>';
+    }).join('')
+    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('alert')+'提携医療機関</h3><button class="btn btn-sm" id="facDocAdd">'+ic('plus')+'追加</button><button class="btn btn-sm" id="facDocPrint">'+ic('printer')+'壁掲示用に出力</button></div>'
+      +'<div class="muted" style="margin-bottom:8px;font-size:12px;">かかりつけ医・嘱託医など。緊急時に見られるよう壁掲示用に印刷できます。</div>'
+      +'<div class="scrollx"><table><thead><tr><th>医療機関名</th><th style="width:130px;">診療科</th><th style="width:120px;">担当医</th><th style="width:140px;">電話番号</th><th>住所</th><th style="width:120px;">区分</th><th style="width:44px;"></th></tr></thead><tbody id="facDocs"></tbody></table></div></div>'
+    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('users')+'提携先・取引先</h3><button class="btn btn-sm" id="facPtAdd">'+ic('plus')+'追加</button></div>'
+      +'<div class="muted" style="margin-bottom:8px;font-size:12px;">給食・ランチ会社、清掃／ごみ収集、消防設備点検などの取引先を登録できます。</div>'
+      +'<div class="scrollx"><table><thead><tr><th style="width:140px;">種別</th><th>会社名</th><th style="width:130px;">担当者</th><th style="width:140px;">電話番号</th><th>住所・メモ</th><th style="width:44px;"></th></tr></thead><tbody id="facPts"></tbody></table></div></div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('doc')+'その他の情報（自由記載）</h3><button class="btn btn-sm" id="facNoteAdd">'+ic('plus')+'項目を追加</button><button class="btn btn-sm btn-primary" id="facPrint">'+ic('printer')+'施設情報を出力</button></div>'
+      +'<div class="muted" style="margin-bottom:8px;font-size:12px;">上の項目にない情報は、見出しと内容を自由に追加して記録できます。</div>'
+      +'<div id="facNotes"></div></div>';
+  s.querySelectorAll('[data-fac]').forEach(function(el2){el2.onchange=function(){d.info[el2.getAttribute('data-fac')]=el2.value;save();};});
+  function renderDocs(){
+    $('#facDocs').innerHTML=(d.doctors.length?d.doctors.map(function(x,i){
+      return '<tr><td><input data-fd="'+i+'|name" value="'+String(x.name||'').replace(/"/g,'&quot;')+'" placeholder="〇〇クリニック"></td>'
+        +'<td><input data-fd="'+i+'|dept" value="'+String(x.dept||'').replace(/"/g,'&quot;')+'" placeholder="小児科"></td>'
+        +'<td><input data-fd="'+i+'|doctor" value="'+String(x.doctor||'').replace(/"/g,'&quot;')+'" placeholder="担当医名"></td>'
+        +'<td><input data-fd="'+i+'|tel" value="'+String(x.tel||'').replace(/"/g,'&quot;')+'"></td>'
+        +'<td><input data-fd="'+i+'|addr" value="'+String(x.addr||'').replace(/"/g,'&quot;')+'"></td>'
+        +'<td><select data-fd="'+i+'|kind">'+['嘱託医','かかりつけ医','歯科','救急指定','その他'].map(function(o){return '<option'+(o===x.kind?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'
+        +'<td style="text-align:right;"><button class="btn btn-sm btn-ghost" data-fddel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')
+      :'<tr><td colspan="7" class="empty">「追加」から提携医療機関を登録してください</td></tr>');
+    $('#facDocs').querySelectorAll('[data-fd]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-fd').split('|');d.doctors[+p[0]][p[1]]=el2.value;save();};});
+    $('#facDocs').querySelectorAll('[data-fddel]').forEach(function(b){b.onclick=function(){d.doctors.splice(+b.getAttribute('data-fddel'),1);save();renderDocs();};});
+  }
+  function renderPts(){
+    $('#facPts').innerHTML=(d.partners.length?d.partners.map(function(x,i){
+      return '<tr><td><select data-fp="'+i+'|kind">'+FAC_PARTNER_KINDS.map(function(o){return '<option'+(o===x.kind?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td>'
+        +'<td><input data-fp="'+i+'|name" value="'+String(x.name||'').replace(/"/g,'&quot;')+'" placeholder="会社名"></td>'
+        +'<td><input data-fp="'+i+'|person" value="'+String(x.person||'').replace(/"/g,'&quot;')+'"></td>'
+        +'<td><input data-fp="'+i+'|tel" value="'+String(x.tel||'').replace(/"/g,'&quot;')+'"></td>'
+        +'<td><input data-fp="'+i+'|memo" value="'+String(x.memo||'').replace(/"/g,'&quot;')+'" placeholder="住所・契約内容・回収曜日など"></td>'
+        +'<td style="text-align:right;"><button class="btn btn-sm btn-ghost" data-fpdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')
+      :'<tr><td colspan="6" class="empty">「追加」から提携先を登録してください</td></tr>');
+    $('#facPts').querySelectorAll('[data-fp]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-fp').split('|');d.partners[+p[0]][p[1]]=el2.value;save();};});
+    $('#facPts').querySelectorAll('[data-fpdel]').forEach(function(b){b.onclick=function(){d.partners.splice(+b.getAttribute('data-fpdel'),1);save();renderPts();};});
+  }
+  function renderNotes(){
+    $('#facNotes').innerHTML=(d.notes.length?d.notes.map(function(x,i){
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;">'
+        +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;"><input data-fn="'+i+'|title" value="'+String(x.title||'').replace(/"/g,'&quot;')+'" placeholder="見出し（例：駐車場・鍵の管理）" style="flex:1;font-weight:600;"><button class="btn btn-sm btn-ghost" data-fndel="'+i+'">'+ic('trash')+'</button></div>'
+        +'<textarea data-fn="'+i+'|body" rows="2" placeholder="内容">'+esc(x.body||'')+'</textarea></div>';}).join('')
+      :'<div class="muted" style="font-size:12px;">まだ登録がありません。</div>');
+    $('#facNotes').querySelectorAll('[data-fn]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-fn').split('|');d.notes[+p[0]][p[1]]=el2.value;save();};});
+    $('#facNotes').querySelectorAll('[data-fndel]').forEach(function(b){b.onclick=function(){d.notes.splice(+b.getAttribute('data-fndel'),1);save();renderNotes();};});
+  }
+  renderDocs();renderPts();renderNotes();
+  $('#facDocAdd').onclick=function(){d.doctors.push({name:'',dept:'',doctor:'',tel:'',addr:'',kind:'かかりつけ医'});save();renderDocs();};
+  $('#facPtAdd').onclick=function(){d.partners.push({kind:'給食・ランチ',name:'',person:'',tel:'',memo:''});save();renderPts();};
+  $('#facNoteAdd').onclick=function(){d.notes.push({title:'',body:''});save();renderNotes();};
+  $('#facDocPrint').onclick=function(){
+    var body='<table><thead><tr><th>区分</th><th>医療機関名</th><th>診療科</th><th>担当医</th><th>電話番号</th><th>住所</th></tr></thead><tbody>'
+      +d.doctors.map(function(x){return '<tr><td>'+esc(x.kind||'')+'</td><td style="font-size:14px;">'+esc(x.name||'')+'</td><td>'+esc(x.dept||'')+'</td><td>'+esc(x.doctor||'')+'</td><td style="font-size:16px;font-weight:600;">'+esc(x.tel||'')+'</td><td>'+esc(x.addr||'')+'</td></tr>';}).join('')
+      +'</tbody></table><p style="margin-top:10px;">消防・救急：119　／　警察：110</p>';
+    printDoc('提携医療機関 緊急連絡先一覧',body);
+  };
+  $('#facPrint').onclick=function(){
+    var body=FAC_INFO.map(function(g){
+      var rows=g.f.filter(function(f){return String(d.info[f.k]||'').trim();}).map(function(f){return '<tr><th style="width:170px;">'+esc(f.label)+'</th><td>'+esc(d.info[f.k])+'</td></tr>';}).join('');
+      return rows?('<h2>'+esc(g.g)+'</h2><table><tbody>'+rows+'</tbody></table>'):'';
+    }).join('');
+    if(d.doctors.length)body+='<h2>提携医療機関</h2><table><thead><tr><th>区分</th><th>医療機関名</th><th>診療科</th><th>担当医</th><th>電話番号</th><th>住所</th></tr></thead><tbody>'
+      +d.doctors.map(function(x){return '<tr><td>'+esc(x.kind||'')+'</td><td>'+esc(x.name||'')+'</td><td>'+esc(x.dept||'')+'</td><td>'+esc(x.doctor||'')+'</td><td>'+esc(x.tel||'')+'</td><td>'+esc(x.addr||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    if(d.partners.length)body+='<h2>提携先・取引先</h2><table><thead><tr><th>種別</th><th>会社名</th><th>担当者</th><th>電話番号</th><th>住所・メモ</th></tr></thead><tbody>'
+      +d.partners.map(function(x){return '<tr><td>'+esc(x.kind||'')+'</td><td>'+esc(x.name||'')+'</td><td>'+esc(x.person||'')+'</td><td>'+esc(x.tel||'')+'</td><td>'+esc(x.memo||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    var notes=d.notes.filter(function(x){return (x.title||x.body);});
+    if(notes.length)body+='<h2>その他の情報</h2><table><tbody>'+notes.map(function(x){return '<tr><th style="width:170px;">'+esc(x.title||'')+'</th><td>'+esc(x.body||'').replace(/\n/g,'<br>')+'</td></tr>';}).join('')+'</tbody></table>';
+    printDoc('施設情報',body||'<p>登録された情報がありません。</p>');
   };
 }
 
