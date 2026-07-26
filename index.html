@@ -2707,7 +2707,7 @@ function trialModal(id){
 /* ========== 生徒台帳（生徒情報を1か所に集約）＋自宅マップ ==========
    拡張プロフィールは studentProfiles（この端末のブラウザ内のみ）に保存。
    ★実在の氏名・住所・口座番号などは公開ソースに入れない（サンプルのみ／口座欄は空）。将来は認証つきバックエンドで管理。 */
-var rosterSel=null, rosterTab='list', rosterMap=null;
+var rosterSel=null, rosterTab='list', rosterMap=null, rosterPinSel=null;
 var SP_GROUPS=[
   {g:'基本情報',f:[
     {k:'sid',label:'生徒番号'},{k:'schoolType',label:'スクールタイプ',opts:['','インターナショナル','プリスクール','幼稚園','保育園','学童']},
@@ -2847,6 +2847,7 @@ function rosterMapHtml(kids){
     +'<span style="font-weight:700;">'+ic('map')+'自宅マップ</span>'
     +'<span class="muted" style="font-size:12px;">🏫 スクール　🏠 生徒自宅　🚩 避難場所</span><span style="flex:1;"></span>'
     +'<span class="muted" style="font-size:12px;">自宅ピン設定：</span><select id="rmPinSel" style="width:170px;"><option value="">（生徒を選ぶ）</option>'+kids.map(function(c){return '<option value="'+c.id+'">'+esc(childName(c))+'</option>';}).join('')+'</select>'
+    +'<button class="btn btn-sm" id="rmPinDel" style="display:none;">'+ic('trash')+'ピンを削除</button>'
     +'<button class="btn btn-sm" id="rmClearPin">選択解除</button></div>'
     +'<div class="muted" style="font-size:12px;margin:-4px 2px 10px;">'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' 生徒を選んで地図をクリックすると自宅ピンを置けます（住所を外部に送信しません）。学校→避難所の経路確認は監査でも使えます。'+(noloc?'　未設定：'+noloc+'名':'')+'</div>'
     +'<div id="rosterMap" style="height:500px;width:100%;border-radius:14px;border:1px solid var(--line);z-index:0;"></div>'
@@ -2864,14 +2865,42 @@ function wireRosterMap(kids){
   L.marker([cfg.school.lat,cfg.school.lng],{icon:pin('🏫')}).addTo(map).bindPopup('<b>'+esc(cfg.school.name)+'</b>');
   (cfg.shelters||[]).forEach(function(sh){L.marker([sh.lat,sh.lng],{icon:pin('🚩')}).addTo(map).bindPopup('<b>'+esc(sh.name)+'</b><br>'+esc(sh.type||''));});
   var bounds=[[cfg.school.lat,cfg.school.lng]];
-  kids.forEach(function(c){var p=spGet(c.id);if(p.lat!=null&&p.lng!=null){L.marker([p.lat,p.lng],{icon:pin('🏠')}).addTo(map).bindPopup('<b>'+esc(childName(c))+'</b><br>'+esc(p.address||''));bounds.push([p.lat,p.lng]);}});
+  var kidMarkers={};
+  kids.forEach(function(c){var p=spGet(c.id);if(p.lat!=null&&p.lng!=null){kidMarkers[c.id]=L.marker([p.lat,p.lng],{icon:pin('🏠')}).addTo(map).bindPopup('<b>'+esc(childName(c))+'</b><br>'+esc(p.address||''));bounds.push([p.lat,p.lng]);}});
   setTimeout(function(){map.invalidateSize();if(bounds.length>1)map.fitBounds(bounds,{padding:[45,45],maxZoom:16});else map.setView([cfg.school.lat,cfg.school.lng],15);},160);
-  map.on('click',function(e){
-    var id=$('#rmPinSel').value;
-    if(!id){$('#rmPinMsg').textContent='先に上で生徒を選んでください。';return;}
-    id=+id;var obj=spGet(id);obj.lat=+e.latlng.lat.toFixed(6);obj.lng=+e.latlng.lng.toFixed(6);spSet(id,obj);
-    $('#rmPinMsg').textContent=childName(DB.contacts.filter(function(x){return x.id===id;})[0])+'の自宅ピンを設定しました。';
+  var sel=$('#rmPinSel');
+  if(sel&&rosterPinSel)sel.value=String(rosterPinSel);
+  function nameOf(id){var c=DB.contacts.filter(function(x){return x.id===+id;})[0];return c?childName(c):'';}
+  function updateSelUI(){
+    var id=sel?sel.value:'';
+    rosterPinSel=id?+id:null;
+    box.style.cursor=id?'crosshair':'';
+    var msg=$('#rmPinMsg'),del=$('#rmPinDel');
+    if(!id){if(msg)msg.innerHTML='<span class="muted">生徒を選ぶと、地図をクリックして自宅ピンを置けます。</span>';if(del)del.style.display='none';return;}
+    var p=spGet(+id),has=(p.lat!=null&&p.lng!=null);
+    if(del)del.style.display=has?'':'none';
+    if(msg)msg.innerHTML='<span style="color:#0F6E56;font-weight:600;">'+esc(nameOf(id))+'</span> を選択中。地図をクリックすると'+(has?'自宅ピンを置き直せます':'自宅ピンを置けます')+'。';
+    if(has){map.setView([p.lat,p.lng],16);if(kidMarkers[+id])kidMarkers[+id].openPopup();}
+  }
+  if(sel)sel.onchange=updateSelUI;
+  var clr=$('#rmClearPin');
+  if(clr)clr.onclick=function(){if(sel)sel.value='';rosterPinSel=null;updateSelUI();};
+  updateSelUI();
+  var delBtn=$('#rmPinDel');
+  if(delBtn)delBtn.onclick=function(){
+    var id=sel?sel.value:'';if(!id)return;
+    if(!confirm(nameOf(id)+'の自宅ピンを削除しますか？'))return;
+    var obj=spGet(+id);delete obj.lat;delete obj.lng;spSet(+id,obj);
     wireRosterMap(enrolled());
+    if($('#rmPinMsg'))$('#rmPinMsg').textContent=nameOf(id)+'の自宅ピンを削除しました。';
+  };
+  map.on('click',function(e){
+    var id=sel?sel.value:'';
+    if(!id){$('#rmPinMsg').innerHTML='<span style="color:#A32D2D;font-weight:600;">先に上で生徒を選んでください。</span>';return;}
+    id=+id;var obj=spGet(id);obj.lat=+e.latlng.lat.toFixed(6);obj.lng=+e.latlng.lng.toFixed(6);spSet(id,obj);
+    rosterPinSel=id;
+    wireRosterMap(enrolled());
+    if($('#rmPinMsg'))$('#rmPinMsg').innerHTML='<span style="color:#0F6E56;font-weight:600;">'+esc(nameOf(id))+' の自宅ピンを設定しました。</span>';
   });
 }
 
