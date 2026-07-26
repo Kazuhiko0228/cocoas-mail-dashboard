@@ -200,6 +200,7 @@
       <a data-go="carerec">{ic:report}保育記録</a>
       <a data-go="curriculum">{ic:book}月間カリキュラム</a>
       <a data-go="drill">{ic:shield}避難訓練</a>
+      <a data-go="bouka">{ic:alert}防火管理台帳・消火訓練</a>
       <a data-go="shift">{ic:tableg}シフト表</a>
       <a data-go="expense">{ic:yen}経費管理</a>
       <a data-go="docgen">{ic:fileplus}書類作成</a>
@@ -243,6 +244,7 @@
       <section data-page="records" hidden></section>
       <section data-page="carerec" hidden></section>
       <section data-page="drill" hidden></section>
+      <section data-page="bouka" hidden></section>
       <section data-page="shift" hidden></section>
       <section data-page="expense" hidden></section>
       <section data-page="docgen" hidden></section>
@@ -512,8 +514,8 @@ var AUDIT_CATS=[
   ]},
   {cat:'③ 非常災害対策',items:[
     {key:'kunren',name:'消火・避難訓練 実施記録',place:'消防設備届出ファイル',when:'運営中',sys:'drill'},
-    {key:'shobo',name:'消防計画・避難確保計画',place:'消防設備届出ファイル',when:'年度前',sys:'docs'},
-    {key:'kinkyu_h',name:'保護者の緊急連絡票',place:'保護者 名簿ファイル',when:'年度前',sys:'contacts'},
+    {key:'shobo',name:'防火管理台帳・消火訓練 計画/実施記録',place:'システム内（防火管理台帳・消火訓練）',when:'運営中',sys:'bouka'},
+    {key:'kinkyu_h',name:'保護者の緊急連絡票',place:'システム内（生徒台帳）',when:'年度前',sys:'roster'},
     {key:'kinkyu_b',name:'病院等の緊急連絡先一覧',place:'電話横 壁 掲示',when:'年度前',sys:'docs'},
     {key:'anzen',name:'安全点検チェックシート',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'baisho',name:'賠償責任保険証書',place:'—',when:'年度前',sys:'docs'}
@@ -531,7 +533,7 @@ var AUDIT_CATS=[
     {key:'kondate',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'}
   ]}
 ];
-var SYS_PAGE={contacts:'連絡先',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
+var SYS_PAGE={contacts:'連絡先',roster:'生徒台帳',bouka:'防火管理台帳',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
 
 /* generic store helpers */
 function stGet(key,def){try{var v=JSON.parse(localStorage.getItem('cocoas_'+key));return v==null?def:v;}catch(e){return def;}}
@@ -564,11 +566,11 @@ var HOSP_DEFAULT=[
   {id:3,name:'埼玉県救急電話相談',type:'救急相談',tel:'#7119'},
   {id:4,name:'与野消防署',type:'消防・救急',tel:'119'}
 ];
-var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','消防計画・避難確保計画','損害賠償保険証書','献立表'];
+var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','損害賠償保険証書','献立表'];
 /* 標準の枠に加えて、園ごとに書類を追加できる（docSlotsCustom） */
 function docSlotsCustom(){return stGet('docSlotsCustom',[]);}
 function docSlotsAll(){return DOC_SLOTS.concat(docSlotsCustom());}
-var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',shobo:'消防計画・避難確保計画',baisho:'損害賠償保険証書',kondate:'献立表'};
+var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表'};
 var REC_DAILY=['登園（出席）','安全点検','午睡チェック','健康チェック','業務日報・保育日誌'];
 var REC_CARE=['身体測定','ヒヤリハット・怪我','生徒個人発達記録'];
 function recPageOf(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
@@ -622,7 +624,14 @@ function auditDataInfo(key){
     case 'shift': return Object.keys(stGet('shifts',{})).length+'ヶ月分あり';
     case 'kinkyu_b': return stGet('hospitals',HOSP_DEFAULT).length+'件登録済み';
     case 'jido_meibo': return enrolled().length+'名登録済み';
-    case 'kinkyu_h': return enrolled().length+'名分あり';
+    case 'kinkyu_h': {
+      var withE=enrolled().filter(function(c){var p=(typeof spStore==='function')?(spStore()[c.id]||{}):{};return p.emg1&&p.emg2;}).length;
+      return enrolled().length+'名中 '+withE+'名が緊急連絡先2件まで登録済み';
+    }
+    case 'shobo': {
+      var bd=boukaGet(curFY()),n=BOUKA_MONTHS.filter(function(mo){return bd.rows[mo].date;}).length;
+      return curFY()+'年度 '+n+' / 12ヶ月分の記録あり';
+    }
     case 'shukkin': {
       var tc=stGet('timecards',{})[todayISO().slice(0,7)]||{};
       var n=0;Object.keys(tc).forEach(function(sid){n+=Object.keys(tc[sid]||{}).length;});
@@ -807,13 +816,13 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- dashboard ---------- */
@@ -1802,6 +1811,7 @@ function renderAudit(){
     if(v==='staff:qual'){staffFocus='qual';go('staff');return;}
     if(v==='staff:kenshin'){staffFocus='kenshin';go('staff');return;}
     if(v==='timecard'){shiftTab='time';go('shift');return;}
+    if(v==='roster'){rosterTab='profile';go('roster');return;}
     staffFocus=null;go(v);
   };});
   $('#auPrint').onclick=function(){
@@ -2865,7 +2875,7 @@ function renderDocs(){
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
   {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
-  {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
+  {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
@@ -3850,6 +3860,88 @@ function expCash(mk){
       +'<tr style="font-weight:700;"><td>差額（Ⅲ-Ⅳ）使途不明金</td><td style="text-align:right;">'+Number(unknown).toLocaleString()+' 円</td></tr></tbody></table>'
       +'<p style="margin-top:16px;">作成者　'+esc(d.by||'　　　　')+'　　　　承認者　'+esc(d.approver||'　　　　')+'</p>';
     printDoc('金種表（'+mk+'）',body);
+  };
+}
+
+/* ========== 防火管理台帳・消火訓練 手順/記録（毎月1回実施） ==========
+   実物様式に合わせて、年度ごとに4月〜3月の12ヶ月分を記録・出力できる。
+   データ: bouka = { 'YYYY': {rows:{ '4':{date,content,place,time,checks:{1..5},note,summary} , ... }} } */
+var BOUKA_MONTHS=[4,5,6,7,8,9,10,11,12,1,2,3];
+var BOUKA_CHECK_LABELS=['①消火器のチェック…配置や残量、動作の確認','②救急箱のチェック…中身の確認','③AED・自動火災報知設備のチェック…配置や電池の消耗残量、動作の確認','④防火扉のチェック…防火扉のまえに物がないかどうか、開閉できるかどうか','⑤避難グッズのチェック…配置、中身の確認'];
+var BOUKA_CONTENT_CYCLE=['消火器の使い方を全体共有・デモンストレーション。','救急箱の中身の補充と使い方チェック。','AED使用方法の共有・デモンストレーション。'];
+var boukaYear=null,boukaTab='daichou';
+function boukaFY(){if(boukaYear==null)boukaYear=curFY();return boukaYear;}
+function boukaAll(){return stGet('bouka',{});}
+function boukaGet(fy){
+  var a=boukaAll(),d=a[fy];
+  if(!d){
+    d={rows:{}};
+    BOUKA_MONTHS.forEach(function(mo,i){d.rows[mo]={date:'',content:BOUKA_CONTENT_CYCLE[i%3],place:'園内（エントランス前）',time:'',checks:{},note:'',summary:''};});
+  }
+  BOUKA_MONTHS.forEach(function(mo,i){if(!d.rows[mo])d.rows[mo]={date:'',content:BOUKA_CONTENT_CYCLE[i%3],place:'園内（エントランス前）',time:'',checks:{},note:'',summary:''};if(!d.rows[mo].checks)d.rows[mo].checks={};});
+  return d;
+}
+function boukaSet(fy,d){var a=boukaAll();a[fy]=d;stSet('bouka',a);}
+function boukaMonthYear(fy,mo){return (mo>=4?fy:fy+1);}
+function renderBouka(){
+  var fy=boukaFY(),d=boukaGet(fy),s=$('section[data-page="bouka"]');
+  function save(){boukaSet(fy,d);}
+  var fys=[curFY()-1,curFY(),curFY()+1];
+  var doneN=BOUKA_MONTHS.filter(function(mo){return d.rows[mo].date;}).length;
+  var head='<div class="card" style="margin-bottom:14px;">'+recHead('防火管理台帳・消火訓練 記録（毎月1回実施）',
+      '<select id="bkYear" style="width:140px;">'+fys.map(function(y){return '<option value="'+y+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>'
+      +'<span class="tag" style="background:#EAF3DE;color:#27500A;">実施済 '+doneN+' / 12</span>')
+    +'<div class="chips" style="margin:0;">'+[['daichou','防火管理台帳'],['kunren','消火訓練 手順・記録']].map(function(t){return '<span class="chip'+(t[0]===boukaTab?' on':'')+'" data-bktab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>';
+  var body;
+  if(boukaTab==='daichou'){
+    body='<div class="card">'+recHead('防火管理台帳','<button class="btn btn-sm btn-primary" id="bkPrintD">'+ic('printer')+'台帳を出力</button>')
+      +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">'+BOUKA_CHECK_LABELS.map(function(l){return esc(l);}).join('<br>')+'</div>'
+      +'<div class="scrollx"><table><thead><tr><th style="width:120px;">日付</th><th>内容</th>'
+        +[1,2,3,4,5].map(function(n){return '<th style="width:44px;text-align:center;">'+['①','②','③','④','⑤'][n-1]+'</th>';}).join('')
+        +'<th>備考</th></tr></thead><tbody>'
+      +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
+        return '<tr><td class="row-name" style="white-space:nowrap;">'+mo+'月<div><input type="date" data-bk="'+mo+'|date" value="'+(r.date||'')+'" style="width:140px;"></div></td>'
+          +'<td><input data-bk="'+mo+'|content" value="'+String(r.content||'').replace(/"/g,'&quot;')+'"></td>'
+          +[1,2,3,4,5].map(function(n){return '<td style="text-align:center;"><input type="checkbox" data-bkc="'+mo+'|'+n+'"'+(r.checks[n]?' checked':'')+' style="width:auto;"></td>';}).join('')
+          +'<td><input data-bk="'+mo+'|note" value="'+String(r.note||'').replace(/"/g,'&quot;')+'"></td></tr>';}).join('')
+      +'</tbody></table></div></div>';
+  }else{
+    body='<div class="card">'+recHead('消火訓練　手順・記録','<button class="btn btn-sm btn-primary" id="bkPrintK">'+ic('printer')+'記録を出力</button>')
+      +'<div class="muted" style="margin-bottom:10px;">毎月1回実施。実施場所とタイム（所要分）、概要を記録します。</div>'
+      +'<div class="scrollx"><table><thead><tr><th style="width:120px;">日付</th><th>内容</th><th style="width:170px;">実施場所</th><th style="width:90px;">タイム</th><th>概要</th></tr></thead><tbody>'
+      +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
+        return '<tr><td class="row-name" style="white-space:nowrap;">'+mo+'月<div><input type="date" data-bk="'+mo+'|date" value="'+(r.date||'')+'" style="width:140px;"></div></td>'
+          +'<td><input data-bk="'+mo+'|content" value="'+String(r.content||'').replace(/"/g,'&quot;')+'"></td>'
+          +'<td><input data-bk="'+mo+'|place" value="'+String(r.place||'').replace(/"/g,'&quot;')+'"></td>'
+          +'<td><input data-bk="'+mo+'|time" value="'+String(r.time||'').replace(/"/g,'&quot;')+'" placeholder="例：5" style="text-align:right;"> 分</td>'
+          +'<td><input data-bk="'+mo+'|summary" value="'+String(r.summary||'').replace(/"/g,'&quot;')+'"></td></tr>';}).join('')
+      +'</tbody></table></div></div>';
+  }
+  s.innerHTML=head+body;
+  $('#bkYear').onchange=function(e){boukaYear=+e.target.value;renderBouka();};
+  s.querySelectorAll('[data-bktab]').forEach(function(b){b.onclick=function(){boukaTab=b.getAttribute('data-bktab');renderBouka();};});
+  s.querySelectorAll('[data-bk]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-bk').split('|');d.rows[p[0]][p[1]]=el2.value;save();};});
+  s.querySelectorAll('[data-bkc]').forEach(function(cb){cb.onchange=function(){var p=cb.getAttribute('data-bkc').split('|');d.rows[p[0]].checks[p[1]]=cb.checked;save();};});
+  if($('#bkPrintD'))$('#bkPrintD').onclick=function(){
+    var body2='<p style="text-align:center;font-size:20px;font-weight:700;">防火管理台帳</p><p style="text-align:right;">毎月1回実施</p>'
+      +'<p style="font-size:12px;line-height:1.9;">'+BOUKA_CHECK_LABELS.map(function(l){return esc(l);}).join('<br>')+'</p>'
+      +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
+      +'<table><thead><tr><th style="width:52px;">日付</th><th>内容</th>'+[1,2,3,4,5].map(function(n){return '<th style="width:38px;">'+['①','②','③','④','⑤'][n-1]+'</th>';}).join('')+'<th style="width:150px;">備考</th></tr></thead><tbody>'
+      +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
+        return '<tr><td>'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;">'+esc(r.content||'')+'</td>'
+          +[1,2,3,4,5].map(function(n){return '<td style="text-align:center;">'+(r.checks[n]?'✓':'')+'</td>';}).join('')
+          +'<td style="font-size:10px;">'+esc(r.note||'')+'</td></tr>';}).join('')
+      +'</tbody></table>';
+    printDoc('防火管理台帳（'+fy+'年度）',body2);
+  };
+  if($('#bkPrintK'))$('#bkPrintK').onclick=function(){
+    var body3='<p style="text-align:center;font-size:20px;font-weight:700;">消火訓練　手順・記録</p>'
+      +'<p>'+fy+'年度　'+esc(SET.school||'')+'　　<span style="float:right;">毎月1回実施</span></p>'
+      +'<table><thead><tr><th style="width:52px;">日付</th><th>内容</th><th style="width:130px;">実施場所</th><th style="width:70px;">タイム</th><th style="width:180px;">概要</th></tr></thead><tbody>'
+      +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
+        return '<tr><td>'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;">'+esc(r.content||'')+'</td><td style="font-size:10px;text-align:center;">'+esc(r.place||'')+'</td><td style="text-align:center;">'+(r.time?esc(r.time)+' 分':'分')+'</td><td style="font-size:10px;">'+esc(r.summary||'')+'</td></tr>';}).join('')
+      +'</tbody></table>';
+    printDoc('消火訓練 手順・記録（'+fy+'年度）',body3);
   };
 }
 
