@@ -2711,20 +2711,20 @@ var rosterSel=null, rosterTab='list', rosterMap=null;
 var SP_GROUPS=[
   {g:'基本情報',f:[
     {k:'sid',label:'生徒番号'},{k:'schoolType',label:'スクールタイプ',opts:['','インターナショナル','プリスクール','幼稚園','保育園','学童']},
-    {k:'klass',label:'クラス',opts:['','Pre','Kinder','一般']},
     {k:'lastName',label:'お子様 姓'},{k:'firstName',label:'お子様 名'},
-    {k:'lastKana',label:'姓（フリガナ）'},{k:'firstKana',label:'名（フリガナ）'},{k:'romaji',label:'英語表記'},
-    {k:'sex',label:'性別',opts:['','男の子','女の子']},{k:'blood',label:'血液型',opts:['','不明','A','B','O','AB']},
-    {k:'grade',label:'学年'},{k:'dob',label:'生年月日',type:'date'},{k:'prevSchool',label:'在籍中の園・小学校等'}
+    {k:'lastKana',label:'姓（フリガナ）'},{k:'firstKana',label:'名（フリガナ）'},
+    {k:'romaji',label:'英語表記（フルネーム）',wide:true,ph:'例：Kokoro Takahashi'},
+    {k:'dob',label:'生年月日',type:'date'},{k:'klass',label:'クラス',opts:['','Pre','Kinder','一般']},
+    {k:'sex',label:'性別',opts:['','男の子','女の子']},{k:'blood',label:'血液型',opts:['','不明','A','B','O','AB']}
   ]},
   {g:'入会・在籍',f:[{k:'applyDate',label:'お申し込み日',type:'date'},{k:'joinDate',label:'入会日',type:'date'}]},
   {g:'住所・自宅（地図に使用）',f:[{k:'zip',label:'郵便番号'},{k:'address',label:'住所',wide:true},{k:'telHome',label:'TEL（自宅）'}]},
   {g:'お父様',f:[
-    {k:'fName',label:'氏名'},{k:'fKana',label:'フリガナ'},{k:'fTel',label:'TEL（携帯）'},{k:'fMail',label:'メール'},
+    {k:'fName',label:'氏名'},{k:'fKana',label:'フリガナ'},{k:'fTel',label:'TEL（携帯）'},{k:'fMail',label:'メールアドレス'},
     {k:'fJob',label:'職業'},{k:'fWork',label:'勤務先名'},{k:'fWorkAddr',label:'勤務先住所',wide:true},{k:'fWorkTel',label:'TEL（勤務先）'}
   ]},
   {g:'お母様',f:[
-    {k:'mName',label:'氏名'},{k:'mKana',label:'フリガナ'},{k:'mTel',label:'TEL（携帯）'},{k:'mMail',label:'メール'},
+    {k:'mName',label:'氏名'},{k:'mKana',label:'フリガナ'},{k:'mTel',label:'TEL（携帯）'},{k:'mMail',label:'メールアドレス'},
     {k:'mJob',label:'職業'},{k:'mWork',label:'勤務先名'},{k:'mWorkAddr',label:'勤務先住所',wide:true},{k:'mWorkTel',label:'TEL（勤務先）'}
   ]},
   {g:'スクール・緊急連絡',f:[
@@ -2754,7 +2754,7 @@ var DEFAULT_MAP={school:{lat:35.8817,lng:139.6297,name:'COCOAS KIDS 大宮与野
     {name:'広域避難場所（例：総合公園）',lat:35.8720,lng:139.6220,type:'広域避難場所'}
   ]};
 var SP_SEED={
-  11:{sid:'CKI-P01',schoolType:'インターナショナル',romaji:'Kokoro',sex:'女の子',blood:'O',prevSchool:'—',zip:'338-0001',address:'さいたま市中央区（サンプル1-1）',telHome:'048-000-0011',fName:'高橋 健',fTel:'090-2001-1001',fJob:'会社員',allergy:'卵',doctor:'与野こどもクリニック（例）',normalTemp:'36.6',febrile:'有',emg1:'090-2001-1001',emg1rel:'父',emg2:'090-2001-0001',emg2rel:'母',lat:35.8852,lng:139.6362},
+  11:{sid:'CKI-P01',schoolType:'インターナショナル',romaji:'Kokoro',sex:'女の子',blood:'O',zip:'338-0001',address:'さいたま市中央区（サンプル1-1）',telHome:'048-000-0011',fName:'高橋 健',fTel:'090-2001-1001',fJob:'会社員',allergy:'卵',doctor:'与野こどもクリニック（例）',normalTemp:'36.6',febrile:'有',emg1:'090-2001-1001',emg1rel:'父',emg2:'090-2001-0001',emg2rel:'母',lat:35.8852,lng:139.6362},
   12:{sid:'CKI-P02',schoolType:'インターナショナル',romaji:'Hiroto',sex:'男の子',blood:'A',zip:'338-0002',address:'さいたま市中央区（サンプル2-2）',telHome:'048-000-0012',allergy:'なし',doctor:'なし',normalTemp:'36.8',emg1:'090-2002-0002',emg1rel:'母',lat:35.8792,lng:139.6212},
   13:{sid:'CKI-P03',schoolType:'インターナショナル',romaji:'Mio',sex:'女の子',blood:'B',zip:'338-0003',address:'さいたま市中央区（サンプル3-3）',telHome:'048-000-0013',allergy:'そば・落花生',doctor:'中央小児科（例）',normalTemp:'36.5',respiratory:'有',emg1:'090-2003-0003',emg1rel:'母',lat:35.8735,lng:139.6305},
   14:{sid:'CKI-K01',schoolType:'インターナショナル',romaji:'Yuna',sex:'女の子',blood:'AB',zip:'338-0004',address:'さいたま市中央区（サンプル4-4）',telHome:'048-000-0014',allergy:'なし',doctor:'よの耳鼻科（例）',normalTemp:'36.7',emg1:'090-2004-0004',emg1rel:'母',lat:35.8882,lng:139.6282},
@@ -2814,7 +2814,7 @@ function rosterProfile(kids){
         var inp;
         if(f.opts)inp='<select data-rp="'+f.k+'">'+f.opts.map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
         else if(f.type==='textarea')inp='<textarea data-rp="'+f.k+'" rows="2">'+esc(v)+'</textarea>';
-        else inp='<input data-rp="'+f.k+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末内のみ）"':'')+'>';
+        else inp='<input data-rp="'+f.k+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末内のみ）"':(f.ph?' placeholder="'+f.ph+'"':''))+'>';
         return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+(f.k==='dob'&&p.dob?'　<span class="muted">'+spAge(p.dob)+'</span>':'')+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
       }).join('')
       +'</div></div>';
