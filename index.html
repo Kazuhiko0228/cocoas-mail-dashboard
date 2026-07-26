@@ -623,7 +623,15 @@ function auditDataInfo(key){
     case 'kinkyu_b': return stGet('hospitals',HOSP_DEFAULT).length+'件登録済み';
     case 'jido_meibo': return enrolled().length+'名登録済み';
     case 'kinkyu_h': return enrolled().length+'名分あり';
-    case 'roudou_meibo': case 'shikaku': case 'kenshin': return DB.staff.length+'名登録済み';
+    case 'roudou_meibo': return DB.staff.length+'名登録済み';
+    case 'shikaku': {
+      var withDoc=DB.staff.filter(function(st){return (typeof staffDocsOf==='function')&&staffDocsOf(st.id).length;}).length;
+      return DB.staff.length+'名登録済み'+(withDoc?'／証明書の控え '+withDoc+'名分あり':'／証明書の控え未登録');
+    }
+    case 'kenshin': {
+      var withK=DB.staff.filter(function(st){return st.kenshinDate;}).length;
+      return DB.staff.length+'名登録済み／健診日あり '+withK+'名';
+    }
     case 'shidou': case 'daily': return '今月分あり';
     default:
       var slot=AUDIT_DOC_SLOT[key];
@@ -1638,6 +1646,11 @@ function tenureText(joinDate,leaveDate){
   return r.y+'年'+r.m+'ヶ月';
 }
 function ageOf(dob){var r=yearsBetween(dob);return r?r.y+'歳':'';}
+/* 職員の身分証・証明書の保管（この端末内にのみ保存） */
+function staffDocs(){return stGet('staffDocs',{});}
+function staffDocsOf(id){return staffDocs()[id]||[];}
+function staffDocsSet(id,list){var a=staffDocs();if(list&&list.length)a[id]=list;else delete a[id];stSet('staffDocs',a);}
+var STAFF_DOC_KINDS=['身分証（運転免許証など）','保育士証','幼稚園教諭免許','その他の資格証','健康診断結果','雇用契約書','その他'];
 function staffModal(id){
   var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:'',baseShift:'',dob:'',sex:'',spouse:'',zip:'',address:'',tel:'',emgName:'',emgRel:'',emgTel:'',leaveDate:'',note:''};
   var emOpts=['正社員','契約社員','パート','業務委託'].map(function(o){return '<option'+(o===x.employ?' selected':'')+'>'+o+'</option>';}).join('');
@@ -1653,9 +1666,49 @@ function staffModal(id){
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>緊急連絡先 電話番号</label><input id="st_emgTel" value="'+(x.emgTel||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>入社日<span id="st_tenLab" class="muted"></span></label><input type="date" id="st_join" value="'+(x.joinDate||'')+'"></div><div class="field"><label>退職日（在職中は空欄）</label><input type="date" id="st_leave" value="'+(x.leaveDate||'')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+(x.kenshinDate||'')+'"></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+o+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
     '<div class="field"><label>備考</label><input id="st_note" value="'+(x.note||'').replace(/"/g,'&quot;')+'"></div>'+
+    (id?'<div class="field"><label>身分証・証明書の保管</label><div id="st_docs"></div>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">'
+      +'<select id="st_docKind" style="width:190px;">'+STAFF_DOC_KINDS.map(function(k){return '<option>'+k+'</option>';}).join('')+'</select>'
+      +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'画像を選ぶ<input type="file" id="st_docFile" accept="image/*" style="display:none;"></label>'
+      +'<input id="st_docUrl" placeholder="またはDriveのURLを貼り付け" style="flex:1;min-width:180px;">'
+      +'<button type="button" class="btn btn-sm" id="st_docAdd">'+ic('plus')+'追加</button></div>'
+      +'<div class="muted" style="font-size:11px;margin-top:6px;">画像はこの端末内にのみ保存されます（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。</div></div>':'')+
     '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">氏名・住所・連絡先などの個人情報はこの端末内にのみ保存されます。監査で確認される職員名簿の項目に対応しています。</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="st_cancel">キャンセル</button><button class="btn btn-primary" id="st_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
+  function renderStDocs(){
+    if(!id)return;
+    var box=$('#st_docs');if(!box)return;
+    var list=staffDocsOf(id);
+    box.innerHTML=list.length?list.map(function(d,i){
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;">'
+        +(d.img?'<img src="'+d.img+'" style="width:52px;height:36px;object-fit:cover;border-radius:4px;">':'<span style="width:52px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:4px;">'+ic('doc')+'</span>')
+        +'<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">'+esc(d.kind||'')+'</div>'
+        +(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener" class="row-sub" style="color:var(--teal);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap;">'+esc(d.url)+'</a>':'<div class="row-sub">'+(d.img?'画像を保管':'')+'　'+esc(d.at||'')+'</div>')
+        +'</div><button type="button" class="btn btn-sm btn-ghost" data-stdocdel="'+i+'">'+ic('trash')+'</button></div>';
+    }).join(''):'<div class="muted" style="font-size:12px;">まだ登録がありません。</div>';
+    box.querySelectorAll('[data-stdocdel]').forEach(function(b){b.onclick=function(){
+      var l=staffDocsOf(id);l.splice(+b.getAttribute('data-stdocdel'),1);staffDocsSet(id,l);renderStDocs();
+    };});
+  }
+  if(id){
+    renderStDocs();
+    var pendingImg=null;
+    $('#st_docFile').onchange=function(e){
+      var fl=e.target.files[0];if(!fl)return;
+      logoResize(fl,function(err,uri){if(err){alert(err.message);return;}pendingImg=uri;alert('画像を読み込みました。「追加」を押すと保管されます。');});
+    };
+    $('#st_docAdd').onclick=function(){
+      var kind=$('#st_docKind').value,url=$('#st_docUrl').value.trim();
+      if(!pendingImg&&!url){alert('画像を選ぶか、URLを入力してください');return;}
+      var l=staffDocsOf(id);
+      try{
+        l.push({kind:kind,img:pendingImg||'',url:url,at:todayISO()});
+        staffDocsSet(id,l);
+      }catch(e){alert('保存できませんでした（保存容量が不足している可能性があります）');return;}
+      pendingImg=null;$('#st_docUrl').value='';renderStDocs();
+    };
+  }
   function updLabels(){
     var d=$('#st_dob').value,j=$('#st_join').value,lv=$('#st_leave').value;
     $('#st_ageLab').textContent=d?('　'+ageOf(d)):'';
@@ -1695,7 +1748,7 @@ function renderAudit(){
     AUDIT_CATS.map(function(c){return '<div class="card" style="margin-bottom:14px;"><h3>'+c.cat+'</h3><table><tbody>'+
       c.items.map(function(it){var cur=stt[it.key];var opt=['未','対応中','済'].map(function(o){return '<option'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('');var wc=it.when==='年度前'?'background:#E6F1FB;color:#0C447C':'background:#FAEEDA;color:#854F0B';return '<tr>'+
         '<td style="width:110px;"><select data-st="'+it.key+'" style="background:'+STO[cur].bg+';color:'+STO[cur].fg+';font-weight:500;">'+opt+'</select></td>'+
-        '<td><div class="row-name">'+it.name+'</div><div class="row-sub">保管：'+it.place+'</div></td>'+
+        '<td><div class="row-name">'+it.name+'</div><div class="row-sub">保管：'+it.place+'</div>'+(function(){var di=auditDataInfo(it.key);return di?'<div class="row-sub" style="color:#0F6E56;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
         '<td style="width:130px;text-align:right;">'+(it.sys?'<button class="btn btn-sm" data-sys="'+it.sys+'">'+SYS_PAGE[it.sys]+' →</button>':'<span class="row-sub">'+(it.key==='gyakutai'?'下部で実施':'外部管理')+'</span>')+'</td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
