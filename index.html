@@ -125,8 +125,13 @@
   .shiftcell.s遅{background:#E6F1FB;color:#0C447C;}
   .shiftcell.s休{background:#F1EFE8;color:#90998f;}
   #printArea{display:none;}
+  @page{size:A4 landscape;margin:10mm;}
   @media print{
     .app,#modalRoot,#aiFab,#aiPanel{display:none !important;}
+    #printArea .shift-print table{table-layout:fixed;width:100%;font-size:8.5px;}
+    #printArea .shift-print th,#printArea .shift-print td{padding:2px 1px;text-align:center;overflow:hidden;}
+    #printArea .shift-print th.nm,#printArea .shift-print td.nm{width:78px;text-align:left;font-size:9px;white-space:nowrap;}
+    #printArea .shift-print th.we,#printArea .shift-print td.we{background:#f0f0f0;}
     #printArea{display:block;position:absolute;left:0;top:0;width:100%;background:#fff;color:#000;font-size:12px;}
     #printArea h1{font-size:18px;margin:0 0 4px;}
     #printArea h2{font-size:14px;margin:14px 0 6px;}
@@ -2198,13 +2203,14 @@ var shiftMonth=null;
 function renderShift(){
   if(!shiftMonth)shiftMonth=todayISO().slice(0,7);
   var all=stGet('shifts',{});
-  var m=all[shiftMonth]||{pat:{'早':'8:00-17:00','日':'8:45-17:45','遅':'9:30-18:30'},cells:{}};
+  var m=all[shiftMonth]||{pat:{'早':'8:00-17:00','日':'8:45-17:45','遅':'9:30-18:30'},brk:{'早':'12:00-13:00','日':'12:30-13:30','遅':'13:00-14:00'},cells:{}};
+  if(!m.brk)m.brk={'早':'12:00-13:00','日':'12:30-13:30','遅':'13:00-14:00'};
   var p=shiftMonth.split('-'),y=+p[0],mo=+p[1],dim=new Date(y,mo,0).getDate();
   var s=$('section[data-page="shift"]');
   var days=[];for(var i=1;i<=dim;i++)days.push(i);
   s.innerHTML='<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+shiftMonth+'" style="width:160px;"><button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm btn-primary" id="shPrint">'+ic('printer')+'ワンクリック出力</button>')+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">'+
-      ['早','日','遅'].map(function(k){return '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+k+'" value="'+m.pat[k]+'" style="width:110px;font-size:12px;padding:5px 8px;"></span>';}).join('')+
+      ['早','日','遅'].map(function(k){return '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+k+'" value="'+m.pat[k]+'" style="width:105px;font-size:12px;padding:5px 8px;" title="勤務時間"><span class="muted" style="font-size:11px;">休憩</span><input data-brk="'+k+'" value="'+(m.brk[k]||'')+'" style="width:100px;font-size:12px;padding:5px 8px;" placeholder="12:00-13:00" title="休憩時間"></span>';}).join('')+
       '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s休" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">休</span>休み</span>'+
       '<span class="muted">セルをタップ：早 → 日 → 遅 → 休 → 消去</span></div>'+
     '<div class="scrollx"><table><thead><tr><th style="min-width:110px;">職員</th>'+days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();return '<th style="padding:4px 2px;font-size:10px;text-align:center;'+(wd===0?'color:#A32D2D;':wd===6?'color:#185FA5;':'')+'">'+dd+'<br>'+WD[wd]+'</th>';}).join('')+'</tr></thead><tbody>'+
@@ -2222,6 +2228,7 @@ function renderShift(){
     save();renderShift();
   };
   s.querySelectorAll('[data-pat]').forEach(function(inp){inp.onchange=function(){m.pat[inp.getAttribute('data-pat')]=inp.value;save();};});
+  s.querySelectorAll('[data-brk]').forEach(function(inp){inp.onchange=function(){m.brk[inp.getAttribute('data-brk')]=inp.value;save();};});
   s.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){
     var pp=b.getAttribute('data-sc').split('|'),sid=pp[0],dd=pp[1];
     var order=['','早','日','遅','休'];if(!m.cells[sid])m.cells[sid]={};
@@ -2230,9 +2237,15 @@ function renderShift(){
     save();b.className='shiftcell s'+(nx||'');b.textContent=nx||'・';
   };});
   $('#shPrint').onclick=function(){
-    var body='<table><thead><tr><th>職員</th>'+days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();return '<th style="font-size:9px;">'+dd+'('+WD[wd]+')</th>';}).join('')+'</tr></thead><tbody>'+
-      DB.staff.map(function(st){return '<tr><td>'+st.name+'</td>'+days.map(function(dd){var v=(m.cells[st.id]||{})[dd]||'';return '<td style="font-size:9px;">'+(v==='休'?'休':(v?m.pat[v]:''))+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'+
-      '<p>早番：'+m.pat['早']+'　日勤：'+m.pat['日']+'　遅番：'+m.pat['遅']+'</p>';
+    /* 日数が多いと横に切れるため、記号（早/日/遅/休）で印字し、時間は下部の凡例にまとめる */
+    var body='<div class="shift-print"><table><thead><tr><th class="nm">職員</th>'
+      +days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();var we=(wd===0||wd===6);return '<th'+(we?' class="we"':'')+'>'+dd+'<br>'+WD[wd]+'</th>';}).join('')+'</tr></thead><tbody>'
+      +DB.staff.map(function(st){return '<tr><td class="nm">'+esc(st.name)+'</td>'
+        +days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();var we=(wd===0||wd===6);var v=(m.cells[st.id]||{})[dd]||'';return '<td'+(we?' class="we"':'')+'>'+(v||'')+'</td>';}).join('')+'</tr>';}).join('')
+      +'</tbody></table></div>'
+      +'<table style="margin-top:10px;max-width:520px;"><thead><tr><th>区分</th><th>勤務時間</th><th>休憩時間</th></tr></thead><tbody>'
+      +[['早','早番'],['日','日勤'],['遅','遅番']].map(function(k){return '<tr><td>'+k[1]+'（'+k[0]+'）</td><td>'+esc(m.pat[k[0]]||'')+'</td><td>'+esc((m.brk||{})[k[0]]||'')+'</td></tr>';}).join('')
+      +'<tr><td>公休（休）</td><td>—</td><td>—</td></tr></tbody></table>';
     printDoc('勤務表（'+y+'年'+mo+'月）',body);
   };
 }
