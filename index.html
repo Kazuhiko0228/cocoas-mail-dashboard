@@ -1501,38 +1501,77 @@ function renderStaff(){
   var alerts=st.filter(function(x){var k=kenshinStatus(x.kenshinDate).lab;return k==='期限切れ'||k==='要更新';});
   s.innerHTML=
     (alerts.length?'<div class="cal-banner" style="margin-bottom:16px;background:#FCEBEB;border:1px solid #E24B4A;"><div style="width:40px;height:40px;border-radius:11px;background:#fff;color:#A32D2D;display:flex;align-items:center;justify-content:center;">'+ic('alert')+'</div><div style="flex:1;"><div style="font-weight:600;color:#A32D2D;">健康診断の更新が必要な職員 '+alerts.length+'名</div><div class="muted">'+alerts.map(function(x){return x.name;}).join('・')+'</div></div></div>':'')+
-    '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><h3 style="margin:0;">'+ic('staff')+'職員名簿</h3><button class="btn btn-primary" id="addStaff">'+ic('plus')+'職員を追加</button></div>'+
-      '<table><thead><tr><th>氏名</th><th>役職 / 雇用</th><th>保有資格</th><th>入社日</th><th>健康診断（次回期限）</th><th>ログインアカウント</th><th></th></tr></thead><tbody>'+
+    '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap;"><h3 style="margin:0;">'+ic('staff')+'職員名簿</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm" id="staffPrint">'+ic('printer')+'労働者名簿を出力</button><button class="btn btn-primary" id="addStaff">'+ic('plus')+'職員を追加</button></div></div>'+
+      '<table><thead><tr><th>氏名</th><th>年齢/性別</th><th>役職 / 雇用</th><th>保有資格</th><th>入社日（勤続）</th><th>健康診断（次回期限）</th><th>ログインアカウント</th><th></th></tr></thead><tbody>'+
       (st.length?st.map(function(x){var ks=kenshinStatus(x.kenshinDate),nd=kenshinNext(x.kenshinDate);return '<tr>'+
         '<td><div class="row-name">'+x.name+'</div><div class="row-sub">'+(x.kana||'')+'</div></td>'+
+        '<td class="row-sub">'+(x.dob?ageOf(x.dob):'—')+(x.sex?'<div class="row-sub">'+esc(x.sex)+'</div>':'')+'</td>'+
         '<td>'+x.role+'<div class="row-sub">'+x.employ+'</div></td>'+
         '<td>'+x.qual+'<div class="row-sub">'+(x.qualNo||'')+'</div></td>'+
-        '<td>'+(x.joinDate?fmt(x.joinDate):'—')+'</td>'+
+        '<td>'+(x.joinDate?fmt(x.joinDate):'—')+(x.joinDate?'<div class="row-sub">勤続 '+tenureText(x.joinDate,x.leaveDate)+'</div>':'')+'</td>'+
         '<td>'+(x.kenshinDate?fmt(x.kenshinDate):'未登録')+(nd?'<div class="row-sub">→ '+fmt(iso(nd))+'</div>':'')+' <span class="pill" style="background:'+ks.bg+';color:'+ks.fg+';">'+ks.lab+'</span></td>'+
         '<td>'+(function(){var a=acctOfStaff(x);if(!a)return '<button class="btn btn-sm" data-mkacct="'+x.id+'">'+ic('plus')+'アカウント作成</button>';var col=roleColor(a.role);return '<span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span><div class="row-sub">ID: '+esc(a.loginId)+'</div><button class="btn btn-sm btn-ghost" data-editacct="'+a.id+'" style="padding:2px 8px;font-size:11px;">編集</button>';})()+'</td>'+
-        '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+x.id+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+x.id+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="7" class="empty">職員が登録されていません</td></tr>')+
+        '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+x.id+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+x.id+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="8" class="empty">職員が登録されていません</td></tr>')+
       '</tbody></table></div>';
   $('#addStaff').onclick=function(){staffModal();};
+  $('#staffPrint').onclick=function(){
+    var body='<table><thead><tr><th>氏名</th><th>ふりがな</th><th>生年月日</th><th>年齢</th><th>性別</th><th>配偶者</th><th>住所</th><th>電話</th><th>緊急連絡先</th><th>役職</th><th>雇用形態</th><th>保有資格</th><th>入社日</th><th>勤続</th><th>退職日</th><th>健康診断</th></tr></thead><tbody>'
+      +DB.staff.map(function(x){return '<tr><td>'+esc(x.name)+'</td><td>'+esc(x.kana||'')+'</td><td>'+(x.dob?fmt(x.dob):'')+'</td><td>'+(x.dob?ageOf(x.dob):'')+'</td><td>'+esc(x.sex||'')+'</td><td>'+esc(x.spouse||'')+'</td><td>'+esc([x.zip,x.address].filter(Boolean).join(' '))+'</td><td>'+esc(x.tel||'')+'</td><td>'+esc([x.emgName,x.emgRel,x.emgTel].filter(Boolean).join(' '))+'</td><td>'+esc(x.role||'')+'</td><td>'+esc(x.employ||'')+'</td><td>'+esc([x.qual,x.qualNo].filter(Boolean).join(' '))+'</td><td>'+(x.joinDate?fmt(x.joinDate):'')+'</td><td>'+(x.joinDate?tenureText(x.joinDate,x.leaveDate):'')+'</td><td>'+(x.leaveDate?fmt(x.leaveDate):'')+'</td><td>'+(x.kenshinDate?fmt(x.kenshinDate):'')+'</td></tr>';}).join('')
+      +'</tbody></table>';
+    printDoc('労働者名簿',body);
+  };
   s.querySelectorAll('[data-mkacct]').forEach(function(b){b.onclick=function(){acctModal(null,+b.getAttribute('data-mkacct'));};});
   s.querySelectorAll('[data-editacct]').forEach(function(b){b.onclick=function(){acctModal(+b.getAttribute('data-editacct'));};});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){staffModal(+b.getAttribute('data-edit'));};});
   s.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){if(confirm('この職員を削除しますか？')){DB.staff=DB.staff.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderStaff();}};});
 }
+/* 勤続年数・年齢の自動算出 */
+function yearsBetween(from,to){
+  if(!from)return null;
+  var a=new Date(from),b=to?new Date(to):new Date();
+  var y=b.getFullYear()-a.getFullYear(),mo=b.getMonth()-a.getMonth();
+  if(mo<0||(mo===0&&b.getDate()<a.getDate())){y--;mo+=12;}
+  if(b.getDate()<a.getDate())mo--;
+  if(mo<0)mo+=12;
+  return {y:Math.max(0,y),m:Math.max(0,mo)};
+}
+function tenureText(joinDate,leaveDate){
+  var r=yearsBetween(joinDate,leaveDate);
+  if(!r)return '—';
+  return r.y+'年'+r.m+'ヶ月';
+}
+function ageOf(dob){var r=yearsBetween(dob);return r?r.y+'歳':'';}
 function staffModal(id){
-  var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:'',baseShift:''};
+  var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:'',baseShift:'',dob:'',sex:'',spouse:'',zip:'',address:'',tel:'',emgName:'',emgRel:'',emgTel:'',leaveDate:'',note:''};
   var emOpts=['正社員','契約社員','パート','業務委託'].map(function(o){return '<option'+(o===x.employ?' selected':'')+'>'+o+'</option>';}).join('');
+  function op(list,v){return list.map(function(o){return '<option'+(o===(v||'')?' selected':'')+'>'+o+'</option>';}).join('');}
   var m=el('div',{class:'modal-bg'});
   m.innerHTML='<div class="modal"><h2>'+(id?'職員を編集':'職員を追加')+'</h2>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>氏名</label><input id="st_name" value="'+x.name+'"></div><div class="field"><label>ふりがな</label><input id="st_kana" value="'+(x.kana||'')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>役職</label><input id="st_role" value="'+x.role+'"></div><div class="field"><label>雇用形態</label><select id="st_emp">'+emOpts+'</select></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>保有資格</label><input id="st_qual" value="'+(x.qual||'')+'" placeholder="保育士 等"></div><div class="field"><label>資格証番号</label><input id="st_qno" value="'+(x.qualNo||'')+'"></div></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>入社日</label><input type="date" id="st_join" value="'+(x.joinDate||'')+'"></div><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+(x.kenshinDate||'')+'"></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+o+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>生年月日<span id="st_ageLab" class="muted"></span></label><input type="date" id="st_dob" value="'+(x.dob||'')+'"></div><div class="field"><label>性別</label><select id="st_sex">'+op(['','女性','男性','回答しない'],x.sex)+'</select></div><div class="field"><label>配偶者</label><select id="st_spouse">'+op(['','無','有'],x.spouse)+'</select></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 2fr;"><div class="field"><label>郵便番号</label><input id="st_zip" value="'+(x.zip||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>住所</label><input id="st_addr" value="'+(x.address||'').replace(/"/g,'&quot;')+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>本人 電話番号</label><input id="st_tel" value="'+(x.tel||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>緊急連絡先 氏名</label><input id="st_emgName" value="'+(x.emgName||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>続柄</label><input id="st_emgRel" value="'+(x.emgRel||'').replace(/"/g,'&quot;')+'" placeholder="例：配偶者"></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>緊急連絡先 電話番号</label><input id="st_emgTel" value="'+(x.emgTel||'').replace(/"/g,'&quot;')+'"></div><div class="field"><label>入社日<span id="st_tenLab" class="muted"></span></label><input type="date" id="st_join" value="'+(x.joinDate||'')+'"></div><div class="field"><label>退職日（在職中は空欄）</label><input type="date" id="st_leave" value="'+(x.leaveDate||'')+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+(x.kenshinDate||'')+'"></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+o+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="field"><label>備考</label><input id="st_note" value="'+(x.note||'').replace(/"/g,'&quot;')+'"></div>'+
+    '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">氏名・住所・連絡先などの個人情報はこの端末内にのみ保存されます。監査で確認される職員名簿の項目に対応しています。</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="st_cancel">キャンセル</button><button class="btn btn-primary" id="st_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
+  function updLabels(){
+    var d=$('#st_dob').value,j=$('#st_join').value,lv=$('#st_leave').value;
+    $('#st_ageLab').textContent=d?('　'+ageOf(d)):'';
+    $('#st_tenLab').textContent=j?('　勤続 '+tenureText(j,lv)):'';
+  }
+  ['st_dob','st_join','st_leave'].forEach(function(idd){$('#'+idd).onchange=updLabels;$('#'+idd).oninput=updLabels;});
+  updLabels();
   $('#st_cancel').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#st_save').onclick=function(){
-    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,qual:$('#st_qual').value.trim(),qualNo:$('#st_qno').value.trim(),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value};
+    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,qual:$('#st_qual').value.trim(),qualNo:$('#st_qno').value.trim(),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value,
+      dob:$('#st_dob').value,sex:$('#st_sex').value,spouse:$('#st_spouse').value,zip:$('#st_zip').value.trim(),address:$('#st_addr').value.trim(),tel:$('#st_tel').value.trim(),
+      emgName:$('#st_emgName').value.trim(),emgRel:$('#st_emgRel').value.trim(),emgTel:$('#st_emgTel').value.trim(),leaveDate:$('#st_leave').value,note:$('#st_note').value.trim()};
     if(!nx.name){alert('氏名は必須です');return;}
     var a=DB.staff;if(id){a=a.map(function(o){return o.id===id?nx:o;});}else{a.push(nx);}DB.staff=a;m.remove();renderStaff();
   };
