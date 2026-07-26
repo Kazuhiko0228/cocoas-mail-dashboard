@@ -396,7 +396,12 @@ var SET=Object.assign({
   photoUrl:"https://with.8122.jp/",photoCodePre:"",photoCodeKinder:"",
   daycareFeeNormal:"5,500",daycareFeeExt:"6,600",daycareLunch:"550",
   daycareFormUrl:"",surveyUrl:"",docAuditDate:"",attendOptions:['ランチ','ロングステイ'],
-  pricing:{plans:{'週2':30000,'週3':42000,'週4':52000,'週5':58000},lunch:550,extended:1000,material:3000,admission:30000}
+  /* 請求書の体裁（管理側で設定） */
+  invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
+  invUseAgency:false,invAgencyName:"",invAgencyAddr:"",invAgencyTel:"",invAgencyBank:"",
+  invGreeting:"平素は格別のご高配を賜り、厚く御礼申し上げます。\n下記のとおりご請求申し上げますので、お支払期日までにお振込みくださいますようお願い申し上げます。",
+  invFooter:"※振込名義はお子様のお名前でお願いいたします。\n※お振込手数料はご負担いただきますようお願いいたします。",
+  pricing:{plans:{'週2':30000,'週3':42000,'週4':52000,'週5':58000},lunch:550,extended:1000,material:3000,admission:30000,options:[]}
 },DB.settings);
 if(!SET.attendOptions||!SET.attendOptions.length)SET.attendOptions=['ランチ','ロングステイ'];
 DB.settings=SET;
@@ -703,6 +708,23 @@ function avatarHTML(c,size){
   var s=size||34,ph=photoOf(c.id);
   if(ph)return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;overflow:hidden;background:#eee;"><img src="'+ph+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>';
   return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;font-size:'+Math.round(s*0.37)+'px;">'+initials(c.name||'')+'</span>';
+}
+/* ロゴ画像：縦横比を保ったまま縮小（幅最大420px） */
+function logoResize(file,cb){
+  var rd=new FileReader();
+  rd.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var MW=420,sc=Math.min(1,MW/img.width),w=Math.round(img.width*sc),hh=Math.round(img.height*sc);
+      var cv=document.createElement('canvas');cv.width=w;cv.height=hh;
+      var ctx=cv.getContext('2d');ctx.drawImage(img,0,0,w,hh);
+      cb(null,cv.toDataURL('image/png'));
+    };
+    img.onerror=function(){cb(new Error('画像を読み込めませんでした'));};
+    img.src=rd.result;
+  };
+  rd.onerror=function(){cb(new Error('ファイルを読み込めませんでした'));};
+  rd.readAsDataURL(file);
 }
 /* 画像を正方形にトリミングして縮小（保存容量を抑える） */
 function photoResize(file,cb){
@@ -1314,12 +1336,35 @@ function renderSettings(){
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類。各学校ヒヤリングに合わせて自由に追加・変更できます。</div><div id="actTypeBox"></div></div>'+
     (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
       '<div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">コースプラン（月額）</div><div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+Object.keys(P.plans).map(function(k){return '<div class="field" style="margin:0 0 8px;"><label>'+k+'</label><input type="number" data-price="plans|'+k+'" value="'+P.plans[k]+'"></div>';}).join('')+'</div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field" style="margin:0;"><label>ランチ/回</label><input type="number" data-price="lunch" value="'+P.lunch+'"></div><div class="field" style="margin:0;"><label>延長/回</label><input type="number" data-price="extended" value="'+P.extended+'"></div><div class="field" style="margin:0;"><label>教育関連費</label><input type="number" data-price="material" value="'+P.material+'"></div><div class="field" style="margin:0;"><label>入園金</label><input type="number" data-price="admission" value="'+P.admission+'"></div></div></div>';})()+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field" style="margin:0;"><label>ランチ/回</label><input type="number" data-price="lunch" value="'+P.lunch+'"></div><div class="field" style="margin:0;"><label>延長/回</label><input type="number" data-price="extended" value="'+P.extended+'"></div><div class="field" style="margin:0;"><label>教育関連費</label><input type="number" data-price="material" value="'+P.material+'"></div><div class="field" style="margin:0;"><label>入園金</label><input type="number" data-price="admission" value="'+P.admission+'"></div></div>'+
+      '<div style="border-top:1px solid var(--line);margin:12px 0 10px;padding-top:10px;"><div style="font-size:12.5px;font-weight:600;margin-bottom:4px;">その他のオプション（園ごとに追加）</div>'+
+      '<div class="muted" style="margin-bottom:8px;font-size:11.5px;">ここに登録した項目は、請求書作成の「その他の項目」からワンタップで追加できます。「毎回つける」にすると新しい請求書に最初から入ります。</div>'+
+      '<div id="optPriceList"></div><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;"><input id="optPriceName" placeholder="項目名（例：課外レッスン）" style="flex:1;min-width:170px;"><input id="optPriceVal" type="number" placeholder="金額" style="width:110px;"><button class="btn btn-sm" id="optPriceAdd">'+ic('plus')+'追加</button></div></div></div>';})()+
+    '<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('yen')+'請求書の体裁（出力に反映）</h3>'+
+      '<div class="muted" style="margin-bottom:10px;">請求書の印刷・PDF出力に表示される内容です。ロゴ・会社情報・登録番号（インボイス）・挨拶文などを設定できます。</div>'+
+      '<div class="field"><label>ロゴ画像</label><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'+
+        '<span id="s_logoPrev" style="display:inline-flex;align-items:center;justify-content:center;min-width:120px;height:52px;border:1px dashed var(--line);border-radius:8px;background:#fff;">'+(SET.invLogo?'<img src="'+SET.invLogo+'" style="max-width:150px;max-height:48px;object-fit:contain;">':'<span class="muted" style="font-size:11px;">未設定</span>')+'</span>'+
+        '<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'ロゴを選ぶ<input type="file" id="s_logo" accept="image/*" style="display:none;"></label>'+
+        '<button class="btn btn-sm btn-ghost" id="s_logoDel">'+ic('trash')+'削除</button><span class="muted" id="s_logoMsg" style="font-size:11.5px;">横長のロゴを推奨（自動で縮小されます）</span></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_coName','会社名・園名',SET.invCoName||SET.school)+f('s_regNo','登録番号（インボイス）',SET.invRegNo)+'</div>'+
+      f('s_coAddr','住所',SET.invCoAddr)+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_coTel','電話番号',SET.invCoTel)+f('s_coMail','メールアドレス',SET.invCoMail)+f('s_coRep','代表者名',SET.invCoRep)+'</div>'+
+      '<div class="field"><label>挨拶文（請求書の冒頭）</label><textarea id="s_greet" rows="3">'+esc(SET.invGreeting||'')+'</textarea></div>'+
+      '<div class="field"><label>注意書き（請求書の末尾）</label><textarea id="s_ifoot" rows="2">'+esc(SET.invFooter||'')+'</textarea></div>'+
+      '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin:6px 0 8px;"><input type="checkbox" id="s_useAgency" style="width:auto;"'+(SET.invUseAgency?' checked':'')+'>収納代行会社を利用する（お支払先を収納会社の情報に切り替えます）</label>'+
+      '<div id="s_agencyBox" style="display:'+(SET.invUseAgency?'block':'none')+';border:1px solid var(--line);border-radius:10px;padding:10px 12px;">'+
+        '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_agName','収納会社名',SET.invAgencyName)+f('s_agTel','収納会社 電話番号',SET.invAgencyTel)+'</div>'+
+        f('s_agAddr','収納会社 住所',SET.invAgencyAddr)+f('s_agBank','収納会社 振込先・お支払い方法',SET.invAgencyBank)+
+      '</div></div>'+
     '<button class="btn btn-primary" id="s_save">'+ic('check')+'保存</button> <span class="muted" id="s_msg"></span>';
   $('#s_save').onclick=function(){
     SET.sender=$('#s_sender').value;SET.bcc=$('#s_bcc').value;SET.school=$('#s_school').value;SET.manager=$('#s_manager').value;
     SET.bankName=$('#s_bankName').value;SET.bankBranch=$('#s_bankBranch').value;SET.bankType=$('#s_bankType').value;SET.bankNo=$('#s_bankNo').value;SET.bankHolder=$('#s_bankHolder').value;
     SET.photoUrl=$('#s_photoUrl').value;SET.photoCodePre=$('#s_photoPre').value;SET.photoCodeKinder=$('#s_photoKinder').value;
+    SET.invCoName=$('#s_coName').value;SET.invRegNo=$('#s_regNo').value;SET.invCoAddr=$('#s_coAddr').value;
+    SET.invCoTel=$('#s_coTel').value;SET.invCoMail=$('#s_coMail').value;SET.invCoRep=$('#s_coRep').value;
+    SET.invGreeting=$('#s_greet').value;SET.invFooter=$('#s_ifoot').value;SET.invUseAgency=$('#s_useAgency').checked;
+    SET.invAgencyName=$('#s_agName').value;SET.invAgencyTel=$('#s_agTel').value;SET.invAgencyAddr=$('#s_agAddr').value;SET.invAgencyBank=$('#s_agBank').value;
     SET.daycareFeeNormal=$('#s_dcN').value;SET.daycareFeeExt=$('#s_dcE').value;SET.daycareLunch=$('#s_dcL').value;SET.daycareFormUrl=$('#s_form').value;SET.surveyUrl=$('#s_survey').value;
     DB.settings=SET;$('#s_msg').textContent='保存しました';setTimeout(function(){$('#s_msg').textContent='';},1800);
   };
@@ -1340,6 +1385,40 @@ function renderSettings(){
   }
   renderActTypes();
   s.querySelectorAll('[data-price]').forEach(function(inp){inp.onchange=function(){if(!SET.pricing)SET.pricing={plans:{},lunch:0,extended:0,material:0,admission:0};var p=inp.getAttribute('data-price').split('|');if(p[0]==='plans'){SET.pricing.plans[p[1]]=+inp.value||0;}else{SET.pricing[p[0]]=+inp.value||0;}DB.settings=SET;};});
+  function renderOptPrices(){
+    if(!SET.pricing)SET.pricing={plans:{}};if(!SET.pricing.options)SET.pricing.options=[];
+    var box=$('#optPriceList');if(!box)return;
+    box.innerHTML=SET.pricing.options.map(function(o,i){
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">'
+        +'<input data-opn="'+i+'" value="'+String(o.name||'').replace(/"/g,'&quot;')+'" style="flex:1;min-width:160px;">'
+        +'<input type="number" data-opv="'+i+'" value="'+(+o.price||0)+'" style="width:110px;">'
+        +'<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap;"><input type="checkbox" data-opd="'+i+'" style="width:auto;"'+(o.always?' checked':'')+'>毎回つける</label>'
+        +'<button class="btn btn-sm btn-ghost" data-opx="'+i+'">'+ic('trash')+'</button></div>';
+    }).join('')||'<div class="muted" style="font-size:12px;">まだ登録がありません。</div>';
+    box.querySelectorAll('[data-opn]').forEach(function(el2){el2.onchange=function(){SET.pricing.options[+el2.getAttribute('data-opn')].name=el2.value;DB.settings=SET;};});
+    box.querySelectorAll('[data-opv]').forEach(function(el2){el2.onchange=function(){SET.pricing.options[+el2.getAttribute('data-opv')].price=+el2.value||0;DB.settings=SET;};});
+    box.querySelectorAll('[data-opd]').forEach(function(el2){el2.onchange=function(){SET.pricing.options[+el2.getAttribute('data-opd')].always=el2.checked;DB.settings=SET;};});
+    box.querySelectorAll('[data-opx]').forEach(function(b){b.onclick=function(){SET.pricing.options.splice(+b.getAttribute('data-opx'),1);DB.settings=SET;renderOptPrices();};});
+  }
+  renderOptPrices();
+  if($('#optPriceAdd'))$('#optPriceAdd').onclick=function(){
+    var n=$('#optPriceName').value.trim(),v=+$('#optPriceVal').value||0;
+    if(!n){alert('項目名を入力してください');return;}
+    if(!SET.pricing.options)SET.pricing.options=[];
+    SET.pricing.options.push({name:n,price:v,always:false});DB.settings=SET;
+    $('#optPriceName').value='';$('#optPriceVal').value='';renderOptPrices();
+  };
+  $('#s_useAgency').onchange=function(){$('#s_agencyBox').style.display=this.checked?'block':'none';};
+  $('#s_logo').onchange=function(e){
+    var fl=e.target.files[0];if(!fl)return;
+    logoResize(fl,function(err,uri){
+      if(err){$('#s_logoMsg').textContent=err.message;return;}
+      SET.invLogo=uri;DB.settings=SET;
+      $('#s_logoPrev').innerHTML='<img src="'+uri+'" style="max-width:150px;max-height:48px;object-fit:contain;">';
+      $('#s_logoMsg').textContent='ロゴを設定しました（約'+Math.round(uri.length/1024)+'KB）';
+    });
+  };
+  $('#s_logoDel').onclick=function(){SET.invLogo='';DB.settings=SET;$('#s_logoPrev').innerHTML='<span class="muted" style="font-size:11px;">未設定</span>';$('#s_logoMsg').textContent='ロゴを削除しました';};
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
   if(typeof renderBackupSettings==='function')renderBackupSettings(s);
 }
@@ -2996,7 +3075,8 @@ function invRow(mk,c){
   var all=invAll(),r=((all[mk]||{})[c.id]);
   if(r)return r;
   var o=(typeof enrOf==='function')?enrOf(c,mk):{plan:'週3',lunchN:0,extN:0,material:false};
-  return {plan:o.plan,lunchN:+o.lunchN||0,extN:+o.extN||0,material:!!o.material,admission:!!o.admission,discount:0,discountNote:'',due:'',status:'未発行',issuedAt:'',sentAt:'',paidAt:''};
+  var always=(((SET.pricing||{}).options)||[]).filter(function(x){return x.always;}).map(function(x){return {name:x.name,qty:1,price:+x.price||0};});
+  return {plan:o.plan,lunchN:+o.lunchN||0,extN:+o.extN||0,material:!!o.material,admission:!!o.admission,extras:always,discount:0,discountNote:'',due:'',status:'未発行',issuedAt:'',sentAt:'',paidAt:''};
 }
 function invSaveRow(mk,id,r){var all=invAll();all[mk]=all[mk]||{};all[mk][id]=r;invSaveAll(all);}
 function invLines(r){
@@ -3007,19 +3087,35 @@ function invLines(r){
   if(r.material)L.push(['教育関連費',P.material||0,1,P.material||0]);
   if(+r.lunchN>0)L.push(['ランチ（'+r.lunchN+'回）',P.lunch||0,+r.lunchN,(P.lunch||0)*(+r.lunchN)]);
   if(+r.extN>0)L.push(['ロングステイ（'+r.extN+'回）',P.extended||0,+r.extN,(P.extended||0)*(+r.extN)]);
+  (r.extras||[]).forEach(function(x){var q=(+x.qty||1),p=(+x.price||0);if(x.name&&p)L.push([x.name,p,q,p*q]);});
   if(+r.discount>0)L.push([(r.discountNote||'割引'),-(+r.discount),1,-(+r.discount)]);
   return L;
 }
 function invTotal(r){return invLines(r).reduce(function(a,x){return a+x[3];},0);}
 function invHTML(mk,c,r){
   var L=invLines(r),tot=invTotal(r),ym=mk.split('-');
-  return '<div style="font-weight:600;font-size:15px;margin-bottom:6px;">'+(+ym[1])+'月分 保育料 請求書</div>'
-    +'<p>'+esc(c.name)+' 様（'+esc(childName(c))+'・'+esc(c.klass||'')+'）</p>'
-    +'<table><thead><tr><th>項目</th><th style="text-align:right;">単価</th><th style="text-align:right;">数量</th><th style="text-align:right;">金額</th></tr></thead><tbody>'
+  var co=[SET.invCoName||SET.school||'',SET.invCoAddr||'',[SET.invCoTel?'TEL '+SET.invCoTel:'',SET.invCoMail||''].filter(Boolean).join('　'),SET.invCoRep?'代表者　'+SET.invCoRep:''].filter(Boolean);
+  var head='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:10px;">'
+    +'<div><div style="font-size:19px;font-weight:700;letter-spacing:.08em;">請求書</div>'
+      +'<div style="font-size:12px;color:#555;margin-top:2px;">'+(+ym[1])+'月分 保育料　／　発行日 '+fmt(r.issuedAt||todayISO())+'</div></div>'
+    +'<div style="text-align:right;font-size:11.5px;line-height:1.6;">'
+      +(SET.invLogo?'<img src="'+SET.invLogo+'" alt="" style="max-width:150px;max-height:52px;object-fit:contain;display:block;margin:0 0 4px auto;">':'')
+      +co.map(function(x){return esc(x);}).join('<br>')
+      +(SET.invRegNo?'<br>登録番号　'+esc(SET.invRegNo):'')
+    +'</div></div>';
+  var to='<div style="border-bottom:1.5px solid #333;padding-bottom:4px;margin-bottom:10px;font-size:14px;font-weight:600;">'+esc(c.name)+' 様　<span style="font-size:12px;font-weight:400;color:#555;">（'+esc(childName(c))+'・'+esc(c.klass||'')+'）</span></div>';
+  var greet=SET.invGreeting?'<div style="font-size:12px;line-height:1.8;margin-bottom:10px;white-space:pre-wrap;">'+esc(SET.invGreeting)+'</div>':'';
+  var totalBox='<div style="margin:10px 0 12px;font-size:15px;font-weight:700;">ご請求金額　'+yen(tot)+'　<span style="font-size:11.5px;font-weight:400;color:#555;">（お支払期日：'+(r.due?fmt(r.due):'別途ご案内')+'）</span></div>';
+  var table='<table><thead><tr><th>項目</th><th style="text-align:right;">単価</th><th style="text-align:right;">数量</th><th style="text-align:right;">金額</th></tr></thead><tbody>'
     +L.map(function(x){return '<tr><td>'+esc(x[0])+'</td><td style="text-align:right;">'+yen(x[1])+'</td><td style="text-align:right;">'+x[2]+'</td><td style="text-align:right;">'+yen(x[3])+'</td></tr>';}).join('')
-    +'<tr><td colspan="3" style="text-align:right;font-weight:600;">合計</td><td style="text-align:right;font-weight:600;">'+yen(tot)+'</td></tr></tbody></table>'
-    +'<p>お支払期日：'+(r.due?fmt(r.due):'（未設定）')+'</p>'
-    +'<p>振込先：'+esc(SET.bankName||'')+' '+esc(SET.bankBranch||'')+' '+esc(SET.bankType||'')+' '+esc(SET.bankNo||'（設定で入力）')+' '+esc(SET.bankHolder||'')+'<br>※振込名義はお子様のお名前でお願いいたします。</p>';
+    +'<tr><td colspan="3" style="text-align:right;font-weight:600;">合計</td><td style="text-align:right;font-weight:600;">'+yen(tot)+'</td></tr></tbody></table>';
+  var pay='<div style="margin-top:12px;font-size:12px;line-height:1.75;">'
+    +(SET.invUseAgency
+      ?'<b>【お支払先（収納代行）】</b><br>'+[SET.invAgencyName,SET.invAgencyAddr,SET.invAgencyTel?'TEL '+SET.invAgencyTel:'',SET.invAgencyBank].filter(Boolean).map(function(x){return esc(x);}).join('<br>')
+      :'<b>【お振込先】</b><br>'+esc(SET.bankName||'')+' '+esc(SET.bankBranch||'')+' '+esc(SET.bankType||'')+' '+esc(SET.bankNo||'（設定で入力）')+' '+esc(SET.bankHolder||''))
+    +'</div>';
+  var foot=SET.invFooter?'<div style="margin-top:8px;font-size:11px;color:#555;line-height:1.7;white-space:pre-wrap;">'+esc(SET.invFooter)+'</div>':'';
+  return head+to+greet+totalBox+table+pay+foot;
 }
 function invSend(mk,c,r){
   var tot=invTotal(r),ym=+mk.split('-')[1];
@@ -3048,12 +3144,14 @@ function renderBilling(){
     +'<div class="muted" style="margin-bottom:10px;">金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動計算されます。行の「明細」で今月だけの調整（回数・教育関連費・割引・支払期日）ができます。<br>流れ：<b>①内容を確認 → ②発行 → ③送付（メール＋保護者ページ） → ④入金確認</b></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
     +'<span style="flex:1;"></span><span style="font-weight:700;font-size:15px;">今月の請求合計 '+yen(sum)+'</span></div></div>'
-    +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>プラン</th><th style="text-align:right;">ランチ</th><th style="text-align:right;">ロング</th><th style="text-align:right;">請求額</th><th>支払期日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
+    +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>プラン</th><th style="text-align:right;">ランチ</th><th style="text-align:right;">ロング</th><th style="text-align:right;">請求額</th><th>発行日</th><th>支払期日</th><th>入金日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
     +(rows.length?rows.map(function(x){var col=invStatusColor(x.r.status);
       return '<tr><td class="row-name">'+esc(childName(x.c))+'<div class="row-sub">'+esc(x.c.name)+'</div></td><td>'+esc(x.c.klass||'')+'</td><td>'+esc(x.r.plan||'')+'</td>'
         +'<td style="text-align:right;">'+(+x.r.lunchN||0)+'回</td><td style="text-align:right;">'+(+x.r.extN||0)+'回</td>'
         +'<td style="text-align:right;font-weight:600;">'+yen(invTotal(x.r))+'</td>'
+        +'<td class="row-sub">'+(x.r.issuedAt?fmt(x.r.issuedAt):'—')+'</td>'
         +'<td class="row-sub">'+(x.r.due?fmt(x.r.due):'—')+'</td>'
+        +'<td class="row-sub">'+(x.r.paidAt?fmt(x.r.paidAt):'—')+'</td>'
         +'<td><span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+x.r.status+'</span></td>'
         +'<td style="white-space:nowrap;text-align:right;">'
           +'<button class="btn btn-sm" data-ivedit="'+x.c.id+'">明細</button> '
@@ -3061,7 +3159,7 @@ function renderBilling(){
           +(x.r.status==='発行済'||x.r.status==='送付済'?'<button class="btn btn-sm btn-primary" data-ivsend="'+x.c.id+'">'+(x.r.status==='送付済'?'再送':'送付')+'</button> ':'')
           +(x.r.status==='送付済'?'<button class="btn btn-sm" data-ivpaid="'+x.c.id+'">入金済</button> ':'')
           +'<button class="btn btn-sm btn-ghost" data-ivprint="'+x.c.id+'">'+ic('printer')+'</button>'
-        +'</td></tr>';}).join(''):'<tr><td colspan="9" class="empty">在園児が登録されていません</td></tr>')
+        +'</td></tr>';}).join(''):'<tr><td colspan="11" class="empty">在園児が登録されていません</td></tr>')
     +'</tbody></table></div></div>';
   $('#ivMonth').onchange=function(e){invMonth=e.target.value;renderBilling();};
   $('#ivIssueAll').onclick=function(){
@@ -3107,6 +3205,11 @@ function invModal(mk,id){
       +'<div class="grid" style="grid-template-columns:1fr 2fr;">'
         +'<div class="field"><label>割引額</label><input type="number" min="0" id="im_disc" value="'+(+r.discount||0)+'"></div>'
         +'<div class="field"><label>割引の名目</label><input id="im_discn" value="'+String(r.discountNote||'').replace(/"/g,'&quot;')+'" placeholder="例：兄弟割引"></div></div>'
+      +'<div class="field"><label>その他の項目（プラン外のオプション・実費など）</label><div id="im_extras"></div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">'
+      +'<button type="button" class="btn btn-sm" id="im_addExtra">'+ic('plus')+'自由入力で追加</button>'
+      +(((SET.pricing||{}).options||[]).length?'<span class="muted" style="font-size:11.5px;">登録済み：</span>'+(((SET.pricing||{}).options)||[]).map(function(o,i){return '<button type="button" class="btn btn-sm btn-ghost" data-imopt="'+i+'" style="border:1px solid var(--teal-l);color:var(--teal-d);">'+esc(o.name)+' '+yen(o.price)+'</button>';}).join(''):'<span class="muted" style="font-size:11.5px;">（設定→料金設定でよく使う項目を登録できます）</span>')
+      +'</div></div>'
       +'<label>プレビュー</label><div class="preview" id="im_prev" style="max-height:280px;">'+invHTML(mk,c,r)+'</div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;">'
         +'<button class="btn" id="im_cancel">閉じる</button>'
@@ -3115,8 +3218,35 @@ function invModal(mk,id){
         +'<button class="btn btn-primary" id="im_send">'+ic('send')+'保存して送付</button></div></div>';
   }
   m.innerHTML=body();
-  function read(){r.plan=$('#im_plan').value;r.due=$('#im_due').value;r.lunchN=+$('#im_lunch').value||0;r.extN=+$('#im_ext').value||0;r.material=$('#im_mat').checked;r.admission=$('#im_adm').checked;r.discount=+$('#im_disc').value||0;r.discountNote=$('#im_discn').value;}
+  function readExtras(){
+    var out=[];
+    m.querySelectorAll('[data-exrow]').forEach(function(row){
+      var i=row.getAttribute('data-exrow');
+      out.push({name:m.querySelector('[data-ex="'+i+'|name"]').value,qty:+m.querySelector('[data-ex="'+i+'|qty"]').value||1,price:+m.querySelector('[data-ex="'+i+'|price"]').value||0});
+    });
+    return out;
+  }
+  function read(){r.plan=$('#im_plan').value;r.due=$('#im_due').value;r.lunchN=+$('#im_lunch').value||0;r.extN=+$('#im_ext').value||0;r.material=$('#im_mat').checked;r.admission=$('#im_adm').checked;r.discount=+$('#im_disc').value||0;r.discountNote=$('#im_discn').value;r.extras=readExtras();}
   function upd(){read();$('#im_prev').innerHTML=invHTML(mk,c,r);}
+  function renderExtras(){
+    var box=$('#im_extras');
+    box.innerHTML=(r.extras||[]).map(function(x,i){
+      return '<div data-exrow="'+i+'" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">'
+        +'<input data-ex="'+i+'|name" value="'+String(x.name||'').replace(/"/g,'&quot;')+'" placeholder="項目名（例：課外レッスン・遠足費）" style="flex:1;min-width:180px;">'
+        +'<input type="number" data-ex="'+i+'|price" value="'+(+x.price||0)+'" placeholder="単価" style="width:110px;">'
+        +'<span class="muted" style="font-size:12px;">×</span>'
+        +'<input type="number" min="1" data-ex="'+i+'|qty" value="'+(+x.qty||1)+'" style="width:70px;">'
+        +'<button type="button" class="btn btn-sm btn-ghost" data-exdel="'+i+'">'+ic('trash')+'</button></div>';
+    }).join('')||'<div class="muted" style="font-size:12px;margin-bottom:6px;">追加した項目はここに表示されます（マイナス金額で値引きも可能）。</div>';
+    box.querySelectorAll('[data-ex]').forEach(function(el2){el2.oninput=upd;el2.onchange=upd;});
+    box.querySelectorAll('[data-exdel]').forEach(function(b){b.onclick=function(){read();r.extras.splice(+b.getAttribute('data-exdel'),1);renderExtras();upd();};});
+  }
+  renderExtras();
+  $('#im_addExtra').onclick=function(){read();r.extras=(r.extras||[]).concat([{name:'',qty:1,price:0}]);renderExtras();upd();};
+  m.querySelectorAll('[data-imopt]').forEach(function(b){b.onclick=function(){
+    var o=((SET.pricing||{}).options||[])[+b.getAttribute('data-imopt')];if(!o)return;
+    read();r.extras=(r.extras||[]).concat([{name:o.name,qty:1,price:+o.price||0}]);renderExtras();upd();
+  };});
   ['im_plan','im_due','im_lunch','im_ext','im_mat','im_adm','im_disc','im_discn'].forEach(function(id){var el2=$('#'+id);el2.oninput=upd;el2.onchange=upd;});
   $('#im_cancel').onclick=function(){m.remove();};
   $('#im_print').onclick=function(){read();printDoc('保育料 請求書（'+mk+'・'+childName(c)+'）',invHTML(mk,c,r));};
