@@ -1262,16 +1262,19 @@ function renderStaff(){
   s.innerHTML=
     (alerts.length?'<div class="cal-banner" style="margin-bottom:16px;background:#FCEBEB;border:1px solid #E24B4A;"><div style="width:40px;height:40px;border-radius:11px;background:#fff;color:#A32D2D;display:flex;align-items:center;justify-content:center;">'+ic('alert')+'</div><div style="flex:1;"><div style="font-weight:600;color:#A32D2D;">健康診断の更新が必要な職員 '+alerts.length+'名</div><div class="muted">'+alerts.map(function(x){return x.name;}).join('・')+'</div></div></div>':'')+
     '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><h3 style="margin:0;">'+ic('staff')+'職員名簿</h3><button class="btn btn-primary" id="addStaff">'+ic('plus')+'職員を追加</button></div>'+
-      '<table><thead><tr><th>氏名</th><th>役職 / 雇用</th><th>保有資格</th><th>入社日</th><th>健康診断（次回期限）</th><th></th></tr></thead><tbody>'+
+      '<table><thead><tr><th>氏名</th><th>役職 / 雇用</th><th>保有資格</th><th>入社日</th><th>健康診断（次回期限）</th><th>ログインアカウント</th><th></th></tr></thead><tbody>'+
       (st.length?st.map(function(x){var ks=kenshinStatus(x.kenshinDate),nd=kenshinNext(x.kenshinDate);return '<tr>'+
         '<td><div class="row-name">'+x.name+'</div><div class="row-sub">'+(x.kana||'')+'</div></td>'+
         '<td>'+x.role+'<div class="row-sub">'+x.employ+'</div></td>'+
         '<td>'+x.qual+'<div class="row-sub">'+(x.qualNo||'')+'</div></td>'+
         '<td>'+(x.joinDate?fmt(x.joinDate):'—')+'</td>'+
         '<td>'+(x.kenshinDate?fmt(x.kenshinDate):'未登録')+(nd?'<div class="row-sub">→ '+fmt(iso(nd))+'</div>':'')+' <span class="pill" style="background:'+ks.bg+';color:'+ks.fg+';">'+ks.lab+'</span></td>'+
-        '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+x.id+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+x.id+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="6" class="empty">職員が登録されていません</td></tr>')+
+        '<td>'+(function(){var a=acctOfStaff(x);if(!a)return '<button class="btn btn-sm" data-mkacct="'+x.id+'">'+ic('plus')+'アカウント作成</button>';var col=roleColor(a.role);return '<span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span><div class="row-sub">ID: '+esc(a.loginId)+'</div><button class="btn btn-sm btn-ghost" data-editacct="'+a.id+'" style="padding:2px 8px;font-size:11px;">編集</button>';})()+'</td>'+
+        '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+x.id+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+x.id+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="7" class="empty">職員が登録されていません</td></tr>')+
       '</tbody></table></div>';
   $('#addStaff').onclick=function(){staffModal();};
+  s.querySelectorAll('[data-mkacct]').forEach(function(b){b.onclick=function(){acctModal(null,+b.getAttribute('data-mkacct'));};});
+  s.querySelectorAll('[data-editacct]').forEach(function(b){b.onclick=function(){acctModal(+b.getAttribute('data-editacct'));};});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){staffModal(+b.getAttribute('data-edit'));};});
   s.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){if(confirm('この職員を削除しますか？')){DB.staff=DB.staff.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderStaff();}};});
 }
@@ -2248,11 +2251,22 @@ var DEFAULT_PERMS={
 };
 var PERMS_VERSION=5;
 function staffAccountsSeed(){return [
-  {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin'},
-  {id:2,loginId:'shiraga',name:'白神 玲美',role:'マネージャー',pw:'shiraga'},
-  {id:3,loginId:'staff',name:'一般 スタッフ',role:'一般',pw:'staff'}
+  {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin',staffId:null},
+  {id:2,loginId:'shiraga',name:'白神 美咲',role:'マネージャー',pw:'shiraga',staffId:101},
+  {id:3,loginId:'staff',name:'一般 スタッフ',role:'一般',pw:'staff',staffId:null}
 ];}
-function staffAccounts(){var a=stGet('staffAccounts',null);if(!a){a=staffAccountsSeed();stSet('staffAccounts',a);}return a;}
+var ACCOUNTS_VERSION=2;
+function staffAccounts(){
+  var a=stGet('staffAccounts',null);
+  if(!a){a=staffAccountsSeed();stSet('staffAccounts',a);stSet('accountsVersion',ACCOUNTS_VERSION);return a;}
+  /* デモ既定のまま（未編集）なら最新の初期アカウントへ更新。園が作成・編集したアカウントには触れない */
+  if(stGet('accountsVersion',0)!==ACCOUNTS_VERSION){
+    var untouched=a.length===3&&a.every(function(x){return ['admin','shiraga','staff'].indexOf(String(x.loginId))>-1;});
+    if(untouched){a=staffAccountsSeed();stSet('staffAccounts',a);}
+    stSet('accountsVersion',ACCOUNTS_VERSION);
+  }
+  return a;
+}
 function rolePerms(){var p=stGet('rolePerms',null);if(!p||stGet('permsVersion',0)!==PERMS_VERSION){p=DEFAULT_PERMS;stSet('rolePerms',p);stSet('permsVersion',PERMS_VERSION);}return p;}
 function saveRolePerms(p){stSet('rolePerms',p);}
 function roleColor(r){return r==='管理者'?{bg:'#FCEBEB',fg:'#A32D2D'}:r==='マネージャー'?{bg:'#E1F5EE',fg:'#0F6E56'}:{bg:'#F1EFE8',fg:'#5F5E5A'};}
@@ -2271,6 +2285,42 @@ function applyPerms(){
   if(dmb&&typeof dmUnreadTotal==='function'){var un=dmUnreadTotal();dmb.textContent=un||'';dmb.style.display=un?'':'none';}
   var foot=document.querySelector('.side-foot');
   if(foot){foot.innerHTML='<div style="color:#fff;font-weight:600;font-size:12.5px;">'+esc(s.name)+'</div><div style="color:#9fc7b8;font-size:11px;margin-bottom:6px;">'+s.role+'としてログイン中</div><button id="slLogout" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">ログアウト</button>';var lo=document.getElementById('slLogout');if(lo)lo.onclick=staffLogout;}
+}
+/* 職員名簿とログインアカウントの紐付け（staffId で対応、無ければ氏名で判定） */
+function acctOfStaff(st){var a=staffAccounts();return a.filter(function(x){return (x.staffId&&x.staffId===st.id)||x.name===st.name;})[0]||null;}
+function acctModal(acctId,staffId){
+  var accs=staffAccounts();
+  var a=acctId?accs.filter(function(x){return x.id===acctId;})[0]:null;
+  var st=staffId?DB.staff.filter(function(x){return x.id===staffId;})[0]:null;
+  var isNew=!a;
+  if(isNew){
+    var nid=Math.max.apply(null,accs.map(function(x){return x.id;}).concat([0]))+1;
+    var base=(st&&st.kana)?st.kana.split(/[\s　]+/)[0]:'';
+    var romaji={'シラガ':'shiraga','タムラ':'tamura','ササキ':'sasaki','ジョン':'john'}[base]||('staff'+nid);
+    a={id:nid,staffId:staffId||null,loginId:romaji,name:st?st.name:'',role:'一般',pw:'pass'+nid};
+  }
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:520px;"><h2>'+(isNew?'ログインアカウントを作成':'ログインアカウントを編集')+'</h2>'
+    +'<div class="muted" style="margin:-6px 0 12px;font-size:12px;">この職員がシステムにログインするためのIDとパスワードです。役割によって見える画面が変わります（設定 → 権限管理で調整可）。</div>'
+    +'<div class="field"><label>氏名</label><input id="ac_name" value="'+String(a.name||'').replace(/"/g,'&quot;')+'"></div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>ログインID（半角英数）</label><input id="ac_id" value="'+String(a.loginId||'').replace(/"/g,'&quot;')+'" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
+    +'<div class="field"><label>パスワード</label><input id="ac_pw" value="'+String(a.pw||'').replace(/"/g,'&quot;')+'" autocapitalize="none" autocorrect="off" spellcheck="false"></div></div>'
+    +'<div class="field"><label>役割</label><select id="ac_role">'+STAFF_ROLES.map(function(r){return '<option'+(r===a.role?' selected':'')+'>'+r+'</option>';}).join('')+'</select></div>'
+    +'<div class="muted" style="font-size:11.5px;line-height:1.6;margin-bottom:12px;">管理者＝すべて／マネージャー＝運営全般（職員アカウントと権限管理を除く）／一般＝記録・デイリーメール・保護者DMなど日々の業務。</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">'+(isNew?'':'<button class="btn btn-ghost" id="ac_del">'+ic('trash')+'削除</button>')+'<button class="btn" id="ac_cancel">キャンセル</button><button class="btn btn-primary" id="ac_save">'+ic('check')+'保存</button></div></div>';
+  $('#ac_cancel').onclick=function(){m.remove();};
+  if($('#ac_del'))$('#ac_del').onclick=function(){if(!confirm('このログインアカウントを削除しますか？（職員名簿からは消えません）'))return;stSet('staffAccounts',staffAccounts().filter(function(x){return x.id!==a.id;}));m.remove();renderStaff();};
+  $('#ac_save').onclick=function(){
+    var lid=$('#ac_id').value.trim().toLowerCase();
+    if(!lid){alert('ログインIDを入力してください');return;}
+    if(staffAccounts().filter(function(x){return x.id!==a.id&&String(x.loginId).toLowerCase()===lid;}).length){alert('このログインIDは既に使われています');return;}
+    if(!$('#ac_pw').value.trim()){alert('パスワードを入力してください');return;}
+    a.loginId=lid;a.name=$('#ac_name').value.trim();a.pw=$('#ac_pw').value.trim();a.role=$('#ac_role').value;
+    var arr=staffAccounts();var idx=-1;arr.forEach(function(x,i){if(x.id===a.id)idx=i;});
+    if(idx>-1)arr[idx]=a;else arr.push(a);
+    stSet('staffAccounts',arr);m.remove();applyPerms();renderStaff();
+  };
 }
 function showStaffLogin(){
   var ov=document.getElementById('staffLogin');if(!ov){ov=el('div',{id:'staffLogin'});document.body.appendChild(ov);}
@@ -2308,7 +2358,7 @@ function renderAccessSettings(s){
     html+='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('staff')+'職員アカウント</h3><div class="muted" style="margin-bottom:10px;">職員ごとにログインIDと役割を発行します。役割で閲覧できる画面が決まります。</div>'
       +'<table><thead><tr><th>ログインID</th><th>氏名</th><th>役割</th><th>パスワード</th><th></th></tr></thead><tbody>'
       +accs.map(function(a){return '<tr><td><input data-sa="'+a.id+'|loginId" value="'+esc(a.loginId)+'" style="width:110px;"></td><td><input data-sa="'+a.id+'|name" value="'+esc(a.name)+'" style="width:150px;"></td><td><select data-sa="'+a.id+'|role">'+STAFF_ROLES.map(function(r){return '<option'+(r===a.role?' selected':'')+'>'+r+'</option>';}).join('')+'</select></td><td><input data-sa="'+a.id+'|pw" value="'+esc(a.pw)+'" style="width:100px;"></td><td><button class="btn btn-sm btn-ghost" data-sadel="'+a.id+'">'+ic('trash')+'</button></td></tr>';}).join('')
-      +'</tbody></table><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
+      +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
     var perms=rolePerms();
     html+='<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('shield')+'権限管理（役割ごとの閲覧範囲）</h3><div class="muted" style="margin-bottom:10px;">チェックした画面だけ、その役割の職員に表示されます。管理者は常に全画面。（例：一般スタッフは監査・請求書・設定を非表示に）</div>'
       +'<table><thead><tr><th style="min-width:150px;">画面</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+r+'</span></th>';}).join('')+'</tr></thead><tbody>'
