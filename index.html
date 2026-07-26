@@ -189,6 +189,7 @@
       <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
       <a data-go="dm">{ic:mail}保護者DM<span class="badge" id="navDM" style="background:#E24B4A;"></span></a>
       <a data-go="trial">{ic:clipboard}体験結果報告</a>
+      <a data-go="deliveries">{ic:cal}配信カレンダー</a>
       <div class="nav-label">記録・書類</div>
       <a data-go="records">{ic:activity}日常チェック（毎日）</a>
       <a data-go="carerec">{ic:report}保育記録</a>
@@ -204,7 +205,6 @@
       <a data-go="enroll">{ic:yen}生徒情報（契約・オプション）</a>
       <a data-go="billing">{ic:yen}請求管理</a>
       <a data-go="templates">{ic:doc}メールテンプレート</a>
-      <a data-go="deliveries">{ic:cal}配信カレンダー</a>
       <a data-go="staff">{ic:staff}職員管理</a>
       <a data-go="audit">{ic:audit}監査対応</a>
       <div class="nav-label">その他</div>
@@ -765,7 +765,7 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['管理','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],shift:['記録・書類','シフト表'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
@@ -1295,6 +1295,63 @@ function renderCurriculum(){
 }
 
 /* ---------- deliveries (annual calendar) ---------- */
+/* ===== 予定をカレンダー用ファイル（.ics）で書き出し =====
+   Googleカレンダーとの直接連携（自動同期）はGoogle側のOAuth設定が必要なため次フェーズ。
+   現時点でも、ここから書き出したファイルをGoogleカレンダーに取り込めば予定を反映できる。 */
+function icsEscape(s){return String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');}
+function icsDate(d){return String(d||'').replace(/-/g,'');}
+function calEvents(){
+  var ev=[],cs=DB.contacts;
+  cs.filter(function(c){return c.kind==='lead'&&c.date;}).forEach(function(c){
+    ev.push({date:c.date,title:'体験 '+(c.child||c.name),desc:[c.name+' 様',c.wishKlass?c.wishKlass+'希望':'',c.trialBy?'担当 '+c.trialBy:'',c.trialTime?'時間 '+c.trialTime:''].filter(Boolean).join('\n')});
+  });
+  cs.filter(function(c){return c.kind==='lead'&&c.briefingDate;}).forEach(function(c){
+    ev.push({date:c.briefingDate,title:'入園説明会 '+(c.child||c.name),desc:c.name+' 様'});
+  });
+  cs.filter(function(c){return c.kind==='lead'&&c.nextAction;}).forEach(function(c){
+    ev.push({date:c.nextAction,title:'フォロー '+(c.child||c.name)+(c.nextMethod?'（'+c.nextMethod+'）':''),desc:[c.name+' 様',c.status||''].filter(Boolean).join('\n')});
+  });
+  try{
+    var D=drillData();(D.rows||[]).forEach(function(r){
+      var d=(r.record&&r.record.date)||(r.plan&&r.plan.planDate);
+      if(d)ev.push({date:d,title:'避難訓練（'+r.kind+'）',desc:[r.plan&&r.plan.scenTime?'想定時刻 '+r.plan.scenTime:'',r.plan&&r.plan.place?'避難場所 '+r.plan.place:''].filter(Boolean).join('\n')});
+    });
+  }catch(e){}
+  try{
+    var mk=(typeof invMonthCur==='function')?invMonthCur():todayISO().slice(0,7),all=invAll()[mk]||{};
+    Object.keys(all).forEach(function(id){var r=all[id];if(r.due){var c=DB.contacts.filter(function(x){return String(x.id)===String(id);})[0];ev.push({date:r.due,title:'請求 お支払期日 '+(c?childName(c):''),desc:'請求額 '+yen(invTotal(r))});}});
+  }catch(e){}
+  DELIVERIES.forEach(function(d){var t=nextDelivery(d);if(t)ev.push({date:iso(t),title:'配信：'+d.label,desc:d.when+' ／ '+d.to});});
+  return ev.filter(function(e){return /^\d{4}-\d{2}-\d{2}$/.test(e.date);}).sort(function(a,b){return a.date<b.date?-1:1;});
+}
+function icsExport(){
+  var ev=calEvents();
+  if(!ev.length){alert('書き出せる予定がありません。');return 0;}
+  var stamp=todayISO().replace(/-/g,'')+'T000000Z';
+  var lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COCOAS//保育管理システム//JA','CALSCALE:GREGORIAN'];
+  ev.forEach(function(e,i){
+    var d=icsDate(e.date),nx=new Date(+e.date.slice(0,4),+e.date.slice(5,7)-1,+e.date.slice(8,10)+1);
+    var end=nx.getFullYear()+pad(nx.getMonth()+1)+pad(nx.getDate());
+    lines.push('BEGIN:VEVENT','UID:cocoas-'+d+'-'+i+'@cocoas','DTSTAMP:'+stamp,'DTSTART;VALUE=DATE:'+d,'DTEND;VALUE=DATE:'+end,
+      'SUMMARY:'+icsEscape(e.title),'DESCRIPTION:'+icsEscape(e.desc||''),'END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  dlFile('cocoas-calendar-'+todayISO()+'.ics',lines.join('\r\n'),'text/calendar');
+  return ev.length;
+}
+function calSyncModal(){
+  var ev=calEvents();
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:620px;"><h2>カレンダーに取り込む</h2>'
+    +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;line-height:1.7;">園の予定（体験・説明会・フォロー・避難訓練・請求の支払期日・定期配信）を、カレンダー用のファイル（.ics）として書き出します。<br>Googleカレンダーの「他のカレンダー → インポート」からファイルを選ぶと、予定がそのまま入ります（Apple カレンダー・Outlook でも同様に取り込めます）。</div>'
+    +'<div class="card" style="margin-bottom:12px;padding:12px;"><div style="font-weight:600;font-size:13px;margin-bottom:6px;">書き出される予定：'+ev.length+'件</div>'
+    +(ev.length?'<div style="max-height:220px;overflow-y:auto;font-size:12.5px;line-height:1.9;">'+ev.slice(0,40).map(function(e){return '<div>'+fmt(e.date)+'　'+esc(e.title)+'</div>';}).join('')+(ev.length>40?'<div class="muted">ほか '+(ev.length-40)+'件</div>':'')+'</div>':'<div class="muted">予定がありません</div>')+'</div>'
+    +'<div style="background:#FAEEDA;border:1px solid #E9C88B;border-radius:10px;padding:10px 12px;font-size:12px;color:#6b3f08;line-height:1.7;margin-bottom:12px;">自動で双方向に同期する連携（カレンダーの予定を取り込んで自動配信）は、Google側の連携設定とバックエンドが必要なため次フェーズです。現時点ではこの書き出しでカレンダーへ反映できます。</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;"><button class="btn" id="cal_cancel">閉じる</button><button class="btn btn-primary" id="cal_dl">'+ic('folder')+'カレンダー用ファイルを書き出す</button></div></div>';
+  $('#cal_cancel').onclick=function(){m.remove();};
+  $('#cal_dl').onclick=function(){var n=icsExport();if(n){m.remove();alert(n+'件の予定を書き出しました。Googleカレンダーの「他のカレンダー → インポート」から取り込んでください。');}};
+}
 function renderDeliveries(){
   var s=$('section[data-page="deliveries"]');
   var rows=DELIVERIES.map(function(d){var t=nextDelivery(d);return {d:d,t:t};});
@@ -1306,11 +1363,26 @@ function renderDeliveries(){
       '<table><thead><tr><th>配信</th><th>配信時期</th><th>対象</th><th>次回予定</th><th></th></tr></thead><tbody>'+
         rows.map(function(r){var nd=r.t?(fmt(iso(r.t))+(daysUntil(r.t)<=0?' <span class="tag">本日</span>':' <span class="row-sub">'+daysUntil(r.t)+'日後</span>')):'<span class="row-sub">都度</span>';return '<tr><td class="row-name">'+r.d.label+'</td><td class="row-sub">'+r.d.when+'</td><td>'+r.d.to+'</td><td>'+nd+'</td><td style="text-align:right;"><button class="btn btn-sm btn-primary" data-go2="'+r.d.go.join('|')+'">作成</button></td></tr>';}).join('')+
       '</tbody></table></div>'+
-    '<div class="cal-banner" style="margin-bottom:16px;"><div style="width:42px;height:42px;border-radius:12px;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;">'+ic('cal')+'</div><div style="flex:1;"><div style="font-weight:600;">Googleカレンダー連携（次フェーズ）</div><div class="muted">体験日・説明会・Daycare対象日をカレンダーから取込み、リマインド／サンクス／請求書を予定どおり自動配信。</div></div><button class="btn btn-primary">連携する</button></div>'+
+    '<div class="cal-banner" style="margin-bottom:16px;"><div style="width:42px;height:42px;border-radius:12px;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;">'+ic('cal')+'</div><div style="flex:1;"><div style="font-weight:600;">Googleカレンダー連携（次フェーズ）</div><div class="muted">体験日・説明会・Daycare対象日をカレンダーから取込み、リマインド／サンクス／請求書を予定どおり自動配信。</div></div><button class="btn btn-primary" id="calSync">カレンダーに取り込む</button></div>'+
     '<div class="card"><h3>'+ic('clock')+'体験・説明会の予定（リード）</h3>'+
-      (leads.length?leads.map(function(c){var sd=fmtShort(c.date);return '<div class="agenda"><div class="date"><div class="d">'+sd.d+'</div><div class="m">'+sd.m+'</div></div><div style="flex:1;"><div class="row-name">'+c.name+' 様 ／ '+c.child+'</div><div class="row-sub">'+fmt(c.date)+' '+(c.trialTime||'10:00')+'〜 ・ '+(c.format||'')+(c.trialBy?' ・ 担当'+c.trialBy:'')+'</div></div>'+statusPill(c.status)+'</div>';}).join(''):'<div class="empty">予定がありません</div>')+
+      (leads.length?leads.map(function(c){var sd=fmtShort(c.date);return '<div class="agenda"><div class="date"><div class="d">'+sd.d+'</div><div class="m">'+sd.m+'</div></div><div style="flex:1;"><div class="row-name">'+c.name+' 様 ／ '+c.child+'</div><div class="row-sub">'+fmt(c.date)+' '+(c.trialTime||'10:00')+'〜 ・ '+(c.format||'')+(c.trialBy?' ・ 担当'+c.trialBy:'')+'</div></div>'+statusPill(c.status)+'<div style="display:flex;gap:6px;margin-left:10px;white-space:nowrap;"><button class="btn btn-sm btn-primary" data-leadmail="'+c.id+'">'+ic('send')+'メール作成</button><button class="btn btn-sm btn-ghost" data-leadedit="'+c.id+'">'+ic('edit')+'</button></div></div>';}).join(''):'<div class="empty">予定がありません</div>')+
     '</div>';
   s.querySelectorAll('[data-go2]').forEach(function(b){b.addEventListener('click',function(){routeTo(b.getAttribute('data-go2').split('|'));});});
+  if($('#calSync'))$('#calSync').onclick=calSyncModal;
+  /* リード行から、その相手を選んだ状態で個別メール送信へ（状況に合ったテンプレを自動選択） */
+  s.querySelectorAll('[data-leadmail]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-leadmail'),c=DB.contacts.filter(function(x){return x.id===id;})[0];
+    var tpl='thanks';
+    if(c){
+      if(c.date===iso(addDays(1)))tpl='reminder';
+      else if(c.date&&c.date>todayISO())tpl='reminder';
+      else if(['体験後 検討中','🔥入園見込み','長期見込み'].indexOf(c.status)>-1)tpl='followup';
+      else if(c.status==='入園 確定')tpl='briefing';
+    }
+    if(!TEMPLATES[tpl])tpl='thanks';
+    routeTo(['compose',tpl,String(id)]);
+  };});
+  s.querySelectorAll('[data-leadedit]').forEach(function(b){b.onclick=function(){contactModal(+b.getAttribute('data-leadedit'));};});
   s.querySelectorAll('[data-schview]').forEach(function(b){b.onclick=function(){var q=sched.filter(function(x){return x.id===+b.getAttribute('data-schview');})[0];sentMailModal({time:q.when.replace('T',' ')+'（予約）',tpl:q.label,to:q.to,from:SET.sender,subject:q.subject,body:q.body});};});
   s.querySelectorAll('[data-schdel]').forEach(function(b){b.onclick=function(){stSet('scheduled',stGet('scheduled',[]).filter(function(x){return x.id!==+b.getAttribute('data-schdel');}));renderDeliveries();};});
 }
