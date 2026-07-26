@@ -558,6 +558,9 @@ var HOSP_DEFAULT=[
   {id:4,name:'与野消防署',type:'消防・救急',tel:'119'}
 ];
 var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','消防計画・避難確保計画','損害賠償保険証書','献立表'];
+/* 標準の枠に加えて、園ごとに書類を追加できる（docSlotsCustom） */
+function docSlotsCustom(){return stGet('docSlotsCustom',[]);}
+function docSlotsAll(){return DOC_SLOTS.concat(docSlotsCustom());}
 var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',shobo:'消防計画・避難確保計画',baisho:'損害賠償保険証書',kondate:'献立表'};
 var REC_DAILY=['登園（出席）','安全点検','午睡チェック','健康チェック','業務日報・保育日誌'];
 var REC_CARE=['身体測定','ヒヤリハット・怪我','生徒個人発達記録'];
@@ -2571,15 +2574,36 @@ function renderDocs(){
   var docs=stGet('docs',{}),hosp=stGet('hospitals',HOSP_DEFAULT),s=$('section[data-page="docs"]');
   s.innerHTML='<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
     '<div class="muted" style="margin-bottom:12px;">PDF等はDriveに保存し、そのURLをここに登録。監査チェックリスト・最終チェックリスト出力に「格納済み」として反映されます。</div>'+
-    '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th></tr></thead><tbody>'+
-    DOC_SLOTS.map(function(name){var r=docs[name]||{};return '<tr><td class="row-name" style="white-space:nowrap;">'+name+'</td><td><input data-du="'+name+'" value="'+(r.url||'')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+name+'" value="'+(r.memo||'')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td></tr>';}).join('')+
-    '</tbody></table><div style="margin-top:12px;"><button class="btn btn-primary" id="dcSave">'+ic('check')+'保存</button> <span class="muted" id="dcMsg"></span></div></div>'+
+    '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
+    docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(name)+(isCustom?' <span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
+    '</tbody></table>'+
+    '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;">'+
+      '<span class="muted" style="font-size:12px;font-weight:600;">書類を追加</span>'+
+      '<input id="dcNewName" placeholder="書類名（例：園児健康診断結果・行事計画）" style="flex:1;min-width:200px;">'+
+      '<input id="dcNewUrl" placeholder="https://drive.google.com/...（後から入力可）" style="flex:1;min-width:200px;">'+
+      '<button class="btn btn-sm" id="dcAdd">'+ic('plus')+'追加</button></div>'+
+    '<div style="margin-top:12px;"><button class="btn btn-primary" id="dcSave">'+ic('check')+'保存</button> <span class="muted" id="dcMsg"></span></div></div>'+
     '<div class="card"><h3>'+ic('alert')+'病院等の緊急連絡先一覧（壁掲示用）</h3>'+
     '<table><thead><tr><th>機関名</th><th>種別</th><th>電話</th><th></th></tr></thead><tbody>'+
     hosp.map(function(h,i){return '<tr><td><input data-hn="'+i+'" value="'+h.name+'"></td><td><input data-ht="'+i+'" value="'+h.type+'" style="max-width:130px;"></td><td><input data-hp="'+i+'" value="'+h.tel+'" style="max-width:150px;"></td><td><button class="btn btn-sm btn-ghost" data-hdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')+
     '</tbody></table><div style="margin-top:12px;display:flex;gap:8px;"><button class="btn" id="hpAdd">'+ic('plus')+'追加</button><button class="btn" id="hpSave">'+ic('check')+'保存</button><button class="btn btn-primary" id="hpPrint">'+ic('printer')+'壁掲示用に出力</button></div></div>';
+  $('#dcAdd').onclick=function(){
+    var n=$('#dcNewName').value.trim(),u=$('#dcNewUrl').value.trim();
+    if(!n){alert('書類名を入力してください');return;}
+    if(docSlotsAll().indexOf(n)>-1){alert('同じ名前の書類がすでにあります');return;}
+    var cu=docSlotsCustom();cu.push(n);stSet('docSlotsCustom',cu);
+    if(u){var d=stGet('docs',{});d[n]={url:u,memo:'',updated:todayISO()};stSet('docs',d);}
+    renderDocs();
+  };
+  s.querySelectorAll('[data-dslotdel]').forEach(function(b){b.onclick=function(){
+    var n=b.getAttribute('data-dslotdel');
+    if(!confirm('「'+n+'」を一覧から削除しますか？（登録したURL・メモも消えます）'))return;
+    stSet('docSlotsCustom',docSlotsCustom().filter(function(x){return x!==n;}));
+    var d=stGet('docs',{});delete d[n];stSet('docs',d);
+    renderDocs();
+  };});
   $('#dcSave').onclick=function(){
-    DOC_SLOTS.forEach(function(name){
+    docSlotsAll().forEach(function(name){
       var url=s.querySelector('[data-du="'+name+'"]').value.trim(),memo=s.querySelector('[data-dm="'+name+'"]').value.trim();
       if(url||memo)docs[name]={url:url,memo:memo,updated:todayISO()};else delete docs[name];
     });
