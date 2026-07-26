@@ -518,7 +518,7 @@ var AUDIT_CATS=[
     {key:'kunren',name:'消火・避難訓練 実施記録',place:'消防設備届出ファイル',when:'運営中',sys:'drill'},
     {key:'shobo',name:'防火管理台帳・消火訓練 計画/実施記録',place:'システム内（防火管理台帳・消火訓練）',when:'運営中',sys:'bouka'},
     {key:'kinkyu_h',name:'保護者の緊急連絡票',place:'システム内（生徒台帳）',when:'年度前',sys:'roster'},
-    {key:'kinkyu_b',name:'病院等の緊急連絡先一覧',place:'電話横 壁 掲示',when:'年度前',sys:'docs'},
+    {key:'kinkyu_b',name:'病院等の緊急連絡先一覧',place:'電話横 壁 掲示',when:'年度前',sys:'facility'},
     {key:'anzen',name:'安全点検チェックシート',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'baisho',name:'賠償責任保険証書',place:'',when:'年度前',sys:'docs'}
   ]},
@@ -535,7 +535,7 @@ var AUDIT_CATS=[
     {key:'kondate',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'}
   ]}
 ];
-var SYS_PAGE={contacts:'連絡先',roster:'生徒台帳',bouka:'防火管理台帳',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
+var SYS_PAGE={contacts:'連絡先',roster:'生徒台帳',facility:'施設管理',bouka:'防火管理台帳',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
 
 /* generic store helpers */
 function stGet(key,def){try{var v=JSON.parse(localStorage.getItem('cocoas_'+key));return v==null?def:v;}catch(e){return def;}}
@@ -571,6 +571,10 @@ var HOSP_DEFAULT=[
 var DOC_SLOTS=['利用契約書','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','損害賠償保険証書','献立表'];
 /* 標準の枠に加えて、園ごとに書類を追加できる（docSlotsCustom） */
 function docSlotsCustom(){return stGet('docSlotsCustom',[]);}
+/* 標準の書類名も園ごとに変更できる（docSlotRename: 元の名前 -> 表示名） */
+function docRenames(){return stGet('docSlotRename',{});}
+function docLabel(name){var r=docRenames();return r[name]||name;}
+function docRename(name,label){var r=docRenames();if(label&&label!==name)r[name]=label;else delete r[name];stSet('docSlotRename',r);}
 function docSlotsAll(){return DOC_SLOTS.concat(docSlotsCustom());}
 var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表'};
 var REC_DAILY=['登園（出席）','安全点検','午睡チェック','健康チェック','業務日報・保育日誌'];
@@ -624,7 +628,7 @@ function auditDataInfo(key){
     case 'gyakutai': return Object.keys(stGet('rec_虐待防止',{})).length+'回分の記録あり';
     case 'kunren': var dr=drillData().rows;return dr.filter(function(r){return r.record.date;}).length+' / '+dr.length+'回 実施記録あり';
     case 'shift': return Object.keys(stGet('shifts',{})).length+'ヶ月分あり';
-    case 'kinkyu_b': return stGet('hospitals',HOSP_DEFAULT).length+'件登録済み';
+    case 'kinkyu_b': return facGet().doctors.length+'件登録済み';
     case 'jido_meibo': return enrolled().length+'名登録済み';
     case 'kinkyu_h': {
       var withE=enrolled().filter(function(c){var p=(typeof spStore==='function')?(spStore()[c.id]||{}):{};return p.emg1&&p.emg2;}).length;
@@ -2837,7 +2841,7 @@ function renderDocs(){
   s.innerHTML='<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
     '<div class="muted" style="margin-bottom:12px;">PDF等はDriveに保存し、そのURLをここに登録。監査チェックリスト・最終チェックリスト出力に「格納済み」として反映されます。</div>'+
     '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
-    docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(name)+(isCustom?' <span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
+    docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td style="white-space:nowrap;"><input data-dname="'+esc(name)+'" value="'+esc(docLabel(name)).replace(/"/g,'&quot;')+'" style="font-weight:600;border:none;background:transparent;padding:2px 3px;min-width:180px;" title="書類名を変更できます">'+(isCustom?'<span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
     '</tbody></table>'+
     '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;">'+
       '<span class="muted" style="font-size:12px;font-weight:600;">書類を追加</span>'+
@@ -2845,10 +2849,7 @@ function renderDocs(){
       '<input id="dcNewUrl" placeholder="https://drive.google.com/...（後から入力可）" style="flex:1;min-width:200px;">'+
       '<button class="btn btn-sm" id="dcAdd">'+ic('plus')+'追加</button></div>'+
     '<div style="margin-top:12px;"><button class="btn btn-primary" id="dcSave">'+ic('check')+'保存</button> <span class="muted" id="dcMsg"></span></div></div>'+
-    '<div class="card"><h3>'+ic('alert')+'病院等の緊急連絡先一覧（壁掲示用）</h3>'+
-    '<table><thead><tr><th>機関名</th><th>種別</th><th>電話</th><th></th></tr></thead><tbody>'+
-    hosp.map(function(h,i){return '<tr><td><input data-hn="'+i+'" value="'+h.name+'"></td><td><input data-ht="'+i+'" value="'+h.type+'" style="max-width:130px;"></td><td><input data-hp="'+i+'" value="'+h.tel+'" style="max-width:150px;"></td><td><button class="btn btn-sm btn-ghost" data-hdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')+
-    '</tbody></table><div style="margin-top:12px;display:flex;gap:8px;"><button class="btn" id="hpAdd">'+ic('plus')+'追加</button><button class="btn" id="hpSave">'+ic('check')+'保存</button><button class="btn btn-primary" id="hpPrint">'+ic('printer')+'壁掲示用に出力</button></div></div>';
+    '<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><span style="color:#854F0B;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="flex:1;min-width:200px;font-size:12.5px;color:var(--tx2);">病院等の緊急連絡先は<b>「施設管理 → 提携医療機関」</b>で管理します（壁掲示用の出力もそちらから行えます）。</div><button class="btn btn-sm" id="dcGoFac">施設管理へ</button></div>';
   $('#dcAdd').onclick=function(){
     var n=$('#dcNewName').value.trim(),u=$('#dcNewUrl').value.trim();
     if(!n){alert('書類名を入力してください');return;}
@@ -2871,15 +2872,25 @@ function renderDocs(){
     });
     stSet('docs',docs);$('#dcMsg').textContent='保存しました';setTimeout(function(){renderDocs();},600);
   };
-  function readHosp(){return hosp.map(function(h,i){return {id:h.id||i+1,name:s.querySelector('[data-hn="'+i+'"]').value,type:s.querySelector('[data-ht="'+i+'"]').value,tel:s.querySelector('[data-hp="'+i+'"]').value};});}
-  $('#hpSave').onclick=function(){stSet('hospitals',readHosp());renderDocs();};
-  $('#hpAdd').onclick=function(){var h=readHosp();h.push({id:Date.now(),name:'',type:'',tel:''});stSet('hospitals',h);renderDocs();};
-  s.querySelectorAll('[data-hdel]').forEach(function(b){b.onclick=function(){var h=readHosp();h.splice(+b.getAttribute('data-hdel'),1);stSet('hospitals',h);renderDocs();};});
-  $('#hpPrint').onclick=function(){
-    var h=readHosp();
-    var body='<table><thead><tr><th>機関名</th><th>種別</th><th>電話番号</th></tr></thead><tbody>'+h.map(function(x){return '<tr><td style="font-size:14px;">'+x.name+'</td><td style="font-size:14px;">'+x.type+'</td><td style="font-size:16px;font-weight:600;">'+x.tel+'</td></tr>';}).join('')+'</tbody></table>';
-    printDoc('病院等の緊急連絡先一覧',body);
-  };
+  if($('#dcGoFac'))$('#dcGoFac').onclick=function(){go('facility');};
+  s.querySelectorAll('[data-dname]').forEach(function(inp){
+    inp.onfocus=function(){inp.style.borderBottom='1px solid var(--line)';};
+    inp.onblur=function(){inp.style.borderBottom='none';};
+    inp.onchange=function(){
+      var orig=inp.getAttribute('data-dname'),val=inp.value.trim();
+      if(!val){inp.value=docLabel(orig);return;}
+      if(docSlotsCustom().indexOf(orig)>-1){
+        /* 追加した書類は名称そのものを変更 */
+        if(val!==orig&&docSlotsAll().indexOf(val)>-1){alert('同じ名前の書類がすでにあります');inp.value=orig;return;}
+        var cu=docSlotsCustom().map(function(x){return x===orig?val:x;});stSet('docSlotsCustom',cu);
+        var dd=stGet('docs',{});if(dd[orig]){dd[val]=dd[orig];delete dd[orig];stSet('docs',dd);}
+      }else{
+        docRename(orig,val);
+      }
+      renderDocs();
+    };
+  });
+
 }
 
 /* ========== 権限管理・職員ログイン（RBAC・デモ） ==========
@@ -3988,7 +3999,13 @@ var FAC_INFO=[
   ]}
 ];
 var FAC_PARTNER_KINDS=['給食・ランチ','清掃・ごみ収集','設備・消防点検','リース・備品','写真販売','システム・IT','送迎・バス','その他'];
-function facGet(){var d=stGet('facility',null);if(!d)d={info:{},doctors:[],partners:[],notes:[]};d.info=d.info||{};d.doctors=d.doctors||[];d.partners=d.partners||[];d.notes=d.notes||[];return d;}
+function facGet(){
+  var d=stGet('facility',null);
+  if(!d){
+    d={info:{},doctors:[],partners:[],notes:[]};
+    /* 旧「病院等の緊急連絡先一覧」を引き継ぐ */
+    try{(stGet('hospitals',[])||[]).forEach(function(x){if(x&&x.name)d.doctors.push({name:x.name,dept:'',doctor:'',tel:x.tel||'',addr:'',kind:x.type||'かかりつけ医'});});}catch(e){}
+  }d.info=d.info||{};d.doctors=d.doctors||[];d.partners=d.partners||[];d.notes=d.notes||[];return d;}
 function facSet(d){stSet('facility',d);}
 function renderFacility(){
   var d=facGet(),s=$('section[data-page="facility"]');
