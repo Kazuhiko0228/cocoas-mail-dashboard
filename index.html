@@ -2718,7 +2718,7 @@ var SP_GROUPS=[
     {k:'sex',label:'性別',opts:['','男の子','女の子']},{k:'blood',label:'血液型',opts:['','不明','A','B','O','AB']}
   ]},
   {g:'入会・在籍',f:[{k:'applyDate',label:'お申し込み日',type:'date'},{k:'joinDate',label:'入会日',type:'date'}]},
-  {g:'住所・自宅（地図に使用）',f:[{k:'zip',label:'郵便番号'},{k:'address',label:'住所',wide:true},{k:'telHome',label:'TEL（自宅）'}]},
+  {g:'住所・自宅（地図に使用）',f:[{k:'zip',label:'郵便番号',req:true},{k:'address',label:'住所',wide:true,req:true},{k:'telHome',label:'TEL（自宅）'}]},
   {g:'お父様',f:[
     {k:'fName',label:'氏名'},{k:'fKana',label:'フリガナ'},{k:'fTel',label:'TEL（携帯）'},{k:'fMail',label:'メールアドレス'},
     {k:'fJob',label:'職業'},{k:'fWork',label:'勤務先名'},{k:'fWorkAddr',label:'勤務先住所',wide:true},{k:'fWorkTel',label:'TEL（勤務先）'}
@@ -2729,15 +2729,15 @@ var SP_GROUPS=[
   ]},
   {g:'スクール・緊急連絡',f:[
     {k:'schoolMail',label:'送信先メール（スクール情報）'},
-    {k:'emg1',label:'緊急連絡先(1)'},{k:'emg1rel',label:'続柄(1)'},
-    {k:'emg2',label:'緊急連絡先(2)'},{k:'emg2rel',label:'続柄(2)'},
+    {k:'emg1',label:'緊急連絡先(1)',req:true},{k:'emg1rel',label:'続柄(1)',req:true},
+    {k:'emg2',label:'緊急連絡先(2)',req:true},{k:'emg2rel',label:'続柄(2)',req:true},
     {k:'emg3',label:'緊急連絡先(3)'},{k:'emg3rel',label:'続柄(3)'},
     {k:'parentNote',label:'保護者からの連絡事項',type:'textarea',wide:true}
   ]},
   {g:'健康情報',f:[
-    {k:'allergy',label:'アレルギー'},{k:'doctor',label:'かかりつけ医'},{k:'normalTemp',label:'平熱'},
-    {k:'history',label:'既往症',opts:['無','有']},{k:'hospital',label:'入院歴',opts:['無','有']},
-    {k:'febrile',label:'ひきつけ/熱性痙攣',opts:['無','有']},{k:'respiratory',label:'呼吸・心疾患',opts:['無','有']},
+    {k:'allergy',label:'アレルギー',req:true,ph:'ない場合は「なし」'},{k:'doctor',label:'かかりつけ医',req:true,ph:'ない場合は「なし」'},{k:'normalTemp',label:'平熱',req:true,ph:'例：36.5'},
+    {k:'history',label:'既往症',opts:['無','有'],req:true},{k:'hospital',label:'入院歴',opts:['無','有'],req:true},
+    {k:'febrile',label:'ひきつけ/熱性痙攣',opts:['無','有'],req:true},{k:'respiratory',label:'呼吸・心疾患',opts:['無','有'],req:true},
     {k:'otherDx',label:'その他 医師の診断',type:'textarea',wide:true}
   ]},
   {g:'お支払い（口座情報はこの端末内のみ・公開されません）',f:[
@@ -2815,7 +2815,8 @@ function rosterProfile(kids){
         if(f.opts)inp='<select data-rp="'+f.k+'">'+f.opts.map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
         else if(f.type==='textarea')inp='<textarea data-rp="'+f.k+'" rows="2">'+esc(v)+'</textarea>';
         else inp='<input data-rp="'+f.k+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末内のみ）"':(f.ph?' placeholder="'+f.ph+'"':''))+'>';
-        return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+(f.k==='dob'&&p.dob?'　<span class="muted">'+spAge(p.dob)+'</span>':'')+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
+        var reqTag=f.req?' <span style="background:#FCEBEB;color:#A32D2D;border-radius:4px;padding:0 5px;font-size:10px;font-weight:700;">必須</span>':'';
+        return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+reqTag+(f.k==='dob'&&p.dob?'　<span class="muted">'+spAge(p.dob)+'</span>':'')+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
       }).join('')
       +'</div></div>';
   }).join('');
@@ -2827,6 +2828,16 @@ function wireRosterProfile(){
   if($('#rpSave'))$('#rpSave').onclick=function(){
     var obj=spGet(rosterSel);
     document.querySelectorAll('[data-rp]').forEach(function(el){obj[el.getAttribute('data-rp')]=el.value;});
+    /* 必須項目のチェック（住所・第2緊急連絡先まで） */
+    var missing=[];
+    SP_GROUPS.forEach(function(g){g.f.forEach(function(f){if(f.req&&!String(obj[f.k]||'').trim())missing.push(f.label);});});
+    document.querySelectorAll('[data-rp]').forEach(function(el){el.style.borderColor='';});
+    if(missing.length){
+      missing.forEach(function(lab){SP_GROUPS.forEach(function(g){g.f.forEach(function(f){if(f.label===lab){var el=document.querySelector('[data-rp="'+f.k+'"]');if(el)el.style.borderColor='#E24B4A';}});});});
+      $('#rpMsg').innerHTML='<span style="color:#A32D2D;font-weight:600;">必須項目が未入力です：'+esc(missing.join('・'))+'</span>';
+      var first=document.querySelector('[data-rp][style*="rgb(226, 75, 74)"]');if(first)first.scrollIntoView({block:'center'});
+      return;
+    }
     spSet(rosterSel,obj);$('#rpMsg').textContent='保存しました';setTimeout(function(){if($('#rpMsg'))$('#rpMsg').textContent='';},1500);
   };
 }
