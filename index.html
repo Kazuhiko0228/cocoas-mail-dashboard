@@ -179,6 +179,7 @@
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
 </head>
 <body>
 <div class="app">
@@ -408,7 +409,7 @@ var SET=Object.assign({
   daycareFeeNormal:"5,500",daycareFeeExt:"6,600",daycareLunch:"550",
   daycareFormUrl:"",surveyUrl:"",docAuditDate:"",attendOptions:['ランチ','ロングステイ'],
   /* 請求書の体裁（管理側で設定） */
-  invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
+  ocrEndpoint:"",invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
   invUseAgency:false,invAgencyName:"",invAgencyAddr:"",invAgencyTel:"",invAgencyBank:"",
   invGreeting:"平素は格別のご高配を賜り、厚く御礼申し上げます。\n下記のとおりご請求申し上げますので、お支払期日までにお振込みくださいますようお願い申し上げます。",
   invFooter:"※振込名義はお子様のお名前でお願いいたします。\n※お振込手数料はご負担いただきますようお願いいたします。",
@@ -1557,11 +1558,16 @@ function renderSettings(){
         '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_agName','収納会社名',SET.invAgencyName)+f('s_agTel','収納会社 電話番号',SET.invAgencyTel)+'</div>'+
         f('s_agAddr','収納会社 住所',SET.invAgencyAddr)+f('s_agBank','収納会社 振込先・お支払い方法',SET.invAgencyBank)+
       '</div></div>'+
+    '<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('photo')+'文字読み取り（OCR）</h3>'+
+      '<div class="muted" style="margin-bottom:10px;">紙の記録を取り込んだあと、書かれた文字を自動で読み取る機能です。読み取りサービスの接続先（URL）を登録すると有効になります。未登録でも、紙の画像の保管・印刷はそのまま使えます。</div>'+
+      f('s_ocr','読み取りサービスの接続先URL',SET.ocrEndpoint)+
+      '<div class="muted" style="font-size:11.5px;">※ 画像を送信して文字を受け取る仕組みのため、外部サービス（Google Cloud Vision 等）またはバックエンドの用意が必要です。手書き文字の読み取り精度は書き方により差があります。</div></div>'+
     '<button class="btn btn-primary" id="s_save">'+ic('check')+'保存</button> <span class="muted" id="s_msg"></span>';
   $('#s_save').onclick=function(){
     SET.sender=$('#s_sender').value;SET.bcc=$('#s_bcc').value;SET.school=$('#s_school').value;SET.manager=$('#s_manager').value;
     SET.bankName=$('#s_bankName').value;SET.bankBranch=$('#s_bankBranch').value;SET.bankType=$('#s_bankType').value;SET.bankNo=$('#s_bankNo').value;SET.bankHolder=$('#s_bankHolder').value;
     SET.photoUrl=$('#s_photoUrl').value;SET.photoCodePre=$('#s_photoPre').value;SET.photoCodeKinder=$('#s_photoKinder').value;
+    SET.ocrEndpoint=$('#s_ocr').value.trim();
     SET.invCoName=$('#s_coName').value;SET.invRegNo=$('#s_regNo').value;SET.invCoAddr=$('#s_coAddr').value;
     SET.invCoTel=$('#s_coTel').value;SET.invCoMail=$('#s_coMail').value;SET.invCoRep=$('#s_coRep').value;
     SET.invGreeting=$('#s_greet').value;SET.invFooter=$('#s_ifoot').value;SET.invUseAgency=$('#s_useAgency').checked;
@@ -1856,6 +1862,181 @@ function ageClassOf(c){
 function childName(c){return c.child.replace(/ちゃん|くん/g,'');}
 function renderRecords(){renderRecGroup('records',REC_DAILY,'毎日記録する項目です。');}
 function renderCareRec(){renderRecGroup('carerec',REC_CARE,'月ごと・都度・3ヶ月ごとに記録する項目です。');}
+/* ========== 紙の記録のスキャン保存 ==========
+   現場で紙に書いた記録を撮影／スキャンして、その記録・日付に紐づけて保管する。
+   対象：毎日使い、紙のほうが早い記録（登園・安全点検・午睡・健康・業務日報・ヒヤリハット）
+   データ: recScans = { 'rec_キー|日付': [{img, at, by, note, ocr}] } */
+var SCAN_TARGETS={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','業務日報・保育日誌':'rec_日報','ヒヤリハット・怪我':'rec_hiyari'};
+function scanKey(type,date){return (SCAN_TARGETS[type]||type)+'|'+date;}
+function scansAll(){return stGet('recScans',{});}
+function scansOf(type,date){return scansAll()[scanKey(type,date)]||[];}
+function scansSet(type,date,list){var a=scansAll(),k=scanKey(type,date);if(list&&list.length)a[k]=list;else delete a[k];stSet('recScans',a);}
+function scanDateOf(type){return (type==='身体測定')?recMonth:(type==='生徒個人発達記録'?recQuarter:recDate);}
+/* 画像を保存用に縮小（紙の文字が読める程度に長辺1400px） */
+function scanResize(file,cb){
+  var rd=new FileReader();
+  rd.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var MX=1400,sc=Math.min(1,MX/Math.max(img.width,img.height));
+      var w=Math.round(img.width*sc),hh=Math.round(img.height*sc);
+      var cv=document.createElement('canvas');cv.width=w;cv.height=hh;
+      cv.getContext('2d').drawImage(img,0,0,w,hh);
+      cb(null,cv.toDataURL('image/jpeg',0.75));
+    };
+    img.onerror=function(){cb(new Error('画像を読み込めませんでした'));};
+    img.src=rd.result;
+  };
+  rd.onerror=function(){cb(new Error('ファイルを読み込めませんでした'));};
+  rd.readAsDataURL(file);
+}
+/* 文字の自動読み取り（OCR）。接続先が未設定のときは案内のみ */
+function ocrExtract(dataUri,cb){
+  var ep=(SET.ocrEndpoint||'').trim();
+  if(!ep){cb(new Error('未設定'));return;}
+  try{
+    fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:dataUri})})
+      .then(function(r){return r.json();})
+      .then(function(j){cb(null,(j&&(j.text||j.result))||'');})
+      .catch(function(e){cb(e);});
+  }catch(e){cb(e);}
+}
+function scanCard(type){
+  var date=scanDateOf(type),list=scansOf(type,date);
+  if(!SCAN_TARGETS[type])return '';
+  return '<div class="card" style="margin-top:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+    +'<h3 style="margin:0;flex:1;">'+ic('photo')+'紙の記録を取り込む（'+esc(date)+'）</h3>'
+    +'<label class="btn btn-sm btn-primary" style="cursor:pointer;margin:0;">'+ic('photo')+'撮影・スキャンを追加<input type="file" id="scanFile" accept="image/*" capture="environment" style="display:none;"></label>'
+    +'<button class="btn btn-sm" id="blankPrint">'+ic('printer')+'記入用紙を印刷（QR付き）</button>'
+    +(list.length?'<button class="btn btn-sm" id="scanPrint">'+ic('printer')+'取り込んだ紙を出力</button>':'')+'</div>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">紙に書いた記録をそのまま撮影して保管できます。監査時は画面でも印刷でも提示できます。'
+    +(SET.ocrEndpoint?'　文字の自動読み取りが有効です。':'　※文字の自動読み取り（OCR）は「設定 → 文字読み取り（OCR）」で接続先を登録すると使えます。')+'</div>'
+    +'<div id="scanList" style="display:flex;gap:10px;flex-wrap:wrap;">'
+    +(list.length?list.map(function(x,i){
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;width:190px;">'
+        +'<img src="'+x.img+'" data-scanview="'+i+'" style="width:100%;height:120px;object-fit:cover;border-radius:6px;cursor:zoom-in;">'
+        +'<div class="row-sub" style="margin-top:5px;font-size:11px;">'+esc(x.at||'')+(x.by?'　'+esc(x.by):'')+'</div>'
+        +(x.ocr?'<div class="row-sub" style="font-size:11px;color:#0F6E56;">読み取り済み</div>':'')
+        +'<div style="display:flex;gap:5px;margin-top:5px;">'
+          +'<button class="btn btn-sm btn-ghost" data-scanocr="'+i+'" style="font-size:11px;padding:3px 7px;">読み取り</button>'
+          +'<button class="btn btn-sm btn-ghost" data-scandel="'+i+'" style="font-size:11px;padding:3px 7px;">'+ic('trash')+'</button></div></div>';}).join('')
+      :'<div class="muted" style="font-size:12px;">まだ取り込んだ紙はありません。</div>')
+    +'</div><div class="muted" id="scanMsg" style="margin-top:8px;font-size:12px;"></div></div>';
+}
+function wireScan(type){
+  var date=scanDateOf(type);
+  if(!SCAN_TARGETS[type]||!$('#scanFile'))return;
+  $('#scanFile').onchange=function(e){
+    var f=e.target.files[0];if(!f)return;
+    $('#scanMsg').textContent='読み込み中…';
+    scanResize(f,function(err,uri){
+      if(err){$('#scanMsg').textContent=err.message;return;}
+      var who='';try{who=(currentStaff()||{}).name||'';}catch(e2){}
+      var l=scansOf(type,date);
+      try{l.push({img:uri,at:logStamp(),by:who,note:'',ocr:''});scansSet(type,date,l);}
+      catch(e3){$('#scanMsg').textContent='保存できませんでした（容量が不足している可能性があります）';return;}
+      renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?REC_CARE:REC_DAILY);
+    });
+  };
+  document.querySelectorAll('[data-scanview]').forEach(function(im){im.onclick=function(){
+    var x=scansOf(type,date)[+im.getAttribute('data-scanview')];if(!x)return;
+    var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+    m.innerHTML='<div class="modal" style="width:min(880px,94vw);"><h2>取り込んだ紙の記録</h2><img src="'+x.img+'" style="width:100%;border-radius:8px;">'
+      +(x.ocr?'<div class="field" style="margin-top:10px;"><label>読み取った文字</label><textarea rows="5" readonly>'+esc(x.ocr)+'</textarea></div>':'')
+      +'<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn" id="svClose">閉じる</button></div></div>';
+    m.addEventListener('click',function(ev){if(ev.target===m)m.remove();});
+    $('#svClose').onclick=function(){m.remove();};
+  };});
+  document.querySelectorAll('[data-scandel]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この画像を削除しますか？'))return;
+    var l=scansOf(type,date);l.splice(+b.getAttribute('data-scandel'),1);scansSet(type,date,l);
+    renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?REC_CARE:REC_DAILY);
+  };});
+  document.querySelectorAll('[data-scanocr]').forEach(function(b){b.onclick=function(){
+    var i=+b.getAttribute('data-scanocr'),l=scansOf(type,date),x=l[i];if(!x)return;
+    $('#scanMsg').textContent='読み取り中…';
+    ocrExtract(x.img,function(err,text){
+      if(err){
+        $('#scanMsg').innerHTML=(err.message==='未設定')
+          ?'文字の自動読み取りは、<b>設定 → 文字読み取り（OCR）</b> に接続先を登録すると使えます（外部の読み取りサービスが必要です）。'
+          :'読み取りに失敗しました：'+esc(err.message);
+        return;
+      }
+      x.ocr=text||'';l[i]=x;scansSet(type,date,l);
+      $('#scanMsg').textContent='読み取りました。画像をタップすると内容を確認できます。';
+      renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?REC_CARE:REC_DAILY);
+    });
+  };});
+  var bp=$('#blankPrint');if(bp)bp.onclick=function(){printBlankForm(type);};
+  var sp=$('#scanPrint');
+  if(sp)sp.onclick=function(){
+    var l=scansOf(type,date);
+    var body=l.map(function(x){return '<div style="page-break-after:always;"><p>'+esc(type)+'　'+esc(date)+'　'+esc(x.at||'')+(x.by?'　記録者 '+esc(x.by):'')+'</p><img src="'+x.img+'" style="width:100%;"></div>';}).join('');
+    printDoc('紙の記録（'+type+'・'+date+'）',body);
+  };
+}
+/* ===== 記入用紙（紙で書く用）の出力。QRを読むとその記録の取り込み画面が開く ===== */
+function scanDeepUrl(type,date){
+  var base=location.href.split('?')[0];
+  return base+'?rec='+encodeURIComponent(type)+'&date='+encodeURIComponent(date)+'&scan=1';
+}
+function qrDataUri(text,cb){
+  if(typeof QRCode==='undefined'){cb(null);return;}
+  try{
+    var box=document.createElement('div');box.style.cssText='position:absolute;left:-9999px;top:0;';
+    document.body.appendChild(box);
+    new QRCode(box,{text:text,width:120,height:120,correctLevel:QRCode.CorrectLevel.M});
+    setTimeout(function(){
+      var img=box.querySelector('img'),cv=box.querySelector('canvas');
+      var uri=img?img.src:(cv?cv.toDataURL('image/png'):null);
+      box.remove();cb(uri);
+    },120);
+  }catch(e){cb(null);}
+}
+/* 記録種別ごとの記入用紙の中身 */
+function blankFormBody(type,date,qr){
+  var head='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">'
+    +'<div><div style="font-size:16px;font-weight:700;">'+esc(type)+'　記入用紙</div>'
+      +'<div style="font-size:12px;margin-top:3px;">'+esc(SET.school||'')+'　　日付：'+esc(date)+'　　記録者：＿＿＿＿＿＿</div></div>'
+    +'<div style="text-align:center;font-size:9px;">'+(qr?'<img src="'+qr+'" style="width:96px;height:96px;">':'')+'<div>この用紙を撮影して<br>取り込めます</div></div></div>';
+  var kids=enrolled();
+  var body='';
+  if(type==='登園（出席）'){
+    var opts=SET.attendOptions||[];
+    body='<table><thead><tr><th style="width:26px;">No</th><th>園児</th><th style="width:70px;">出欠</th><th style="width:60px;">体温</th>'+opts.map(function(o){return '<th style="width:60px;">'+esc(o)+'</th>';}).join('')+'<th>メモ</th></tr></thead><tbody>'
+      +kids.map(function(c,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(childName(c))+'</td><td></td><td></td>'+opts.map(function(){return '<td></td>';}).join('')+'<td></td></tr>';}).join('')
+      +'</tbody></table><p style="font-size:10px;">出欠：● 出席／早 早退／遅 遅刻／休 欠席</p>';
+  }else if(type==='安全点検'){
+    var n=0;
+    body='<table><thead><tr><th style="width:90px;">場所</th><th>点検項目</th><th style="width:100px;">良／要対応</th></tr></thead><tbody>'
+      +SAFETY_GROUPS.map(function(g){return g.items.map(function(it,gi){n++;return '<tr>'+(gi===0?'<td rowspan="'+g.items.length+'">'+esc(g.loc)+'</td>':'')+'<td>'+esc(it)+'</td><td></td></tr>';}).join('');}).join('')
+      +'</tbody></table><p>メモ：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</p>';
+  }else if(type==='午睡チェック'){
+    var slots=[];for(var t=11*60+30;t<=13*60+30;t+=10){slots.push(Math.floor(t/60)+':'+String(t%60).padStart(2,'0'));}
+    body='<table><thead><tr><th>園児</th>'+slots.map(function(x){return '<th style="font-size:9px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
+      +kids.map(function(c){return '<tr><td style="white-space:nowrap;">'+esc(childName(c))+'</td>'+slots.map(function(){return '<td></td>';}).join('')+'</tr>';}).join('')
+      +'</tbody></table><p style="font-size:10px;">記号：仰向け ↑／横向き →／うつ伏せ ↓　※呼吸を確認したら記入</p>';
+  }else if(type==='健康チェック'){
+    body='<table><thead><tr><th style="width:26px;">No</th><th>園児</th><th style="width:60px;">体温</th><th style="width:90px;">症状の有無</th><th>症状・対応</th></tr></thead><tbody>'
+      +kids.map(function(c,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(childName(c))+'</td><td></td><td>なし／あり</td><td></td></tr>';}).join('')
+      +'</tbody></table>';
+  }else if(type==='業務日報・保育日誌'){
+    body='<table><tbody>'
+      +['本日の活動（午前）','本日の活動（午後）','子どもの様子','欠席・早退','特記事項','明日の準備'].map(function(l){return '<tr><th style="width:130px;">'+l+'</th><td style="height:52px;"></td></tr>';}).join('')
+      +'</tbody></table>';
+  }else if(type==='ヒヤリハット・怪我'){
+    body='<table><tbody>'
+      +[['発生日時','　　月　　日　　　時　　分'],['園児名',''],['場所',''],['内容（怪我／発熱／ヒヤリハット）',''],['どのように起きたか',''],['処置・対応',''],['保護者への連絡','　　時　　分　／　連絡者：'],['今後気をつける点','']].map(function(r){return '<tr><th style="width:150px;">'+r[0]+'</th><td style="height:46px;">'+r[1]+'</td></tr>';}).join('')
+      +'</tbody></table><p>部位（該当箇所に印）：　頭・顔・首・肩・腕・手・胸・腹・背中・腰・脚・膝・足</p>';
+  }
+  return head+'<div style="height:8px;"></div>'+body;
+}
+function printBlankForm(type){
+  var date=scanDateOf(type);
+  qrDataUri(scanDeepUrl(type,date),function(qr){
+    printDoc(type+' 記入用紙',blankFormBody(type,date,qr));
+  });
+}
 function renderRecGroup(page,list,note){
   if(!recDate)recDate=todayISO();
   if(!recMonth)recMonth=todayISO().slice(0,7);
@@ -1870,6 +2051,7 @@ function renderRecGroup(page,list,note){
   s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecGroup(page,list,note);};});
   $('#recExportBtn').onclick=recExport;
   ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
+  if(SCAN_TARGETS[recType]){$('#recBody').insertAdjacentHTML('beforeend',scanCard(recType));wireScan(recType);}
 }
 function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
 function attStyle(v){return v==='●'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':v==='休'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':v==='早'?'background:#FAEEDA;border-color:#E9C88B;color:#854F0B;font-weight:600;':v==='遅'?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'';}
@@ -3003,13 +3185,20 @@ function staffEnter(){
   if(dl&&canView('dm'))dmSel=dl;
   go(first);if(typeof initAI==='function')initAI();
 }
+function recDeepLink(){
+  var m=location.search.match(/[?&]rec=([^&]+)/);if(!m)return null;
+  var t=decodeURIComponent(m[1]);
+  var d=(location.search.match(/[?&]date=([^&]+)/)||[])[1];
+  return {type:t,date:d?decodeURIComponent(d):'',scan:/[?&]scan=1/.test(location.search)};
+}
 function dmDeepLink(){var m=location.search.match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
 function staffBoot(){
   try{autoSnapshot();}catch(e){}
   if(!currentStaff()){showStaffLogin();return;}
   applyPerms();
-  var dl=dmDeepLink();
-  if(dl&&canView('dm')){dmSel=dl;go('dm');}else go('dashboard');
+  var dl=dmDeepLink(),rl=recDeepLink();
+  if(rl&&canView(recPageOf(rl.type))){recType=rl.type;if(rl.date)recDate=rl.date;go(recPageOf(rl.type));setTimeout(function(){var f=document.getElementById('scanFile');if(rl.scan&&f)f.click();},300);}
+  else if(dl&&canView('dm')){dmSel=dl;go('dm');}else go('dashboard');
   if(typeof initAI==='function')initAI();
 }
 /* 設定タブに追加：生徒情報リンク・職員アカウント・権限管理 */
