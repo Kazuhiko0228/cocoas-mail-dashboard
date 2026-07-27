@@ -1650,6 +1650,7 @@ function renderSettings(){
   };
   $('#s_logoDel').onclick=function(){SET.invLogo='';DB.settings=SET;$('#s_logoPrev').innerHTML='<span class="muted" style="font-size:11px;">未設定</span>';$('#s_logoMsg').textContent='ロゴを削除しました';};
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
+  if(typeof renderServerSettings==='function')renderServerSettings(s);
   if(typeof renderBackupSettings==='function')renderBackupSettings(s);
 }
 
@@ -3105,6 +3106,137 @@ function renderDocs(){
 
 }
 
+/* ========== サーバー同期（バックエンド接続時のみ有効） ==========
+   接続先が未設定のときは、これまで通り端末内（ブラウザ）だけで動く。
+   接続すると：本物のログイン／全端末でデータ共有／サーバ側に保存とログ。
+   仕組み：画面はこれまで通り端末内の保存を読み書きし、その内容をサーバと同期する（オフラインでも入力できる）。 */
+var API={
+  base:function(){return (stGetRaw('apiBase')||'').replace(/\/$/,'');},
+  setBase:function(v){localStorage.setItem('cocoas_apiBase',JSON.stringify(String(v||'').replace(/\/$/,'')));},
+  token:function(){return stGetRaw('apiToken')||'';},
+  setToken:function(t){if(t)localStorage.setItem('cocoas_apiToken',JSON.stringify(t));else localStorage.removeItem('cocoas_apiToken');},
+  tenant:function(){return stGetRaw('apiTenant')||null;},
+  setTenant:function(t){if(t)localStorage.setItem('cocoas_apiTenant',JSON.stringify(t));else localStorage.removeItem('cocoas_apiTenant');},
+  enabled:function(){return !!API.base();},
+  online:function(){return API.enabled()&&!!API.token();},
+  call:function(method,path,body){
+    var h={'Content-Type':'application/json'};
+    if(API.token())h.Authorization='Bearer '+API.token();
+    return fetch(API.base()+path,{method:method,headers:h,body:body?JSON.stringify(body):undefined})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+        if(r.status===401){API.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
+        if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
+        return j;});});
+  }
+};
+/* 同期キュー：保存のたびに変更キーを控え、まとめてサーバへ送る */
+var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
+  mark:function(key){
+    if(!API.online())return;
+    if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap)$/.test(key))return;
+    SYNC.queue[key.replace(/^cocoas_/,'')]=true;
+    clearTimeout(SYNC.timer);
+    SYNC.timer=setTimeout(SYNC.push,1200);
+  },
+  push:function(){
+    if(!API.online()||SYNC.busy)return Promise.resolve();
+    var keys=Object.keys(SYNC.queue);if(!keys.length)return Promise.resolve();
+    SYNC.busy=true;SYNC.queue={};SYNC.setStatus('保存中…');
+    var data={};keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){data[k]=null;}});
+    return API.call('PUT','/state',{data:data})
+      .then(function(){SYNC.setStatus('保存しました',true);})
+      .catch(function(e){keys.forEach(function(k){SYNC.queue[k]=true;});SYNC.setStatus('未保存：'+e.message);})
+      .then(function(){SYNC.busy=false;});
+  },
+  pull:function(){
+    if(!API.online())return Promise.resolve();
+    SYNC.setStatus('読み込み中…');
+    return API.call('GET','/state').then(function(j){
+      Object.keys(j.data||{}).forEach(function(k){
+        if(j.data[k]===null||j.data[k]===undefined)return;
+        (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_'+k,JSON.stringify(j.data[k]));
+      });
+      SYNC.lastPull=j.serverTime;SYNC.setStatus('最新の状態です',true);
+      return j;
+    }).catch(function(e){SYNC.setStatus('読み込み失敗：'+e.message);throw e;});
+  },
+  setStatus:function(t,fade){
+    SYNC.status=t;
+    var el2=document.getElementById('syncStatus');
+    if(el2){el2.textContent=t;el2.style.opacity='1';if(fade)setTimeout(function(){if(el2)el2.style.opacity='.45';},1600);}
+  }
+};
+/* localStorage への書き込みを検知して同期キューに積む（既存の保存処理は変更しない） */
+(function(){
+  var raw=(window.__rawSet||localStorage.setItem.bind(localStorage));
+  var prev=localStorage.setItem.bind(localStorage);
+  localStorage.setItem=function(k,v){prev(k,v);try{SYNC.mark(k);}catch(e){}};
+  window.__rawSetOrig=raw;
+})();
+
+/* ===== ログイン画面（サーバ接続時は本物の認証を使う） ===== */
+function serverLoginHtml(){
+  return '<div class="sl-form" style="border-top:none;padding-top:0;">'
+    +'<div class="sl-err" id="slErr2"></div>'
+    +'<input id="slTenant" placeholder="園コード（例：omiya）" autocapitalize="none" autocorrect="off" spellcheck="false" value="'+esc((API.tenant()||{}).code||'')+'">'
+    +'<input id="slId2" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false">'
+    +'<input id="slPw2" type="password" placeholder="パスワード">'
+    +'<button class="sl-go" id="slGo2">ログイン</button>'
+    +'<div style="text-align:center;margin-top:10px;"><button class="link" id="slLocal" style="background:none;border:none;color:var(--tx2);font-size:12px;text-decoration:underline;cursor:pointer;">この端末だけで使う（サーバに接続しない）</button></div>'
+    +'</div>';
+}
+function serverLogin(){
+  var t=$('#slTenant').value.trim(),id=$('#slId2').value.trim(),pw=$('#slPw2').value;
+  var err=$('#slErr2');
+  if(!t||!id||!pw){err.textContent='園コード・ログインID・パスワードを入力してください';err.style.display='block';return;}
+  err.style.display='none';
+  $('#slGo2').textContent='確認中…';$('#slGo2').disabled=true;
+  API.call('POST','/auth/login',{tenant:t,loginId:id,password:pw})
+    .then(function(j){
+      API.setToken(j.token);API.setTenant(j.tenant);
+      sessionStorage.setItem('cocoas_serverUser',JSON.stringify(j.user));
+      return SYNC.pull().then(function(){
+        if(j.user.mustChange)setTimeout(function(){passwordChangeModal(true);},400);
+        location.reload();
+      });
+    })
+    .catch(function(e){err.textContent=e.message;err.style.display='block';$('#slGo2').textContent='ログイン';$('#slGo2').disabled=false;});
+}
+function serverUser(){try{return JSON.parse(sessionStorage.getItem('cocoas_serverUser'));}catch(e){return null;}}
+function passwordChangeModal(force){
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.innerHTML='<div class="modal" style="width:460px;"><h2>パスワードの変更</h2>'
+    +(force?'<div class="muted" style="margin:-6px 0 12px;">初回ログインです。ご自身のパスワードに変更してください。</div>':'')
+    +'<div class="field"><label>現在のパスワード</label><input type="password" id="pw_cur"></div>'
+    +'<div class="field"><label>新しいパスワード（8文字以上）</label><input type="password" id="pw_new"></div>'
+    +'<div class="field"><label>新しいパスワード（確認）</label><input type="password" id="pw_new2"></div>'
+    +'<div class="muted" id="pw_msg" style="margin-bottom:10px;"></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;">'+(force?'':'<button class="btn" id="pw_cancel">キャンセル</button>')+'<button class="btn btn-primary" id="pw_save">変更する</button></div></div>';
+  if($('#pw_cancel'))$('#pw_cancel').onclick=function(){m.remove();};
+  $('#pw_save').onclick=function(){
+    var c=$('#pw_cur').value,n=$('#pw_new').value,n2=$('#pw_new2').value;
+    if(n!==n2){$('#pw_msg').textContent='新しいパスワードが一致しません';return;}
+    if(n.length<8){$('#pw_msg').textContent='8文字以上にしてください';return;}
+    API.call('POST','/auth/password',{current:c,next:n})
+      .then(function(){alert('パスワードを変更しました。');m.remove();})
+      .catch(function(e){$('#pw_msg').textContent=e.message;});
+  };
+}
+/* 画面右上に同期の状態を出す */
+function initSyncBar(){
+  if(!API.online()||document.getElementById('syncBar'))return;
+  var bar=document.querySelector('.topbar');if(!bar)return;
+  var w=el('div',{id:'syncBar'});
+  w.style.cssText='display:flex;align-items:center;gap:8px;margin-left:auto;font-size:11.5px;color:var(--tx2);';
+  var t=API.tenant()||{},u=serverUser()||{};
+  w.innerHTML='<span style="display:inline-flex;align-items:center;gap:5px;background:#E1F5EE;color:#0F6E56;border-radius:99px;padding:3px 10px;font-weight:600;">サーバ接続中</span>'
+    +'<span class="muted">'+esc(t.name||'')+'</span><span id="syncStatus" style="opacity:.45;">最新の状態です</span>'
+    +'<button class="btn btn-sm" id="syncNow" style="padding:3px 9px;font-size:11px;">今すぐ同期</button>';
+  var spacer=bar.querySelector('.spacer');
+  if(spacer)bar.insertBefore(w,spacer.nextSibling);else bar.appendChild(w);
+  document.getElementById('syncNow').onclick=function(){SYNC.push().then(SYNC.pull).then(function(){location.reload();});};
+}
+
 /* ========== 権限管理・職員ログイン（RBAC・デモ） ==========
    役割(管理者/マネージャー/一般)ごとに閲覧できる画面を制御。管理者が権限を設定できる。
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
@@ -3149,7 +3281,7 @@ function currentStaff(){var id=sessionStorage.getItem('cocoas_staffSession');if(
 function currentRole(){var s=currentStaff();return s?s.role:null;}
 function canView(page){var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;return (rolePerms()[s.role]||[]).indexOf(page)>-1;}
 function staffLoginBy(loginId,pw){loginId=(loginId||'').trim().toLowerCase();pw=(pw||'').trim();var a=staffAccounts().filter(function(x){return String(x.loginId).toLowerCase()===loginId;})[0];if(a&&(pw===String(a.pw)||pw==='cocoas')){sessionStorage.setItem('cocoas_staffSession',a.id);return true;}return false;}
-function staffLogout(){sessionStorage.removeItem('cocoas_staffSession');location.reload();}
+function staffLogout(){sessionStorage.removeItem('cocoas_staffSession');sessionStorage.removeItem('cocoas_serverUser');if(typeof API!=='undefined'&&API.enabled())API.setToken('');location.reload();}
 function applyPerms(){
   var s=currentStaff();if(!s)return;
   var nav=document.getElementById('nav');
@@ -3199,6 +3331,14 @@ function acctModal(acctId,staffId){
 }
 function showStaffLogin(){
   var ov=document.getElementById('staffLogin');if(!ov){ov=el('div',{id:'staffLogin'});document.body.appendChild(ov);}
+  if(API.enabled()){
+    ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2><div class="sl-sub">'+esc(((API.tenant()||{}).name)||'COCOAS 保育管理システム')+'<br>園コードとご自身のログインID・パスワードを入力してください。</div>'+serverLoginHtml()+'</div>';
+    ov.style.display='flex';
+    $('#slGo2').onclick=serverLogin;
+    $('#slPw2').addEventListener('keydown',function(e){if(e.key==='Enter')serverLogin();});
+    $('#slLocal').onclick=function(){if(confirm('サーバに接続せず、この端末だけで使いますか？（入力した内容は他の端末と共有されません）')){API.setBase('');location.reload();}};
+    return;
+  }
   ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2><div class="sl-sub">COCOAS 保育管理システム（デモ）。<br>アカウントをタップ、またはID・パスワードでログインしてください。</div>'
     +staffAccounts().map(function(a){var col=roleColor(a.role);return '<div class="sl-acc" data-slacc="'+a.id+'"><div><div style="font-weight:600;font-size:13.5px;">'+esc(a.name)+'</div><div style="color:var(--tx2);font-size:11.5px;">ID: '+esc(a.loginId)+'　/　PW: '+esc(a.pw)+'</div></div><span class="rl" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span></div>';}).join('')
     +'<div class="sl-form"><div class="sl-err" id="slErr">IDまたはパスワードが違います</div><input id="slId" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false"><input id="slPw" type="text" placeholder="パスワード" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="sl-go" id="slGo">ログイン</button></div></div>';
@@ -3224,8 +3364,20 @@ function recDeepLink(){
 function dmDeepLink(){var m=location.search.match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
 function staffBoot(){
   try{autoSnapshot();}catch(e){}
+  if(API.enabled()){
+    if(!API.online()){showStaffLogin();return;}
+    var su=serverUser();
+    if(su){
+      /* サーバのアカウントを、画面の権限判定に使う */
+      var accs=staffAccounts(),hit=accs.filter(function(a){return String(a.loginId).toLowerCase()===String(su.loginId).toLowerCase();})[0];
+      if(!hit){hit={id:Date.now(),loginId:su.loginId,name:su.name,role:su.role,pw:''};accs.push(hit);stSet('staffAccounts',accs);}
+      else{hit.name=su.name;hit.role=su.role;stSet('staffAccounts',accs);}
+      sessionStorage.setItem('cocoas_staffSession',hit.id);
+    }
+    SYNC.pull().catch(function(){});
+  }
   if(!currentStaff()){showStaffLogin();return;}
-  applyPerms();
+  applyPerms();try{initSyncBar();}catch(e){}
   var dl=dmDeepLink(),rl=recDeepLink();
   if(rl&&canView(recPageOf(rl.type))){recType=rl.type;if(rl.date)recDate=rl.date;go(recPageOf(rl.type));setTimeout(function(){var f=document.getElementById('scanFile');if(rl.scan&&f)f.click();},300);}
   else if(dl&&canView('dm')){dmSel=dl;go('dm');}else go('dashboard');
@@ -4532,6 +4684,52 @@ function backupRestoreFile(file,done){
   };
   rd.onerror=function(){done(new Error('ファイルを読み込めませんでした'));};
   rd.readAsText(file);
+}
+/* 設定：サーバ接続 */
+function renderServerSettings(s){
+  var on=API.online(),t=API.tenant()||{},u=serverUser()||{};
+  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('gear')+'サーバ接続（全端末でデータを共有）</h3>'
+    +'<div class="muted" style="margin-bottom:10px;line-height:1.8;">接続すると、記録が<b>サーバに保存され、どの端末からでも同じ内容</b>を見られます。ログインも本物の認証になります。<br>未接続のときは、これまで通りこの端末の中だけで動きます。</div>'
+    +(on
+      ?'<div style="background:#EAF3DE;border:1px solid #C7DFA6;border-radius:10px;padding:10px 13px;margin-bottom:12px;font-size:12.5px;color:#27500A;">接続中：<b>'+esc(t.name||'')+'</b>（園コード '+esc(t.code||'')+'）／ ログイン中：'+esc(u.name||'')+'（'+esc(u.role||'')+'）</div>'
+      :'<div style="background:#FAEEDA;border:1px solid #E9C88B;border-radius:10px;padding:10px 13px;margin-bottom:12px;font-size:12.5px;color:#6b3f08;">未接続です。この端末の中だけにデータが保存されています。</div>')
+    +'<div class="field"><label>接続先URL</label><input id="s_api" value="'+esc(API.base())+'" placeholder="https://（Railwayで発行されたURL）"></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+      +'<button class="btn btn-sm" id="s_apiTest">接続を確認</button>'
+      +'<button class="btn btn-primary btn-sm" id="s_apiSave">'+ic('check')+'保存して再読み込み</button>'
+      +(on?'<button class="btn btn-sm" id="s_apiPush">'+ic('folder')+'この端末の内容をサーバへ送る</button><button class="btn btn-sm" id="s_apiPw">パスワードを変更</button>':'')
+      +'<span class="muted" id="s_apiMsg"></span></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.7;">※ 実在の園児・職員の情報を入れる前に、接続と権限が正しく動くことを必ずご確認ください。個人情報を扱うため、園との取り決め（委託契約）もあわせてご準備ください。</div></div>';
+  s.insertAdjacentHTML('beforeend',html);
+  document.getElementById('s_apiTest').onclick=function(){
+    var b=document.getElementById('s_api').value.trim().replace(/\/$/,'');
+    if(!b){document.getElementById('s_apiMsg').textContent='URLを入力してください';return;}
+    document.getElementById('s_apiMsg').textContent='確認中…';
+    fetch(b+'/health').then(function(r){return r.json();}).then(function(j){
+      document.getElementById('s_apiMsg').textContent=j&&j.ok?'接続できました':'応答が不正です';
+    }).catch(function(e){document.getElementById('s_apiMsg').textContent='接続できませんでした：'+e.message;});
+  };
+  document.getElementById('s_apiSave').onclick=function(){
+    var b=document.getElementById('s_api').value.trim();
+    API.setBase(b);
+    if(!b){API.setToken('');API.setTenant(null);}
+    alert(b?'接続先を保存しました。ログイン画面に切り替わります。':'接続を解除しました。この端末の中だけで動きます。');
+    location.reload();
+  };
+  if(on){
+    document.getElementById('s_apiPush').onclick=function(){
+      if(!confirm('この端末に入っている内容を、サーバへ送って上書きします。よろしいですか？'))return;
+      var data={};
+      for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+        if(String(k).indexOf('cocoas_')!==0)continue;
+        if(/^cocoas_(apiToken|apiBase|apiTenant|eventLog|snapshots|lastSnap)$/.test(k))continue;
+        try{data[k.replace('cocoas_','')]=JSON.parse(localStorage.getItem(k));}catch(e){}}
+      document.getElementById('s_apiMsg').textContent='送信中…';
+      API.call('PUT','/state',{data:data}).then(function(j){document.getElementById('s_apiMsg').textContent=j.saved+'件を送信しました';})
+        .catch(function(e){document.getElementById('s_apiMsg').textContent='失敗：'+e.message;});
+    };
+    document.getElementById('s_apiPw').onclick=function(){passwordChangeModal(false);};
+  }
 }
 /* 設定ページ用カード */
 function renderBackupSettings(s){
