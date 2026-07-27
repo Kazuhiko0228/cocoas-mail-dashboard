@@ -115,6 +115,16 @@
   .muted{color:var(--tx2);font-size:12.5px;}
   .empty{text-align:center;color:var(--tx3);padding:30px;font-size:13px;}
   .scrollx{overflow-x:auto;}
+  /* 長文の記載欄：中身の量に合わせて高さが伸びるので、スクロールせずに全文が見える */
+  textarea.autogrow{resize:vertical;overflow:hidden;min-height:40px;line-height:1.65;white-space:pre-wrap;word-break:break-word;}
+  /* 表の中に長文が入る画面：セルを上ぞろえにして、長い語も折り返す */
+  table.wraptbl td{vertical-align:top;word-break:break-word;}
+  table.wraptbl th{vertical-align:bottom;}
+  /* 防火管理台帳・消火訓練の表：列の幅を決めうちにして、記載欄が細くつぶれないようにする。
+     画面のはばがたりないときは、列を細らせずに表ごと横スクロールさせる */
+  table.bktbl{table-layout:fixed;min-width:800px;}
+  table.bktbl.bk-kunren{min-width:820px;}
+  table.bktbl input[type="date"]{width:100%;}
   .napcell{min-width:34px;height:30px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11.5px;cursor:pointer;padding:0;}
   .napcell.v仰{background:#EAF3DE;color:#27500A;}
   .napcell.v横{background:#E6F1FB;color:#0C447C;}
@@ -425,6 +435,10 @@ var SET=Object.assign({
   photoUrl:"https://with.8122.jp/",photoCodePre:"",photoCodeKinder:"",
   daycareFeeNormal:"5,500",daycareFeeExt:"6,600",daycareLunch:"550",
   daycareFormUrl:"",surveyUrl:"",docAuditDate:"",attendOptions:['ランチ','ロングステイ'],
+  /* どのオプションを「通園曜日から自動」にするかの対応表（設定画面で変更できる）。値は 'lunch' / 'long' / '' (手動) */
+  attendAutoMap:{'ランチ':'lunch','ロングステイ':'long'},
+  /* 経費管理：園に支給される経費のベース額と、経理部の送付先（管理者のみ設定で変更） */
+  expenseBase:0,acctMail:"",
   /* 請求書の体裁（管理側で設定） */
   ocrEndpoint:"",invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
   invUseAgency:false,invAgencyName:"",invAgencyAddr:"",invAgencyTel:"",invAgencyBank:"",
@@ -433,6 +447,7 @@ var SET=Object.assign({
   pricing:{plans:{'週2':30000,'週3':42000,'週4':52000,'週5':58000},lunch:550,extended:1000,material:3000,admission:30000,options:[]}
 },DB.settings);
 if(!SET.attendOptions||!SET.attendOptions.length)SET.attendOptions=['ランチ','ロングステイ'];
+if(!SET.attendAutoMap||typeof SET.attendAutoMap!=='object')SET.attendAutoMap={'ランチ':'lunch','ロングステイ':'long'};
 DB.settings=SET;
 
 var CLASSES_DEFAULT=['Pre','Kinder'];
@@ -686,6 +701,14 @@ function printDoc(title,bodyHtml){
   window.print();
 }
 function dlFile(name,content,mime){var blob=new Blob(["﻿"+content],{type:(mime||'text/html')+';charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
+/* 画面にだけ出す補足表示（列見出しの「（自動）」など）は data-noexport を付けておき、
+   Excel保存では列名に混ざらないよう取り除く。データそのものには一切触れない。 */
+function exportCellText(cell){
+  if(!cell.querySelector('[data-noexport]'))return cell.textContent;
+  var c=cell.cloneNode(true);
+  [].slice.call(c.querySelectorAll('[data-noexport]')).forEach(function(n){n.parentNode.removeChild(n);});
+  return c.textContent;
+}
 function tableToHtml(t){
   var out='<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;">';
   [].slice.call(t.querySelectorAll('tr')).forEach(function(tr){out+='<tr>';
@@ -693,7 +716,7 @@ function tableToHtml(t){
       var tag=cell.tagName==='TH'?'th':'td',cs=cell.getAttribute('colspan'),rs=cell.getAttribute('rowspan');
       var val='',inp=cell.querySelector('input,select,textarea');
       if(inp){val=inp.tagName==='SELECT'?(inp.options[inp.selectedIndex]?inp.options[inp.selectedIndex].text:''):inp.value;}
-      else{var btn=cell.querySelector('button');val=(btn?btn.textContent:cell.textContent).replace(/\s+/g,' ').trim();}
+      else{var btn=cell.querySelector('button');val=(btn?btn.textContent:exportCellText(cell)).replace(/\s+/g,' ').trim();}
       if(val==='—')val='';
       out+='<'+tag+(cs?' colspan="'+cs+'"':'')+(rs?' rowspan="'+rs+'"':'')+'>'+val.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</'+tag+'>';
     });
@@ -811,6 +834,27 @@ function fillTokens(text,c,ctx){
 
 function $(s,r){return (r||document).querySelector(s);}
 function el(tag,attr,html){var e=document.createElement(tag);if(attr)for(var k in attr)e.setAttribute(k,attr[k]);if(html!=null)e.innerHTML=html;return e;}
+/* 記載欄の高さを中身に合わせて伸ばす。長文でもスクロールせずに全文が見えるようにするため */
+function autoGrow(t){
+  if(!t||!t.style)return;
+  /* 未入力のときは、うすい案内文（プレースホルダー）の折り返し分まで高さに数えられてしまうので、
+     もとの高さ（2行分）にもどすだけにする */
+  if(!t.value){t.style.height='';return;}
+  var prev=t.style.height;
+  t.style.height='auto';
+  var hh=t.scrollHeight;
+  /* 画面が非表示のあいだは scrollHeight が 0 になるので、そのときは元の高さにもどして変えない */
+  if(hh>0)t.style.height=(hh+2)+'px';
+  else t.style.height=prev;
+}
+/* 指定した範囲の textarea.autogrow をまとめて設定。描画時と入力のたびに高さを合わせる */
+function autoGrowAll(root){
+  var ns=(root||document).querySelectorAll('textarea.autogrow');
+  [].slice.call(ns).forEach(function(t){
+    t.addEventListener('input',function(){autoGrow(t);});
+    autoGrow(t);
+  });
+}
 /* 通園曜日ごとのオプション（Lunch / Long）。旧データ（days文字列＋lunch/long）から自動変換 */
 var WEEK5=['月','火','水','木','金'];
 function dayOptsOf(c){
@@ -893,6 +937,7 @@ document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('c
 var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
+  if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
@@ -1332,6 +1377,7 @@ function renderCompose(){
   $('#cmpSched').onclick=function(){var when=$('#cmpSchedAt').value;var sc=selC();if(!when){alert('予約日時を選んでください');return;}if(!sc.length){alert('送信先を選択してください');return;}var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'個別メール',label:TEMPLATES[composeTpl].label,count:sc.length,names:sc.map(function(c){return (c.child?c.child+'（'+c.name+' 様）':c.name+' 様');}),to:sc.map(function(c){return c.name;}).join('・'),subject:$('#cmpSubject').value,body:$('#cmpBody').value});stSet('scheduled',q);$('#cmpLog').innerHTML='<div class="li"><span style="color:#0F6E56;font-weight:600;">'+when.replace('T',' ')+' に '+sc.length+'件の配信を予約しました（配信カレンダーで確認）</span></div>';};
   chips();loadTpl();list();
   var _cs=$('section[data-page="compose"]');_cs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（個別メール）'));wireSentMail(_cs);
+  if(typeof expMailDraftRender==='function')expMailDraftRender(_cs);
 }
 
 /* shared sequential sender */
@@ -1476,6 +1522,41 @@ function renderTemplates(){
 
 /* ---------- curriculum ---------- */
 var curClass='Pre',curWeek='W1',curTab='schedule';
+/* MTGで紙に配るため、表示中クラスの月間カリキュラムを1つの資料にまとめて印刷する */
+function curPrintDoc(){
+  var cls=curClass,M=curMonthly(cls),types=actTypes(cls),wks=['W1','W2','W3','W4'];
+  var y=+CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
+  function tx(s){return s?esc(s).replace(/\n/g,'<br>'):'';}
+  var body='<div style="font-size:12px;margin:0 0 10px;">対象月：'+y+'年'+mo+'月　／　クラス：'+esc(cls)+'</div>';
+  body+='<h2>月次項目（デイリーメール用）</h2><table><tbody>'
+    +'<tr><th style="width:170px;">Monthly Theme</th><td>'+tx(M.theme)+'</td></tr>'
+    +'<tr><th>Phonics Letter</th><td>'+tx(M.phonicsLetter)+'</td></tr>'
+    +'<tr><th>Phonics Song</th><td>'+tx(M.phonicsSong)+'</td></tr>'
+    +'<tr><th>Monthly Song（EN／JP）</th><td>'+[tx(M.songEN),tx(M.songJP)].filter(Boolean).join('　／　')+'</td></tr>'
+    +'</tbody></table>';
+  body+='<h2>アクティビティ別 月間のねらい・担当</h2><table><thead><tr><th style="width:130px;">アクティビティ</th><th>ねらい・目標</th><th style="width:90px;">担当</th></tr></thead><tbody>'
+    +(types.length?types.map(function(t){var m=curActMGet(cls,t);return '<tr><td>'+esc(t)+'</td><td>'+tx(m.goal)+'</td><td>'+tx(m.teacher)+'</td></tr>';}).join(''):'<tr><td colspan="3">アクティビティ種類が未登録です。</td></tr>')
+    +'</tbody></table>';
+  body+='<h2>アクティビティ内容（Week1〜4）</h2><table style="table-layout:fixed;"><thead><tr><th style="width:96px;">アクティビティ</th>'
+    +wks.map(function(w,i){return '<th>Week'+(i+1)+'</th>';}).join('')+'</tr></thead><tbody>'
+    +(types.length?types.map(function(t){return '<tr><td style="vertical-align:top;">'+esc(t)+'</td>'+wks.map(function(w){
+        var e=curEff(cls,w,t);
+        var c=[(e.theme?'<b>'+tx(e.theme)+'</b>':''),tx(e.plan),(e.teacher?'担当：'+tx(e.teacher):'')].filter(Boolean).join('<br>');
+        return '<td style="font-size:10px;vertical-align:top;word-break:break-all;">'+(c||'　')+'</td>';
+      }).join('')+'</tr>';}).join(''):'<tr><td colspan="5">アクティビティ種類が未登録です。</td></tr>')
+    +'</tbody></table>';
+  var dim=new Date(y,mo,0).getDate(),rows='';
+  for(var dd=1;dd<=dim;dd++){
+    var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue; /* 平日のみ（画面と同じ） */
+    var date=CUR.month+'-'+pad(dd),sc=curSchedGet(cls,date),a=curDayActivities(cls,date);
+    rows+='<tr><td style="white-space:nowrap;">'+mo+'/'+dd+'</td><td style="text-align:center;">'+WD[dwk]+'</td>'
+      +'<td style="font-size:10px;">'+tx(a.morning)+'</td><td style="font-size:10px;">'+tx(a.afternoon)+'</td>'
+      +'<td style="text-align:center;">'+(sc.daycare?'●':'')+'</td><td style="font-size:10px;">'+tx(sc.memo)+'</td></tr>';
+  }
+  body+='<h2>日別スケジュール</h2><table style="table-layout:fixed;"><thead><tr><th style="width:44px;">日付</th><th style="width:28px;">曜</th><th>午前</th><th>午後</th><th style="width:40px;">託児</th><th style="width:110px;">メモ</th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="6">この月の予定はまだ登録されていません。</td></tr>')+'</tbody></table>';
+  printDoc('月間カリキュラム（'+y+'年'+mo+'月・'+cls+'）',body);
+}
 function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
   var y=+CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
@@ -1485,33 +1566,46 @@ function renderCurriculum(){
   var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'月間カリキュラム</h3>'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+k+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+CUR.month+'" style="width:150px;margin-left:auto;"></div>'+
     '<div class="chips" style="margin:0;">'+[['schedule','日別スケジュール'],['content','アクティビティ内容（Week1-4）']].map(function(t){return '<span class="chip'+(t[0]===curTab?' on':'')+'" data-ctab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>'+
-    (function(){var M=curMonthly(curClass);return '<div class="card" style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">月次項目（デイリーメール用）<span class="pill" style="background:#E1F5EE;color:#0F6E56;margin-left:8px;">'+curClass+'</span></div><div class="muted" style="margin-bottom:8px;font-size:12px;">クラスごとに登録できます（Pre と Kinder で別々の内容）。</div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field" style="margin:0 0 8px;"><label>Monthly Theme</label><input id="curTheme" value="'+v(M.theme)+'"></div><div class="field" style="margin:0 0 8px;"><label>Phonics Letter</label><input id="curPL" value="'+v(M.phonicsLetter)+'"></div><div class="field" style="margin:0;"><label>Phonics Song</label><input id="curPS" value="'+v(M.phonicsSong)+'"></div><div class="field" style="margin:0;"><label>Monthly Song（EN／JP）</label><input id="curSE" value="'+v(M.songEN)+'" placeholder="English"></div></div></div>';})();
+    (function(){var M=curMonthly(curClass);
+      /* 月次項目は「アクティビティ内容」タブが編集の正。二重入力を防ぐため日別スケジュール側は表示のみにする */
+      var head='<div class="card" style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">月次項目（デイリーメール用）<span class="pill" style="background:#E1F5EE;color:#0F6E56;margin-left:8px;">'+curClass+'</span></div>';
+      if(curTab!=='schedule')return head+'<div class="muted" style="margin-bottom:8px;font-size:12px;">クラスごとに登録できます（Pre と Kinder で別々の内容）。</div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field" style="margin:0 0 8px;"><label>Monthly Theme</label><input id="curTheme" value="'+v(M.theme)+'"></div><div class="field" style="margin:0 0 8px;"><label>Phonics Letter</label><input id="curPL" value="'+v(M.phonicsLetter)+'"></div><div class="field" style="margin:0;"><label>Phonics Song</label><input id="curPS" value="'+v(M.phonicsSong)+'"></div><div class="field" style="margin:0;"><label>Monthly Song（EN／JP）</label><input id="curSE" value="'+v(M.songEN)+'" placeholder="English"></div></div></div>';
+      function ro(lab,val){return '<div style="margin:0 0 10px;"><div class="muted" style="font-size:11.5px;margin-bottom:2px;">'+lab+'</div><div style="font-size:13px;line-height:1.6;word-break:break-all;">'+(val?esc(val):'<span class="muted">未設定</span>')+'</div></div>';}
+      return head+'<div class="muted" style="margin-bottom:10px;font-size:12px;">ここは表示のみです。内容は「アクティビティ内容」で編集できます。</div>'
+        +'<div class="grid" style="grid-template-columns:1fr 1fr;">'+ro('Monthly Theme',M.theme)+ro('Phonics Letter',M.phonicsLetter)+ro('Phonics Song',M.phonicsSong)+ro('Monthly Song（EN／JP）',M.songEN)+'</div>'
+        +'<button class="btn btn-sm" id="curGoMonthly">'+ic('book')+'アクティビティ内容で編集する</button></div>';
+    })();
   var bodyHtml;
   if(curTab==='schedule'){
     var dim=new Date(y,mo,0).getDate(),rows='';
     for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+date+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+date+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+date+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+date+'" value="'+v(sc.memo)+'" placeholder="メモ"></td></tr>';}
     bodyHtml='<div class="card"><div class="muted" style="margin-bottom:10px;">日付ごとに午前・午後のアクティビティをプルダウンで選択。1日託児（Daycare）の日はチェック。日付つきなのでデイリーメールと連携します。</div><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:88px;">Daycare</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   } else {
-    bodyHtml='<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間テーマ・目標（'+curClass+'・月に1回登録）</div>'+
-      '<div class="muted" style="margin-bottom:10px;font-size:12px;">全体テーマ・ねらい・担当をここで登録すると、Week1〜4に自動で反映されます。週ごとに変えたい場合は、下の各週で上書きできます。</div>'+
-      types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+t+'</span><input data-actm="'+t+'|theme" value="'+v(m.theme)+'" placeholder="月間テーマ／Title" style="flex:1;min-width:150px;"><input data-actm="'+t+'|goal" value="'+v(m.goal)+'" placeholder="ねらい・目標" style="flex:1;min-width:150px;"><input data-actm="'+t+'|teacher" value="'+v(m.teacher)+'" placeholder="担当" style="width:110px;"></div>';}).join('')+'</div>'+
+    bodyHtml='<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間のねらい・担当（'+curClass+'・月に1回登録）</div>'+
+      '<div class="muted" style="margin-bottom:10px;font-size:12px;">ねらい・担当をここで登録すると、Week1〜4に自動で反映されます。週ごとに変えたい場合は、下の各週で上書きできます。月全体のテーマは上の【月次項目】で登録します。</div>'+
+      types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+t+'</span><input data-actm="'+t+'|goal" value="'+v(m.goal)+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+t+'|teacher" value="'+v(m.teacher)+'" placeholder="担当" style="width:110px;"></div>';}).join('')+'</div>'+
       '<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">週</span><div class="chips" style="margin:0;">'+['W1','W2','W3','W4'].map(function(w,i){return '<span class="chip'+(w===curWeek?' on':'')+'" data-cw="'+w+'">Week'+(i+1)+'</span>';}).join('')+'</div></div>'+
-      '<div class="muted" style="margin-bottom:10px;">'+curClass+' の各アクティビティについて、その週に行う<b>内容</b>を記入します。テーマ・担当は月間登録から自動反映（<span style="color:#0F6E56;">自動</span>表示）。変更したい週はそのまま書き換えれば上書きされ、↺ で自動反映に戻せます。</div>'+
-      types.map(function(t){var e=curEff(curClass,curWeek,t);
-        function tag(inh){return inh?'<span class="pill" style="background:#E1F5EE;color:#0F6E56;font-size:10px;">自動</span>':'<button class="btn btn-sm btn-ghost" data-creset="'+t+'" style="padding:2px 7px;font-size:11px;" title="月間の内容に戻す">↺</button>';}
+      '<div class="muted" style="margin-bottom:10px;">'+curClass+' の各アクティビティについて、その週の<b>テーマ</b>と<b>内容</b>を記入します。担当は上の月間登録から自動で入り、その欄に<span style="color:#0F6E56;">自動</span>と表示されます。書き換えるとその週だけ上書きされます。戻す先（月間登録）があるときだけ ↺ が出て、月間の内容に戻せます。</div>'+
+      types.map(function(t){var e=curEff(curClass,curWeek,t),ct0=curContGet(curClass,curWeek,t),m0=curActMGet(curClass,t);
+        /* 「自動」は月間登録を実際に引き継いでいるときだけ出す（入力欄の淡色ハイライトと同じ判定） */
+        var inh=e.themeInherited||e.teacherInherited;
+        /* 「↺」は戻す先（月間登録）が実在する上書きがあるときだけ出す。無いのに出すと入力が消えて戻せなくなる */
+        var canReset=(!!ct0.theme&&!!m0.theme)||(!!ct0.teacher&&!!m0.teacher);
+        var mark=(inh?'<span class="pill" style="background:#E1F5EE;color:#0F6E56;font-size:10px;">自動</span>':'')
+          +(canReset?'<button class="btn btn-sm btn-ghost" data-creset="'+t+'" style="padding:2px 7px;font-size:11px;" title="この週の上書きを消して、月間登録の内容に戻します">↺</button>':'');
         return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
           +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;">'+t+'</span>'
           +'<input data-cont="'+t+'|theme" value="'+v(e.theme)+'" placeholder="テーマ／Title" style="flex:1;min-width:140px;'+(e.themeInherited?'background:#F6FBF9;':'')+'">'
           +'<input data-cont="'+t+'|teacher" value="'+v(e.teacher)+'" placeholder="担当" style="width:110px;'+(e.teacherInherited?'background:#F6FBF9;':'')+'">'
-          +tag(e.themeInherited&&e.teacherInherited)+'</div>'
+          +mark+'</div>'
           +(e.goal?'<div class="muted" style="font-size:11.5px;margin:-2px 0 6px;">ねらい：'+esc(e.goal)+'</div>':'')
           +'<textarea data-cont="'+t+'|plan" rows="2" placeholder="この週の内容">'+(e.plan||'')+'</textarea></div>';}).join('')+'</div>';
   }
-  s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
-  $('#curTheme').oninput=function(e){curMonthlySet(curClass,'theme',e.target.value);};
-  $('#curPL').oninput=function(e){curMonthlySet(curClass,'phonicsLetter',e.target.value);};
-  $('#curPS').oninput=function(e){curMonthlySet(curClass,'phonicsSong',e.target.value);};
-  $('#curSE').oninput=function(e){curMonthlySet(curClass,'songEN',e.target.value);};
+  s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curPrint">'+ic('printer')+'印刷（MTG配布用）</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
+  [['curTheme','theme'],['curPL','phonicsLetter'],['curPS','phonicsSong'],['curSE','songEN']].forEach(function(p){
+    var inp=$('#'+p[0]);if(inp)inp.oninput=function(e){curMonthlySet(curClass,p[1],e.target.value);};
+  });
+  var gm=$('#curGoMonthly');if(gm)gm.onclick=function(){curTab='content';renderCurriculum();};
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
   s.querySelectorAll('[data-ctab]').forEach(function(b){b.onclick=function(){curTab=b.getAttribute('data-ctab');renderCurriculum();};});
   s.querySelectorAll('[data-cw]').forEach(function(b){b.onclick=function(){curWeek=b.getAttribute('data-cw');renderCurriculum();};});
@@ -1522,8 +1616,18 @@ function renderCurriculum(){
   s.querySelectorAll('[data-smemo]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-smemo'),sc=curSchedGet(curClass,d);sc.memo=inp.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-cont').split('|'),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
   s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){var p=inp.getAttribute('data-actm').split('|'),m=curActMGet(curClass,p[0]);m[p[1]]=inp.value;curActMSet(curClass,p[0],m);renderCurriculum();};});
-  s.querySelectorAll('[data-creset]').forEach(function(b){b.onclick=function(){var t=b.getAttribute('data-creset'),ct=curContGet(curClass,curWeek,t);ct.theme='';ct.teacher='';curContSet(curClass,curWeek,t,ct);renderCurriculum();};});
+  s.querySelectorAll('[data-creset]').forEach(function(b){b.onclick=function(){
+    var t=b.getAttribute('data-creset'),ct=curContGet(curClass,curWeek,t),m=curActMGet(curClass,t),back=[];
+    /* 月間登録がある項目だけを戻す。戻す先が無い項目（＝消すと復元できない入力）はそのまま残す */
+    if(ct.theme&&m.theme)back.push('テーマ');
+    if(ct.teacher&&m.teacher)back.push('担当');
+    if(!back.length)return;
+    if(!confirm('この週の'+back.join('・')+'の入力を消して、月間登録の内容に戻します。よろしいですか？'))return;
+    if(m.theme)ct.theme='';
+    if(m.teacher)ct.teacher='';
+    curContSet(curClass,curWeek,t,ct);renderCurriculum();};});
   $('#curSave').onclick=function(){DB.curriculum=CUR;$('#curMsg').textContent='保存しました';setTimeout(function(){$('#curMsg').textContent='';},1600);};
+  var pb=$('#curPrint');if(pb)pb.onclick=function(){DB.curriculum=CUR;curPrintDoc();};
   $('#curToAct').onclick=function(){DB.curriculum=CUR;routeTo(['broadcast','dailyPre']);};
 }
 
@@ -1649,7 +1753,7 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre)+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder)+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','Daycare 通常料金',SET.daycareFeeNormal)+f('s_dcE','Daycare 延長料金',SET.daycareFeeExt)+f('s_dcL','スクールランチ',SET.daycareLunch)+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','Daycare フォームURL',SET.daycareFormUrl)+f('s_survey','アンケートURL',SET.surveyUrl)+'</div></div>'+
-    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。ランチ・ロングステイなど、園に合わせて自由に追加・変更・削除できます。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。ランチ・ロングステイなど、園に合わせて自由に追加・変更・削除できます。</div><div class="muted" style="margin-bottom:10px;font-size:11.5px;">「通園曜日から自動」にしたオプションは、登園シートで連絡先の通園曜日設定から自動表示され、その画面では変更できません（すでに記録がある日は、その日の記録がそのまま残ります）。名前を変えても自動／手動の設定は引き継ぎますが、これまでに記録した内容は前の名前のまま残ります。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類。各学校ヒヤリングに合わせて自由に追加・変更できます。</div><div id="actTypeBox"></div></div>'+
     (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
       '<div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">コースプラン（月額）</div><div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+Object.keys(P.plans).map(function(k){return '<div class="field" style="margin:0 0 8px;"><label>'+k+'</label><input type="number" data-price="plans|'+k+'" value="'+P.plans[k]+'"></div>';}).join('')+'</div>'+
@@ -1691,8 +1795,23 @@ function renderSettings(){
     DB.settings=SET;$('#s_msg').textContent='保存しました';setTimeout(function(){$('#s_msg').textContent='';},1800);
   };
   function renderOpts(){
-    $('#optList').innerHTML=(SET.attendOptions||[]).map(function(o,i){return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><input value="'+o.replace(/"/g,'&quot;')+'" data-optidx="'+i+'" style="max-width:280px;"><button class="btn btn-sm btn-ghost" data-optdel="'+i+'">'+ic('trash')+'</button></div>';}).join('')||'<div class="muted">オプションがありません</div>';
-    $('#optList').querySelectorAll('[data-optidx]').forEach(function(inp){inp.onchange=function(){SET.attendOptions[+inp.getAttribute('data-optidx')]=inp.value.trim();DB.settings=SET;};});
+    var AUTO_LABEL={'':'手動（タップで選ぶ）','lunch':'ランチ（通園曜日から自動）','long':'ロングステイ（通園曜日から自動）'};
+    $('#optList').innerHTML=(SET.attendOptions||[]).map(function(o,i){var ak=autoAttendKey(o);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;"><input value="'+o.replace(/"/g,'&quot;')+'" data-optidx="'+i+'" style="max-width:220px;">'+
+      '<select data-optauto="'+i+'" style="max-width:240px;">'+['','lunch','long'].map(function(v){return '<option value="'+v+'"'+(v===ak?' selected':'')+'>'+AUTO_LABEL[v]+'</option>';}).join('')+'</select>'+
+      '<button class="btn btn-sm btn-ghost" data-optdel="'+i+'">'+ic('trash')+'</button></div>';}).join('')||'<div class="muted">オプションがありません</div>';
+    /* 名前を変えたときは、自動／手動の設定をそのまま新しい名前へ引き継ぐ（記録済みの値は消さない） */
+    $('#optList').querySelectorAll('[data-optidx]').forEach(function(inp){inp.onchange=function(){
+      var i=+inp.getAttribute('data-optidx'),old=SET.attendOptions[i],nv=inp.value.trim();
+      if(!nv||nv===old){inp.value=old;return;}
+      var ak=autoAttendKey(old);
+      if(!SET.attendAutoMap)SET.attendAutoMap={};
+      delete SET.attendAutoMap[old];SET.attendAutoMap[nv]=ak;
+      SET.attendOptions[i]=nv;DB.settings=SET;renderOpts();};});
+    $('#optList').querySelectorAll('[data-optauto]').forEach(function(sel){sel.onchange=function(){
+      var nm=SET.attendOptions[+sel.getAttribute('data-optauto')];
+      if(!SET.attendAutoMap)SET.attendAutoMap={};
+      SET.attendAutoMap[nm]=sel.value;DB.settings=SET;renderOpts();};});
     $('#optList').querySelectorAll('[data-optdel]').forEach(function(b){b.onclick=function(){SET.attendOptions.splice(+b.getAttribute('data-optdel'),1);DB.settings=SET;renderOpts();};});
   }
   renderOpts();
@@ -1741,9 +1860,11 @@ function renderSettings(){
     });
   };
   $('#s_logoDel').onclick=function(){SET.invLogo='';DB.settings=SET;$('#s_logoPrev').innerHTML='<span class="muted" style="font-size:11px;">未設定</span>';$('#s_logoMsg').textContent='ロゴを削除しました';};
+  if(typeof renderExpenseSettings==='function')renderExpenseSettings(s);
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
   if(typeof renderOptionSettings==='function')renderOptionSettings(s);
   if(typeof renderServerSettings==='function')renderServerSettings(s);
+  if(typeof renderScanArchiveSettings==='function')renderScanArchiveSettings(s);
   if(typeof renderBackupSettings==='function')renderBackupSettings(s);
 }
 
@@ -1977,18 +2098,95 @@ function ageClassOf(c){
   return age+'歳児';
 }
 function childName(c){return c.child.replace(/ちゃん|くん/g,'');}
+/* 同名の園児がいるため、一覧や印刷では「姓＋名」のフルネームで出す。
+   生徒台帳（studentProfiles）の姓名を優先し、無い場合は保護者名の姓＋お子様名で組み立てる。 */
+function childFullName(c){
+  if(!c)return '';
+  var p={};
+  try{p=(typeof spStore==='function'?spStore():{})[c.id]||{};}catch(e){p={};}
+  var ln=String(p.lastName||'').trim(),fn=String(p.firstName||'').trim();
+  if(!ln){var nm=String(c.name||'').replace(/　/g,' ').trim().split(/\s+/);ln=nm[0]||'';}
+  if(!fn)fn=c.child?childName(c):'';
+  var full=((ln?ln+' ':'')+fn).trim();
+  return full||(c.child?childName(c):(c.name||''));
+}
+/* 歳児ごとの色。登園シート・名簿シートなどで使い回すためグローバルに置く。
+   0・1・2歳児は淡い色、3・4・5歳児は蛍光色。印刷しても文字が読める濃さにしている。 */
+var AGE_COLORS={
+  '0歳児':{bg:'#FCE4EF',fg:'#8A1D52',bd:'#F2AECC'},
+  '1歳児':{bg:'#FDE7CE',fg:'#8A4A06',bd:'#F4C68C'},
+  '2歳児':{bg:'#E3F3D9',fg:'#2F5D14',bd:'#B7DDA1'},
+  '3歳児':{bg:'#FF4FA3',fg:'#3D0020',bd:'#E01F7E'},
+  '4歳児':{bg:'#FF8A1F',fg:'#3A1B00',bd:'#D96A00'},
+  '5歳児':{bg:'#48D13A',fg:'#10380C',bd:'#2FA824'}
+};
+function ageColor(label){
+  var c=AGE_COLORS[String(label==null?'':label).trim()];
+  return c?{bg:c.bg,fg:c.fg,bd:c.bd}:{bg:'#F1EFE8',fg:'#5A5750',bd:'#DAD6CC'};
+}
+/* ランチ・ロングステイは通園曜日の設定から自動で決まるので、登園シートでは切替不可。
+   どのオプションを自動にするかは SET.attendAutoMap（設定→登園記録のオプションで変更可）で
+   明示的に決める。表に無い名前は、下の既定名と「完全一致」したときだけ自動として扱う。
+   以前は部分一致で判定していたため「ハロウィンランチ会」「ロングコート預かり」「belong」まで
+   自動扱いになり、先生が記録した値を消してしまっていた。部分一致は使わない。
+   名前は NFKC で正規化するので、全角英数（Ｌｏｎｇ Ｓｔａｙ）や半角カナ（ﾗﾝﾁ）でも同じ名前とみなす。
+   戻り値は通園曜日データ（dayOptsOf）のキー名。判定と参照先をこの1か所にまとめて、
+   登園シート側（rowOf・表示・列見出し）はすべてこの関数を通す。 */
+function nrmAttendOpt(s){
+  s=String(s==null?'':s);
+  if(s.normalize)s=s.normalize('NFKC');
+  return s.replace(/[\s　]+/g,'').toLowerCase();
+}
+/* 対応表に無いときの既定名。すべて正規化後の完全一致で見る */
+var ATTEND_AUTO_ALIAS={'ランチ':'lunch','lunch':'lunch','ロングステイ':'long','ロングスティ':'long','ロング':'long','longstay':'long','long':'long'};
+function autoAttendKey(op){
+  var n=nrmAttendOpt(op);
+  if(!n)return '';
+  var m=(typeof SET!=='undefined'&&SET.attendAutoMap)||{},k;
+  for(k in m){if(Object.prototype.hasOwnProperty.call(m,k)&&nrmAttendOpt(k)===n){var v=nrmAttendOpt(m[k]);return (v==='lunch'||v==='long')?v:'';}}
+  return Object.prototype.hasOwnProperty.call(ATTEND_AUTO_ALIAS,n)?ATTEND_AUTO_ALIAS[n]:'';
+}
+function isAutoAttendOpt(op){return !!autoAttendKey(op);}
 function renderRecords(){renderRecGroup('records',REC_DAILY,'毎日記録する項目です。');}
 function renderCareRec(){renderRecGroup('carerec',REC_CARE,'月ごと・都度・3ヶ月ごとに記録する項目です。');}
 /* ========== 紙の記録のスキャン保存 ==========
    現場で紙に書いた記録を撮影／スキャンして、その記録・日付に紐づけて保管する。
    対象：毎日使い、紙のほうが早い記録（登園・安全点検・午睡・健康・業務日報・ヒヤリハット）
    データ: recScans = { 'rec_キー|日付': [{img, at, by, note, ocr}] } */
-var SCAN_TARGETS={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','業務日報・保育日誌':'rec_日報','ヒヤリハット・怪我':'rec_hiyari'};
+var SCAN_TARGETS={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','業務日報・保育日誌':'rec_日報'};
+/* ヒヤリハット・怪我は落ち着いてから書く記録で文字量が多く、読み取りに失敗しやすいので取り込みの対象外。
+   ただし紙で書きたい現場もあるため、記入用紙の印刷だけは残す */
+var BLANK_ONLY_TARGETS={'ヒヤリハット・怪我':1};
 function scanKey(type,date){return (SCAN_TARGETS[type]||type)+'|'+date;}
 function scansAll(){return stGet('recScans',{});}
 function scansOf(type,date){return scansAll()[scanKey(type,date)]||[];}
 function scansSet(type,date,list){var a=scansAll(),k=scanKey(type,date);if(list&&list.length)a[k]=list;else delete a[k];stSet('recScans',a);}
-function scanDateOf(type){return (type==='身体測定')?recMonth:(type==='生徒個人発達記録'?recQuarter:recDate);}
+/* 安全点検は毎日印刷すると紙がかさばるため、月間表を1枚印刷して1ヶ月分まとめて取り込む。
+   取り込み先の月は、画面の日付ピッカー（安全点検の日付）で選んでいる日の月にする。
+   月が終わってから前月分をまとめて取り込むときは、日付をその月に戻すだけでよい。
+   身体測定の月（recMonth）とは切り離してあるので、身体測定の月を変えても取り込み先は変わらない。
+   日付単位で保存済みの古い取り込みは消さない（設定の「以前に取り込んだ紙の一覧」から確認・削除できる） */
+function weekMonISO(d){
+  var p=String(d==null?'':d).split('-'),b=null;
+  if(p.length>=3)b=new Date(+p[0],+p[1]-1,+p[2]);
+  if(!b||isNaN(b.getTime()))b=new Date();
+  var w=b.getDay(),off=(w===0?-6:1-w);
+  return iso(new Date(b.getFullYear(),b.getMonth(),b.getDate()+off));
+}
+function scanDateOf(type){
+  if(type==='身体測定')return recMonth;
+  if(type==='生徒個人発達記録')return recQuarter;
+  if(type==='安全点検')return String(recDate||todayISO()).slice(0,7);
+  /* 業務日報・保育日誌の紙は1週間まとめの様式。週1枚の紙が曜日ごとに散らばらないよう、その週の月曜日をキーにする */
+  if(type==='業務日報・保育日誌')return weekMonISO(recDate||todayISO());
+  return recDate;
+}
+/* 画面に出す日付の見出し（月キーは「2026年7月」、週キーは「7月27日の週」と読みやすく） */
+function scanDateLabel(d,type){
+  if(/^\d{4}-\d{2}$/.test(d||''))return (+d.slice(0,4))+'年'+(+d.slice(5,7))+'月';
+  if(type==='業務日報・保育日誌'&&/^\d{4}-\d{2}-\d{2}$/.test(d||''))return (+d.slice(5,7))+'月'+(+d.slice(8,10))+'日の週（月〜金）';
+  return d||'';
+}
 /* 画像を保存用に縮小（紙の文字が読める程度に長辺1400px） */
 function scanResize(file,cb){
   var rd=new FileReader();
@@ -2022,11 +2220,14 @@ function scanCard(type){
   var date=scanDateOf(type),list=scansOf(type,date);
   if(!SCAN_TARGETS[type])return '';
   return '<div class="card" style="margin-top:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
-    +'<h3 style="margin:0;flex:1;">'+ic('photo')+'紙の記録を取り込む（'+esc(date)+'）</h3>'
+    +'<h3 style="margin:0;flex:1;">'+ic('photo')+'紙の記録を取り込む：'+esc(scanDateLabel(date,type))+'</h3>'
     +'<label class="btn btn-sm btn-primary" style="cursor:pointer;margin:0;">'+ic('photo')+'撮影・スキャンを追加<input type="file" id="scanFile" accept="image/*" capture="environment" style="display:none;"></label>'
     +'<button class="btn btn-sm" id="blankPrint">'+ic('printer')+'記入用紙を印刷（QR付き）</button>'
     +(list.length?'<button class="btn btn-sm" id="scanPrint">'+ic('printer')+'取り込んだ紙を出力</button>':'')+'</div>'
-    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">紙に書いた記録をそのまま撮影して保管できます。監査時は画面でも印刷でも提示できます。'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">'
+    +(type==='安全点検'?'記入用紙は1ヶ月分の月間表です。1ヶ月分の記録が終わったらまとめて取り込みます。上の日付で選んでいる月の分として保管されますので、前の月の紙を取り込むときは、日付をその月に変えてください。'
+      :type==='業務日報・保育日誌'?'記入用紙は1週間（月〜金）まとめの様式です。1枚の紙は、上の日付を含む週の分としてまとめて保管されます。週のどの日を選んでいても同じ場所に入ります。'
+      :'紙に書いた記録をそのまま撮影して保管できます。監査時は画面でも印刷でも提示できます。')
     +(SET.ocrEndpoint?'　文字の自動読み取りが有効です。':'　※文字の自動読み取り（OCR）は「設定 → 文字読み取り（OCR）」で接続先を登録すると使えます。')+'</div>'
     +'<div id="scanList" style="display:flex;gap:10px;flex-wrap:wrap;">'
     +(list.length?list.map(function(x,i){
@@ -2039,6 +2240,17 @@ function scanCard(type){
           +'<button class="btn btn-sm btn-ghost" data-scandel="'+i+'" style="font-size:11px;padding:3px 7px;">'+ic('trash')+'</button></div></div>';}).join('')
       :'<div class="muted" style="font-size:12px;">まだ取り込んだ紙はありません。</div>')
     +'</div><div class="muted" id="scanMsg" style="margin-top:8px;font-size:12px;"></div></div>';
+}
+/* 紙の取り込みはしないが、記入用紙だけ印刷したい記録用のカード */
+function blankOnlyCard(type){
+  return '<div class="card" style="margin-top:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+    +'<h3 style="margin:0;flex:1;">'+ic('printer')+'記入用紙を印刷する</h3>'
+    +'<button class="btn btn-sm" id="blankOnlyPrint">'+ic('printer')+'記入用紙を印刷</button></div>'
+    +'<div class="muted" style="font-size:12px;">この記録は文字の量が多く、写真からの読み取りがうまくいかないことが多いため、紙の取り込みには対応していません。'
+    +'紙に書いたあとは、お手数ですがこの画面から入力してください。</div></div>';
+}
+function wireBlankOnly(type){
+  var b=$('#blankOnlyPrint');if(b)b.onclick=function(){printBlankForm(type);};
 }
 function wireScan(type){
   var date=scanDateOf(type);
@@ -2088,8 +2300,9 @@ function wireScan(type){
   var sp=$('#scanPrint');
   if(sp)sp.onclick=function(){
     var l=scansOf(type,date);
-    var body=l.map(function(x){return '<div style="page-break-after:always;"><p>'+esc(type)+'　'+esc(date)+'　'+esc(x.at||'')+(x.by?'　記録者 '+esc(x.by):'')+'</p><img src="'+x.img+'" style="width:100%;"></div>';}).join('');
-    printDoc('紙の記録（'+type+'・'+date+'）',body);
+    var dl=scanDateLabel(date,type)||date;
+    var body=l.map(function(x){return '<div style="page-break-after:always;"><p>'+esc(type)+'　'+esc(dl)+'　'+esc(x.at||'')+(x.by?'　記録者 '+esc(x.by):'')+'</p><img src="'+x.img+'" style="width:100%;"></div>';}).join('');
+    printDoc('紙の記録：'+type+'・'+dl,body);
   };
 }
 /* ===== 記入用紙（紙で書く用）の出力。QRを読むとその記録の取り込み画面が開く ===== */
@@ -2110,36 +2323,165 @@ function qrDataUri(text,cb){
     },120);
   }catch(e){cb(null);}
 }
+/* ===== 記入用紙の共通パーツ =====
+   現場の紙に合わせて、園児行には必ず「No／園児（フルネーム）／生年月日／歳児」を並べる。
+   childFullName / ageColor は別途追加される想定なので、無いときは従来表示に戻す */
+function bfName(c){return (typeof childFullName==='function')?childFullName(c):childName(c);}
+function bfAgeStyle(label){
+  if(typeof ageColor!=='function')return '';
+  var k=null;try{k=ageColor(label);}catch(e){k=null;}
+  if(!k)return '';
+  /* ブラウザ既定の「背景グラフィックを印刷しない」で色が落ちないよう、印刷でも色を出す指定を必ず付ける */
+  return (k.bg?'background:'+k.bg+';':'')+(k.fg?'color:'+k.fg+';':'')+'-webkit-print-color-adjust:exact;print-color-adjust:exact;';
+}
+/* No／園児／生年月日／歳児 の4セルを返す */
+function bfKidCells(c,i,fs){
+  var f=fs?'font-size:'+fs+'px;':'';
+  var lb=ageClassOf(c);
+  return '<td style="'+f+'text-align:center;">'+(i+1)+'</td>'
+    +'<td style="'+f+'white-space:nowrap;">'+esc(bfName(c))+'</td>'
+    +'<td style="'+f+'white-space:nowrap;text-align:center;">'+esc(c.dob||'')+'</td>'
+    +'<td style="'+f+'white-space:nowrap;text-align:center;'+bfAgeStyle(lb)+'">'+esc(lb)+'</td>';
+}
+function bfKidHead(fs){
+  var f=fs?'font-size:'+fs+'px;':'';
+  return '<th style="width:22px;'+f+'">No</th><th style="width:120px;'+f+'">NAME（園児）</th>'
+    +'<th style="width:74px;'+f+'">生年月日</th><th style="width:48px;'+f+'">歳児</th>';
+}
+/* 午睡の時刻列（11:30〜13:30の10分刻み） */
+function bfNapSlots(){
+  if(typeof napSlots==='function')return napSlots();
+  var a=[],t;for(t=11*60+30;t<=13*60+30;t+=10)a.push(pad(Math.floor(t/60))+':'+pad(t%60));
+  return a;
+}
+var BF_NAP_LEGEND='<p style="font-size:10px;margin:4px 0 0;">寝る向きを矢印で記録します：仰向け <b>↑</b>／横向き <b>→</b>／うつ伏せ <b>↓</b>　※呼吸を確認したら記入</p>';
+/* その日の曜日 */
+function bfWeekday(date){
+  var p=(date||'').split('-');
+  if(p.length<3)return '';
+  return WD[new Date(+p[0],+p[1]-1,+p[2]).getDay()];
+}
 /* 記録種別ごとの記入用紙の中身 */
+/* 記入用紙の日付を必ず使える形にそろえる。空やおかしな値のときは今日で代用して、
+   「NaN年NaN月」や日付列が0本の紙が印刷されないようにする */
+/* 「2026-13」のような有り得ない月をそのまま通すと、13月の紙や日付列が31本ある紙が出てしまう */
+function bfMonthOk(d){var m=+String(d).slice(5,7);return m>=1&&m<=12;}
+function bfNormDate(type,date){
+  var d=String(date==null?'':date);
+  if(type==='安全点検'||type==='身体測定'){
+    if(/^\d{4}-\d{2}$/.test(d)&&bfMonthOk(d))return d;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&bfMonthOk(d))return d.slice(0,7);
+    return todayISO().slice(0,7);
+  }
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&bfMonthOk(d))return d;
+  if(/^\d{4}-\d{2}$/.test(d)&&bfMonthOk(d))return d+'-01';
+  return todayISO();
+}
 function blankFormBody(type,date,qr){
+  date=bfNormDate(type,date);
+  var isMonth=/^\d{4}-\d{2}$/.test(date);
+  var isWeek=(type==='業務日報・保育日誌');
+  var wd=bfWeekday(date),klass='',kids=enrolled();
+  var bfDefKlass=(typeof CLASSES!=='undefined'&&CLASSES.length)?CLASSES[0]:'Pre';
+  /* 紙と画面で人数が食い違うと突き合わせができないので、記入用紙もその画面と同じ園児だけを印刷する。
+     登園（出席）は、登園シートで選んでいるクラスとその曜日に通う園児。
+     健康チェックの画面はクラスで絞らない（その日に登園した全員が対象）ので、紙も全園児のまま。 */
+  if(type==='登園（出席）'){
+    var tsheet=stGet('rec_登園シート',{})[date]||{};
+    klass=tsheet.klass||bfDefKlass;
+    kids=classOf(klass).filter(function(c){return !c.days||String(c.days).indexOf(wd)>-1;});
+  }
+  /* 午睡チェックの画面はクラスだけで絞る（曜日では絞らない）ので、記入用紙もそれに合わせる */
+  else if(type==='午睡チェック'){
+    var nsheet=stGet('rec_午睡チェック',{})[date]||{};
+    klass=nsheet.klass||bfDefKlass;
+    kids=classOf(klass);
+  }
+  var dlab=(isMonth?'対象月':(isWeek?'対象週':'日付'))+'：'+(scanDateLabel(date,type)||date)+((!isMonth&&!isWeek&&wd)?'（'+wd+'曜日）':'');
+  /* 用紙の題名（「◯◯ 記入用紙」）は printDoc が見出しとして印刷するので、ここでは繰り返さない。
+     QRは紙の取り込みに対応した記録だけに付ける。
+     対応していない記録にQRを付けると、読み取っても取り込み画面が無く、何も起きない紙になってしまう */
   var head='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">'
-    +'<div><div style="font-size:16px;font-weight:700;">'+esc(type)+'　記入用紙</div>'
-      +'<div style="font-size:12px;margin-top:3px;">'+esc(SET.school||'')+'　　日付：'+esc(date)+'　　記録者：＿＿＿＿＿＿</div></div>'
-    +'<div style="text-align:center;font-size:9px;">'+(qr?'<img src="'+qr+'" style="width:96px;height:96px;">':'')+'<div>この用紙を撮影して<br>取り込めます</div></div></div>';
-  var kids=enrolled();
+    +'<div style="font-size:12px;">'+esc(SET.school||'')+'　　'+esc(dlab)+(klass?'　　クラス：'+esc(klass):'')+'　　記録者：＿＿＿＿＿＿</div>'
+    +((qr&&SCAN_TARGETS[type])?'<div style="text-align:center;font-size:9px;"><img src="'+qr+'" style="width:96px;height:96px;"><div>この用紙を撮影して<br>取り込めます</div></div>':'')
+    +'</div>';
   var body='';
   if(type==='登園（出席）'){
-    var opts=SET.attendOptions||[];
-    body='<table><thead><tr><th style="width:26px;">No</th><th>園児</th><th style="width:70px;">出欠</th><th style="width:60px;">体温</th>'+opts.map(function(o){return '<th style="width:60px;">'+esc(o)+'</th>';}).join('')+'<th>メモ</th></tr></thead><tbody>'
-      +kids.map(function(c,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(childName(c))+'</td><td></td><td></td>'+opts.map(function(){return '<td></td>';}).join('')+'<td></td></tr>';}).join('')
-      +'</tbody></table><p style="font-size:10px;">出欠：● 出席／早 早退／遅 遅刻／休 欠席</p>';
+    /* 実物は登園シートと午睡チェック表が1枚。列が多いので小さめの文字で印刷する。
+       園名・日付・クラス・曜日は上のヘッダに出しているので、ここでは重ねて印刷しない */
+    var aslots=bfNapSlots();
+    var ahead='<div style="font-size:12px;margin:6px 0 4px;">室温 ＿＿＿ ℃　　湿度 ＿＿＿ ％　　（天気：＿＿＿＿）</div>';
+    body=ahead+'<table style="table-layout:fixed;"><thead><tr>'+bfKidHead(9)
+      +'<th style="width:52px;font-size:9px;">Attendance</th>'
+      +'<th style="width:46px;font-size:9px;">HOME<br>Lunch</th>'
+      +'<th style="width:52px;font-size:9px;">Long<br>9:00~18:00</th>'
+      +'<th style="width:46px;font-size:9px;">Temper-<br>ature</th>'
+      +aslots.map(function(x){return '<th style="font-size:8px;padding:2px 1px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
+      +kids.map(function(c,i){
+        var dopt={};try{dopt=(dayOptsOf(c)||{})[wd]||{};}catch(e){dopt={};}
+        return '<tr>'+bfKidCells(c,i,9)
+          +'<td></td>'
+          +'<td style="text-align:center;font-size:11px;">'+(dopt.lunch?'●':'')+'</td>'
+          +'<td style="text-align:center;font-size:11px;">'+(dopt.long?'●':'')+'</td>'
+          +'<td></td>'
+          +aslots.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('')
+      +'</tbody></table>'
+      +'<p style="font-size:10px;margin:4px 0 0;">Attendance：● 出席／早 早退／遅 遅刻／休 欠席　　HOME Lunch・Long はこの曜日の予定を ● で印刷しています</p>'
+      +BF_NAP_LEGEND;
   }else if(type==='安全点検'){
-    var n=0;
-    body='<table><thead><tr><th style="width:90px;">場所</th><th>点検項目</th><th style="width:100px;">良／要対応</th></tr></thead><tbody>'
-      +SAFETY_GROUPS.map(function(g){return g.items.map(function(it,gi){n++;return '<tr>'+(gi===0?'<td rowspan="'+g.items.length+'">'+esc(g.loc)+'</td>':'')+'<td>'+esc(it)+'</td><td></td></tr>';}).join('');}).join('')
-      +'</tbody></table><p>メモ：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</p>';
+    /* 毎日印刷すると紙がかさばるので、1ヶ月分の月間表を1枚だけ印刷する */
+    var mp=(isMonth?date:(date||'').slice(0,7)).split('-');
+    var dim=new Date(+mp[0],+mp[1],0).getDate();
+    var mdays=[],dd;for(dd=1;dd<=dim;dd++)mdays.push(dd);
+    body='<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">'+(+mp[0])+'年'+(+mp[1])+'月　園施設 安全点検チェック表（月間）</div>'
+      +'<table style="table-layout:fixed;"><thead><tr><th style="width:64px;font-size:9px;">場所</th><th style="width:180px;font-size:9px;">点検項目</th>'
+      +mdays.map(function(x){return '<th style="font-size:8px;padding:2px 1px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
+      +SAFETY_GROUPS.map(function(g){return g.items.map(function(it,gi){
+        return '<tr>'+(gi===0?'<td rowspan="'+g.items.length+'" style="font-size:9px;">'+esc(g.loc)+'</td>':'')
+          +'<td style="font-size:9px;">'+esc(it)+'</td>'
+          +mdays.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('');}).join('')
+      +'<tr><td colspan="2" style="font-size:9px;">点検者サイン</td>'+mdays.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>'
+      +'</tbody></table>'
+      +'<p style="font-size:10px;margin:4px 0 0;">記号：良 ✓／要対応 ✕　※要対応はメモ欄に対応を記入してください</p>'
+      +'<p style="font-size:10px;">メモ：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</p>';
   }else if(type==='午睡チェック'){
-    var slots=[];for(var t=11*60+30;t<=13*60+30;t+=10){slots.push(Math.floor(t/60)+':'+String(t%60).padStart(2,'0'));}
-    body='<table><thead><tr><th>園児</th>'+slots.map(function(x){return '<th style="font-size:9px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
-      +kids.map(function(c){return '<tr><td style="white-space:nowrap;">'+esc(childName(c))+'</td>'+slots.map(function(){return '<td></td>';}).join('')+'</tr>';}).join('')
-      +'</tbody></table><p style="font-size:10px;">記号：仰向け ↑／横向き →／うつ伏せ ↓　※呼吸を確認したら記入</p>';
+    var slots=bfNapSlots();
+    body='<table style="table-layout:fixed;"><thead><tr>'+bfKidHead(9)
+      +slots.map(function(x){return '<th style="font-size:8px;padding:2px 1px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
+      +kids.map(function(c,i){return '<tr>'+bfKidCells(c,i,9)+slots.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('')
+      +'</tbody></table>'+BF_NAP_LEGEND;
   }else if(type==='健康チェック'){
-    body='<table><thead><tr><th style="width:26px;">No</th><th>園児</th><th style="width:60px;">体温</th><th style="width:90px;">症状の有無</th><th>症状・対応</th></tr></thead><tbody>'
-      +kids.map(function(c,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(childName(c))+'</td><td></td><td>なし／あり</td><td></td></tr>';}).join('')
-      +'</tbody></table>';
+    /* 手書きの文章は読み取りに失敗しやすいので、選択肢を印字して丸をつけるマークシート形式にする */
+    var SY=[
+      {h:'鼻水(Snot)',w:96,o:['透明（さら）','（ねば）','黄色','緑色']},
+      {h:'咳(Cough)',w:62,o:['空咳','痰からみ']},
+      {h:'目(Eyes)',w:62,o:['目ヤニ','充血','かゆみ']},
+      {h:'便(Poo)',w:66,o:['下痢','便秘','（　　）']},
+      {h:'肌(Skin)',w:70,o:['あせも','かぶれ','水いぼ']},
+      {h:'怪我(injury)',w:70,o:['すり傷','切り傷','（　　）']}
+    ];
+    body='<table style="table-layout:fixed;"><thead><tr>'+bfKidHead(9)
+      +'<th style="width:50px;font-size:9px;">Attendance</th>'
+      +SY.map(function(s){return '<th style="width:'+s.w+'px;font-size:9px;">'+esc(s.h)+'</th>';}).join('')
+      +'<th style="font-size:9px;">その他異常</th></tr></thead><tbody>'
+      +kids.map(function(c,i){return '<tr>'+bfKidCells(c,i,9)+'<td></td>'
+        +SY.map(function(s){return '<td style="font-size:8px;line-height:1.5;">'+s.o.map(function(x){return esc(x);}).join('・')+'</td>';}).join('')
+        +'<td></td></tr>';}).join('')
+      +'</tbody></table>'
+      +'<p style="font-size:10px;margin:4px 0 0;">あてはまる言葉を <b>◯</b> で囲んでください。何もなければ空欄のままで大丈夫です。Attendance：● 出席／休 欠席</p>';
   }else if(type==='業務日報・保育日誌'){
-    body='<table><tbody>'
-      +['本日の活動（午前）','本日の活動（午後）','子どもの様子','欠席・早退','特記事項','明日の準備'].map(function(l){return '<tr><th style="width:130px;">'+l+'</th><td style="height:52px;"></td></tr>';}).join('')
+    /* 実物は1週間まとめの様式。用紙を出す日を含む週の月〜金を印刷する */
+    var wp=(date||'').split('-'),bd=(wp.length>=3)?new Date(+wp[0],+wp[1]-1,+wp[2]):new Date();
+    var dw=bd.getDay(),off=(dw===0?-6:1-dw);
+    var mon=new Date(bd.getFullYear(),bd.getMonth(),bd.getDate()+off);
+    var wdays=[];for(var wi=0;wi<5;wi++){var dt2=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+wi);wdays.push(dt2);}
+    function fmtD(d2){return d2.getFullYear()+'/'+pad(d2.getMonth()+1)+'/'+pad(d2.getDate());}
+    body='<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">Weekly Plan　'+fmtD(wdays[0])+' 〜 '+fmtD(wdays[4])+'</div>'
+      +'<table style="table-layout:fixed;"><thead><tr><th style="width:74px;font-size:9px;">（曜日）</th>'
+      +['Phonics','Morning Activity','Afternoon Activity','Story Book','保育日誌','業務日誌（連絡）'].map(function(l){return '<th style="font-size:9px;">'+esc(l)+'</th>';}).join('')
+      +'</tr></thead><tbody>'
+      +wdays.map(function(d2){return '<tr><td style="font-size:9px;">'+WD[d2.getDay()]+'曜日<div style="font-size:8px;">'+((d2.getMonth()+1)+'/'+d2.getDate())+'</div></td>'
+        +'<td style="height:74px;"></td><td></td><td></td><td></td><td></td><td></td></tr>';}).join('')
       +'</tbody></table>';
   }else if(type==='ヒヤリハット・怪我'){
     body='<table><tbody>'
@@ -2150,9 +2492,93 @@ function blankFormBody(type,date,qr){
 }
 function printBlankForm(type){
   var date=scanDateOf(type);
+  /* 紙の取り込みに対応していない記録はQRを作らない（読み取っても開く画面が無いため） */
+  if(!SCAN_TARGETS[type]){printDoc(type+' 記入用紙',blankFormBody(type,date,null));return;}
   qrDataUri(scanDeepUrl(type,date),function(qr){
     printDoc(type+' 記入用紙',blankFormBody(type,date,qr));
   });
+}
+/* ===== 以前に取り込んだ紙の一覧（設定に表示） =====
+   取り込みの対象や日付の決め方が変わっても、これまでに取り込んだ画像に必ず辿り着けるようにする。
+   画像は1枚あたり数百KBあるので、中身を確認したうえで不要なものだけ削除できる（自動では消さない） */
+function scanTypeOfStoreKey(k){
+  var pre=String(k).split('|')[0],t;
+  for(t in RKEY){if(RKEY[t]===pre)return t;}
+  return pre;
+}
+function scanArchiveList(){
+  var all=scansAll(),out=[],k;
+  for(k in all){
+    if(!all[k]||!all[k].length)continue;
+    out.push({key:k,type:scanTypeOfStoreKey(k),date:String(k).split('|')[1]||'',n:all[k].length});
+  }
+  out.sort(function(a,b){return a.date<b.date?1:(a.date>b.date?-1:0);});
+  return out;
+}
+function scanArchiveSet(key,list){
+  var a=scansAll();
+  if(list&&list.length)a[key]=list;else delete a[key];
+  stSet('recScans',a);
+}
+function scanArchiveLabel(r){return scanDateLabel(r.date,r.type)||r.date;}
+function renderScanArchiveSettings(s){
+  s.insertAdjacentHTML('beforeend','<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('photo')+'以前に取り込んだ紙の一覧</h3>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">これまでに撮影・スキャンして取り込んだ紙を、すべてここに表示します。'
+    +'記録の画面に出てこない古い取り込みも、ここから中身を確認したり削除したりできます。'
+    +'画像は1枚あたり数百KBあるため、もう使わないものを削除すると動作が軽くなります。</div>'
+    +'<div id="scArcBox"></div></div>');
+  function draw(){
+    var box=$('#scArcBox');if(!box)return;
+    var list=scanArchiveList();
+    box.innerHTML=list.length
+      ?('<div class="scrollx"><table><thead><tr><th>記録</th><th>日付・対象</th><th style="text-align:right;">枚数</th><th></th></tr></thead><tbody>'
+        +list.map(function(r,i){return '<tr><td>'+esc(r.type)+'</td><td class="row-sub">'+esc(scanArchiveLabel(r))+'</td>'
+          +'<td style="text-align:right;">'+r.n+' 枚</td>'
+          +'<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-scav="'+i+'">中身を見る</button> '
+          +'<button class="btn btn-sm btn-ghost" data-scad="'+i+'">'+ic('trash')+'まとめて削除</button></td></tr>';}).join('')
+        +'</tbody></table></div>')
+      :'<div class="muted" style="font-size:12px;">取り込んだ紙はまだありません。</div>';
+    box.querySelectorAll('[data-scav]').forEach(function(b){b.onclick=function(){openArc(list[+b.getAttribute('data-scav')]);};});
+    box.querySelectorAll('[data-scad]').forEach(function(b){b.onclick=function(){
+      var r=list[+b.getAttribute('data-scad')];if(!r)return;
+      if(!confirm(r.type+'（'+scanArchiveLabel(r)+'）の'+r.n+'枚をすべて削除しますか？　元に戻せません。'))return;
+      scanArchiveSet(r.key,[]);draw();
+    };});
+  }
+  function openArc(r){
+    if(!r)return;
+    var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+    function paint(){
+      var l=scansAll()[r.key]||[];
+      m.innerHTML='<div class="modal" style="width:min(880px,94vw);"><h2>'+esc(r.type)+'　'+esc(scanArchiveLabel(r))+'</h2>'
+        +(l.length?'<div style="display:flex;gap:10px;flex-wrap:wrap;">'+l.map(function(x,i){
+            return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;width:190px;">'
+              +'<img src="'+x.img+'" style="width:100%;border-radius:6px;">'
+              +'<div class="row-sub" style="margin-top:5px;font-size:11px;">'+esc(x.at||'')+(x.by?'　'+esc(x.by):'')+'</div>'
+              +'<button class="btn btn-sm btn-ghost" data-scaimg="'+i+'" style="margin-top:5px;font-size:11px;padding:3px 7px;">'+ic('trash')+'この1枚を削除</button></div>';
+          }).join('')+'</div>'
+          :'<div class="muted" style="font-size:12px;">この分の画像はありません。</div>')
+        +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">'
+        +'<button class="btn" id="scaPrint">'+ic('printer')+'印刷</button><button class="btn" id="scaClose">閉じる</button></div></div>';
+      m.querySelectorAll('[data-scaimg]').forEach(function(b){b.onclick=function(){
+        if(!confirm('この画像を削除しますか？'))return;
+        var cur=(scansAll()[r.key]||[]).slice();
+        cur.splice(+b.getAttribute('data-scaimg'),1);
+        scanArchiveSet(r.key,cur);paint();draw();
+      };});
+      var pb=m.querySelector('#scaPrint');
+      if(pb)pb.onclick=function(){
+        var cur=scansAll()[r.key]||[],dl=scanArchiveLabel(r);
+        printDoc('紙の記録（'+r.type+'・'+dl+'）',cur.map(function(x){
+          return '<div style="page-break-after:always;"><p>'+esc(r.type)+'　'+esc(dl)+'　'+esc(x.at||'')+(x.by?'　記録者 '+esc(x.by):'')+'</p><img src="'+x.img+'" style="width:100%;"></div>';
+        }).join(''));
+      };
+      var cb=m.querySelector('#scaClose');if(cb)cb.onclick=function(){m.remove();};
+    }
+    m.addEventListener('click',function(ev){if(ev.target===m)m.remove();});
+    paint();
+  }
+  draw();
 }
 function renderRecGroup(page,list,note){
   if(!recDate)recDate=todayISO();
@@ -2168,7 +2594,14 @@ function renderRecGroup(page,list,note){
   s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecGroup(page,list,note);};});
   $('#recExportBtn').onclick=recExport;
   ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
-  if(SCAN_TARGETS[recType]){$('#recBody').insertAdjacentHTML('beforeend',scanCard(recType));wireScan(recType);}
+  attachRecPaperCard();
+}
+/* 記録の編集画面は #recBody を丸ごと描き直すため、そのたびに紙のカード（記入用紙の印刷・取り込み）を付け直す。
+   すでに出ているときは何もしないので、二重に出ることはない */
+function attachRecPaperCard(){
+  var b=$('#recBody');if(!b)return;
+  if(SCAN_TARGETS[recType]){if(!$('#scanFile')){b.insertAdjacentHTML('beforeend',scanCard(recType));wireScan(recType);}}
+  else if(BLANK_ONLY_TARGETS[recType]){if(!$('#blankOnlyPrint')){b.insertAdjacentHTML('beforeend',blankOnlyCard(recType));wireBlankOnly(recType);}}
 }
 function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
 function attStyle(v){return v==='●'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':v==='休'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':v==='早'?'background:#FAEEDA;border-color:#E9C88B;color:#854F0B;font-weight:600;':v==='遅'?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'';}
@@ -2177,34 +2610,65 @@ function edTouen(){
   var opts=SET.attendOptions||[];
   var dp=recDate.split('-'),wd=WD[new Date(+dp[0],+dp[1]-1,+dp[2]).getDay()];
   var kids=classOf(d.klass).filter(function(c){return !c.days||c.days.indexOf(wd)>-1;});
-  function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(!(op in r.opts))r.opts[op]=(op==='ランチ'?!!_do.lunch:op==='ロングステイ'?!!_do.long:false);});return r;}
+  /* ランチ・ロングステイは連絡先の通園曜日設定から「その日にまだ記録が無いときの初期値」としてだけ入れる。
+     一度記録された値は、あとから通園曜日の設定を変えても書き換えない（過去日の実績が塗り替わらないようにする）。 */
+  function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
+  /* 自動表示以外のオプション（設定で追加したもの）はこれまでどおりタップで切替 */
+  var freeOpts=opts.filter(function(op){return !isAutoAttendOpt(op);});
+  var autoOpts=opts.filter(function(op){return isAutoAttendOpt(op);});
+  /* --- 案内文ここから：いま表示している列だけを説明する。1行1件で並べる --- */
+  var noteLines=['この曜日に通園予定の園児のみ表示します。先生が記録するのは <b>出欠・体温</b> の2つだけです。',
+    '出欠はタップで切替わります：<b>●</b>出席 → <b>早</b>早退 → <b>遅</b>遅刻 → <b>休</b>欠席'];
+  if(autoOpts.length)noteLines.push('<b>'+autoOpts.map(function(op){return esc(op);}).join('・')+'</b>（点線のグレー表示）は通園曜日の設定から自動で表示します。この画面では変更できません。すでに記録がある日は、あとから通園曜日を変えてもその日の記録はそのまま残ります。');
+  if(freeOpts.length)noteLines.push('<b>'+freeOpts.map(function(op){return esc(op);}).join('・')+'</b> はタップで選べます。');
+  noteLines.push('オプションの追加・名前の変更は「設定 → 登園記録のオプション」で園ごとに行えます。');
+  var noteHtml=noteLines.map(function(t,i){return '<div style="'+(i?'margin-top:5px;':'')+(i===noteLines.length-1?'color:#085041;':'')+'">'+t+'</div>';}).join('');
+  /* --- 案内文ここまで --- */
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+recDate+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+(d.weather||'')+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+(d.temp||'')+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+(d.hum||'')+'"></div></div>'+
-    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;"><span class="muted" style="font-size:12px;font-weight:600;">記録者</span><div class="chips" style="margin:0;">'+DB.staff.map(function(st){return '<span class="chip'+(st.name===d.by?' on':'')+'" data-tsby="'+esc(st.name)+'">'+esc(st.name)+'</span>';}).join('')+'</div></div>'+
-    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0F6E56;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0F6E56;line-height:1.6;">この曜日に通園予定の園児のみ表示。先生が記録するのは <b>出欠・体温</b> の2つだけ。<br>出欠はタップで切替：<b>●</b>出席 → <b>早</b>早退 → <b>遅</b>遅刻 → <b>休</b>欠席。オプション（'+(opts.join('・')||'未設定')+'）もタップで選択。<span style="color:#085041;">オプションは「設定 → 登園記録のオプション」で園ごとに変更できます。</span></div></div>'+
-    '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+op+'</th>';}).join('')+'</tr></thead><tbody>'+
-    kids.map(function(c){var r=rowOf(c);return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag">'+ageClassOf(c)+'</span></td>'+
+    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0F6E56;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0F6E56;line-height:1.6;">'+noteHtml+'</div></div>'+
+    '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
+    kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td><button class="btn btn-sm" data-ta="'+c.id+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
       '<td><input data-tt="'+c.id+'" type="number" step="0.1" value="'+(r.temp||'')+'" style="width:80px;" placeholder="36.5"></td>'+
-      opts.map(function(op,oi){var on=!!r.opts[op];return '<td><button class="btn btn-sm" data-to="'+c.id+'" data-oi="'+oi+'" style="'+(on?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'')+'">'+(on?'●':'—')+'</button></td>';}).join('')+
+      opts.map(function(op,oi){var on=!!r.opts[op];
+        /* ランチ・ロングステイはその日の予定を読み取り専用で表示する。
+           押しても反応しないので、点線の枠とグレーでタップできるボタンと見分けられるようにする */
+        if(isAutoAttendOpt(op))return '<td><span class="tag" title="通園曜日の設定から自動で表示しています。この画面では変更できません" style="cursor:default;border-style:dashed;'+(on?'background:#F1EFE8;border-color:#A9A296;color:#4A463E;font-weight:600;':'background:transparent;border-color:#DAD6CC;color:#B0AAA0;')+'">'+(on?'●':'—')+'</span></td>';
+        return '<td><button class="btn btn-sm" data-to="'+c.id+'" data-oi="'+oi+'" style="'+(on?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'')+'">'+(on?'●':'—')+'</button></td>';}).join('')+
       '</tr>';}).join('')+
     '</tbody></table></div>'+
-    '<div class="field" style="margin-top:12px;"><label>MEMO</label><input id="tsMemo" value="'+(d.memo||'')+'"></div></div>';
+    '<div class="field" style="margin-top:12px;"><label>MEMO</label><input id="tsMemo" value="'+(d.memo||'')+'"></div>'+
+    /* 自動列は記録済みの値を勝手に書き換えない（監査記録のため）。ただし当日の入力ミスは直せる必要があるので、
+       ここから明示的に「今の通園曜日の設定に合わせ直す」操作ができるようにする。 */
+    (autoOpts.length?'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;"><span class="muted" style="font-size:12px;">'+esc(autoOpts.join('・'))+'が実際と違う場合はここから直せます。</span><button class="btn btn-sm" id="tsResync">通園曜日の設定に合わせ直す</button></div>':'')+
+    '</div>';
   function save(){data[recDate]=d;stSet(K,data);}
   $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#tsKlass').onchange=function(e){d.klass=e.target.value;save();edTouen();};
   [['tsWeather','weather'],['tsTemp','temp'],['tsHum','hum'],['tsMemo','memo']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
-  document.querySelectorAll('[data-tsby]').forEach(function(ch){ch.onclick=function(){d.by=ch.getAttribute('data-tsby');save();edTouen();};});
+  if($('#tsResync'))$('#tsResync').onclick=function(){
+    if(!confirm('この日の「'+autoOpts.join('・')+'」を、いまの通園曜日の設定に合わせ直します。よろしいですか？'))return;
+    kids.forEach(function(c){
+      var r=rowOf(c),_do=dayOptsOf(c)[wd]||{};
+      autoOpts.forEach(function(op){var k=autoAttendKey(op);if(k)r.opts[op]=!!_do[k];});
+    });
+    save();edTouen();
+  };
   document.querySelectorAll('[data-ta]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-ta');})[0];var r=rowOf(c);var order=['','●','早','遅','休'];r.att=order[(order.indexOf(r.att)+1)%order.length];save();edTouen();};});
   document.querySelectorAll('[data-tt]').forEach(function(inp){inp.onchange=function(){var c=kids.filter(function(k){return k.id===+inp.getAttribute('data-tt');})[0];rowOf(c).temp=inp.value;save();};});
   document.querySelectorAll('[data-to]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-to');})[0];var op=opts[+b.getAttribute('data-oi')];var r=rowOf(c);r.opts[op]=!r.opts[op];save();b.style.cssText=r.opts[op]?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'';b.textContent=r.opts[op]?'●':'—';};});
   $('#tsPrint').onclick=function(){
     var body='<p>'+d.klass.toUpperCase()+' SCHOOL 【'+wd+'曜日】　室温'+(d.temp||'　')+'℃ 湿度'+(d.hum||'　')+'%（天気：'+(d.weather||'　')+'）</p>'+
-      '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+op+'</th>';}).join('')+'</tr></thead><tbody>'+
-      kids.map(function(c){var r=d.rows[c.id]||{opts:{}};return '<tr><td>'+childName(c)+'</td><td>'+(c.dob||'')+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.att||'')+'</td><td>'+(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+((r.opts||{})[op]?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'+
-      '<p>MEMO：'+(d.memo||'')+'　／　記録者：'+(d.by||'')+'</p>';
+      '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
+      kids.map(function(c){var r=d.rows[c.id]||{opts:{}};var al=ageClassOf(c),ac=ageColor(al);
+        /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
+        return '<tr><td>'+esc(childFullName(c))+'</td><td>'+(c.dob||'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+(r.att||'')+'</td><td>'+(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+((r.opts||{})[op]?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'+
+      '<p>MEMO：'+(d.memo||'')+'</p>';
     printDoc('登園（出席）シート（'+fmt(recDate)+'・'+wd+'曜日・'+d.klass+'）',body);
   };
+  /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
+  attachRecPaperCard();
 }
 function edSafety(){
   var K='rec_安全点検',data=stGet(K,{}),d=data[recDate]||{items:{},memo:'',by:''};
@@ -2232,6 +2696,8 @@ function edSafety(){
       '</tbody></table></div>';
     printDoc('園施設安全点検記録票（'+(+p[1])+'月）',body);
   };
+  /* 良／要対応のタップやサイン記入で画面を描き直すので、紙のカードを付け直す */
+  attachRecPaperCard();
 }
 function edNap(){
   var K='rec_午睡チェック',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',cells:{},charge:[]};
@@ -2262,6 +2728,8 @@ function edNap(){
     var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childName(c)+'</td>'+slots.map(function(t){return '<td>'+(d.cells[c.id+'|'+t]||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table><p>確認間隔：10分</p>';
     printDoc('午睡チェック表（'+fmt(recDate)+'・'+d.klass+'）',body);
   };
+  /* クラス変更・担当の追加などで画面を描き直すので、紙のカードを付け直す */
+  attachRecPaperCard();
 }
 function edHealth(){
   var K='rec_健康チェック',data=stGet(K,{}),d=data[recDate]||{entries:[],by:''};
@@ -2294,6 +2762,8 @@ function edHealth(){
       '<table><thead><tr><th>園児</th><th>体温</th><th>状態</th><th>対応</th></tr></thead><tbody>'+showKids.map(function(c){var idx=entryIdx(c.id);var t=tempOf(c.id,recDate)||'';if(idx>-1){var en=d.entries[idx];return '<tr><td>'+childName(c)+'</td><td>'+t+'</td><td>症状あり：'+(en.symptoms||[]).map(function(s){return s.cat+'：'+s.opts.join('・');}).join(' / ')+(en.other?'（'+en.other+'）':'')+'</td><td>'+(en.action||'')+'</td></tr>';}return '<tr><td>'+childName(c)+'</td><td>'+t+'</td><td>症状なし</td><td></td></tr>';}).join('')+'</tbody></table><p>記録者：'+(d.by||'　　　　')+'</p>';
     printDoc('健康チェック記録（'+fmt(recDate)+'）',body);
   };
+  /* 「全員健康」や症状の記録で画面を描き直すので、紙のカードを付け直す */
+  attachRecPaperCard();
 }
 function healthModal(idx,d,save,pre){
   var en=idx!=null?JSON.parse(JSON.stringify(d.entries[idx])):{childId:pre||null,symptoms:[],other:'',action:''};
@@ -2351,6 +2821,7 @@ function edBody(){
     alert(targets.length+'名の保護者へ送信しました。\n保護者ページの「せいちょう」タブに反映され、各ご家庭ではお子様ご本人の記録のみが表示されます。');
     edBody();
   };
+  attachRecPaperCard();
 }
 function bodyFigSVG(marks,side,editable){
   var dots=(marks||[]).filter(function(x){return x.side===side;}).map(function(x){return '<circle cx="'+x.x+'" cy="'+x.y+'" r="4" fill="#E24B4A" stroke="#fff" stroke-width="1"/>';}).join('');
@@ -2369,6 +2840,8 @@ function edHiyari(){
     var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつける点</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr>'+((r.marks||[]).length?'<tr><th>部位図</th><td>'+bodyFigSVG(r.marks,'front',false)+' '+bodyFigSVG(r.marks,'back',false)+'</td></tr>':'')+'</tbody></table>';}).join(''):'<p>記録なし</p>';
     printDoc('怪我・発熱等 記録表／ヒヤリハット（年間一覧）',body);
   };
+  /* 記録の追加・削除で画面を描き直すので、記入用紙のカードを付け直す */
+  attachRecPaperCard();
 }
 function hiyariModal(idx,log,K){
   var kids=enrolled();
@@ -2439,6 +2912,7 @@ function edDev(){
     var body=kids.map(function(c){var rc=(data[c.id]&&data[c.id][recQuarter])||{items:{},memo:'',by:''};return '<h2>'+childName(c)+'（'+ageClassOf(c)+'）</h2><p>記録者：'+(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+(rc.memo||'')+'</p>';}).join('<div style="page-break-after:always;"></div>');
     printDoc('生徒個人発達記録 全員分（'+recQuarter+'）',body);
   };
+  attachRecPaperCard();
 }
 function edNippo(){
   var K='rec_日報',data=stGet(K,{}),d=data[recDate]||{actual:'',diary:'',absent:'',early:'',sick:'',note:'',by:''};
@@ -2464,6 +2938,7 @@ function edNippo(){
     var body='<h2>活動実績</h2><p>'+(d.actual||actualVal).replace(/\n/g,'<br>')+'</p><h2>保育日誌</h2><p>'+(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+(d.early||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+(d.by||'')+'</td></tr></tbody></table>';
     printDoc('業務日報・保育日誌（'+fmt(recDate)+'）',body);
   };
+  attachRecPaperCard();
 }
 function renderGyakutai(box){
   if(!recQuarter)recQuarter=curQuarter();
@@ -2519,19 +2994,22 @@ function renderDrill(){
   };
 }
 /* 実施予定日の登園（出席）シートから、参加予定園児数を自動集計 */
-function drillExpectHtml(p){
+/* forPrint=true は印刷用。用紙に画面用の操作案内が出ないよう、人数と内訳だけを返す */
+function drillExpectHtml(p,forPrint){
   var cls=(p.classes&&p.classes.length)?p.classes:CLASSES.slice();
-  if(!p.planDate)return '<span class="muted">実施予定日を入力すると、その日の出席から自動で反映されます。</span>';
+  if(!p.planDate)return forPrint?'':'<span class="muted">実施予定日を入力すると、その日の出席から自動で反映されます。</span>';
   var sh=stGet('rec_登園シート',{})[p.planDate];
   var kids=enrolled().filter(function(c){return cls.indexOf(c.klass)>-1;});
   if(!sh||!sh.rows){
     var wd=WD[new Date(+p.planDate.slice(0,4),+p.planDate.slice(5,7)-1,+p.planDate.slice(8,10)).getDay()];
     var plan=kids.filter(function(c){return !c.days||c.days.indexOf(wd)>-1;});
-    return '<b>'+plan.length+'名</b>（通園予定ベース：'+cls.join('・')+'）<span class="muted" style="margin-left:6px;">当日の登園シート記録後、出席実績に自動更新されます</span>';
+    var base='<b>'+plan.length+'名</b>（通園予定ベース：'+cls.join('・')+'）';
+    return forPrint?base:base+'<span class="muted" style="margin-left:6px;">当日の登園シート記録後、出席実績に自動更新されます</span>';
   }
   var att=kids.filter(function(c){var r=sh.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;});
   var byCls=cls.map(function(k){return k+' '+att.filter(function(c){return c.klass===k;}).length+'名';}).join('・');
-  return '<b>'+att.length+'名</b>（'+byCls+'）<span class="muted" style="margin-left:6px;">'+fmt(p.planDate)+' の出席実績から自動反映</span>';
+  var base2='<b>'+att.length+'名</b>（'+byCls+'）';
+  return forPrint?base2:base2+'<span class="muted" style="margin-left:6px;">'+fmt(p.planDate)+' の出席実績から自動反映</span>';
 }
 function drillModal(i){
   var D=drillData(),r=D.rows[i],tab='plan';
@@ -2601,7 +3079,7 @@ function drillPrint(i){
     '<tr><th style="width:110px;">実施予定日</th><td>'+(p.planDate?fmt(p.planDate):'')+'</td><th style="width:130px;">対象クラス</th><td>'+(p.classes||[]).join('・')+'</td></tr>'+
     '<tr><th>想定時刻</th><td>'+(p.scenTime||'')+'</td><th>想定発生時活動</th><td>'+(p.scenAct||'')+'</td></tr>'+
     '<tr><th>訓練の想定</th><td colspan="3">'+(p.scenario||'')+'</td></tr>'+
-    '<tr><th>参加予定園児</th><td colspan="3">'+String(drillExpectHtml(p)).replace(/<[^>]*>/g,'')+'</td></tr>'+
+    '<tr><th>参加予定園児</th><td colspan="3">'+String(drillExpectHtml(p,true)).replace(/<[^>]*>/g,'')+'</td></tr>'+
     '<tr><th>参加予定保育者</th><td colspan="3">'+((p.staffNames||[]).join('、')||'（未設定）')+'</td></tr>'+
     '<tr><th>避難場所</th><td>'+(p.place||'')+'</td><th>避難経路</th><td>'+(p.route||'')+'</td></tr>'+
     '<tr><th>避難タイム（想定）</th><td colspan="3">'+(p.targetTime||'')+'</td></tr>'+
@@ -2629,18 +3107,46 @@ var shiftTab='plan';
    データ: timecards = { 'YYYY-MM': { staffId: { day: {in:'8:45',out:'17:45',brk:60,note:''} } } } */
 function tcAll(){return stGet('timecards',{});}
 function tcMonth(mk){return tcAll()[mk]||{};}
-function tcGet(mk,sid,day){return ((tcMonth(mk)[sid]||{})[day])||{in:'',out:'',brk:60,note:''};}
+/* 時刻は必ず「08:00」の2桁時に整える。ブラウザの時刻入力欄は「8:00」のような
+   1桁時を無効な値として捨ててしまい、出勤時間だけ空欄に見えてしまうため */
+function tcTime(t){
+  if(t==null)return '';
+  var s=String(t).replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);}).replace(/：/g,':').replace(/\s/g,'');
+  /* 勤務表に「9-17」のように時だけで書かれることがあるので「9:00」として読む */
+  if(/^\d{1,2}$/.test(s))s=s+':00';
+  var m=s.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/);
+  if(!m)return '';
+  var hh=+m[1],mi=+m[2];
+  if(hh>23||mi>59)return '';
+  return pad(hh)+':'+pad(mi);
+}
+function tcGet(mk,sid,day){
+  var v=((tcMonth(mk)[sid]||{})[day])||{in:'',out:'',brk:60,note:''};
+  /* 以前に1桁時で保存されたデータも表示のたびに整える。
+     どうしても読み取れない値は、記録が消えてしまわないようそのまま残す */
+  var ti=tcTime(v.in);if(ti)v.in=ti;
+  var to=tcTime(v.out);if(to)v.out=to;
+  return v;
+}
 /* 所定労働時間（分）を超えた分を時間外として算出 */
 function tcStdMin(){return (+SET.stdWorkMin||480);}
 function tcOverMin(v){var m=tcMinutes(v);return Math.max(0,m-tcStdMin());}
 function tcHM(min){var hh=Math.floor(min/60),mm=min%60;return hh+':'+String(mm).padStart(2,'0');}
 function tcSet(mk,sid,day,v){var a=tcAll();a[mk]=a[mk]||{};a[mk][sid]=a[mk][sid]||{};
+  /* 「08:00」の形に整えて保存する。読み取れない値は書き換えず元のまま残す
+     （ここで空にしてしまうと、下の判定でその日の記録ごと消えてしまうため） */
+  if(v){var ti=tcTime(v.in);if(ti)v.in=ti;var to=tcTime(v.out);if(to)v.out=to;}
   if(v&&(v.in||v.out||v.note))a[mk][sid][day]=v;else delete a[mk][sid][day];
   stSet('timecards',a);}
 function tcMinutes(v){
-  if(!v||!v.in||!v.out)return 0;
+  if(!v)return 0;
+  /* 出勤・退勤欄に表示するのと同じ読み方をする。読み取れない値は0分として扱い、
+     「出退勤は空欄なのに勤務時間だけ出る」という食い違いを起こさない
+     （記録そのものは消さず、そのまま保存されたままです） */
+  var i=tcTime(v.in),o=tcTime(v.out);
+  if(!i||!o)return 0;
   function mins(t){var p=String(t).split(':');return (+p[0]||0)*60+(+p[1]||0);}
-  var d=mins(v.out)-mins(v.in);if(d<0)d+=24*60;
+  var d=mins(o)-mins(i);if(d<0)d+=24*60;
   d-=(+v.brk||0);return Math.max(0,d);
 }
 function tcHours(min){return (min/60).toFixed(1);}
@@ -2652,7 +3158,7 @@ function renderTimecard(){
   var staff=DB.staff;
   var all=tcMonth(mk);
   function staffMin(sid){var t=all[sid]||{},n=0;Object.keys(t).forEach(function(k){n+=tcMinutes(t[k]);});return n;}
-  function staffDays(sid){var t=all[sid]||{};return Object.keys(t).filter(function(k){return t[k].in&&t[k].out;}).length;}
+  function staffDays(sid){var t=all[sid]||{};return Object.keys(t).filter(function(k){return tcTime(t[k].in)&&tcTime(t[k].out);}).length;}
   s.innerHTML='<div class="card" style="margin-bottom:14px;"><div class="chips" style="margin:0;">'+[['plan','勤務表（シフト予定）'],['time','出勤簿（実績の打刻）']].map(function(t){return '<span class="chip'+(t[0]===shiftTab?' on':'')+'" data-shtab="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div></div>'
     +'<div class="card">'+recHead('出勤簿（タイムカード）',
       '<input type="month" id="tcMonth" value="'+mk+'" style="width:160px;"><select id="tcStaff" style="width:170px;">'+staff.map(function(st){return '<option value="'+st.id+'"'+(String(st.id)===String(tcStaffSel||staff[0]&&staff[0].id)?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select>'
@@ -2664,8 +3170,8 @@ function renderTimecard(){
       var wd=new Date(y,mo-1,dd).getDay(),we=(wd===0||wd===6);
       var v=tcGet(mk,tcStaffSel,dd),min=tcMinutes(v);
       return '<tr'+(we?' style="background:#FAFAF8;"':'')+'><td class="row-name">'+mo+'/'+dd+'<div class="row-sub">'+WD[wd]+'</div></td>'
-        +'<td><input type="time" data-tc="'+dd+'|in" value="'+(v.in||'')+'"></td>'
-        +'<td><input type="time" data-tc="'+dd+'|out" value="'+(v.out||'')+'"></td>'
+        +'<td><input type="time" data-tc="'+dd+'|in" value="'+String(v.in||'').replace(/"/g,'&quot;')+'"></td>'
+        +'<td><input type="time" data-tc="'+dd+'|out" value="'+String(v.out||'').replace(/"/g,'&quot;')+'"></td>'
         +'<td><input type="number" min="0" step="5" data-tc="'+dd+'|brk" value="'+(v.brk==null?60:v.brk)+'" style="text-align:right;"></td>'
         +'<td style="text-align:right;font-weight:600;">'+(min?tcHours(min)+'h':'—')+'</td>'
         +'<td style="text-align:right;color:'+(tcOverMin(v)?'#A32D2D':'var(--tx3)')+';">'+(tcOverMin(v)?tcHours(tcOverMin(v))+'h':'—')+'</td>'
@@ -2684,16 +3190,31 @@ function renderTimecard(){
     var cells=(sh.cells||{})[tcStaffSel]||{};
     if(!Object.keys(cells).length){alert('この月のシフトが未入力です。先に勤務表を作成してください。');return;}
     if(!confirm('シフトの予定時間を出勤簿に入力します（入力済みの日はそのまま残します）。よろしいですか？'))return;
-    var n=0;
+    /* 休憩は「12:00-13:00」でも「60」（分だけ）でも受け取れるようにする */
+    function tcBrkMin(bk){
+      function bmin(t){var p=String(t).split(':');return (+p[0]||0)*60+(+p[1]||0);}
+      var s=String(bk==null?'':bk).replace(/[〜～–—−ー－‐]/g,'-').replace(/分/g,'').replace(/\s/g,'');
+      if(s.indexOf('-')>-1){
+        var bp=s.split('-'),b1=tcTime(bp[0]),b2=tcTime(bp[1]);
+        if(!b1||!b2)return null;
+        /* 休憩は日をまたがない。終わりが始まりより前なら入力の誤りとみなして0分にする */
+        return Math.max(0,bmin(b2)-bmin(b1));
+      }
+      return /^\d+$/.test(s)?+s:null;
+    }
+    var n=0,ng=0;
     Object.keys(cells).forEach(function(day){
       var k=cells[day];if(!k||k==='休')return;
       var cur=tcGet(mk,tcStaffSel,+day);if(cur.in||cur.out)return;
-      var pat=(sh.pat||{})[k]||'',pr=pat.split('-');
-      var bk=(sh.brk||{})[k]||'',bm=60;
-      if(bk.indexOf('-')>-1){var bp=bk.split('-');function mm(t){var q=String(t).split(':');return (+q[0]||0)*60+(+q[1]||0);}bm=Math.max(0,mm(bp[1])-mm(bp[0]));}
-      if(pr.length===2){tcSet(mk,tcStaffSel,+day,{in:pr[0].trim(),out:pr[1].trim(),brk:bm,note:''});n++;}
+      var pat=String((sh.pat||{})[k]||'').replace(/[〜～–—−ー－‐]/g,'-'),pr=pat.split('-');
+      /* 「8:00」のままでは出勤欄に入らないので、必ず「08:00」形式に直してから保存する */
+      var tin=(pr.length===2)?tcTime(pr[0]):'',tout=(pr.length===2)?tcTime(pr[1]):'';
+      if(!tin||!tout){ng++;return;}
+      var bm=tcBrkMin((sh.brk||{})[k]);
+      tcSet(mk,tcStaffSel,+day,{in:tin,out:tout,brk:(bm==null?60:bm),note:''});n++;
     });
-    alert(n+'日分を入力しました。');renderTimecard();
+    alert(n+'日分を入力しました。'+(ng?'\n'+ng+'日分は勤務時間の設定が読み取れませんでした。勤務表の上部で「8:45-17:45」のように入力されているかご確認ください。':''));
+    renderTimecard();
   };
   function tcStaffTable(st){
     var t=all[st.id]||{},tot=0,cnt=0,otot=0;
@@ -2701,8 +3222,8 @@ function renderTimecard(){
       var wd=new Date(y,mo-1,dd).getDay(),we=(wd===0||wd===6),v=t[dd]||{},min=tcMinutes(v),ov=tcOverMin(v);
       if(min){tot+=min;cnt++;}otot+=ov;
       return '<tr'+(we?' style="background:#e9e9e9;"':'')+'><td>'+y+'/'+mo+'/'+dd+'</td><td style="text-align:center;">'+WD[wd]+'</td>'
-        +'<td style="text-align:center;">'+(v.in||'')+'</td><td style="text-align:center;">'+(v.out||'')+'</td>'
-        +'<td style="text-align:center;">'+(v.in?tcHM(v.brk==null?60:+v.brk):'')+'</td>'
+        +'<td style="text-align:center;">'+tcTime(v.in)+'</td><td style="text-align:center;">'+tcTime(v.out)+'</td>'
+        +'<td style="text-align:center;">'+((tcTime(v.in)&&tcTime(v.out))?tcHM(v.brk==null?60:+v.brk):'')+'</td>'
         +'<td style="text-align:right;">'+(min?tcHours(min):'')+'</td>'
         +'<td style="text-align:right;">'+(ov?tcHours(ov):'')+'</td>'
         +'<td>'+esc(v.note||'')+'</td></tr>';}).join('');
@@ -2724,7 +3245,7 @@ function renderTimecard(){
   };
   $('#tcCsv').onclick=function(){
     var html='<html><head><meta charset="utf-8"></head><body><h2>出勤簿 '+mk+'</h2><table border="1"><tr><th>氏名</th><th>日付</th><th>出勤</th><th>退勤</th><th>休憩(分)</th><th>実働(h)</th><th>備考</th></tr>'
-      +DB.staff.map(function(st){var t=all[st.id]||{};return Object.keys(t).sort(function(a,b){return a-b;}).map(function(dd){var v=t[dd];return '<tr><td>'+esc(st.name)+'</td><td>'+mk+'-'+pad(dd)+'</td><td>'+(v.in||'')+'</td><td>'+(v.out||'')+'</td><td>'+(v.brk==null?60:v.brk)+'</td><td>'+tcHours(tcMinutes(v))+'</td><td>'+esc(v.note||'')+'</td></tr>';}).join('');}).join('')
+      +DB.staff.map(function(st){var t=all[st.id]||{};return Object.keys(t).sort(function(a,b){return a-b;}).map(function(dd){var v=t[dd];return '<tr><td>'+esc(st.name)+'</td><td>'+mk+'-'+pad(dd)+'</td><td>'+tcTime(v.in)+'</td><td>'+tcTime(v.out)+'</td><td>'+(v.brk==null?60:v.brk)+'</td><td>'+tcHours(tcMinutes(v))+'</td><td>'+esc(v.note||'')+'</td></tr>';}).join('');}).join('')
       +'</table></body></html>';
     dlFile('出勤簿_'+mk+'.xls',html,'application/vnd.ms-excel');
   };
@@ -3472,7 +3993,27 @@ function staffBoot(){
   if(!currentStaff()){showStaffLogin();return;}
   applyPerms();try{initSyncBar();}catch(e){}
   var dl=dmDeepLink(),rl=recDeepLink();
-  if(rl&&canView(recPageOf(rl.type))){recType=rl.type;if(rl.date)recDate=rl.date;go(recPageOf(rl.type));setTimeout(function(){var f=document.getElementById('scanFile');if(rl.scan&&f)f.click();},300);}
+  if(rl&&canView(recPageOf(rl.type))){
+    recType=rl.type;
+    if(rl.date){
+      if(/^\d{4}-\d{2}$/.test(rl.date)){
+        /* 月そのものを見るのは身体測定だけ。ほかの記録で recMonth を動かすと、
+           開いてもいない身体測定の月が静かに変わってしまう */
+        if(rl.type==='身体測定')recMonth=rl.date;
+        /* 安全点検の取り込み先の月は画面の日付で決まるので、その月の1日を選んでおく */
+        else if(rl.type==='安全点検')recDate=rl.date+'-01';
+      }
+      else if(/^\d{4}-\d{2}-\d{2}$/.test(rl.date))recDate=rl.date;
+    }
+    go(recPageOf(rl.type));
+    setTimeout(function(){
+      if(!rl.scan)return;
+      var f=document.getElementById('scanFile');
+      if(f){f.click();return;}
+      /* 以前に印刷した用紙のQRなど、取り込みに対応していない記録のときに無反応にならないようにする */
+      if(typeof toastAI==='function')toastAI('この記録は紙の取り込みに対応していません。画面から入力してください。');
+    },300);
+  }
   else if(dl&&canView('dm')){dmSel=dl;go('dm');}else go('dashboard');
   if(typeof initAI==='function')initAI();
 }
@@ -4253,7 +4794,12 @@ function expSet(mk,d){var a=expAll();a[mk]=d;stSet('expenses',a);}
 function expCatTotal(d,cat){return (d.rows||[]).filter(function(r){return r.cat===cat;}).reduce(function(a,r){return a+(+r.amount||0);},0);}
 function expTotal(d){return (d.rows||[]).reduce(function(a,r){return a+(+r.amount||0);},0);}
 function cashAll(){return stGet('cashCount',{});}
-function cashGet(mk){var a=cashAll();return a[mk]||{date:todayISO(),dept:(SET.school||''),counts:{},bookBalance:0,reasons:[{label:'',amount:0}],by:'',approver:''};}
+function cashGet(mk){
+  var a=cashAll(),d=a[mk]||{date:todayISO(),dept:(SET.school||''),counts:{},bookBalance:0,reasons:[{label:'',amount:0}],by:'',approver:''};
+  /* 支給経費（ベース）が未入力の月は、設定の園ごとの既定額を初期値にする */
+  if(d.base==null||d.base==='')d.base=(+SET.expenseBase||0);
+  return d;
+}
 function cashSet(mk,d){var a=cashAll();a[mk]=d;stSet('cashCount',a);}
 function cashTotal(d){return CASH_DENOMS.reduce(function(a,x){return a+(x[0]*(+((d.counts||{})[x[0]])||0));},0);}
 function cashReasonTotal(d){return (d.reasons||[]).reduce(function(a,r){return a+(+r.amount||0);},0);}
@@ -4274,7 +4820,8 @@ function expList(mk){
   function save(){expSet(mk,d);}
   var rows=(d.rows||[]);
   $('#exBody').innerHTML='<div class="card">'+recHead('経費精算表',
-      '<button class="btn btn-sm" id="exAdd">'+ic('plus')+'行を追加</button><button class="btn btn-sm" id="exPrint">'+ic('printer')+'精算表を出力</button><button class="btn btn-sm" id="exCsv">'+ic('folder')+'データ保存</button>')
+      '<button class="btn btn-sm" id="exAdd">'+ic('plus')+'行を追加</button><button class="btn btn-sm" id="exPrint">'+ic('printer')+'精算表を出力</button><button class="btn btn-sm" id="exCsv">'+ic('folder')+'データ保存</button>'
+      +'<button class="btn btn-sm btn-primary" id="exSave">'+ic('check')+'保存</button><button class="btn btn-sm" id="exSend">'+ic('send')+'経理部に送付</button><span class="muted" id="exMsg" style="font-size:12px;"></span>')
     +'<div class="muted" style="margin-bottom:10px;">日付・支払先・内容・金額を入力し、科目を選びます。科目ごとの小計と合計は自動計算されます。</div>'
     +'<div class="scrollx"><table><thead><tr><th style="width:110px;">日付</th><th>支払先</th><th>内容</th><th style="width:70px;">証番</th><th style="width:130px;">科目</th><th style="width:110px;text-align:right;">金額</th><th style="width:44px;"></th></tr></thead><tbody>'
     +(rows.length?rows.map(function(r,i){
@@ -4286,17 +4833,27 @@ function expList(mk){
         +'<td><input type="number" data-ex="'+i+'|amount" value="'+(+r.amount||0)+'" style="text-align:right;"></td>'
         +'<td style="text-align:right;"><button class="btn btn-sm btn-ghost" data-exdel="'+i+'">'+ic('trash')+'</button></td></tr>';}).join('')
       :'<tr><td colspan="7" class="empty">「行を追加」から経費を入力してください</td></tr>')
-    +'</tbody><tfoot><tr style="background:#F1EFE8;font-weight:600;"><td colspan="5" style="text-align:right;">合計</td><td style="text-align:right;">'+yen(expTotal(d))+'</td><td></td></tr></tfoot></table></div>'
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">'+EXP_CATS.map(function(c){return '<span class="tag" style="background:#FAF7E8;color:#5F5E5A;">'+c+' '+yen(expCatTotal(d,c))+'</span>';}).join('')+'</div>'
+    +'</tbody><tfoot><tr style="background:#F1EFE8;font-weight:600;"><td colspan="5" style="text-align:right;">合計</td><td style="text-align:right;" id="exTotalCell">'+yen(expTotal(d))+'</td><td></td></tr></tfoot></table></div>'
+    +'<div id="exCatTags" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">'+EXP_CATS.map(function(c){return '<span class="tag" style="background:#FAF7E8;color:#5F5E5A;">'+c+' '+yen(expCatTotal(d,c))+'</span>';}).join('')+'</div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;max-width:460px;margin-top:12px;"><div class="field" style="margin:0;"><label>作成者</label><input id="exBy" value="'+String(d.by||'').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>承認者</label><input id="exAp" value="'+String(d.approver||'').replace(/"/g,'&quot;')+'"></div></div>'
     +'<div class="muted" style="margin-top:10px;font-size:11.5px;line-height:1.7;">'+EXP_CATS.map(function(c){return '<b>'+c+'</b>：'+EXP_CAT_DESC[c];}).join('<br>')+'<br><b>領収書の整理</b>：1ヶ月分の領収書を日付順にA4用紙に貼り付けて、精算表と金種表と一緒に提出してください。</div></div>';
   $('#exAdd').onclick=function(){d.rows=(d.rows||[]).concat([{date:mk+'-01',payee:'',detail:'',slip:'',cat:'消耗品費',amount:0}]);save();expList(mk);};
-  $('#exBy').onchange=function(e){d.by=e.target.value;save();};
-  $('#exAp').onchange=function(e){d.approver=e.target.value;save();};
-  $('#exBody').querySelectorAll('[data-ex]').forEach(function(el2){el2.onchange=function(){
+  $('#exSave').onclick=function(){save();expSavedMsg('#exMsg');};
+  $('#exSend').onclick=function(){save();expSendToAcct(mk);};
+  function exEdit(el2,fn){if(!el2)return;el2.oninput=fn;el2.onchange=fn;}
+  /* 入力のたびに画面を作り直すと、押そうとしていた「保存」「経理部に送付」のボタンが
+     差し替わってクリックが効かなくなる。合計と科目別小計だけを書き替える */
+  function exRefresh(){
+    var t=$('#exTotalCell');if(t)t.textContent=yen(expTotal(d));
+    var g=$('#exCatTags');if(g)g.innerHTML=EXP_CATS.map(function(c){return '<span class="tag" style="background:#FAF7E8;color:#5F5E5A;">'+c+' '+yen(expCatTotal(d,c))+'</span>';}).join('');
+  }
+  exEdit($('#exBy'),function(e){d.by=e.target.value;save();});
+  exEdit($('#exAp'),function(e){d.approver=e.target.value;save();});
+  $('#exBody').querySelectorAll('[data-ex]').forEach(function(el2){exEdit(el2,function(){
     var p=el2.getAttribute('data-ex').split('|'),r=d.rows[+p[0]];
-    r[p[1]]=(el2.type==='number')?(+el2.value||0):el2.value;save();expList(mk);
-  };});
+    if(!r)return;
+    r[p[1]]=(el2.type==='number')?(+el2.value||0):el2.value;save();exRefresh();
+  });});
   $('#exBody').querySelectorAll('[data-exdel]').forEach(function(b){b.onclick=function(){d.rows.splice(+b.getAttribute('data-exdel'),1);save();expList(mk);};});
   $('#exPrint').onclick=function(){
     var body='<p style="text-align:center;font-size:16px;font-weight:700;letter-spacing:.3em;">【 経 費 精 算 表 】</p>'
@@ -4320,44 +4877,121 @@ function expList(mk){
     dlFile('経費精算表_'+mk+'.xls',html,'application/vnd.ms-excel');
   };
 }
+/* 金種表の計算をひとまとめにする。呼ばれた時点の d と経費精算表から計算し直すので、
+   描画時のローカル変数に古い値が閉じ込められない（印刷が古い数字になる退行の対策） */
+function expCashCalc(mk,d){
+  var base=+d.base||0;                /* 園に支給される経費（ベース） */
+  var spend=expTotal(expGet(mk));     /* 当月の経費支出合計（経費精算表より） */
+  var should=base-spend;              /* 帳簿上あるべき現金残高 */
+  var manual=!!d.bookManual;          /* 帳簿を別につけている園は手入力もできる */
+  var baseSet=base>0;                 /* 支給経費が未入力の月は、過不足を出さずに入力をお願いする */
+  var calcOK=manual||baseSet;         /* 現金出納帳残高（Ⅱ）が決まるかどうか */
+  var total=cashTotal(d),book=manual?(+d.bookBalance||0):should;
+  var diff=total-book,rTotal=cashReasonTotal(d),unknown=diff-rTotal;
+  return {total:total,base:base,spend:spend,should:should,book:book,diff:diff,
+          rTotal:rTotal,unknown:unknown,manual:manual,baseSet:baseSet,calcOK:calcOK};
+}
 function expCash(mk){
-  var d=cashGet(mk),ex=expGet(mk);
+  var d=cashGet(mk);
   function save(){cashSet(mk,d);}
-  var total=cashTotal(d),book=+d.bookBalance||0,diff=total-book,rTotal=cashReasonTotal(d),unknown=diff-rTotal;
-  $('#exBody').innerHTML='<div class="card">'+recHead('金種表','<button class="btn btn-sm" id="cashPrint">'+ic('printer')+'金種表を出力</button>')
+  /* ここで受け取るのは「描画時点」の値だけ。以後は refresh() も印刷もその都度 expCashCalc を呼ぶ */
+  var c0=expCashCalc(mk,d);
+  var base=c0.base,spend=c0.spend,should=c0.should,manual=c0.manual,baseSet=c0.baseSet,calcOK=c0.calcOK;
+  var total=c0.total,book=c0.book,diff=c0.diff,rTotal=c0.rTotal,unknown=c0.unknown;
+  var NOCALC='—（支給経費の入力後に計算します）';
+  function num(v){return Number(v||0).toLocaleString();}
+  /* 枠内の説明。手入力のときは、下の「差異（Ⅰ-Ⅱ）」と食い違う過不足を出さない */
+  function calcHtml(){
+    var c=expCashCalc(mk,d),b=c.base,sp=c.spend,sh=c.should,mn=c.manual,tt=c.total,bk=c.book;
+    if(!(b>0))return '<span style="color:#A32D2D;font-weight:600;">支給経費（ベース）を入力してください。</span><br><span class="muted">入力すると、あるべき残高と過不足を自動で計算します。入力があるまで過不足は計算しません。</span>';
+    var s='支給経費 '+num(b)+' 円　−　支出合計 '+num(sp)+' 円　＝　<b>あるべき残高 '+num(sh)+' 円</b><br>';
+    if(mn){
+      s+='現金出納帳残高（Ⅱ）を手で入力しているため、ここでは過不足を出しません。差異は下の「差異（Ⅰ-Ⅱ）現金過不足」の欄をご覧ください。';
+      if(sh-bk!==0)s+='<br>あるべき残高 '+num(sh)+' 円　−　現金出納帳残高（Ⅱ）'+num(bk)+' 円　＝　<b>差 '+num(sh-bk)+' 円</b>';
+    }else{
+      s+='金種合計 '+num(tt)+' 円　−　あるべき残高 '+num(sh)+' 円　＝　<b style="'+(tt-sh!==0?'color:#A32D2D;':'color:#0F6E56;')+'">過不足 '+num(tt-sh)+' 円</b>';
+    }
+    return s;
+  }
+  function footHtml(){
+    var c=expCashCalc(mk,d),b=c.base,sp=c.spend,sh=c.should,tt=c.total;
+    return '今月の経費精算表の合計：'+yen(sp)+'　／　あるべき残高：'+(b>0?yen(sh):NOCALC)+'　／　金種合計：'+yen(tt)+'<br>差異が出た場合は原因を記入し、残った額が使途不明金になります。';
+  }
+  $('#exBody').innerHTML='<div class="card">'+recHead('金種表','<button class="btn btn-sm" id="cashPrint">'+ic('printer')+'金種表を出力</button>'
+      +'<button class="btn btn-sm btn-primary" id="cashSave">'+ic('check')+'保存</button><button class="btn btn-sm" id="cashSend">'+ic('send')+'経理部に送付</button><span class="muted" id="cashMsg" style="font-size:12px;"></span>')
     +'<div class="grid" style="grid-template-columns:1fr 1fr;max-width:520px;margin-bottom:12px;"><div class="field" style="margin:0;"><label>部門</label><input id="cashDept" value="'+String(d.dept||'').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>実査日</label><input type="date" id="cashDate" value="'+(d.date||'')+'"></div></div>'
     +'<div class="scrollx"><table style="max-width:560px;"><thead><tr><th colspan="2">金種</th><th style="width:110px;">枚数</th><th style="text-align:right;">金額</th></tr></thead><tbody>'
     +CASH_DENOMS.map(function(x,i){var n=+((d.counts||{})[x[0]])||0;var showKind=(i===0||i===4);
       return '<tr>'+(showKind?'<td rowspan="'+(i===0?4:6)+'" style="width:60px;">'+(i===0?'紙幣':'硬貨')+'</td>':'')
         +'<td style="text-align:right;width:90px;">'+x[0].toLocaleString()+'</td>'
         +'<td><input type="number" min="0" data-cash="'+x[0]+'" value="'+n+'" style="width:90px;text-align:right;"> 枚</td>'
-        +'<td style="text-align:right;">'+(n?Number(x[0]*n).toLocaleString()+' 円':'')+'</td></tr>';}).join('')
-    +'<tr style="background:#F1EFE8;font-weight:600;"><td colspan="3" style="text-align:center;">合計（Ⅰ）</td><td style="text-align:right;">'+Number(total).toLocaleString()+' 円</td></tr>'
+        +'<td style="text-align:right;" data-camt="'+x[0]+'">'+(n?Number(x[0]*n).toLocaleString()+' 円':'')+'</td></tr>';}).join('')
+    +'<tr style="background:#F1EFE8;font-weight:600;"><td colspan="3" style="text-align:center;">合計（Ⅰ）</td><td style="text-align:right;" id="cashTotalCell">'+Number(total).toLocaleString()+' 円</td></tr>'
     +'</tbody></table></div>'
+    +'<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;max-width:560px;">'
+      +'<div style="font-weight:600;font-size:12.5px;margin-bottom:8px;">あるべき現金残高の計算</div>'
+      +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
+        +'<div class="field" style="margin:0;"><label>支給経費（ベース）</label><input type="number" id="cashBase" value="'+(baseSet?base:'')+'" placeholder="例：100000"></div>'
+        +'<div class="field" style="margin:0;"><label>当月の経費支出合計（経費精算表）</label><input id="cashSpend" value="'+Number(spend).toLocaleString()+' 円" readonly style="background:#f7f8f6;"></div></div>'
+      +'<div id="cashCalc" style="margin-top:10px;font-size:12.5px;line-height:2;">'+calcHtml()+'</div>'
+      +'<div class="muted" style="margin-top:8px;font-size:11.5px;line-height:1.8;">支給経費は園に支給される経費の額です。設定の「経費管理」で登録した既定額が最初に入り、この欄で月ごとに変更できます。</div></div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;max-width:560px;margin-top:12px;">'
-      +'<div class="field" style="margin:0;"><label>現金出納帳残高（Ⅱ）</label><input type="number" id="cashBook" value="'+book+'"></div>'
-      +'<div class="field" style="margin:0;"><label>差異（Ⅰ-Ⅱ）現金過不足</label><input value="'+Number(diff).toLocaleString()+' 円" readonly style="background:#f7f8f6;'+(diff!==0?'color:#A32D2D;font-weight:600;':'')+'"></div></div>'
+      +'<div class="field" style="margin:0;"><label>現金出納帳残高（Ⅱ）'+(manual?'（手入力）':'＝あるべき残高')+'</label><input type="number" id="cashBook" value="'+(calcOK?book:'')+'"'+(manual?'':' readonly style="background:#f7f8f6;" placeholder="支給経費の入力後に計算します"')+'></div>'
+      +'<div class="field" style="margin:0;"><label>差異（Ⅰ-Ⅱ）現金過不足</label><input id="cashDiff" value="'+(calcOK?Number(diff).toLocaleString()+' 円':NOCALC)+'" readonly style="background:#f7f8f6;'+((calcOK&&diff!==0)?'color:#A32D2D;font-weight:600;':'')+'"></div></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin:6px 0 0;"><input type="checkbox" id="cashManual" style="width:auto;"'+(manual?' checked':'')+'>現金出納帳の残高を手で入力する（帳簿を別につけている場合）</label>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:3px;">チェックを外しておくと、「支給経費 − 支出合計」で自動計算します。</div>'
     +'<div style="margin-top:12px;"><label>差異原因</label><div id="cashReasons"></div><button class="btn btn-sm" id="cashAddR">'+ic('plus')+'原因を追加</button></div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;max-width:560px;margin-top:12px;">'
-      +'<div class="field" style="margin:0;"><label>差異原因 合計（Ⅳ）</label><input value="'+Number(rTotal).toLocaleString()+' 円" readonly style="background:#f7f8f6;"></div>'
-      +'<div class="field" style="margin:0;"><label>差額（Ⅲ-Ⅳ）使途不明金</label><input value="'+Number(unknown).toLocaleString()+' 円" readonly style="background:#f7f8f6;'+(unknown!==0?'color:#A32D2D;font-weight:600;':'')+'"></div></div>'
+      +'<div class="field" style="margin:0;"><label>差異原因 合計（Ⅳ）</label><input id="cashRTotal" value="'+Number(rTotal).toLocaleString()+' 円" readonly style="background:#f7f8f6;"></div>'
+      +'<div class="field" style="margin:0;"><label>差額（Ⅲ-Ⅳ）使途不明金</label><input id="cashUnknown" value="'+(calcOK?Number(unknown).toLocaleString()+' 円':NOCALC)+'" readonly style="background:#f7f8f6;'+((calcOK&&unknown!==0)?'color:#A32D2D;font-weight:600;':'')+'"></div></div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;max-width:460px;margin-top:12px;"><div class="field" style="margin:0;"><label>作成者</label><input id="cashBy" value="'+String(d.by||'').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>承認者</label><input id="cashAp" value="'+String(d.approver||'').replace(/"/g,'&quot;')+'"></div></div>'
-    +'<div class="muted" style="margin-top:10px;font-size:12px;">今月の経費精算表の合計：'+yen(expTotal(ex))+'　／　差異が出た場合は原因を記入し、残った額が使途不明金になります。</div></div>';
+    +'<div class="muted" id="cashFoot" style="margin-top:10px;font-size:12px;line-height:1.9;">'+footHtml()+'</div></div>';
+  /* 入力のたびに画面を作り直すと、押そうとしていた「保存」「経理部に送付」のボタンが差し替わり
+     クリックが効かなくなる。数字だけを書き替えて、ボタンはそのまま残す */
+  function refresh(){
+    var cc=expCashCalc(mk,d),mn=cc.manual,tt=cc.total;
+    var bk=cc.book,ok=cc.calcOK,df=cc.diff,rt=cc.rTotal,uk=cc.unknown;
+    var body=$('#exBody');if(!body)return;
+    CASH_DENOMS.forEach(function(x){
+      var c=body.querySelector('[data-camt="'+x[0]+'"]');if(!c)return;
+      var n=+((d.counts||{})[x[0]])||0;c.textContent=n?num(x[0]*n)+' 円':'';
+    });
+    var e1=$('#cashTotalCell');if(e1)e1.textContent=num(tt)+' 円';
+    var e2=$('#cashCalc');if(e2)e2.innerHTML=calcHtml();
+    var e3=$('#cashBook');if(e3&&!mn)e3.value=ok?bk:'';
+    var e4=$('#cashDiff');if(e4){e4.value=ok?num(df)+' 円':NOCALC;e4.setAttribute('style','background:#f7f8f6;'+((ok&&df!==0)?'color:#A32D2D;font-weight:600;':''));}
+    var e5=$('#cashRTotal');if(e5)e5.value=num(rt)+' 円';
+    var e6=$('#cashUnknown');if(e6){e6.value=ok?num(uk)+' 円':NOCALC;e6.setAttribute('style','background:#f7f8f6;'+((ok&&uk!==0)?'color:#A32D2D;font-weight:600;':''));}
+    var e7=$('#cashFoot');if(e7)e7.innerHTML=footHtml();
+  }
+  function onEdit(el2,fn){if(!el2)return;el2.oninput=fn;el2.onchange=fn;}
   function renderReasons(){
     var box=$('#cashReasons');
     box.innerHTML=(d.reasons||[]).map(function(r,i){return '<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;"><input data-cr="'+i+'|label" value="'+String(r.label||'').replace(/"/g,'&quot;')+'" placeholder="原因" style="flex:1;min-width:180px;"><input type="number" data-cr="'+i+'|amount" value="'+(+r.amount||0)+'" style="width:130px;text-align:right;"><button class="btn btn-sm btn-ghost" data-crdel="'+i+'">'+ic('trash')+'</button></div>';}).join('');
-    box.querySelectorAll('[data-cr]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-cr').split('|');d.reasons[+p[0]][p[1]]=(el2.type==='number')?(+el2.value||0):el2.value;save();expCash(mk);};});
-    box.querySelectorAll('[data-crdel]').forEach(function(b){b.onclick=function(){d.reasons.splice(+b.getAttribute('data-crdel'),1);save();expCash(mk);};});
+    box.querySelectorAll('[data-cr]').forEach(function(el2){onEdit(el2,function(){var p=el2.getAttribute('data-cr').split('|');d.reasons[+p[0]][p[1]]=(el2.type==='number')?(+el2.value||0):el2.value;save();refresh();});});
+    box.querySelectorAll('[data-crdel]').forEach(function(b){b.onclick=function(){d.reasons.splice(+b.getAttribute('data-crdel'),1);save();renderReasons();refresh();};});
   }
   renderReasons();
-  $('#cashAddR').onclick=function(){d.reasons=(d.reasons||[]).concat([{label:'',amount:0}]);save();expCash(mk);};
-  $('#cashDept').onchange=function(e){d.dept=e.target.value;save();};
-  $('#cashDate').onchange=function(e){d.date=e.target.value;save();};
-  $('#cashBook').onchange=function(e){d.bookBalance=+e.target.value||0;save();expCash(mk);};
-  $('#cashBy').onchange=function(e){d.by=e.target.value;save();};
-  $('#cashAp').onchange=function(e){d.approver=e.target.value;save();};
-  $('#exBody').querySelectorAll('[data-cash]').forEach(function(el2){el2.onchange=function(){d.counts=d.counts||{};d.counts[el2.getAttribute('data-cash')]=+el2.value||0;save();expCash(mk);};});
+  $('#cashAddR').onclick=function(){d.reasons=(d.reasons||[]).concat([{label:'',amount:0}]);save();renderReasons();refresh();};
+  onEdit($('#cashDept'),function(e){d.dept=e.target.value;save();});
+  onEdit($('#cashDate'),function(e){d.date=e.target.value;save();});
+  onEdit($('#cashBase'),function(e){d.base=+e.target.value||0;save();refresh();});
+  /* チェックした時点の「あるべき残高」を入れる。描画時の base/should を掴むと 0 に飛ぶ */
+  $('#cashManual').onchange=function(e){var c=expCashCalc(mk,d);d.bookManual=e.target.checked;if(d.bookManual&&!(+d.bookBalance))d.bookBalance=(c.baseSet?c.should:0);save();expCash(mk);};
+  /* 自動計算のときは読み取り専用。ハンドラを付けると、画面側の change で
+     せっかく手入力した帳簿残高が上書きされてしまうため、手入力のときだけ付ける */
+  if(manual)onEdit($('#cashBook'),function(e){d.bookBalance=+e.target.value||0;save();refresh();});
+  $('#cashSave').onclick=function(){save();expSavedMsg('#cashMsg');};
+  $('#cashSend').onclick=function(){save();expSendToAcct(mk);};
+  onEdit($('#cashBy'),function(e){d.by=e.target.value;save();});
+  onEdit($('#cashAp'),function(e){d.approver=e.target.value;save();});
+  $('#exBody').querySelectorAll('[data-cash]').forEach(function(el2){onEdit(el2,function(){d.counts=d.counts||{};d.counts[el2.getAttribute('data-cash')]=+el2.value||0;save();refresh();});});
   $('#cashPrint').onclick=function(){
+    /* 押した時点で計算し直す。描画時の値を掴んだままだと、入力直後の印刷が古い数字になり、
+       明細合計と合計（Ⅰ）が食い違う書類が経理部に渡ってしまう */
+    var c=expCashCalc(mk,d);
+    var total=c.total,base=c.base,spend=c.spend,should=c.should,book=c.book,diff=c.diff;
+    var rTotal=c.rTotal,unknown=c.unknown,baseSet=c.baseSet,calcOK=c.calcOK,manual=c.manual;
     var body='<p style="text-align:center;font-size:16px;font-weight:700;letter-spacing:.4em;">金　種　表</p>'
       +'<p>部門　'+esc(d.dept||'')+'　　　　実査日　'+(d.date?fmt(d.date):'')+'</p>'
       +'<table style="max-width:480px;"><thead><tr><th colspan="2">金種</th><th>枚数</th><th style="text-align:right;">金額（金種×枚数）</th></tr></thead><tbody>'
@@ -4365,14 +4999,126 @@ function expCash(mk){
         return '<tr>'+(showKind?'<td rowspan="'+(i===0?4:6)+'">'+(i===0?'紙幣':'硬貨')+'</td>':'')+'<td style="text-align:right;">'+x[0].toLocaleString()+'</td><td style="text-align:center;">'+n+' 枚</td><td style="text-align:right;">'+(n?Number(x[0]*n).toLocaleString():'')+' 円</td></tr>';}).join('')
       +'<tr style="font-weight:700;"><td colspan="3" style="text-align:center;">合計（Ⅰ）</td><td style="text-align:right;">'+Number(total).toLocaleString()+' 円</td></tr></tbody></table>'
       +'<table style="max-width:480px;margin-top:10px;"><tbody>'
-      +'<tr><th>現金出納帳残高（Ⅱ）</th><td style="text-align:right;">'+Number(book).toLocaleString()+' 円</td></tr>'
-      +'<tr><th>差異（Ⅰ-Ⅱ）現金過不足</th><td style="text-align:right;">'+Number(diff).toLocaleString()+' 円</td></tr></tbody></table>'
+      +'<tr><th>支給経費（ベース）</th><td style="text-align:right;">'+(baseSet?Number(base).toLocaleString()+' 円':'（未入力）')+'</td></tr>'
+      +'<tr><th>当月の経費支出合計</th><td style="text-align:right;">'+Number(spend).toLocaleString()+' 円</td></tr>'
+      +(baseSet?'<tr><th>あるべき残高（支給経費 − 支出合計）</th><td style="text-align:right;">'+Number(should).toLocaleString()+' 円</td></tr>':'')
+      +'<tr><th>現金出納帳残高（Ⅱ）'+(manual?'（手入力）':'＝ 支給経費 − 支出合計')+'</th><td style="text-align:right;">'+(calcOK?Number(book).toLocaleString()+' 円':'—')+'</td></tr>'
+      +((manual&&baseSet&&should-book!==0)?'<tr><th>あるべき残高と現金出納帳残高（Ⅱ）の差</th><td style="text-align:right;">'+Number(should-book).toLocaleString()+' 円</td></tr>':'')
+      +'<tr><th>差異（Ⅰ-Ⅱ）現金過不足</th><td style="text-align:right;">'+(calcOK?Number(diff).toLocaleString()+' 円':'—（支給経費（ベース）が未入力です）')+'</td></tr></tbody></table>'
       +'<table style="max-width:480px;margin-top:10px;"><thead><tr><th>差異原因</th><th style="text-align:right;">金額</th></tr></thead><tbody>'
       +((d.reasons||[]).map(function(r){return '<tr><td>'+esc(r.label||'')+'</td><td style="text-align:right;">'+(r.amount?Number(r.amount).toLocaleString():'')+' 円</td></tr>';}).join('')||'<tr><td>—</td><td style="text-align:right;">0 円</td></tr>')
       +'<tr style="font-weight:700;"><td>合計（Ⅳ）</td><td style="text-align:right;">'+Number(rTotal).toLocaleString()+' 円</td></tr>'
-      +'<tr style="font-weight:700;"><td>差額（Ⅲ-Ⅳ）使途不明金</td><td style="text-align:right;">'+Number(unknown).toLocaleString()+' 円</td></tr></tbody></table>'
+      +'<tr style="font-weight:700;"><td>差額（Ⅲ-Ⅳ）使途不明金</td><td style="text-align:right;">'+(calcOK?Number(unknown).toLocaleString()+' 円':'—（支給経費（ベース）が未入力です）')+'</td></tr></tbody></table>'
       +'<p style="margin-top:16px;">作成者　'+esc(d.by||'　　　　')+'　　　　承認者　'+esc(d.approver||'　　　　')+'</p>';
     printDoc('金種表（'+mk+'）',body);
+  };
+}
+
+/* ---------- 経費書類の保存メッセージと、経理部への送付（下書き作成） ---------- */
+function expSavedMsg(sel){
+  var m=$(sel);if(!m)return;
+  m.textContent='保存しました';
+  setTimeout(function(){var m2=$(sel);if(m2)m2.textContent='';},1800);
+}
+/* 経費精算表と金種表は一緒に提出する運用のため、文面には両方を入れる */
+function expMailDraftMake(mk){
+  var ex=expGet(mk),d=cashGet(mk);
+  var y=mk.split('-')[0],mo=+mk.split('-')[1];
+  var base=+d.base||0,spend=expTotal(ex),should=base-spend;
+  var book=d.bookManual?(+d.bookBalance||0):should;
+  var total=cashTotal(d),diff=total-book,rTotal=cashReasonTotal(d),unknown=diff-rTotal;
+  var calcOK=(!!d.bookManual)||base>0;   /* 支給経費が未入力のときは過不足を書かない */
+  function n(v){return Number(v||0).toLocaleString()+'円';}
+  var t=[];
+  t.push('経理部 ご担当者様');
+  t.push('');
+  t.push('いつもお世話になっております。'+(SET.school||'')+'です。');
+  t.push(y+'年'+mo+'月分の経費精算表と金種表をお送りします。ご確認をお願いいたします。');
+  t.push('');
+  t.push('■ 経費精算表（'+y+'年'+mo+'月）');
+  var rows=(ex.rows||[]);
+  if(rows.length){rows.forEach(function(r){t.push('　'+(r.date||'')+'　'+(r.payee||'')+'　'+(r.detail||'')+'　'+(r.cat||'')+'　'+n(r.amount));});}
+  else{t.push('　（明細の入力がありません）');}
+  t.push('　科目別小計：'+EXP_CATS.map(function(c){return c+' '+n(expCatTotal(ex,c));}).join('／'));
+  t.push('　合計：'+n(spend));
+  t.push('');
+  t.push('■ 金種表（実査日 '+(d.date||'未入力')+'／部門 '+(d.dept||'')+'）');
+  CASH_DENOMS.forEach(function(x){var c=+((d.counts||{})[x[0]])||0;if(c)t.push('　'+x[0].toLocaleString()+'円 × '+c+'枚 ＝ '+n(x[0]*c));});
+  t.push('　合計（Ⅰ）：'+n(total));
+  t.push('');
+  t.push('■ 現金残高の計算');
+  if(base>0)t.push('　支給経費（ベース）'+n(base)+' − 支出合計 '+n(spend)+' ＝ あるべき残高 '+n(should));
+  else t.push('　支給経費（ベース）が未入力のため、あるべき残高は計算していません。');
+  t.push('　現金出納帳残高（Ⅱ）'+(d.bookManual?'（手入力）':'')+'：'+(calcOK?n(book):'未計算'));
+  if(d.bookManual&&base>0&&should-book!==0)t.push('　あるべき残高 '+n(should)+' − 現金出納帳残高（Ⅱ）'+n(book)+' ＝ 差 '+n(should-book)+'（帳簿残高を手で入力しているための差です）');
+  if(calcOK){
+    t.push('　金種合計（Ⅰ）'+n(total)+' − 現金出納帳残高（Ⅱ）'+n(book)+' ＝ 現金過不足 '+n(diff));
+    t.push('　差異原因 合計（Ⅳ）：'+n(rTotal));
+    (d.reasons||[]).forEach(function(r){if(r.label||+r.amount)t.push('　　・'+(r.label||'')+'　'+n(r.amount));});
+    t.push('　使途不明金：'+n(unknown));
+  }else{
+    t.push('　金種合計（Ⅰ）：'+n(total));
+    t.push('　※ 支給経費（ベース）が未入力のため、現金過不足と使途不明金は計算していません。');
+  }
+  t.push('');
+  t.push('作成者：'+(ex.by||d.by||'')+'　／　承認者：'+(ex.approver||d.approver||''));
+  t.push('');
+  t.push('※ 領収書は1ヶ月分を日付順にA4用紙へ貼り付けて、別途お送りします。');
+  return {mk:mk,to:(SET.acctMail||''),subject:'【経費精算】'+y+'年'+mo+'月　'+(SET.school||''),body:t.join('\n')};
+}
+var expMailDraft=null;
+function expSendToAcct(mk){
+  if(typeof canView==='function'&&!canView('compose')){alert('メール作成の画面を開く権限がありません。管理者にご相談ください。');return;}
+  expMailDraft=expMailDraftMake(mk);
+  routeTo(['compose']);
+}
+/* メール作成画面の先頭に、経費書類の下書きを表示する（自動送信はまだできないため文面をお渡しする形） */
+function expMailDraftRender(root){
+  if(!expMailDraft)return;
+  var dr=expMailDraft;
+  var y=dr.mk.split('-')[0],mo=+dr.mk.split('-')[1];
+  root.insertAdjacentHTML('afterbegin',
+    '<div class="card" style="margin-bottom:16px;border:1px solid #E5C97B;background:#FFFDF5;">'
+    +'<h3>'+ic('yen')+'経費書類の送付（経理部あて・'+y+'年'+mo+'月）</h3>'
+    +'<div class="muted" style="margin-bottom:12px;line-height:1.9;">経費管理の入力から文面をつくりました。<b>このシステムから経理部へ自動で送ることは、まだできません。</b>下の文面をコピーして、いつものメールソフトから送ってください。印刷して書類と一緒に提出することもできます。</div>'
+    +'<div class="field"><label>送信先（経理部メールアドレス）</label><input id="exdTo" value="'+esc(dr.to).replace(/"/g,'&quot;')+'" placeholder="設定 →「経費管理」で登録できます"></div>'
+    +(dr.to?'':'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;color:#A32D2D;">経理部メールアドレスが未登録です。設定の「経費管理」で登録すると、次回から自動で入ります。</div>')
+    +'<div class="field"><label>件名</label><input id="exdSubject" value="'+esc(dr.subject).replace(/"/g,'&quot;')+'"></div>'
+    +'<div class="field"><label>本文（この場で自由に直せます）</label><textarea id="exdBody" rows="14">'+esc(dr.body)+'</textarea></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-primary" id="exdCopy">'+ic('doc')+'文面をコピー</button>'
+    +'<button class="btn" id="exdPrint">'+ic('printer')+'印刷する</button>'
+    +'<button class="btn btn-ghost" id="exdClose">閉じる</button></div></div>');
+  $('#exdCopy').onclick=function(){
+    var tx='宛先：'+$('#exdTo').value+'\n件名：'+$('#exdSubject').value+'\n\n'+$('#exdBody').value;
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tx).then(function(){toastAI('文面をコピーしました');},function(){toastAI('コピーできませんでした');});}
+    else{toastAI('コピーに対応していない環境です');}
+  };
+  $('#exdPrint').onclick=function(){
+    printDoc('経費書類の送付（'+dr.mk+'）',
+      '<p>宛先　'+esc($('#exdTo').value)+'</p><p>件名　'+esc($('#exdSubject').value)+'</p>'
+      +'<div style="white-space:pre-wrap;line-height:1.9;">'+esc($('#exdBody').value)+'</div>');
+  };
+  $('#exdClose').onclick=function(){expMailDraft=null;renderCompose();};
+}
+/* 設定：経費管理（支給経費の既定額・経理部メールアドレス）※編集は管理者のみ */
+function renderExpenseSettings(s){
+  var role=(typeof currentRole==='function')?currentRole():null;
+  var adm=(role==='管理者');
+  var ro=adm?'':' readonly style="background:#f7f8f6;"';
+  s.insertAdjacentHTML('beforeend',
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'経費管理（金種表・経理部への送付）</h3>'
+    +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">園に支給される経費の額（ベース）を登録すると、金種表の「あるべき現金残高」が自動で計算されます。<br>支給経費 − 当月の経費支出合計 ＝ あるべき残高　／　金種合計 − あるべき残高 ＝ 過不足</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
+      +'<div class="field" style="margin:0;"><label>支給経費（ベース・園ごとの既定額）</label><input type="number" id="s_expBase" value="'+(+SET.expenseBase||0)+'"'+ro+'></div>'
+      +'<div class="field" style="margin:0;"><label>経理部メールアドレス</label><input id="s_acctMail" value="'+esc(SET.acctMail||'').replace(/"/g,'&quot;')+'"'+ro+' placeholder="keiri@example.com"></div></div>'
+    +(adm
+      ?'<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="s_expSave">'+ic('check')+'保存</button> <span class="muted" id="s_expMsg"></span></div>'
+      :'<div class="muted" style="font-size:11.5px;margin-top:8px;">この設定は管理者のみ変更できます。</div>')
+    +'</div>');
+  if(!adm)return;
+  $('#s_expSave').onclick=function(){
+    SET.expenseBase=+$('#s_expBase').value||0;SET.acctMail=$('#s_acctMail').value.trim();DB.settings=SET;
+    expSavedMsg('#s_expMsg');
   };
 }
 
@@ -4408,42 +5154,49 @@ function renderBouka(){
   var body;
   if(boukaTab==='daichou'){
     body='<div class="card">'+recHead('防火管理台帳','<button class="btn btn-sm btn-primary" id="bkPrintD">'+ic('printer')+'台帳を出力</button>')
-      +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">'+BOUKA_CHECK_LABELS.map(function(l){return esc(l);}).join('<br>')+'</div>'
-      +'<div class="scrollx"><table><thead><tr><th style="width:120px;">日付</th><th>内容</th>'
-        +[1,2,3,4,5].map(function(n){return '<th style="width:44px;text-align:center;">'+['①','②','③','④','⑤'][n-1]+'</th>';}).join('')
-        +'<th>備考</th></tr></thead><tbody>'
+      +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">'+BOUKA_CHECK_LABELS.map(function(l){return esc(l);}).join('<br>')+'<br>※「内容」「備考」の欄は、入力した文章の量に合わせて自動で高さが広がります。長い文章もそのまま全文が見えます（改行もできます）。<br>※ 画面のはばがたりないときは、表を左右にスクロールしてご覧ください。</div>'
+      +'<div class="scrollx"><table class="wraptbl bktbl"><thead><tr><th style="width:158px;">日付</th><th>内容</th>'
+        +[1,2,3,4,5].map(function(n){return '<th style="width:36px;text-align:center;">'+['①','②','③','④','⑤'][n-1]+'</th>';}).join('')
+        +'<th style="width:26%;">備考</th></tr></thead><tbody>'
       +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
-        return '<tr><td class="row-name" style="white-space:nowrap;">'+mo+'月<div><input type="date" data-bk="'+mo+'|date" value="'+(r.date||'')+'" style="width:140px;"></div></td>'
-          +'<td><input data-bk="'+mo+'|content" value="'+String(r.content||'').replace(/"/g,'&quot;')+'"></td>'
+        return '<tr><td class="row-name" style="white-space:nowrap;vertical-align:top;">'+mo+'月<div><input type="date" data-bk="'+mo+'|date" value="'+(r.date||'')+'"></div></td>'
+          +'<td><textarea class="autogrow" rows="2" data-bk="'+mo+'|content" placeholder="実施した内容を記入します">\n'+esc(r.content||'')+'</textarea></td>'
           +[1,2,3,4,5].map(function(n){return '<td style="text-align:center;"><input type="checkbox" data-bkc="'+mo+'|'+n+'"'+(r.checks[n]?' checked':'')+' style="width:auto;"></td>';}).join('')
-          +'<td><input data-bk="'+mo+'|note" value="'+String(r.note||'').replace(/"/g,'&quot;')+'"></td></tr>';}).join('')
+          +'<td><textarea class="autogrow" rows="2" data-bk="'+mo+'|note" placeholder="気づいたこと、補充したものなど">\n'+esc(r.note||'')+'</textarea></td></tr>';}).join('')
       +'</tbody></table></div></div>';
   }else{
     body='<div class="card">'+recHead('消火訓練　手順・記録','<button class="btn btn-sm btn-primary" id="bkPrintK">'+ic('printer')+'記録を出力</button>')
-      +'<div class="muted" style="margin-bottom:10px;">毎月1回実施。実施場所とタイム（所要分）、概要を記録します。</div>'
-      +'<div class="scrollx"><table><thead><tr><th style="width:120px;">日付</th><th>内容</th><th style="width:170px;">実施場所</th><th style="width:90px;">タイム</th><th>概要</th></tr></thead><tbody>'
+      +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">毎月1回実施。実施場所とタイム（所要分）、概要を記録します。<br>※「内容」「実施場所」「概要」の欄は、入力した文章の量に合わせて自動で高さが広がります。長い文章もそのまま全文が見えます（改行もできます）。<br>※ 画面のはばがたりないときは、表を左右にスクロールしてご覧ください。</div>'
+      +'<div class="scrollx"><table class="wraptbl bktbl bk-kunren"><thead><tr><th style="width:158px;">日付</th><th>内容</th><th style="width:18%;">実施場所</th><th style="width:100px;">タイム</th><th style="width:22%;">概要</th></tr></thead><tbody>'
       +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
-        return '<tr><td class="row-name" style="white-space:nowrap;">'+mo+'月<div><input type="date" data-bk="'+mo+'|date" value="'+(r.date||'')+'" style="width:140px;"></div></td>'
-          +'<td><input data-bk="'+mo+'|content" value="'+String(r.content||'').replace(/"/g,'&quot;')+'"></td>'
-          +'<td><input data-bk="'+mo+'|place" value="'+String(r.place||'').replace(/"/g,'&quot;')+'"></td>'
-          +'<td><input data-bk="'+mo+'|time" value="'+String(r.time||'').replace(/"/g,'&quot;')+'" placeholder="例：5" style="text-align:right;"> 分</td>'
-          +'<td><input data-bk="'+mo+'|summary" value="'+String(r.summary||'').replace(/"/g,'&quot;')+'"></td></tr>';}).join('')
+        return '<tr><td class="row-name" style="white-space:nowrap;vertical-align:top;">'+mo+'月<div><input type="date" data-bk="'+mo+'|date" value="'+(r.date||'')+'"></div></td>'
+          +'<td><textarea class="autogrow" rows="2" data-bk="'+mo+'|content" placeholder="訓練の手順や実施した内容を記入します">\n'+esc(r.content||'')+'</textarea></td>'
+          +'<td><textarea class="autogrow" rows="2" data-bk="'+mo+'|place" placeholder="例：園内（エントランス前）">\n'+esc(r.place||'')+'</textarea></td>'
+          +'<td style="white-space:nowrap;"><input data-bk="'+mo+'|time" value="'+esc(r.time||'').replace(/"/g,'&quot;')+'" placeholder="例：5" style="text-align:right;width:52px;display:inline-block;"> 分</td>'
+          +'<td><textarea class="autogrow" rows="2" data-bk="'+mo+'|summary" placeholder="実施した様子や気づいたことを記入します">\n'+esc(r.summary||'')+'</textarea></td></tr>';}).join('')
       +'</tbody></table></div></div>';
   }
   s.innerHTML=head+body;
   $('#bkYear').onchange=function(e){boukaYear=+e.target.value;renderBouka();};
   s.querySelectorAll('[data-bktab]').forEach(function(b){b.onclick=function(){boukaTab=b.getAttribute('data-bktab');renderBouka();};});
-  s.querySelectorAll('[data-bk]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-bk').split('|');d.rows[p[0]][p[1]]=el2.value;save();};});
+  s.querySelectorAll('[data-bk]').forEach(function(el2){
+    var fn=function(){var p=el2.getAttribute('data-bk').split('|');d.rows[p[0]][p[1]]=el2.value;save();};
+    el2.onchange=fn;
+    /* 長文の記載欄は入力しながら保存する（書きかけが消えないようにするため） */
+    if(el2.tagName==='TEXTAREA')el2.oninput=fn;
+  });
   s.querySelectorAll('[data-bkc]').forEach(function(cb){cb.onchange=function(){var p=cb.getAttribute('data-bkc').split('|');d.rows[p[0]].checks[p[1]]=cb.checked;save();};});
+  /* 保存済みの内容も、開いた時点から全文が見える高さにする */
+  autoGrowAll(s);
   if($('#bkPrintD'))$('#bkPrintD').onclick=function(){
     var body2='<p style="text-align:center;font-size:20px;font-weight:700;">防火管理台帳</p><p style="text-align:right;">毎月1回実施</p>'
       +'<p style="font-size:12px;line-height:1.9;">'+BOUKA_CHECK_LABELS.map(function(l){return esc(l);}).join('<br>')+'</p>'
       +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
       +'<table><thead><tr><th style="width:52px;">日付</th><th>内容</th>'+[1,2,3,4,5].map(function(n){return '<th style="width:38px;">'+['①','②','③','④','⑤'][n-1]+'</th>';}).join('')+'<th style="width:150px;">備考</th></tr></thead><tbody>'
       +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
-        return '<tr><td>'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;">'+esc(r.content||'')+'</td>'
-          +[1,2,3,4,5].map(function(n){return '<td style="text-align:center;">'+(r.checks[n]?'✓':'')+'</td>';}).join('')
-          +'<td style="font-size:10px;">'+esc(r.note||'')+'</td></tr>';}).join('')
+        return '<tr><td style="white-space:nowrap;vertical-align:top;">'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.content||'')+'</td>'
+          +[1,2,3,4,5].map(function(n){return '<td style="text-align:center;vertical-align:top;">'+(r.checks[n]?'✓':'')+'</td>';}).join('')
+          +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.note||'')+'</td></tr>';}).join('')
       +'</tbody></table>';
     printDoc('防火管理台帳（'+fy+'年度）',body2);
   };
@@ -4452,7 +5205,7 @@ function renderBouka(){
       +'<p>'+fy+'年度　'+esc(SET.school||'')+'　　<span style="float:right;">毎月1回実施</span></p>'
       +'<table><thead><tr><th style="width:52px;">日付</th><th>内容</th><th style="width:130px;">実施場所</th><th style="width:70px;">タイム</th><th style="width:180px;">概要</th></tr></thead><tbody>'
       +BOUKA_MONTHS.map(function(mo){var r=d.rows[mo];
-        return '<tr><td>'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;">'+esc(r.content||'')+'</td><td style="font-size:10px;text-align:center;">'+esc(r.place||'')+'</td><td style="text-align:center;">'+(r.time?esc(r.time)+' 分':'分')+'</td><td style="font-size:10px;">'+esc(r.summary||'')+'</td></tr>';}).join('')
+        return '<tr><td style="white-space:nowrap;vertical-align:top;">'+mo+'/'+(r.date?(+r.date.slice(8,10)):'')+'</td><td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.content||'')+'</td><td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.place||'')+'</td><td style="text-align:center;vertical-align:top;white-space:nowrap;">'+(r.time?esc(r.time)+' 分':'分')+'</td><td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.summary||'')+'</td></tr>';}).join('')
       +'</tbody></table>';
     printDoc('消火訓練 手順・記録（'+fy+'年度）',body3);
   };
