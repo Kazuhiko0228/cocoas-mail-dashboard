@@ -718,7 +718,9 @@ function submitAbsence(c,date,kind,reason){
   var K=attStoreKey();var data=stGet(K,{});
   var day=data[date]||{klass:c.klass,rows:{},weather:'',temp:'',hum:'',memo:'',by:''};
   if(!day.rows)day.rows={};
-  var mark = kind==='欠席'?'×':(kind==='遅刻'?'△':(kind==='早退'?'▲':'○'));
+  /* 職員側の登園シートと同じ記号にする。ここがずれると、保護者の連絡が園の画面に反映されない。
+     職員側は ['','●','早','遅','休'] を使う（index.html の登園シート） */
+  var mark = kind==='欠席'?'休':(kind==='遅刻'?'遅':(kind==='早退'?'早':'●'));
   var prev=day.rows[c.id]||{};
   day.rows[c.id]=Object.assign(prev,{att:mark,absent:kind==='欠席',parentNote:{kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')}});
   data[date]=day;stSet(K,data);

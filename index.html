@@ -2754,11 +2754,26 @@ function attachRecPaperCard(){
 }
 function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
 function attStyle(v){return v==='●'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':v==='休'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':v==='早'?'background:#FAEEDA;border-color:#E9C88B;color:#854F0B;font-weight:600;':v==='遅'?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'';}
+/* 保護者が未来WAから送った連絡を、職員の登園シートに読める形で出す */
+function parentNoteText(r){
+  var n=r&&r.parentNote;
+  if(!n)return '';
+  if(typeof n==='string')return esc(n);
+  var k=n.kind?'<b>'+esc(n.kind)+'</b>':'';
+  var body=[k,esc(n.reason||'')].filter(Boolean).join('　');
+  return body+(n.at?'<div style="color:var(--tx3);font-size:11px;">'+esc(n.at)+'</div>':'');
+}
 function edTouen(){
   var K='rec_登園シート',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
   var opts=SET.attendOptions||[];
   var dp=recDate.split('-'),wd=WD[new Date(+dp[0],+dp[1]-1,+dp[2]).getDay()];
-  var kids=classOf(d.klass).filter(function(c){return !c.days||c.days.indexOf(wd)>-1;});
+  /* 通園予定の曜日で絞る。ただし、保護者から連絡が来た園児や、すでに記録がある園児は
+     曜日に関わらず必ず表示する（連絡が画面に出ないまま消えるのを防ぐ） */
+  var kids=classOf(d.klass).filter(function(c){
+    var r=d.rows&&d.rows[c.id];
+    if(r&&(r.parentNote||r.att||r.temp))return true;
+    return !c.days||c.days.indexOf(wd)>-1;
+  });
   /* ランチ・ロングステイは連絡先の通園曜日設定から「その日にまだ記録が無いときの初期値」としてだけ入れる。
      一度記録された値は、あとから通園曜日の設定を変えても書き換えない（過去日の実績が塗り替わらないようにする）。 */
   function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
@@ -2776,7 +2791,7 @@ function edTouen(){
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+recDate+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+(d.weather||'')+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+(d.temp||'')+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+(d.hum||'')+'"></div></div>'+
     '<div style="display:flex;gap:10px;align-items:flex-start;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0F6E56;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0F6E56;line-height:1.6;">'+noteHtml+'</div></div>'+
-    '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
+    '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td><button class="btn btn-sm" data-ta="'+c.id+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
       '<td><input data-tt="'+c.id+'" type="number" step="0.1" value="'+(r.temp||'')+'" style="width:80px;" placeholder="36.5"></td>'+
@@ -2785,7 +2800,7 @@ function edTouen(){
            押しても反応しないので、点線の枠とグレーでタップできるボタンと見分けられるようにする */
         if(isAutoAttendOpt(op))return '<td><span class="tag" title="通園曜日の設定から自動で表示しています。この画面では変更できません" style="cursor:default;border-style:dashed;'+(on?'background:#F1EFE8;border-color:#A9A296;color:#4A463E;font-weight:600;':'background:transparent;border-color:#DAD6CC;color:#B0AAA0;')+'">'+(on?'●':'—')+'</span></td>';
         return '<td><button class="btn btn-sm" data-to="'+c.id+'" data-oi="'+oi+'" style="'+(on?'background:#E6F1FB;border-color:#378ADD;color:#0C447C;font-weight:600;':'')+'">'+(on?'●':'—')+'</button></td>';}).join('')+
-      '</tr>';}).join('')+
+      '<td class="row-sub" style="max-width:220px;">'+parentNoteText(r)+'</td></tr>';}).join('')+
     '</tbody></table></div>'+
     '<div class="field" style="margin-top:12px;"><label>MEMO</label><input id="tsMemo" value="'+(d.memo||'')+'"></div>'+
     /* 自動列は記録済みの値を勝手に書き換えない（監査記録のため）。ただし当日の入力ミスは直せる必要があるので、
