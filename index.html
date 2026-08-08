@@ -234,6 +234,15 @@
   #staffLogin .sl-acc:hover{border-color:var(--teal);background:#F0FAF6;}
   #staffLogin .sl-acc .rl{margin-left:auto;font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px;white-space:nowrap;}
   #staffLogin .sl-form{margin-top:14px;border-top:1px solid var(--line);padding-top:14px;}
+  #staffLogin .sl-hint{margin-top:12px;border-top:1px solid var(--line);padding-top:11px;}
+  #staffLogin .sl-hint button{background:none;border:none;color:var(--tx2);font:inherit;font-size:12px;
+    text-decoration:underline;cursor:pointer;padding:0;}
+  #staffLogin .sl-hint-w{font-size:11.5px;line-height:1.7;background:#FDF3E3;border:1px solid #F0DCBC;
+    border-radius:9px;padding:9px 11px;margin:9px 0;color:#7A5312;}
+  #staffLogin .sl-hint table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  #staffLogin .sl-hint td{border-bottom:1px solid var(--line);padding:6px 4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  #staffLogin .sl-hint td:last-child{text-align:right;color:var(--tx2);font-family:inherit;}
   #staffLogin input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:8px;font-family:inherit;box-sizing:border-box;}
   #staffLogin button.sl-go{width:100%;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;}
   #staffLogin .sl-err{color:#B00;font-size:12px;margin-bottom:8px;display:none;}
@@ -4299,7 +4308,14 @@ function showStaffLogin(){
   }
   ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2><div class="sl-sub">COCOAS 保育管理システム（デモ）。<br>アカウントをタップ、またはID・パスワードでログインしてください。</div>'
     +staffAccounts().map(function(a){var col=roleColor(a.role);return '<div class="sl-acc" data-slacc="'+a.id+'"><div><div style="font-weight:600;font-size:13.5px;">'+esc(a.name)+'</div><div style="color:var(--tx2);font-size:11.5px;">ID: '+esc(a.loginId)+'</div></div><span class="rl" style="background:'+col.bg+';color:'+col.fg+';">'+esc(a.role)+'</span></div>';}).join('')
-    +'<div class="sl-form"><div class="sl-err" id="slErr">IDまたはパスワードが違います</div><input id="slId" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false"><input id="slPw" type="text" placeholder="パスワード" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="sl-go" id="slGo">ログイン</button></div></div>';
+    +'<div class="sl-form"><div class="sl-err" id="slErr">IDまたはパスワードが違います</div><input id="slId" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false"><input id="slPw" type="password" placeholder="パスワード" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="sl-go" id="slGo">ログイン</button></div>'
+    /* デモの間だけ、パスワードを開いて確認できるようにしておく。
+       実データを入れる前に、設定 → 職員アカウント からパスワードを変更する。 */
+    +'<div class="sl-hint"><button id="slHintT" type="button">デモのログイン情報を見る</button>'
+    +'<div id="slHintB" class="hide"><div class="sl-hint-w">⚠️ 実際の園児情報を入れる前に、必ず「設定 → 職員アカウント」でパスワードを変更してください。</div>'
+    +'<table>'+staffAccounts().map(function(a){
+        return '<tr><td>'+esc(a.loginId)+'</td><td>'+esc(a.pw)+'</td><td>'+esc(a.role)+'</td></tr>';}).join('')
+    +'</table></div></div></div>';
   ov.style.display='flex';
   /* タップしただけでログインできてしまうと、公開中の画面が実質ノーガードになる。
      ログインIDを埋めるだけにして、パスワードは入力してもらう。 */
@@ -4309,6 +4325,9 @@ function showStaffLogin(){
     var f=ov.querySelector('#slId');if(f){f.value=a.loginId;}
     var pw=ov.querySelector('#slPw');if(pw)pw.focus();
   };});
+  var ht=document.getElementById('slHintT'),hb=document.getElementById('slHintB');
+  if(ht)ht.onclick=function(){hb.classList.toggle('hide');
+    ht.textContent=hb.classList.contains('hide')?'デモのログイン情報を見る':'デモのログイン情報を隠す';};
   document.getElementById('slGo').onclick=function(){if(staffLoginBy(document.getElementById('slId').value,document.getElementById('slPw').value))staffEnter();else document.getElementById('slErr').style.display='block';};
   document.getElementById('slPw').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('slGo').click();});
 }
