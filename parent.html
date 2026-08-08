@@ -66,7 +66,7 @@
   /* 現在地を示す花。押すとホームへ戻る */
   .bloom{width:52px;height:52px;flex-shrink:0;background:none;border:none;padding:0;display:block;}
   .bloom svg{width:100%;height:100%;display:block;}
-  .bloom .pt{transform-origin:50% 50%;transition:opacity .32s ease,transform .32s cubic-bezier(.34,1.4,.5,1);opacity:.36;}
+  .bloom .pt{transform-origin:0 0;transition:opacity .32s ease,transform .32s cubic-bezier(.34,1.4,.5,1);opacity:.36;}
   .bloom .pt.on{opacity:1;transform:scale(1.16);}
   .bloom .core{transition:r .3s ease;}
 
@@ -91,7 +91,7 @@
   .topbar .who{flex:1;min-width:0;}
   .topbar .who .p{font-size:11px;opacity:.85;line-height:1.2;}
   .topbar .who .n{font-size:15.5px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .topbar .out{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:600;}
+  /* ヘッダーは白背景なので、白文字だとボタンが見えなくなる。読める配色にする */
   .scroll{flex:1;overflow-y:auto;padding:16px 15px 90px;}
   h2.sec{font-size:15px;font-weight:700;margin:4px 2px 11px;display:flex;align-items:center;gap:8px;}
   .sec-more{margin-left:auto;font-size:12px;color:var(--teal);font-weight:600;background:none;border:none;}
@@ -157,6 +157,8 @@
   .tabbar button.t-connect.on{color:var(--c);} .tabbar button.t-store.on{color:var(--p);}
   .whobtn{background:none;border:none;text-align:left;padding:0;cursor:pointer;flex:1;min-width:0;}
   .whoarrow{color:var(--tx3);font-weight:400;}
+  .tbadge{display:inline-block;min-width:15px;padding:0 4px;margin-left:3px;border-radius:99px;
+    background:var(--p);color:#fff;font-size:9px;font-weight:800;line-height:15px;vertical-align:top;}
   .sidenav .sn.t-connect.on{background:var(--c);}
   @media (prefers-reduced-motion:reduce){.bloom .pt,.tabbar button .e,.tabbar button::after{transition:none;}}
   .bloom .pt.dormant{opacity:.5;}
@@ -179,6 +181,20 @@
   .sirow .k{color:var(--tx2);width:74px;flex-shrink:0;font-weight:600;font-size:12.5px;}
   .silinks{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;}
   .silinks .chip{text-decoration:none;color:var(--tx);}
+  /* 最近見たもの（横スクロール） */
+  .recent{display:flex;gap:9px;overflow-x:auto;padding:2px 2px 10px;-webkit-overflow-scrolling:touch;}
+  .rcard{flex:0 0 118px;background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 6px;
+    padding:11px 10px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;text-align:left;cursor:pointer;min-height:44px;}
+  .rcard .rem{font-size:21px;line-height:1;}
+  .rcard .rnm{font-size:11.5px;font-weight:700;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .rcard .rpr{font-size:11px;color:var(--tx2);font-weight:700;}
+  .prodcard:active{transform:scale(.995);}
+  /* 商品のくわしい内容 */
+  .sheet-bg{position:fixed;inset:0;background:rgba(30,20,10,.34);z-index:60;display:flex;align-items:flex-end;justify-content:center;}
+  .sheet{background:var(--card);width:100%;max-width:430px;border-radius:24px 24px 0 0;padding:10px 20px calc(24px + env(safe-area-inset-bottom));
+    max-height:86vh;overflow-y:auto;}
+  .sheet-bar{width:40px;height:4px;border-radius:99px;background:var(--line);margin:2px auto 14px;}
+  @media(min-width:860px){.sheet-bg{align-items:center;}.sheet{border-radius:24px;max-width:460px;padding-bottom:24px;}}
 
   /* ===== PC版 =====
      スマホは下のタブバー、PCは左に花びらのナビ。同じ構造を画面幅で切り替える。 */
@@ -244,7 +260,7 @@ function todayISO(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()
 function addDaysISO(n){var d=new Date();d.setDate(d.getDate()+n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 var WD=['日','月','火','水','木','金','土'];
 function fmtDate(s){if(!s)return'';var p=s.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);return (+p[1])+'/'+(+p[2])+'（'+WD[d.getDay()]+'）';}
-function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function childName(c){return (c.child||'').replace(/ちゃん|くん/g,'');}
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2200);}
 
@@ -308,7 +324,7 @@ function login(email,pw){
   email=(email||'').trim().toLowerCase();pw=(pw||'').trim();
   var acc=stGet('parentAccounts',{});var a=acc[email];
   // デモのため寛容に：登録PW／全国共通の 'cocoas'／その子の既定PW のいずれでもログイン可
-  if(a && (pw===String(a.pw)||pw==='cocoas'||pw===DEMO_PW[a.childId])){sessionStorage.setItem('cocoas_psession',a.childId);return true;}
+  if(a && pw===String(a.pw)){sessionStorage.setItem('cocoas_psession',a.childId);return true;}
   return false;
 }
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
@@ -328,11 +344,16 @@ var tab='school', authView='login', resetEmail='';
 
 /* 園とつながっていなくても使える。未来WAは一般の保護者向けにも開いている */
 function isGuest(){return sessionStorage.getItem('cocoas_wa_guest')==='1';}
+var lastTab=null;
 function render(){
   var c=sessionChild();
   if(!c&&!isGuest()){document.getElementById('root').innerHTML=loginHTML();wireAuth();return;}
+  /* つながっていないのにスクールを開こうとしたら、ストアへ寄せる（白紙を出さない） */
+  if(!c&&tab==='school'&&typeof linkHTML!=='function')tab='store';
   document.getElementById('root').innerHTML=portalHTML(c);
   wirePortal(c);
+  /* タブが変わったときだけ先頭へ戻す。同じタブ内の絞り込みでは位置を保つ */
+  if(lastTab!==tab){lastTab=tab;try{window.scrollTo(0,0);}catch(e){}}
 }
 
 /* ---------- LOGIN / PW flow ---------- */
@@ -424,6 +445,12 @@ function waProducts(){
   stSet('wa_products',d);return d;
 }
 function waOrders(){return stGet('wa_orders',[]);}
+/* 見た商品をおぼえておき、ストアの上に「最近見たもの」として出す */
+function waViewed(){return stGet('wa_viewed',[]);}
+function waSeeProduct(id){
+  var v=waViewed().filter(function(x){return String(x)!==String(id);});
+  v.unshift(id); stSet('wa_viewed',v.slice(0,12));
+}
 function waKickRate(){var s=stGet('wa_settings',null);return (s&&s.rate)||0.20;}
 function waSchoolName(){try{return (stGet('settings',{})||{}).school||'COCOAS KIDS 大宮与野校';}catch(e){return 'COCOAS KIDS 大宮与野校';}}
 
@@ -451,11 +478,12 @@ function storeHTML(c){
       : '<div class="card petal-c"><div style="font-weight:700;font-size:14px;">おうちで使える教材</div>'
         +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
         +'<button class="btn sec" id="wantLink" style="margin-top:11px;">園とつながる</button></div>')
+    +recentHTML(all)
     +'<div class="card petal-p">'+catRow+'</div>'
     +'<div class="fcount">'+ps.length+'件</div>'
     +(ps.length?'':bloomEmpty('このカテゴリの商品はまだありません'))
     +ps.map(function(x){
-      return '<div class="card" style="display:flex;gap:12px;align-items:center;">'
+      return '<div class="card prodcard" data-open="'+x.id+'" style="display:flex;gap:12px;align-items:center;cursor:pointer;">'
         +'<div style="width:46px;height:46px;border-radius:14px;background:var(--line2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">'+esc(x.emoji)+'</div>'
         +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">'+esc(x.name)
           +(x.rec?' <span class="chip" style="background:var(--g);color:#fff;border:none;padding:2px 8px;font-size:10.5px;">おすすめ</span>':'')+'</div>'
@@ -466,7 +494,29 @@ function storeHTML(c){
     }).join('')
     +'<div id="waKick" style="display:none;" class="card petal-g"></div>';
 }
+function recentHTML(all){
+  var ids=waViewed(),items=[];
+  ids.forEach(function(id){
+    var p=all.filter(function(x){return String(x.id)===String(id);})[0];
+    if(p)items.push(p);});
+  if(!items.length)return '';
+  return '<div class="flabel" style="margin:2px 2px 8px;">最近見たもの</div>'
+    +'<div class="recent">'+items.map(function(x){
+      return '<button class="rcard" data-open="'+x.id+'">'
+        +'<span class="rem">'+esc(x.emoji)+'</span>'
+        +'<span class="rnm">'+esc(x.name)+'</span>'
+        +'<span class="rpr">'+yen(x.price)+(x.sub?'／月':'')+'</span></button>';}).join('')
+    +'</div>';
+}
 function wireStore(c){
+  /* 商品を見たら履歴に残し、その場でくわしい内容を開く */
+  document.querySelectorAll('[data-open]').forEach(function(b){b.onclick=function(e){
+    if(e.target.closest('[data-buy]'))return;
+    var id=b.getAttribute('data-open');
+    waSeeProduct(id);
+    var p=waProducts().filter(function(x){return String(x.id)===String(id);})[0];
+    if(p)openProduct(p,c);
+  };});
   var wl=document.getElementById('wantLink');
   if(wl)wl.onclick=function(){tab='me';render();};
   document.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){
@@ -474,7 +524,9 @@ function wireStore(c){
     var sc=document.getElementById('scroll');
     sc.innerHTML=storeHTML(c);wireStore(c);};});
   document.querySelectorAll('[data-buy]').forEach(function(b){b.onclick=function(){
+    if(b.disabled)return;                     /* 二重に注文が入らないようにする */
     var id=+b.getAttribute('data-buy'),p=waProducts().filter(function(x){return x.id===id;})[0];
+    if(p){b.disabled=true;b.textContent='お手続き中…';}
     if(!p)return;
     var rate=waKickRate(),kb=c?Math.round(p.price*rate):0;
     var a=waOrders();
@@ -567,7 +619,7 @@ function feedHTML(kind){
   }
   return '<h2 class="sec sec-'+col+'">'+ttl+'</h2>'
     +'<div class="card petal-'+col+'"><div class="muted">'+sub+'</div>'
-      +'<div class="fsearch"><input id="fq" value="'+esc(f.q)+'" placeholder="さがす（例：'+(isPlay?'こうさく':'ねむり')+'）">'
+      +'<div class="fsearch"><input id="fq" value="'+esc(f.q)+'" placeholder="さがす（例：'+(isPlay?'工作':'睡眠')+'）">'
         +(f.q?'<button class="fclear" id="fqx" aria-label="消す">×</button>':'')+'</div>'
       +'<div class="flabel">カテゴリ</div>'+chips('cat',cats,f.cat)
       +'<div class="flabel">年齢</div>'+chips('age',WA_AGES,f.age)
@@ -585,7 +637,8 @@ function feedHTML(kind){
       :bloomEmpty('条件に合うものが見つかりませんでした'));
 }
 function wireFeed(kind){
-  var sc=document.getElementById('scroll');
+  /* 絞り込みで置き換えるのは feed の箱だけ。上の「せいちょう」を消さない */
+  var sc=document.getElementById('feedZone')||document.getElementById('scroll');
   sc.querySelectorAll('[data-f]').forEach(function(b){b.onclick=function(){
     waFeed[kind][b.getAttribute('data-f')]=b.getAttribute('data-v');
     sc.innerHTML=feedHTML(kind);wireFeed(kind);};});
@@ -679,6 +732,35 @@ function wireMe(c){
   if(g)g.onclick=function(){tab='school';render();};
   document.querySelectorAll('[data-goto]').forEach(function(b){b.onclick=function(){
     tab=b.getAttribute('data-goto');render();};});
+}
+
+/* 商品のくわしい内容。ここからも買える */
+function openProduct(p,c){
+  var rate=waKickRate(),kb=c?Math.round(p.price*rate):0;
+  var ov=document.createElement('div');ov.className='sheet-bg';
+  ov.innerHTML='<div class="sheet"><div class="sheet-bar"></div>'
+    +'<div style="display:flex;gap:13px;align-items:center;">'
+      +'<div style="width:58px;height:58px;border-radius:17px;background:var(--line2);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;">'+esc(p.emoji)+'</div>'
+      +'<div style="min-width:0;"><div style="font-weight:800;font-size:16px;">'+esc(p.name)+'</div>'
+      +'<div class="muted" style="margin-top:3px;">'+esc(p.cat||'')+(p.aim?' ・ '+esc(p.aim):'')+'</div></div></div>'
+    +'<div style="margin-top:14px;font-size:14px;line-height:1.75;">'+esc(p.desc||'')+'</div>'
+    +'<div style="display:flex;align-items:baseline;gap:8px;margin-top:16px;">'
+      +'<div style="font-weight:800;font-size:22px;">'+yen(p.price)+'</div>'
+      +(p.sub?'<div class="muted">／月　毎月おとどけ</div>':'<div class="muted">（単品）</div>')+'</div>'
+    +(c?'<div class="kick" style="margin-top:13px;">このお買いもので、'+esc(waSchoolName())+' に <b>'+yen(kb)+'</b> が還元されます。</div>'
+       :'<div class="muted" style="margin-top:13px;font-size:12.5px;">園とつながっていると、購入の一部が園の運営に還元されます。</div>')
+    +'<div style="display:flex;gap:10px;margin-top:16px;">'
+      +'<button class="btn ghost" id="shClose" style="flex:0 0 auto;">とじる</button>'
+      +'<button class="btn" data-buy="'+p.id+'" style="flex:1;">'+(p.sub?'この教材を続ける':'購入する')+'</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+  ov.querySelector('#shClose').onclick=function(){ov.remove();};
+  ov.querySelector('[data-buy]').onclick=function(){
+    ov.remove();
+    var b=document.querySelector('[data-buy="'+p.id+'"]');
+    if(b)b.click(); else {tab='store';render();setTimeout(function(){
+      var b2=document.querySelector('[data-buy="'+p.id+'"]');if(b2)b2.click();},60);}
+  };
 }
 
 /* ---------- つながる（イベント／コミュニティ） ----------
@@ -827,9 +909,16 @@ function portalHTML(c){
     +'</div>'
     +'<div class="tabbar">'+PETALS.map(function(p){
       var dis=(p.t==='school'&&!linked);
-      return tabBtn(p.t,p.e,dis?'つながる':p.l);}).join('')+'</div>';
+      var lb=dis?'つながる':p.l;
+      /* 先生からのメッセージが届いていることが、タブで分かるようにする */
+      if(p.t==='school'&&linked){
+        var u=0;try{u=dmUnreadParent(c.id)||0;}catch(e){}
+        if(u)lb=p.l+'<span class="tbadge">'+u+'</span>';
+      }
+      return tabBtn(p.t,p.e,lb);}).join('')+'</div>';
 }
 function tabBtn(id,e,l){return '<button data-tab="'+id+'" class="t-'+id+(tab===id?' on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
+/* ラベルに入るバッジ。数字だけを入れるので esc は不要（呼び出し側で件数のみ） */
 /* 中身が無いときも、無機質な文字だけにしない */
 function bloomEmpty(msg){
   return '<div class="bloom-empty">'+bloomSVG('',56)+'<div>'+esc(msg)+'</div></div>';
@@ -849,8 +938,8 @@ function wirePortal(c){
        並べると同じものが2度出る。スクールタブは newsHTML（全件）に一本化する。 */
     sc.innerHTML=newsHTML(c)+attHTML(c)+dmHTML(c);
   }
-  else if(tab==='play') sc.innerHTML=feedHTML('play');
-  else if(tab==='learn') sc.innerHTML=(linked?growthHTML(c):'')+feedHTML('learn');
+  else if(tab==='play') sc.innerHTML='<div id="feedZone">'+feedHTML('play')+'</div>';
+  else if(tab==='learn') sc.innerHTML=(linked?growthHTML(c):'')+'<div id="feedZone">'+feedHTML('learn')+'</div>';
   else if(tab==='store') sc.innerHTML=storeHTML(c);
   else if(tab==='connect') sc.innerHTML=connectHTML(c);
   else if(tab==='me') sc.innerHTML=meHTML(c);
@@ -879,10 +968,23 @@ function markSeen(ids){stSet('posts_seen_'+(sessionStorage.getItem('cocoas_psess
 function allPosts(){
   var posts=(stGet('posts',[])||[]).slice();
   // 職員の全体配信(history)も おたより として取り込む
-  var hist=stGet('history',[])||[];
-  hist.forEach(function(h,i){ if(h && h.body && (String(h.tpl||'').indexOf('デイリー')>-1||String(h.tpl||'').indexOf('配信')>-1||String(h.tpl||'').indexOf('お知らせ')>-1)){
-    posts.push({id:'h'+i,date:(h.time||todayISO()).slice(0,10),type:'daily',title:esc(h.subject||h.tpl||'園からのおたより'),body:h.body});
-  }});
+  /* 職員の一斉配信は、宛先1件につき1行ずつ履歴に残る。
+     そのまま取り込むと同じおたよりが家庭数ぶん並び、他の家庭あての分まで混ざるため、
+     ①ログイン中の家庭あて（宛先不明のものは全体配信とみなす）だけを拾い
+     ②同じ日付・件名・本文のものは1件にまとめる。 */
+  var hist=stGet('history',[])||[],me=sessionChild(),seenKey={};
+  var myMail=me?String(me.email||'').toLowerCase():'';
+  hist.forEach(function(x,i){
+    if(!x||!x.body)return;
+    var tpl=String(x.tpl||'');
+    if(!(tpl.indexOf('デイリー')>-1||tpl.indexOf('配信')>-1||tpl.indexOf('お知らせ')>-1))return;
+    var to=String(x.email||'').toLowerCase();
+    if(myMail&&to&&to!==myMail)return;           /* 他の家庭あては出さない */
+    var d=(x.date||todayISO()).slice(0,10);
+    var k=d+'|'+(x.subject||x.tpl||'')+'|'+String(x.body).slice(0,80);
+    if(seenKey[k])return; seenKey[k]=1;          /* 同じおたよりは1件だけ */
+    posts.push({id:'h'+i,date:d,type:'daily',title:(x.subject||x.tpl||'園からのおたより'),body:x.body});
+  });
   posts.sort(function(a,b){return (a.date<b.date)?1:(a.date>b.date?-1:0);});
   return posts;
 }
@@ -930,9 +1032,12 @@ function submitAbsence(c,date,kind,reason){
   if(!day.rows)day.rows={};
   /* 職員側の登園シートと同じ記号にする。ここがずれると、保護者の連絡が園の画面に反映されない。
      職員側は ['','●','早','遅','休'] を使う（index.html の登園シート） */
-  var mark = kind==='欠席'?'休':(kind==='遅刻'?'遅':(kind==='早退'?'早':'●'));
+  /* お迎え変更は出欠そのものではないので、記号は書き換えず連絡だけ残す */
+  var mark = kind==='欠席'?'休':(kind==='遅刻'?'遅':(kind==='早退'?'早':null));
   var prev=day.rows[c.id]||{};
-  day.rows[c.id]=Object.assign(prev,{att:mark,absent:kind==='欠席',parentNote:{kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')}});
+  var upd={parentNote:{kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')}};
+  if(mark){upd.att=mark;upd.absent=(kind==='欠席');}
+  day.rows[c.id]=Object.assign(prev,upd);
   data[date]=day;stSet(K,data);
   // parent-side log
   var log=stGet('absence_log',[]);log.push({childId:c.id,date:date,kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')});stSet('absence_log',log);
@@ -958,7 +1063,7 @@ function wireAtt(c){
     if(!date){toast('日付を選んでください');return;}
     submitAbsence(c,date,attKind,reason);
     toast('園に連絡しました（'+attKind+'）');
-    tab='att';render();
+    tab='school';render();
   };
 }
 

@@ -735,10 +735,32 @@ function auditDataInfo(key){
       return '';
   }
 }
+/* 印刷本文の安全化。
+   印刷の本文は44か所から渡され、そこに園児名や自由記入がそのまま入る。
+   1か所ずつ直すと必ず漏れるので、ここで一度「切り離した文書」に組み立ててから、
+   スクリプトや外部読み込み、on◯◯ の属性を取り除いて画面へ移す。
+   表や書式はそのまま残るので、印刷の見た目は変わらない。 */
+function printSanitize(html){
+  var doc=document.implementation.createHTMLDocument('');
+  doc.body.innerHTML=html;
+  var kill=doc.body.querySelectorAll('script,iframe,object,embed,base,link,meta,form,noscript');
+  for(var i=kill.length-1;i>=0;i--)kill[i].parentNode.removeChild(kill[i]);
+  var all=doc.body.querySelectorAll('*');
+  for(var j=0;j<all.length;j++){
+    var e=all[j],at=e.attributes,k;
+    for(k=at.length-1;k>=0;k--){
+      var n=at[k].name.toLowerCase(),v=String(at[k].value||'');
+      if(n.indexOf('on')===0||n==='srcdoc'||n==='formaction'){e.removeAttribute(at[k].name);continue;}
+      if((n==='href'||n==='src'||n==='xlink:href')&&/^\s*(javascript|data:text\/html|vbscript)/i.test(v))e.removeAttribute(at[k].name);
+    }
+  }
+  return doc.body.innerHTML;
+}
 function printDoc(title,bodyHtml){
   var area=$('#printArea');
   if(!area){area=el('div',{id:'printArea'});document.body.appendChild(area);}
-  area.innerHTML='<h1>'+title+'</h1>'+bodyHtml+'<div class="print-foot">'+SET.school+'　／　出力日：'+fmt(todayISO())+'</div>';
+  area.innerHTML='<h1>'+esc(title)+'</h1>'+printSanitize(bodyHtml)
+    +'<div class="print-foot">'+esc(SET.school)+'　／　出力日：'+esc(fmt(todayISO()))+'</div>';
   window.print();
 }
 function dlFile(name,content,mime){var blob=new Blob(["﻿"+content],{type:(mime||'text/html')+';charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
@@ -3788,7 +3810,7 @@ function kikiEdits(){return kikiStore().edits||{};}
 function kikiVal(k){var v=kikiVars()[k];if(v!=null&&v!=='')return v;var d=KIKI_VARDEF_MAP[k];return (d&&d.d)?d.d:'';}
 function kikiBody(sec){var e=kikiEdits()[sec.id];return e!=null?e:sec.body;}
 function kikiSubstPlain(body){return body.replace(/\{\{([^}]+)\}\}/g,function(m,k){k=k.trim();var v=kikiVal(k);return v||('（'+k+'）');});}
-function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function kikiPrevHtml(sec){
   return esc(kikiBody(sec)).replace(/\{\{([^}]+)\}\}/g,function(m,k){k=k.trim();var v=kikiVal(k);
     return v?'<span style="background:#E1F5EE;color:#0a5a44;">'+esc(v)+'</span>':'<span style="background:#FBE4E4;color:#B00;">〔'+esc(k)+'：未入力〕</span>';});
@@ -4026,7 +4048,7 @@ var API={
 var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
   mark:function(key){
     if(!API.online())return;
-    if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap)$/.test(key))return;
+    if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(key))return;
     SYNC.queue[key.replace(/^cocoas_/,'')]=true;
     clearTimeout(SYNC.timer);
     SYNC.timer=setTimeout(SYNC.push,1200);
@@ -4046,6 +4068,8 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
     SYNC.setStatus('読み込み中…');
     return API.call('GET','/state').then(function(j){
       Object.keys(j.data||{}).forEach(function(k){
+        /* サーバ応答で接続先や職員アカウントを書き換えられないようにする（テナント乗っ取りの防止） */
+        if(/^(apiToken|apiBase|apiTenant|psession|staffSession|staffAccounts|parentAccounts)$/.test(k))return;
         if(j.data[k]===null||j.data[k]===undefined)return;
         (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_'+k,JSON.stringify(j.data[k]));
       });
@@ -4173,7 +4197,7 @@ function roleColor(r){return r==='管理者'?{bg:'#FCEBEB',fg:'#A32D2D'}:r==='�
 function currentStaff(){var id=sessionStorage.getItem('cocoas_staffSession');if(!id)return null;return staffAccounts().filter(function(a){return String(a.id)===String(id);})[0]||null;}
 function currentRole(){var s=currentStaff();return s?s.role:null;}
 function canView(page){var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;return (rolePerms()[s.role]||[]).indexOf(page)>-1;}
-function staffLoginBy(loginId,pw){loginId=(loginId||'').trim().toLowerCase();pw=(pw||'').trim();var a=staffAccounts().filter(function(x){return String(x.loginId).toLowerCase()===loginId;})[0];if(a&&(pw===String(a.pw)||pw==='cocoas')){sessionStorage.setItem('cocoas_staffSession',a.id);return true;}return false;}
+function staffLoginBy(loginId,pw){loginId=(loginId||'').trim().toLowerCase();pw=(pw||'').trim();var a=staffAccounts().filter(function(x){return String(x.loginId).toLowerCase()===loginId;})[0];if(a&&pw===String(a.pw)){sessionStorage.setItem('cocoas_staffSession',a.id);return true;}return false;}
 function staffLogout(){sessionStorage.removeItem('cocoas_staffSession');sessionStorage.removeItem('cocoas_serverUser');if(typeof API!=='undefined'&&API.enabled())API.setToken('');location.reload();}
 function applyPerms(){
   var s=currentStaff();if(!s)return;
@@ -4233,10 +4257,17 @@ function showStaffLogin(){
     return;
   }
   ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2><div class="sl-sub">COCOAS 保育管理システム（デモ）。<br>アカウントをタップ、またはID・パスワードでログインしてください。</div>'
-    +staffAccounts().map(function(a){var col=roleColor(a.role);return '<div class="sl-acc" data-slacc="'+a.id+'"><div><div style="font-weight:600;font-size:13.5px;">'+esc(a.name)+'</div><div style="color:var(--tx2);font-size:11.5px;">ID: '+esc(a.loginId)+'　/　PW: '+esc(a.pw)+'</div></div><span class="rl" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span></div>';}).join('')
+    +staffAccounts().map(function(a){var col=roleColor(a.role);return '<div class="sl-acc" data-slacc="'+a.id+'"><div><div style="font-weight:600;font-size:13.5px;">'+esc(a.name)+'</div><div style="color:var(--tx2);font-size:11.5px;">ID: '+esc(a.loginId)+'</div></div><span class="rl" style="background:'+col.bg+';color:'+col.fg+';">'+esc(a.role)+'</span></div>';}).join('')
     +'<div class="sl-form"><div class="sl-err" id="slErr">IDまたはパスワードが違います</div><input id="slId" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false"><input id="slPw" type="text" placeholder="パスワード" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="sl-go" id="slGo">ログイン</button></div></div>';
   ov.style.display='flex';
-  ov.querySelectorAll('[data-slacc]').forEach(function(b){b.onclick=function(){sessionStorage.setItem('cocoas_staffSession',b.getAttribute('data-slacc'));staffEnter();};});
+  /* タップしただけでログインできてしまうと、公開中の画面が実質ノーガードになる。
+     ログインIDを埋めるだけにして、パスワードは入力してもらう。 */
+  ov.querySelectorAll('[data-slacc]').forEach(function(b){b.onclick=function(){
+    var a=staffAccounts().filter(function(x){return String(x.id)===String(b.getAttribute('data-slacc'));})[0];
+    if(!a)return;
+    var f=ov.querySelector('#slId');if(f){f.value=a.loginId;}
+    var pw=ov.querySelector('#slPw');if(pw)pw.focus();
+  };});
   document.getElementById('slGo').onclick=function(){if(staffLoginBy(document.getElementById('slId').value,document.getElementById('slPw').value))staffEnter();else document.getElementById('slErr').style.display='block';};
   document.getElementById('slPw').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('slGo').click();});
 }
