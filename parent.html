@@ -154,7 +154,10 @@
   .tabbar button.on{color:var(--tabc,var(--p));}
   .tabbar button.t-home.on{color:var(--p);} .tabbar button.t-att.on{color:var(--o);}
   .tabbar button.t-growth.on{color:var(--g);} .tabbar button.t-bill.on{color:var(--b);}
-  .tabbar button.t-dm.on{color:var(--c);} .tabbar button.t-news.on{color:var(--p);}
+  .tabbar button.t-connect.on{color:var(--c);} .tabbar button.t-store.on{color:var(--p);}
+  .whobtn{background:none;border:none;text-align:left;padding:0;cursor:pointer;flex:1;min-width:0;}
+  .whoarrow{color:var(--tx3);font-weight:400;}
+  .sidenav .sn.t-connect.on{background:var(--c);}
   @media (prefers-reduced-motion:reduce){.bloom .pt,.tabbar button .e,.tabbar button::after{transition:none;}}
   .bloom .pt.dormant{opacity:.5;}
   /* あそぶ／まなぶ のしぼりこみ */
@@ -171,6 +174,11 @@
   .ftags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;}
   .ftag{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:99px;background:var(--line2);color:var(--tx2);}
   .ftag.age{background:transparent;border:1px solid var(--line);color:var(--tx3);}
+  .evmeta{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:12px;color:var(--tx2);}
+  .sirow{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--line2);font-size:13.5px;}
+  .sirow .k{color:var(--tx2);width:74px;flex-shrink:0;font-weight:600;font-size:12.5px;}
+  .silinks{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;}
+  .silinks .chip{text-decoration:none;color:var(--tx);}
 
   /* ===== PC版 =====
      スマホは下のタブバー、PCは左に花びらのナビ。同じ構造を画面幅で切り替える。 */
@@ -595,6 +603,172 @@ function wireFeed(kind){
   if(x)x.onclick=function(){waFeed[kind].q='';sc.innerHTML=feedHTML(kind);wireFeed(kind);};
 }
 
+/* 園とつながっていない家庭に見せる画面。ここが接続への入口になる */
+function linkHTML(){
+  return '<h2 class="sec sec-b">🏫 園とつながる</h2>'
+    +'<div class="card petal-b"><div style="font-weight:700;font-size:15px;">園からのスクールコードを入れてください</div>'
+    +'<div class="muted" style="margin-top:6px;line-height:1.7;">つながると、こんなことができます。</div>'
+    +'<div style="margin-top:12px;display:flex;flex-direction:column;gap:9px;">'
+    +[['📮','園からの毎日の連絡が届く'],['📅','欠席・遅刻をアプリから連絡できる'],['🌱','身長・体重の記録が見られる'],
+      ['💬','先生と直接やりとりできる'],['🛍️','先生が選んだ教材と、園指定の用品が買える']]
+      .map(function(x){return '<div style="display:flex;gap:10px;align-items:center;font-size:13.5px;">'
+        +'<span style="font-size:19px;">'+x[0]+'</span>'+esc(x[1])+'</div>';}).join('')
+    +'</div>'
+    +'<div class="field" style="margin-top:16px;"><label>スクールコード</label>'
+      +'<input id="scCode" placeholder="例：OMIYA-2026" autocapitalize="characters"></div>'
+    +'<div class="err" id="scErr"></div>'
+    +'<button class="btn" id="scGo">つながる</button>'
+    +'<div class="muted" style="margin-top:10px;font-size:11.5px;">デモ版では、ログイン画面からお子さまを選ぶとつながった状態になります。</div>'
+    +'</div>';
+}
+function wireLink(){
+  var g=document.getElementById('scGo');
+  if(g)g.onclick=function(){
+    var e=document.getElementById('scErr');
+    e.style.display='block';
+    e.textContent='デモ版では、いったんログアウトしてお子さまを選んでください。';
+  };
+}
+/* 所属スクールの情報（住所・連絡先・HP・SNS） */
+function schoolInfoHTML(){
+  var s=stGet('settings',{})||{}, sns=stGet('sns',{})||{};
+  var rows=[['所在地',s.address||'埼玉県さいたま市中央区（サンプル）'],
+            ['電話',s.tel||'048-000-0000'],
+            ['メール',s.sender||'omiya@cocoas-kids.com']];
+  var links=[['ホームページ',s.hp||''],['Instagram',sns.instagram||''],['LINE',sns.line||''],['YouTube',sns.youtube||'']]
+            .filter(function(x){return x[1];});
+  return '<h2 class="sec sec-b">🏫 所属スクール</h2>'
+    +'<div class="card petal-b"><div style="font-weight:700;font-size:14.5px;">'+esc(waSchoolName())+'</div>'
+    +rows.map(function(r){return '<div class="sirow"><span class="k">'+esc(r[0])+'</span><span>'+esc(r[1])+'</span></div>';}).join('')
+    +(links.length?'<div class="silinks">'+links.map(function(l){
+        return '<a class="chip" href="'+esc(l[1])+'" target="_blank" rel="noopener noreferrer">'+esc(l[0])+' ↗</a>';}).join('')+'</div>':'')
+    +'<div class="silinks" style="margin-top:12px;">'
+      +'<button class="chip" data-goto="school">出欠・メッセージ</button>'
+      +'<a class="chip" href="tel:'+esc(String(s.tel||'0480000000').replace(/[^0-9+]/g,''))+'">電話をかける</a>'
+    +'</div></div>';
+}
+/* マイページ：お子さま情報・所属スクール・購入履歴・請求 */
+function meHTML(c){
+  var os=waOrders().filter(function(o){return !c||String(o.childId)===String(c.id);}).slice().reverse();
+  var kb=0;os.forEach(function(o){kb+=(+o.kickback||0);});
+  var h2='<h2 class="sec sec-c">👤 マイページ</h2>';
+  if(c){
+    h2+='<div class="card petal-c"><div style="font-weight:700;font-size:15px;">'+esc(c.child)+'</div>'
+      +'<div class="muted" style="margin-top:5px;">'+esc(c.klass)+'クラス ・ '+esc(waSchoolName())+'</div>'
+      +'<div class="muted" style="margin-top:4px;">つながっています 🌸</div></div>'
+      +schoolInfoHTML();
+  }else{
+    h2+='<div class="card petal-c"><div style="font-weight:700;font-size:15px;">園とつながっていません</div>'
+      +'<div class="muted" style="margin-top:5px;">スクールコードを入れると、園からの連絡や先生が選んだ教材が使えます。</div>'
+      +'<button class="btn sec" id="goLink" style="margin-top:11px;">園とつながる</button></div>';
+  }
+  h2+='<h2 class="sec sec-p">🧾 購入の履歴</h2>'
+    +(os.length?os.map(function(o){return '<div class="card" style="display:flex;gap:11px;align-items:center;">'
+      +'<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:13.5px;">'+esc(o.name)+'</div>'
+      +'<div class="muted">'+esc(o.at)+(o.kickback?' ・ 園へ '+yen(o.kickback)+' 還元':'')+'</div></div>'
+      +'<div style="font-weight:800;font-size:13.5px;">'+yen(o.amount)+'</div></div>';}).join('')
+      +(kb?'<div class="card petal-g"><div style="font-weight:700;color:var(--g);font-size:13.5px;">'
+        +'これまでのお買いもので、園に '+yen(kb)+' が還元されました。</div>'
+        +'<div class="muted" style="margin-top:5px;">還元は園の運営に使われます。</div></div>':'')
+     :bloomEmpty('まだ購入はありません'));
+  if(c)h2+=billHTML(c);
+  return h2;
+}
+function wireMe(c){
+  var g=document.getElementById('goLink');
+  if(g)g.onclick=function(){tab='school';render();};
+  document.querySelectorAll('[data-goto]').forEach(function(b){b.onclick=function(){
+    tab=b.getAttribute('data-goto');render();};});
+}
+
+/* ---------- つながる（イベント／コミュニティ） ----------
+   事業計画シートの仕様：
+   イベント … 種別（体験会/マルシェ/講演会/交流会/オンライン）× テーマ（英語/工作/食育/運動）× 年齢
+   コミュニティ … 子育て/英語/食育/発達/地域/年齢別/趣味/保育アイディア */
+var WA_EV_KINDS=['体験会','マルシェ','講演会','交流会','オンライン'];
+var WA_EV_THEMES=['英語','工作','食育','運動'];
+var WA_COM_CATS=['子育て','英語','食育','発達','地域','年齢別','趣味','保育アイディア'];
+var WA_EVENTS=[
+ {e:'🎪',k:'マルシェ',th:'工作',ages:['2歳児','3歳児','4歳児','5歳児'],t:'てづくりマルシェ 2026 夏',d:'保育者・保護者の手づくり作品が集まります。工作のワークショップも。',date:'2026-08-23',place:'さいたま新都心 けやきひろば',fee:'入場無料'},
+ {e:'🔤',k:'体験会',th:'英語',ages:['2歳児','3歳児','4歳児'],t:'はじめての英語であそぼう',d:'歌とゲームだけの45分。英語がはじめてのお子さま向けです。',date:'2026-08-30',place:'COCOAS KIDS 大宮与野校',fee:'￥0（先着20名）'},
+ {e:'🥕',k:'講演会',th:'食育',ages:['0歳児','1歳児','2歳児','3歳児'],t:'偏食とのつきあい方',d:'管理栄養士が、家庭でできる工夫をお話しします。質疑応答あり。',date:'2026-09-06',place:'オンライン（Zoom）',fee:'￥1,000'},
+ {e:'🏃',k:'体験会',th:'運動',ages:['3歳児','4歳児','5歳児'],t:'かけっこ教室（秋の運動会にむけて）',d:'走り方のコツを、遊びながら身につけます。',date:'2026-09-13',place:'与野公園 多目的広場',fee:'￥1,500'},
+ {e:'💬',k:'交流会',th:'',ages:['0歳児','1歳児'],t:'0・1歳のママパパ交流会',d:'同じ月齢の保護者どうしで、ゆるやかに話せる場です。保育士も同席します。',date:'2026-09-20',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
+ {e:'💻',k:'オンライン',th:'工作',ages:['3歳児','4歳児','5歳児','小学生以上'],t:'おうちで工作ライブ',d:'材料は家にあるものだけ。画面ごしに一緒に作ります。',date:'2026-09-27',place:'オンライン',fee:'￥500'},
+ {e:'🍙',k:'マルシェ',th:'食育',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'こども食堂マルシェ',d:'地域の農家さんの野菜と、こどもが作るおにぎりの会。',date:'2026-10-04',place:'与野本町 コミュニティセンター',fee:'￥300'},
+ {e:'🎓',k:'講演会',th:'',ages:['5歳児','小学生以上'],t:'小学校入学のまえに',d:'元小学校教諭が、入学前の1年で本当に必要なことをお話しします。',date:'2026-10-18',place:'オンライン（Zoom）',fee:'￥1,000'}
+];
+var WA_COMMUNITY=[
+ {e:'🌙',cat:'子育て',t:'夜泣きが再開して心が折れそうです',d:'1歳3か月。一度おさまったのに、また2時間おきに起きます。同じ経験のある方いますか。',by:'ゆず母',n:24},
+ {e:'🍚',cat:'食育',t:'白ごはんしか食べません',d:'おかずを混ぜると気づいて出します。時期がくれば食べますか？',by:'そうた父',n:31},
+ {e:'🔤',cat:'英語',t:'おうち英語、いつやめどき？',d:'嫌がるようになったので一度止めました。再開のきっかけを知りたいです。',by:'みお母',n:12},
+ {e:'🧩',cat:'発達',t:'言葉が遅いと言われました',d:'2歳半で単語のみ。健診で様子見と言われましたが、何かできることはありますか。',by:'匿名',n:47},
+ {e:'📍',cat:'地域',t:'与野周辺の雨の日スポット',d:'室内で体を動かせる場所を探しています。おすすめがあれば。',by:'ひなた母',n:18},
+ {e:'👶',cat:'年齢別',t:'0歳クラスの持ち物、何を減らせましたか',d:'荷物が多すぎて毎朝しんどいです。省略できたものを知りたいです。',by:'れん母',n:9},
+ {e:'🎨',cat:'趣味',t:'保護者の手づくり、交換しませんか',d:'名前つけワッペンを作っています。交換してくださる方いますか。',by:'あおい母',n:6},
+ {e:'💡',cat:'保育アイディア',t:'雨の日の室内あそび、鉄板を教えてください',d:'現役保育士です。3歳児クラスで盛り上がった遊びを共有しませんか。',by:'保育士K',n:38},
+ {e:'💡',cat:'保育アイディア',t:'午睡がうまくいく声かけ',d:'寝かしつけに時間がかかる子への声かけ、みなさんどうしていますか。',by:'保育士M',n:29},
+ {e:'🥦',cat:'食育',t:'園の給食の味つけを家でも再現したい',d:'園ではよく食べるのに家では食べません。レシピを共有しあいませんか。',by:'かえで母',n:15}
+];
+var waConn={sub:'event',kind:'',theme:'',age:'',cat:''};
+function connectHTML(c){
+  var s=waConn,isEv=(s.sub==='event');
+  var head='<h2 class="sec sec-c">🤝 つながる</h2>'
+    +'<div class="card petal-c"><div class="fchips" style="margin-bottom:2px;">'
+      +'<button class="chip'+(isEv?' on':'')+'" data-cs="event">イベント</button>'
+      +'<button class="chip'+(!isEv?' on':'')+'" data-cs="community">コミュニティ</button></div>';
+  function chips(name,vals,cur){
+    return '<div class="fchips">'
+      +'<button class="chip'+(cur===''?' on':'')+'" data-cf="'+name+'" data-v="">すべて</button>'
+      +vals.map(function(v){return '<button class="chip'+(cur===v?' on':'')+'" data-cf="'+name+'" data-v="'+esc(v)+'">'+esc(v)+'</button>';}).join('')+'</div>';
+  }
+  if(isEv){
+    var list=WA_EVENTS.filter(function(x){
+      if(s.kind&&x.k!==s.kind)return false;
+      if(s.theme&&x.th!==s.theme)return false;
+      if(s.age&&x.ages.indexOf(s.age)<0)return false;
+      return true;});
+    return head
+      +'<div class="flabel">種別</div>'+chips('kind',WA_EV_KINDS,s.kind)
+      +'<div class="flabel">テーマ</div>'+chips('theme',WA_EV_THEMES,s.theme)
+      +'<div class="flabel">年齢</div>'+chips('age',WA_AGES,s.age)
+      +'</div><div class="fcount">'+list.length+'件</div>'
+      +(list.length?list.map(function(x){
+        return '<div class="card petal-c">'
+          +'<div style="display:flex;gap:12px;align-items:flex-start;">'
+            +'<div style="font-size:26px;flex-shrink:0;">'+esc(x.e)+'</div>'
+            +'<div style="min-width:0;flex:1;"><div style="font-weight:700;font-size:14.5px;">'+esc(x.t)+'</div>'
+              +'<div class="muted" style="margin-top:5px;">'+esc(x.d)+'</div>'
+              +'<div class="evmeta"><span>📅 '+esc(fmtDate?fmtDate(x.date):x.date)+'</span><span>📍 '+esc(x.place)+'</span><span>🎫 '+esc(x.fee)+'</span></div>'
+              +'<div class="ftags"><span class="ftag">'+esc(x.k)+'</span>'+(x.th?'<span class="ftag">'+esc(x.th)+'</span>':'')
+                +x.ages.slice(0,2).map(function(a){return '<span class="ftag age">'+esc(a)+'</span>';}).join('')+'</div>'
+            +'</div></div>'
+          +'<button class="btn" style="margin-top:12px;" data-ev="'+esc(x.t)+'">くわしく見る・申し込む</button></div>';}).join('')
+        :bloomEmpty('条件に合うイベントはありません'));
+  }
+  var cl=WA_COMMUNITY.filter(function(x){return !s.cat||x.cat===s.cat;});
+  return head
+    +'<div class="flabel">カテゴリ</div>'+chips('cat',WA_COM_CATS,s.cat)
+    +'</div><div class="fcount">'+cl.length+'件</div>'
+    +(cl.length?cl.map(function(x){
+      return '<div class="card petal-c" style="display:flex;gap:12px;align-items:flex-start;">'
+        +'<div style="font-size:24px;flex-shrink:0;">'+esc(x.e)+'</div>'
+        +'<div style="min-width:0;"><div style="font-weight:700;font-size:14.5px;">'+esc(x.t)+'</div>'
+        +'<div class="muted" style="margin-top:5px;">'+esc(x.d)+'</div>'
+        +'<div class="ftags"><span class="ftag">'+esc(x.cat)+'</span><span class="ftag age">'+esc(x.by)+'</span>'
+          +'<span class="ftag age">💬 '+x.n+'</span></div></div></div>';}).join('')
+      :bloomEmpty('この カテゴリの投稿はまだありません'));
+}
+function wireConnect(c){
+  var sc=document.getElementById('scroll');
+  sc.querySelectorAll('[data-cs]').forEach(function(b){b.onclick=function(){
+    waConn.sub=b.getAttribute('data-cs');sc.innerHTML=connectHTML(c);wireConnect(c);};});
+  sc.querySelectorAll('[data-cf]').forEach(function(b){b.onclick=function(){
+    waConn[b.getAttribute('data-cf')]=b.getAttribute('data-v');sc.innerHTML=connectHTML(c);wireConnect(c);};});
+  sc.querySelectorAll('[data-ev]').forEach(function(b){b.onclick=function(){
+    alert('「'+b.getAttribute('data-ev')+'」\n\nお申し込みの受付は次のフェーズで対応します。');};});
+}
+
 /* ---------- PORTAL ----------
    ロゴの5枚の花びらを、そのまま画面の構造にしている。
    タブ＝花びら。中心（ホーム）に子どもがいて、5つの支えが囲む、という形をなぞる。 */
@@ -605,7 +779,7 @@ var PETALS=[
   {t:'play',  c:'var(--o)', a:-18,  e:'🎨', l:'あそぶ'},
   {t:'learn', c:'var(--g)', a:54,   e:'🌱', l:'まなぶ'},
   {t:'store', c:'var(--p)', a:126,  e:'🛍️', l:'ストア'},
-  {t:'me',    c:'var(--c)', a:198,  e:'👤', l:'マイページ'}
+  {t:'connect',c:'var(--c)',a:198,  e:'🤝', l:'つながる'}
 ];
 /* 園とつながっているか。つながっていなければ「スクール」の花びらは休眠する */
 function waLinked(){return !!sessionChild();}
@@ -636,9 +810,9 @@ function portalHTML(c){
   var linked=!!c;
   return '<div class="topbar">'
     +'<button class="bloom" id="bloomBtn" aria-label="'+(linked?'スクールへ':'マイページへ')+'">'+bloomSVG(tab)+'</button>'
-    +'<div class="who">'
-      +(linked?'<div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+'</div>'
-              :'<div class="p">未来WA</div><div class="n">園とつながっていません</div>')+'</div>'
+    +'<button class="who whobtn" id="meBtn" aria-label="マイページをひらく">'
+      +(linked?'<div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+' <span class="whoarrow">›</span></div>'
+              :'<div class="p">未来WA</div><div class="n">園とつながっていません <span class="whoarrow">›</span></div>')+'</button>'
     +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
     +'<button class="out" id="logout">'+(linked?'ログアウト':'ログイン')+'</button>'
     +'</div>'
@@ -663,8 +837,10 @@ function bloomEmpty(msg){
 
 function wirePortal(c){
   document.getElementById('logout').onclick=logout;
+  var mb=document.getElementById('meBtn');
+  if(mb)mb.onclick=function(){tab='me';render();};
   var bb=document.getElementById('bloomBtn');
-  if(bb)bb.onclick=function(){tab=c?'school':'me';render();};
+  if(bb)bb.onclick=function(){tab=c?'school':'store';render();};
   document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.getAttribute('data-tab');render();};});
   var sc=document.getElementById('scroll'),linked=!!c;
   if(tab==='school'){
@@ -676,12 +852,14 @@ function wirePortal(c){
   else if(tab==='play') sc.innerHTML=feedHTML('play');
   else if(tab==='learn') sc.innerHTML=(linked?growthHTML(c):'')+feedHTML('learn');
   else if(tab==='store') sc.innerHTML=storeHTML(c);
+  else if(tab==='connect') sc.innerHTML=connectHTML(c);
   else if(tab==='me') sc.innerHTML=meHTML(c);
   wireCommon(c);
   if(tab==='school'){wireAtt(c);wireDM(c);}
   if(tab==='play') wireFeed('play');
   if(tab==='learn') wireFeed('learn');
   if(tab==='store') wireStore(c);
+  if(tab==='connect') wireConnect(c);
   if(tab==='me') wireMe(c);
 }
 
