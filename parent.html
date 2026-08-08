@@ -156,6 +156,41 @@
   .tabbar button.t-growth.on{color:var(--g);} .tabbar button.t-bill.on{color:var(--b);}
   .tabbar button.t-dm.on{color:var(--c);} .tabbar button.t-news.on{color:var(--p);}
   @media (prefers-reduced-motion:reduce){.bloom .pt,.tabbar button .e,.tabbar button::after{transition:none;}}
+  .bloom .pt.dormant{opacity:.5;}
+
+  /* ===== PC版 =====
+     スマホは下のタブバー、PCは左に花びらのナビ。同じ構造を画面幅で切り替える。 */
+  .shell{flex:1;display:flex;min-height:0;}
+  .sidenav{display:none;}
+  @media(min-width:860px){
+    body{background:linear-gradient(160deg,#FFF7EF,#FDEFF4 60%,#EFF7FD);}
+    .phone{max-width:1180px;min-height:100vh;box-shadow:none;background:transparent;padding:0 24px;}
+    .topbar{border-radius:0 0 20px 20px;margin-bottom:20px;padding:15px 22px;}
+    .topbar .walogo{height:34px;order:-1;margin-right:4px;}
+    .shell{gap:22px;align-items:flex-start;}
+    .sidenav{display:flex;flex-direction:column;gap:6px;width:212px;flex-shrink:0;position:sticky;top:92px;
+      background:var(--card);border-radius:20px;padding:12px;box-shadow:var(--shadow);}
+    .sidenav .sn{display:flex;align-items:center;gap:12px;background:none;border:none;text-align:left;
+      padding:12px 14px;border-radius:14px;font-size:14px;font-weight:700;color:var(--tx2);cursor:pointer;min-height:48px;
+      transition:background .16s,color .16s;}
+    .sidenav .sn .e{font-size:20px;line-height:1;}
+    .sidenav .sn:hover{background:var(--line2);}
+    .sidenav .sn.on{color:#fff;}
+    .sidenav .sn.t-school.on{background:var(--b);} .sidenav .sn.t-play.on{background:var(--o);}
+    .sidenav .sn.t-learn.on{background:var(--g);}  .sidenav .sn.t-store.on{background:var(--p);}
+    .sidenav .sn.t-me.on{background:var(--c);}
+    .sidenav .sn.dis{color:var(--tx3);border:1.5px dashed var(--line);}
+    .scroll{padding:0 0 60px;max-width:820px;}
+    /* PCで押しっぱなしの帯にならないよう、操作ボタンは内容に合わせる */
+    .scroll .btn{width:auto;min-width:200px;padding:12px 26px;}
+    .scroll .btn.sec{min-width:0;}
+    .tabbar{display:none;}
+    h2.sec{font-size:16px;margin-top:22px;}
+    .card{margin-bottom:16px;}
+  }
+  @media(min-width:1120px){
+    .scroll .card{max-width:none;}
+  }
 
   /* toast */
   .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;}
@@ -255,7 +290,8 @@ function login(email,pw){
   return false;
 }
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
-function logout(){sessionStorage.removeItem('cocoas_psession');render();}
+function logout(){
+  sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');render();}
 function resetDemo(){
   ['parentAccounts','absence_log'].forEach(function(k){localStorage.removeItem('cocoas_'+k);});
   Object.keys(localStorage).filter(function(k){return k.indexOf('cocoas_posts_seen_')===0;}).forEach(function(k){localStorage.removeItem(k);});
@@ -266,12 +302,15 @@ function resetDemo(){
 /* =========================================================================
    RENDER
    ========================================================================= */
-var tab='home', authView='login', resetEmail='';
+var tab='school', authView='login', resetEmail='';
 
+/* 園とつながっていなくても使える。未来WAは一般の保護者向けにも開いている */
+function isGuest(){return sessionStorage.getItem('cocoas_wa_guest')==='1';}
 function render(){
   var c=sessionChild();
-  document.getElementById('root').innerHTML = c ? portalHTML(c) : loginHTML();
-  if(c){wirePortal(c);} else {wireAuth();}
+  if(!c&&!isGuest()){document.getElementById('root').innerHTML=loginHTML();wireAuth();return;}
+  document.getElementById('root').innerHTML=portalHTML(c);
+  wirePortal(c);
 }
 
 /* ---------- LOGIN / PW flow ---------- */
@@ -286,6 +325,9 @@ function loginHTML(){
     +'<div class="field"><label>パスワード</label><input id="li_pw" type="text" placeholder="パスワード" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<button class="btn" id="li_go">ログイン</button>'
     +'<div style="text-align:center;margin-top:12px;"><button class="link" id="li_forgot">パスワードをお忘れですか？</button></div>'
+    +'<div class="divider">園とつながっていない方</div>'
+    +'<button class="btn sec" id="li_guest">まずは教材だけ見てみる</button>'
+    +'<div class="muted" style="text-align:center;margin-top:8px;font-size:11.5px;">あとからスクールコードでつながれます</div>'
     +'<div class="divider">テスト用アカウント（タップで自動入力）</div>'
     +'<div class="sample-fam">'+en.map(function(c){var acc=stGet('parentAccounts',{})[c.email]||{};return '<button class="fam-btn" data-fill="'+esc(c.email)+'|'+esc(acc.pw||'')+'"><div class="av">'+esc(childName(c).slice(0,1))+'</div><div style="flex:1;min-width:0;"><div class="nm">'+esc(c.child)+'（'+esc(c.klass)+'）</div><div class="em">'+esc(c.email)+'</div><div class="em" style="color:var(--teal);font-weight:700;">PW：'+esc(acc.pw||'')+'</div></div><span style="font-size:11px;color:var(--teal);font-weight:600;white-space:nowrap;">自動入力→</span></button>';}).join('')+'</div>'
     +'<div class="muted" style="text-align:center;margin-top:14px;line-height:1.7;">上のアカウントをタップ → メールとパスワードが入ります。「ログイン」を押すと実際のログインを体験できます。<br><button class="link" id="li_reset" style="margin-top:6px;">テスト用アカウントを作り直す</button></div>'
@@ -311,6 +353,8 @@ function newpwHTML(){
     +'</div>';
 }
 function wireAuth(){
+  var gb=document.getElementById('li_guest');
+  if(gb)gb.onclick=waEnterGuest;
   var $=function(id){return document.getElementById(id);};
   if(authView==='login'){
     $('li_go').onclick=function(){
@@ -338,25 +382,220 @@ function wireAuth(){
   }
 }
 
+/* ---------- 教材ストア（EC） ----------
+   未来WAの収益の柱。園とつながっている家庭には「先生が選んだ」文脈がつき、
+   購入の一部が園に還元される。つながっていない家庭でも買える（一般のECとして成立させる）。 */
+function yen(n){return '¥'+Math.round(n||0).toLocaleString('ja-JP');}
+function nowStr(){var d=new Date(),z=function(n){return (n<10?'0':'')+n;};
+  return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}
+function waProducts(){
+  var d=stGet('wa_products',null);
+  if(d&&d.length)return d;
+  d=[
+    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',cat:'教材',sub:true,aim:'かず・かたち',rec:true},
+    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',cat:'教材',sub:true,aim:'ことば',rec:false},
+    {id:3,name:'リズムあそび 音源＋絵本',desc:'からだを動かしながら音を楽しむ',price:1800,emoji:'🎵',cat:'教材',sub:true,aim:'おんがく',rec:false},
+    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',cat:'教材',sub:false,aim:'しぜん',rec:false},
+    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',cat:'用品',sub:false,aim:'',rec:false,schoolOnly:true},
+    {id:6,name:'サマーキャンプ 参加費',desc:'8/20-21 一泊二日',price:8000,emoji:'🏕️',cat:'行事',sub:false,aim:'',rec:false,schoolOnly:true}
+  ];
+  stSet('wa_products',d);return d;
+}
+function waOrders(){return stGet('wa_orders',[]);}
+function waKickRate(){var s=stGet('wa_settings',null);return (s&&s.rate)||0.20;}
+function waSchoolName(){try{return (stGet('settings',{})||{}).school||'COCOAS KIDS 大宮与野校';}catch(e){return 'COCOAS KIDS 大宮与野校';}}
+
+function storeHTML(c){
+  var ps=waProducts(),linked=!!c,rate=waKickRate();
+  if(!linked)ps=ps.filter(function(x){return !x.schoolOnly;});
+  ps=ps.slice().sort(function(a,b){return (b.rec?1:0)-(a.rec?1:0);});
+  var aim='';
+  if(linked){try{var posts=allPosts();if(posts.length&&posts[0].aim)aim=posts[0].aim;}catch(e){}}
+  return '<h2 class="sec sec-g">🛍️ ストア</h2>'
+    +(linked
+      ? '<div class="card petal-g"><div style="font-weight:700;font-size:14px;">先生が選んだものだけ</div>'
+        +'<div class="muted" style="margin-top:5px;">'+esc(waSchoolName())+'が、今月のねらいに合わせて選んでいます。'
+        +'お買いものの一部は園の運営に使われます。</div></div>'
+      : '<div class="card petal-c"><div style="font-weight:700;font-size:14px;">おうちで使える教材</div>'
+        +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
+        +'<button class="btn sec" id="wantLink" style="margin-top:11px;">園とつながる</button></div>')
+    +ps.map(function(x){
+      return '<div class="card" style="display:flex;gap:12px;align-items:center;">'
+        +'<div style="width:46px;height:46px;border-radius:14px;background:var(--line2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">'+esc(x.emoji)+'</div>'
+        +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">'+esc(x.name)
+          +(x.rec?' <span class="chip" style="background:var(--g);color:#fff;border:none;padding:2px 8px;font-size:10.5px;">おすすめ</span>':'')+'</div>'
+          +'<div class="muted">'+esc(x.desc)+(x.aim?' ・ '+esc(x.aim):'')+'</div></div>'
+        +'<div style="text-align:right;flex-shrink:0;"><div style="font-weight:800;font-size:14px;">'+yen(x.price)+'</div>'
+          +(x.sub?'<div class="muted" style="font-size:10.5px;">／月</div>':'')+'</div></div>'
+        +'<div style="margin:-8px 0 14px;"><button class="btn" data-buy="'+x.id+'">'+(x.sub?'この教材を続ける':'購入する')+'</button></div>';
+    }).join('')
+    +'<div id="waKick" style="display:none;" class="card petal-g"></div>';
+}
+function wireStore(c){
+  var wl=document.getElementById('wantLink');
+  if(wl)wl.onclick=function(){tab='me';render();};
+  document.querySelectorAll('[data-buy]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-buy'),p=waProducts().filter(function(x){return x.id===id;})[0];
+    if(!p)return;
+    var rate=waKickRate(),kb=c?Math.round(p.price*rate):0;
+    var a=waOrders();
+    a.push({id:Date.now(),at:nowStr(),childId:c?c.id:null,pid:p.id,name:p.name,amount:p.price,kickback:kb});
+    stSet('wa_orders',a);
+    var k=document.getElementById('waKick');
+    k.style.display='block';
+    k.innerHTML='<div style="font-weight:700;color:var(--g);">ご購入ありがとうございます</div>'
+      +'<div class="muted" style="margin-top:6px;">'+esc(p.name)+'　'+yen(p.price)+'</div>'
+      +(c?'<div style="margin-top:9px;font-size:13px;font-weight:700;color:var(--g);">この購入で '+esc(waSchoolName())+' に '+yen(kb)+' が還元されました。</div>'
+         :'<div class="muted" style="margin-top:9px;">園とつながっていると、購入の一部が園の運営に還元されます。</div>');
+    k.scrollIntoView({block:'nearest',behavior:'smooth'});
+  };});
+}
+
+/* ---------- あそぶ ---------- */
+var WA_PLAY={
+ 'かず・かたち':[['🔢','おうちの中で「まる」さがし','時計・お皿・ボタン。3つ見つけたら拍手。'],['🧦','くつしたのペアあわせ','洗濯物から同じ柄を2枚さがす。'],['🪜','かいだん かぞえ','のぼりながら10まで。声に出すのが大事。']],
+ 'ことば':[['📖','絵本のつづきを想像する','最後のページの前で「どうなると思う？」'],['🎤','しりとり さんぽ','歩きながら3つだけ。長くしないのがコツ。']],
+ 'おんがく':[['🥁','なべを たたく','リズムをまねっこ。だんだん速くすると盛り上がります。'],['🎶','うたに あわせて てびょうし','テンポを合わせる練習になります。']],
+ 'からだ':[['🦶','ケンケン 5歩','バランス感覚が育ちます。'],['🧘','うしろむき あるき','ゆっくり3歩から。']],
+ 'しぜん':[['🍃','はっぱの かたち くらべ','2枚ひろって、どこが違うか話す。'],['💧','こおりを さわる','とけていく様子を一緒に見ます。']]
+};
+function playHTML(c){
+  var aim='かず・かたち';
+  if(c){try{var ps=allPosts();if(ps.length&&ps[0].aim)aim=ps[0].aim;}catch(e){}}
+  var keys=Object.keys(WA_PLAY);
+  var list=WA_PLAY[aim]||WA_PLAY['かず・かたち'];
+  return '<h2 class="sec sec-o">🎨 あそぶ</h2>'
+    +'<div class="card petal-o"><div style="font-weight:700;font-size:14px;">'
+      +(c?'今週のねらい：'+esc(aim):'今日のテーマ：'+esc(aim))+'</div>'
+      +'<div class="muted" style="margin-top:5px;">'+(c?'園からの連絡に合わせて、おうちで5分からできることをお届けします。':'テーマを選ぶと、おうちでできる遊びが変わります。')+'</div>'
+      +'<div class="chipset" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:11px;">'
+      +keys.map(function(k){return '<button class="chip" data-aim="'+esc(k)+'"'+(k===aim?' style="background:var(--o);color:#fff;border-color:var(--o);"':'')+'>'+esc(k)+'</button>';}).join('')
+      +'</div></div>'
+    +list.map(function(x){return '<div class="card petal-o" style="display:flex;gap:12px;align-items:flex-start;">'
+      +'<div style="font-size:26px;flex-shrink:0;">'+esc(x[0])+'</div>'
+      +'<div><div style="font-weight:700;font-size:14.5px;">'+esc(x[1])+'</div>'
+      +'<div class="muted" style="margin-top:4px;">'+esc(x[2])+'</div></div></div>';}).join('');
+}
+function wirePlay(c){
+  document.querySelectorAll('[data-aim]').forEach(function(b){b.onclick=function(){
+    waPlayAim=b.getAttribute('data-aim');
+    document.getElementById('scroll').innerHTML=playHTML2(c);wirePlay(c);};});
+}
+var waPlayAim=null;
+function playHTML2(c){
+  var save=waPlayAim;
+  var html=playHTML(c);
+  if(save){
+    var list=WA_PLAY[save]||[];
+    html='<h2 class="sec sec-o">🎨 あそぶ</h2>'
+      +'<div class="card petal-o"><div style="font-weight:700;font-size:14px;">今日のテーマ：'+esc(save)+'</div>'
+      +'<div class="chipset" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:11px;">'
+      +Object.keys(WA_PLAY).map(function(k){return '<button class="chip" data-aim="'+esc(k)+'"'+(k===save?' style="background:var(--o);color:#fff;border-color:var(--o);"':'')+'>'+esc(k)+'</button>';}).join('')
+      +'</div></div>'
+      +list.map(function(x){return '<div class="card petal-o" style="display:flex;gap:12px;align-items:flex-start;">'
+        +'<div style="font-size:26px;flex-shrink:0;">'+esc(x[0])+'</div>'
+        +'<div><div style="font-weight:700;font-size:14.5px;">'+esc(x[1])+'</div>'
+        +'<div class="muted" style="margin-top:4px;">'+esc(x[2])+'</div></div></div>';}).join('');
+  }
+  return html;
+}
+
+/* 園とつながっていない家庭に見せる画面。ここが接続への入口になる */
+function linkHTML(){
+  return '<h2 class="sec sec-b">🏫 園とつながる</h2>'
+    +'<div class="card petal-b"><div style="font-weight:700;font-size:15px;">園からのスクールコードを入れてください</div>'
+    +'<div class="muted" style="margin-top:6px;line-height:1.7;">つながると、こんなことができます。</div>'
+    +'<div style="margin-top:12px;display:flex;flex-direction:column;gap:9px;">'
+    +[['📮','園からの毎日の連絡が届く'],['📅','欠席・遅刻をアプリから連絡できる'],['🌱','身長・体重の記録が見られる'],
+      ['💬','先生と直接やりとりできる'],['🛍️','先生が選んだ教材と、園指定の用品が買える']]
+      .map(function(x){return '<div style="display:flex;gap:10px;align-items:center;font-size:13.5px;">'
+        +'<span style="font-size:19px;">'+x[0]+'</span>'+esc(x[1])+'</div>';}).join('')
+    +'</div>'
+    +'<div class="field" style="margin-top:16px;"><label>スクールコード</label>'
+      +'<input id="scCode" placeholder="例：OMIYA-2026" autocapitalize="characters"></div>'
+    +'<div class="err" id="scErr"></div>'
+    +'<button class="btn" id="scGo">つながる</button>'
+    +'<div class="muted" style="margin-top:10px;font-size:11.5px;">デモ版では、ログイン画面からお子さまを選ぶとつながった状態になります。</div>'
+    +'</div>';
+}
+function wireLink(){
+  var g=document.getElementById('scGo');
+  if(g)g.onclick=function(){
+    var e=document.getElementById('scErr');
+    e.style.display='block';
+    e.textContent='デモ版では、いったんログアウトしてお子さまを選んでください。';
+  };
+}
+/* まなぶ：子育てのヒント（つながっていなくても読める） */
+function tipsHTML(){
+  var tips=[
+    ['「できた」を見つける','結果ではなく、やってみたことを言葉にすると、次の挑戦につながります。'],
+    ['朝のしたくは、順番を絵にする','言葉で急かすより、順番が見えるほうが子どもは動きやすくなります。'],
+    ['「どっちがいい？」で選ばせる','小さな選択の積み重ねが、自分で決める力になります。'],
+    ['寝る前の5分は、今日のいいことを話す','一日を肯定して終えると、翌朝の切り替えがうまくいきます。']
+  ];
+  return '<h2 class="sec sec-g">🌱 子育てのヒント</h2>'
+    +tips.map(function(t){return '<div class="card petal-g">'
+      +'<div style="font-weight:700;font-size:14.5px;">'+esc(t[0])+'</div>'
+      +'<div class="muted" style="margin-top:5px;">'+esc(t[1])+'</div></div>';}).join('');
+}
+/* マイページ：お子さま情報・請求・購入履歴 */
+function meHTML(c){
+  var os=waOrders().filter(function(o){return !c||o.childId===c.id;}).slice().reverse();
+  var h2='<h2 class="sec sec-c">👤 マイページ</h2>';
+  if(c){
+    h2+='<div class="card petal-c"><div style="font-weight:700;font-size:15px;">'+esc(c.child)+'</div>'
+      +'<div class="muted" style="margin-top:5px;">'+esc(c.klass)+'クラス ・ '+esc(waSchoolName())+'</div>'
+      +'<div class="muted" style="margin-top:4px;">つながっています 🌸</div></div>';
+  }else{
+    h2+='<div class="card petal-c"><div style="font-weight:700;font-size:15px;">園とつながっていません</div>'
+      +'<div class="muted" style="margin-top:5px;">スクールコードを入れると、園からの連絡や先生が選んだ教材が使えます。</div>'
+      +'<button class="btn sec" id="goLink" style="margin-top:11px;">園とつながる</button></div>';
+  }
+  h2+='<h2 class="sec sec-p">🧾 購入の履歴</h2>'
+    +(os.length?os.map(function(o){return '<div class="card" style="display:flex;gap:11px;align-items:center;">'
+      +'<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:13.5px;">'+esc(o.name)+'</div>'
+      +'<div class="muted">'+esc(o.at)+(o.kickback?' ・ 園へ '+yen(o.kickback)+' 還元':'')+'</div></div>'
+      +'<div style="font-weight:800;font-size:13.5px;">'+yen(o.amount)+'</div></div>';}).join('')
+     :bloomEmpty('まだ購入はありません'));
+  if(c)h2+=billHTML(c);
+  return h2;
+}
+function wireMe(c){
+  var g=document.getElementById('goLink');
+  if(g)g.onclick=function(){tab='school';render();};
+}
+
 /* ---------- PORTAL ----------
    ロゴの5枚の花びらを、そのまま画面の構造にしている。
    タブ＝花びら。中心（ホーム）に子どもがいて、5つの支えが囲む、という形をなぞる。 */
+/* 5つのタブ＝ロゴの5枚の花びら。園とつながると「スクール」が咲く。
+   つながっていない家庭でも、あそぶ・まなぶ・ストア・マイページは使える。 */
 var PETALS=[
-  {t:'att',   c:'var(--o)', a:-90},
-  {t:'growth',c:'var(--g)', a:-18},
-  {t:'bill',  c:'var(--b)', a:54},
-  {t:'dm',    c:'var(--c)', a:126},
-  {t:'news',  c:'var(--p)', a:198}
+  {t:'school',c:'var(--b)', a:-90,  e:'🏫', l:'スクール'},
+  {t:'play',  c:'var(--o)', a:-18,  e:'🎨', l:'あそぶ'},
+  {t:'learn', c:'var(--g)', a:54,   e:'🌱', l:'まなぶ'},
+  {t:'store', c:'var(--p)', a:126,  e:'🛍️', l:'ストア'},
+  {t:'me',    c:'var(--c)', a:198,  e:'👤', l:'マイページ'}
 ];
+/* 園とつながっているか。つながっていなければ「スクール」の花びらは休眠する */
+function waLinked(){return !!sessionChild();}
+function waEnterGuest(){sessionStorage.setItem('cocoas_wa_guest','1');tab='store';render();}
 /* いまどの花びらにいるかを示す花。押すとホームへ戻る */
 function bloomSVG(active,size){
   var s=size||52;
+  var linked=waLinked();
   var petals=PETALS.map(function(p){
-    var on=(p.t===active||active==='home');
+    /* 園とつながっていないと、スクールの花びらは咲かない（輪郭だけ残る） */
+    if(p.t==='school'&&!linked){
+      return '<ellipse class="pt dormant" cx="0" cy="-13" rx="7.6" ry="10.4" fill="none"'
+        +' stroke="'+p.c+'" stroke-width="1.3" stroke-dasharray="3 2.4" transform="rotate('+p.a+')"/>';
+    }
+    var on=(p.t===active);
     return '<ellipse class="pt'+(on?' on':'')+'" cx="0" cy="-13" rx="7.6" ry="10.4" fill="'+p.c+'"'
       +' transform="rotate('+p.a+')"/>';
   }).join('');
-  var core=(active==='home')?7.2:5.4;
+  var core=linked?6.6:5.2;
   return '<svg viewBox="-24 -24 48 48" width="'+s+'" height="'+s+'" aria-hidden="true">'
     +'<g>'+petals+'</g>'
     +'<circle class="core" r="'+core+'" fill="#fff" stroke="var(--line)" stroke-width="1"/>'
@@ -365,20 +604,27 @@ function bloomSVG(active,size){
     +'</svg>';
 }
 function portalHTML(c){
+  var linked=!!c;
   return '<div class="topbar">'
-    +'<button class="bloom" id="bloomBtn" aria-label="ホームへ">'+bloomSVG(tab)+'</button>'
-    +'<div class="who"><div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+'</div></div>'
+    +'<button class="bloom" id="bloomBtn" aria-label="'+(linked?'スクールへ':'マイページへ')+'">'+bloomSVG(tab)+'</button>'
+    +'<div class="who">'
+      +(linked?'<div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+'</div>'
+              :'<div class="p">未来WA</div><div class="n">園とつながっていません</div>')+'</div>'
     +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
-    +'<button class="out" id="logout">ログアウト</button></div>'
-    +'<div class="scroll" id="scroll"></div>'
-    +'<div class="tabbar">'
-    + tabBtn('home','🌸','ホーム')
-    + tabBtn('att','📅','出欠連絡')
-    + tabBtn('growth','🌱','せいちょう')
-    + tabBtn('bill','💴','請求')
-    + tabBtn('dm','💬','メッセージ')
-    + tabBtn('news','📢','おしらせ')
-    +'</div>';
+    +'<button class="out" id="logout">'+(linked?'ログアウト':'ログイン')+'</button>'
+    +'</div>'
+    /* PC では左に花びらのナビを出し、スマホでは下のタブバーになる */
+    +'<div class="shell">'
+      +'<nav class="sidenav">'+PETALS.map(function(p){
+        var dis=(p.t==='school'&&!linked);
+        return '<button data-tab="'+p.t+'" class="sn t-'+p.t+(tab===p.t?' on':'')+(dis?' dis':'')+'">'
+          +'<span class="e">'+p.e+'</span><span class="l">'+esc(dis?'園とつながる':p.l)+'</span></button>';}).join('')
+      +'</nav>'
+      +'<div class="scroll" id="scroll"></div>'
+    +'</div>'
+    +'<div class="tabbar">'+PETALS.map(function(p){
+      var dis=(p.t==='school'&&!linked);
+      return tabBtn(p.t,p.e,dis?'つながる':p.l);}).join('')+'</div>';
 }
 function tabBtn(id,e,l){return '<button data-tab="'+id+'" class="t-'+id+(tab===id?' on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
 /* 中身が無いときも、無機質な文字だけにしない */
@@ -389,18 +635,22 @@ function bloomEmpty(msg){
 function wirePortal(c){
   document.getElementById('logout').onclick=logout;
   var bb=document.getElementById('bloomBtn');
-  if(bb)bb.onclick=function(){tab='home';render();};
+  if(bb)bb.onclick=function(){tab=c?'school':'me';render();};
   document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.getAttribute('data-tab');render();};});
-  var sc=document.getElementById('scroll');
-  if(tab==='home') sc.innerHTML=homeHTML(c);
-  else if(tab==='att') sc.innerHTML=attHTML(c);
-  else if(tab==='growth') sc.innerHTML=growthHTML(c);
-  else if(tab==='bill') sc.innerHTML=billHTML(c);
-  else if(tab==='dm') sc.innerHTML=dmHTML(c);
-  else if(tab==='news') sc.innerHTML=newsHTML(c);
+  var sc=document.getElementById('scroll'),linked=!!c;
+  if(tab==='school'){
+    if(!linked){sc.innerHTML=linkHTML();wireLink();return;}
+    sc.innerHTML=homeHTML(c)+attHTML(c)+dmHTML(c)+newsHTML(c);
+  }
+  else if(tab==='play') sc.innerHTML=playHTML2(c);
+  else if(tab==='learn') sc.innerHTML=(linked?growthHTML(c):'')+tipsHTML();
+  else if(tab==='store') sc.innerHTML=storeHTML(c);
+  else if(tab==='me') sc.innerHTML=meHTML(c);
   wireCommon(c);
-  if(tab==='att') wireAtt(c);
-  if(tab==='dm') wireDM(c);
+  if(tab==='school'){wireAtt(c);wireDM(c);}
+  if(tab==='play') wirePlay(c);
+  if(tab==='store') wireStore(c);
+  if(tab==='me') wireMe(c);
 }
 
 /* ---- shared bits ---- */
