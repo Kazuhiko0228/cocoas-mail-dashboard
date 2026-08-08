@@ -419,10 +419,20 @@ function waOrders(){return stGet('wa_orders',[]);}
 function waKickRate(){var s=stGet('wa_settings',null);return (s&&s.rate)||0.20;}
 function waSchoolName(){try{return (stGet('settings',{})||{}).school||'COCOAS KIDS 大宮与野校';}catch(e){return 'COCOAS KIDS 大宮与野校';}}
 
+var WA_STORE_CATS=['教材','絵本','知育玩具','制服','クラフト材料','食育用品','ハンドメイド','ダウンロード教材','イベント用品','中古・レンタル'];
+var waStoreCat='';
 function storeHTML(c){
   var ps=waProducts(),linked=!!c,rate=waKickRate();
   if(!linked)ps=ps.filter(function(x){return !x.schoolOnly;});
+  var all=ps.slice();
+  if(waStoreCat)ps=ps.filter(function(x){return x.cat===waStoreCat;});
   ps=ps.slice().sort(function(a,b){return (b.rec?1:0)-(a.rec?1:0);});
+  var catRow='<div class="flabel">カテゴリ</div><div class="fchips">'
+    +'<button class="chip'+(waStoreCat===''?' on':'')+'" data-sc="">すべて</button>'
+    +WA_STORE_CATS.map(function(k){
+      var n=all.filter(function(x){return x.cat===k;}).length;
+      return '<button class="chip'+(waStoreCat===k?' on':'')+'" data-sc="'+esc(k)+'">'+esc(k)+(n?' '+n:'')+'</button>';}).join('')
+    +'</div>';
   var aim='';
   if(linked){try{var posts=allPosts();if(posts.length&&posts[0].aim)aim=posts[0].aim;}catch(e){}}
   return '<h2 class="sec sec-g">🛍️ ストア</h2>'
@@ -433,6 +443,9 @@ function storeHTML(c){
       : '<div class="card petal-c"><div style="font-weight:700;font-size:14px;">おうちで使える教材</div>'
         +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
         +'<button class="btn sec" id="wantLink" style="margin-top:11px;">園とつながる</button></div>')
+    +'<div class="card petal-p">'+catRow+'</div>'
+    +'<div class="fcount">'+ps.length+'件</div>'
+    +(ps.length?'':bloomEmpty('このカテゴリの商品はまだありません'))
     +ps.map(function(x){
       return '<div class="card" style="display:flex;gap:12px;align-items:center;">'
         +'<div style="width:46px;height:46px;border-radius:14px;background:var(--line2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">'+esc(x.emoji)+'</div>'
@@ -448,6 +461,10 @@ function storeHTML(c){
 function wireStore(c){
   var wl=document.getElementById('wantLink');
   if(wl)wl.onclick=function(){tab='me';render();};
+  document.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){
+    waStoreCat=b.getAttribute('data-sc');
+    var sc=document.getElementById('scroll');
+    sc.innerHTML=storeHTML(c);wireStore(c);};});
   document.querySelectorAll('[data-buy]').forEach(function(b){b.onclick=function(){
     var id=+b.getAttribute('data-buy'),p=waProducts().filter(function(x){return x.id===id;})[0];
     if(!p)return;

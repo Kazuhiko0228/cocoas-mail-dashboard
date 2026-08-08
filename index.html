@@ -258,6 +258,7 @@
       <a data-go="dm">{ic:mail}保護者DM<span class="badge" id="navDM" style="background:#E24B4A;"></span></a>
       <a data-go="trial">{ic:clipboard}体験結果報告</a>
       <a data-go="deliveries">{ic:cal}配信カレンダー</a>
+      <a data-go="wastore">{ic:yen}未来WA ストア管理</a>
       <div class="nav-label">記録・書類</div>
       <a data-go="records">{ic:activity}日常チェック（毎日）</a>
       <a data-go="carerec">{ic:report}保育記録</a>
@@ -293,6 +294,7 @@
     </div>
     <div class="content">
       <section data-page="home"></section>
+  <section data-page="wastore" hidden></section>
   <section data-page="dashboard"></section>
       <section data-page="compose" hidden></section>
       <section data-page="broadcast" hidden></section>
@@ -973,7 +975,7 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={home:['ホーム','EduGrow ホーム'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
@@ -981,7 +983,7 @@ function go(page){
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
-  ({home:renderHome,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- ホーム（アプリ一覧） ----------
@@ -994,7 +996,8 @@ var HOME_GROUPS=[
     {p:'broadcast',i:'cast',l:'全体配信',c:'#0C447C',bg:'#E6F1FB'},
     {p:'carerec',i:'report',l:'保育記録',c:'#854F0B',bg:'#FAEEDA'},
     {p:'dashboard',i:'home',l:'ダッシュボード',c:'#3C3489',bg:'#EEEDFE'},
-    {p:'audit',i:'audit',l:'監査対応',c:'#A32D2D',bg:'#FCEBEB'}
+    {p:'audit',i:'audit',l:'監査対応',c:'#A32D2D',bg:'#FCEBEB'},
+    {p:'wastore',i:'yen',l:'未来WA ストア',c:'#A8560F',bg:'#FDEDE2'}
   ]},
   {t:'記録・書類',items:[
     {p:'curriculum',i:'book',l:'月間カリキュラム',c:'#27500A',bg:'#EAF3DE'},
@@ -1077,6 +1080,118 @@ function renderHome(){
   });
   s.innerHTML=html;
   s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-tile'));};});
+}
+
+/* ---------- 未来WA ストア管理 ----------
+   保護者アプリ「未来WA」に並ぶ商品を園が決める画面。
+   売れると売上の一部が園に還元されるので、その集計もここで見る。
+   データは未来WAと同じ場所に置いているため、登録するとすぐ保護者側に出る。 */
+var WA_CATS=['教材','絵本','知育玩具','制服','クラフト材料','食育用品','ハンドメイド','ダウンロード教材','イベント用品','中古・レンタル'];
+var WA_AIMS=['かず・かたち','ことば','おんがく','からだ','しぜん'];
+function waProd(){
+  var d=stGet('wa_products',null);
+  if(d&&d.length)return d;
+  d=[
+    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',cat:'教材',sub:true,aim:'かず・かたち',rec:true},
+    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',cat:'教材',sub:true,aim:'ことば',rec:false},
+    {id:3,name:'リズムあそび 音源＋絵本',desc:'からだを動かしながら音を楽しむ',price:1800,emoji:'🎵',cat:'絵本',sub:true,aim:'おんがく',rec:false},
+    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',cat:'知育玩具',sub:false,aim:'しぜん',rec:false},
+    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',cat:'制服',sub:false,aim:'',rec:false,schoolOnly:true},
+    {id:6,name:'サマーキャンプ 参加費',desc:'8/20-21 一泊二日',price:8000,emoji:'🏕️',cat:'イベント用品',sub:false,aim:'',rec:false,schoolOnly:true}
+  ];
+  stSet('wa_products',d);return d;
+}
+function waOrd(){return stGet('wa_orders',[]);}
+function waRate(){var s=stGet('wa_settings',null);return (s&&s.rate!=null)?s.rate:0.20;}
+function waSetRate(r){var s=stGet('wa_settings',{})||{};s.rate=r;stSet('wa_settings',s);}
+function waMonth(){return todayISO().slice(0,7);}
+var waTab2='items';
+function renderWaStore(){
+  var s=$('section[data-page="wastore"]'),rate=waRate(),mk=waMonth();
+  var os=waOrd().filter(function(o){return String(o.at||'').slice(0,7)===mk;});
+  var gmv=0,kb=0;os.forEach(function(o){gmv+=(+o.amount||0);kb+=(+o.kickback||0);});
+  var fee=8800;
+  s.innerHTML='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+    +'<div class="chips" style="margin:0;flex:1;">'
+      +'<span class="chip'+(waTab2==='items'?' on':'')+'" data-wt="items">商品の管理</span>'
+      +'<span class="chip'+(waTab2==='sales'?' on':'')+'" data-wt="sales">売上と還元</span></div>'
+    +'<span class="muted" style="font-size:12px;">ここで登録すると、保護者アプリ「未来WA」にすぐ表示されます</span></div>';
+  if(waTab2==='sales'){
+    var net=fee-kb;
+    s.innerHTML+='<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">'
+      +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">未来WAの流通額（'+esc(mk)+'）</div>'
+        +'<div style="font-size:26px;font-weight:800;margin-top:4px;">'+yen(gmv)+'</div><div class="muted" style="font-size:12px;">'+os.length+'件</div></div>'
+      +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">園への還元（'+Math.round(rate*100)+'%）</div>'
+        +'<div style="font-size:26px;font-weight:800;margin-top:4px;color:#27500A;">'+yen(kb)+'</div><div class="muted" style="font-size:12px;">EduGrow利用料 '+yen(fee)+'</div></div>'
+      +'<div class="card" style="margin:0;border-color:'+(net<=0?'#639922':'var(--line)')+';"><div class="muted" style="font-size:12px;font-weight:700;">園の実質負担</div>'
+        +'<div style="font-size:26px;font-weight:800;margin-top:4px;color:'+(net<=0?'#27500A':'#A32D2D')+';">'+(net<=0?'＋'+yen(-net):yen(net))+'</div>'
+        +'<div class="muted" style="font-size:12px;">'+(net<=0?'還元が利用料を上回っています':'あと '+yen(net)+' で相殺')+'</div></div></div>'
+      +'<div class="card"><h3>'+ic('yen')+'注文の明細（'+esc(mk)+'）</h3><div class="scrollx"><table><thead><tr>'
+        +'<th>日時</th><th>園児</th><th>商品</th><th style="text-align:right;">金額</th><th style="text-align:right;">還元</th></tr></thead><tbody>'
+      +(os.length?os.slice().reverse().map(function(o){
+          var c=DB.contacts.filter(function(x){return String(x.id)===String(o.childId);})[0];
+          return '<tr><td class="row-sub">'+esc(o.at||'')+'</td><td>'+esc(c?childFullName(c):'（園外）')+'</td>'
+            +'<td>'+esc(o.name||'')+'</td><td style="text-align:right;">'+yen(o.amount)+'</td>'
+            +'<td style="text-align:right;color:#27500A;font-weight:700;">'+yen(o.kickback)+'</td></tr>';}).join('')
+        :'<tr><td colspan="5" class="empty">今月の注文はまだありません。未来WAのストアで購入されると、ここに入ります。</td></tr>')
+      +'</tbody></table></div>'
+      +'<div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;">'
+        +'<span style="font-size:13px;font-weight:600;">園への還元率</span>'
+        +'<input id="waRate" type="number" min="0" max="50" step="1" value="'+Math.round(rate*100)+'" style="width:90px;">'
+        +'<span class="muted" style="font-size:12.5px;">%　商品の粗利から決めます。保護者にも「園の運営に使われます」と表示されます。</span>'
+        +'<button class="btn btn-sm btn-primary" id="waRateSave">保存</button><span class="muted" id="waRateMsg"></span></div></div>';
+    $('#waRateSave').onclick=function(){
+      waSetRate((parseFloat($('#waRate').value)||0)/100);
+      $('#waRateMsg').textContent='保存しました';renderWaStore();};
+  }else{
+    var ps=waProd();
+    s.innerHTML+='<div class="card"><h3>'+ic('folder')+'商品（'+ps.length+'点）</h3>'
+      +'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">「今月のおすすめ」にすると、未来WAのストアで先頭に出ます。'
+      +'「園の家庭だけ」は、園とつながっている保護者にしか表示しません（制服・行事費など）。</div>'
+      +'<div class="scrollx"><table><thead><tr><th style="width:34px;"></th><th>商品名</th><th style="width:120px;">分類</th>'
+      +'<th style="width:120px;">ねらい</th><th style="width:100px;">価格</th><th style="width:74px;">毎月</th>'
+      +'<th style="width:88px;">園の家庭だけ</th><th style="width:96px;">おすすめ</th><th style="width:56px;"></th></tr></thead><tbody>'
+      +ps.map(function(x){
+        return '<tr><td style="font-size:19px;text-align:center;">'+esc(x.emoji||'📦')+'</td>'
+          +'<td><input data-wp="'+x.id+'" data-k="name" value="'+esc(x.name)+'" style="font-weight:600;">'
+            +'<input data-wp="'+x.id+'" data-k="desc" value="'+esc(x.desc||'')+'" style="margin-top:4px;font-size:12px;color:var(--tx2);"></td>'
+          +'<td><select data-wp="'+x.id+'" data-k="cat">'+WA_CATS.map(function(cc){return '<option'+(cc===x.cat?' selected':'')+'>'+esc(cc)+'</option>';}).join('')+'</select></td>'
+          +'<td><select data-wp="'+x.id+'" data-k="aim"><option value="">—</option>'+WA_AIMS.map(function(a){return '<option'+(a===x.aim?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select></td>'
+          +'<td><input data-wp="'+x.id+'" data-k="price" type="number" value="'+(+x.price||0)+'" style="width:92px;"></td>'
+          +'<td style="text-align:center;"><input data-wp="'+x.id+'" data-k="sub" type="checkbox"'+(x.sub?' checked':'')+' style="width:auto;"></td>'
+          +'<td style="text-align:center;"><input data-wp="'+x.id+'" data-k="schoolOnly" type="checkbox"'+(x.schoolOnly?' checked':'')+' style="width:auto;"></td>'
+          +'<td style="text-align:center;"><button class="btn btn-sm'+(x.rec?' btn-primary':'')+'" data-wrec="'+x.id+'">'+(x.rec?'おすすめ中':'—')+'</button></td>'
+          +'<td style="text-align:right;"><button class="btn btn-sm btn-ghost" data-wdel="'+x.id+'">'+ic('trash')+'</button></td></tr>';}).join('')
+      +'</tbody></table></div>'
+      +'<div style="display:flex;gap:9px;margin-top:14px;flex-wrap:wrap;align-items:center;">'
+        +'<input id="wnEmoji" value="📦" style="width:56px;text-align:center;">'
+        +'<input id="wnName" placeholder="商品名" style="width:220px;">'
+        +'<select id="wnCat">'+WA_CATS.map(function(cc){return '<option>'+esc(cc)+'</option>';}).join('')+'</select>'
+        +'<input id="wnPrice" type="number" placeholder="価格" style="width:100px;">'
+        +'<label style="font-size:12.5px;display:flex;gap:5px;align-items:center;"><input id="wnSub" type="checkbox" style="width:auto;">毎月おとどけ</label>'
+        +'<button class="btn btn-primary" id="wnAdd">'+ic('plus')+'追加する</button></div></div>';
+    function save(list){stSet('wa_products',list);}
+    s.querySelectorAll('[data-wp]').forEach(function(el2){
+      el2.onchange=function(){
+        var id=+el2.getAttribute('data-wp'),k=el2.getAttribute('data-k'),ps2=waProd();
+        ps2.forEach(function(x){if(x.id!==id)return;
+          x[k]=(el2.type==='checkbox')?el2.checked:(k==='price'?(parseInt(el2.value,10)||0):el2.value);});
+        save(ps2);};});
+    s.querySelectorAll('[data-wrec]').forEach(function(b){b.onclick=function(){
+      var id=+b.getAttribute('data-wrec'),ps2=waProd();
+      ps2.forEach(function(x){if(x.id===id)x.rec=!x.rec;});save(ps2);renderWaStore();};});
+    s.querySelectorAll('[data-wdel]').forEach(function(b){b.onclick=function(){
+      if(!confirm('この商品を未来WAのストアから外します。よろしいですか？'))return;
+      var id=+b.getAttribute('data-wdel');
+      save(waProd().filter(function(x){return x.id!==id;}));renderWaStore();};});
+    $('#wnAdd').onclick=function(){
+      var n=$('#wnName').value.trim();if(!n){alert('商品名を入力してください');return;}
+      var ps2=waProd();
+      ps2.push({id:Date.now(),name:n,desc:'',price:parseInt($('#wnPrice').value,10)||0,
+        emoji:$('#wnEmoji').value||'📦',cat:$('#wnCat').value,sub:$('#wnSub').checked,aim:'',rec:false});
+      save(ps2);renderWaStore();};
+  }
+  s.querySelectorAll('[data-wt]').forEach(function(b){b.onclick=function(){waTab2=b.getAttribute('data-wt');renderWaStore();};});
 }
 
 /* ---------- dashboard ---------- */
@@ -4020,7 +4135,7 @@ function initSyncBar(){
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
-  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
+  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'wastore',label:'未来WA ストア管理'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
@@ -4034,7 +4149,7 @@ var DEFAULT_PERMS={
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
   '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','shift','contacts','curriculum']
 };
-var PERMS_VERSION=7;
+var PERMS_VERSION=8;
 function staffAccountsSeed(){return [
   {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin',staffId:null},
   {id:2,loginId:'shiraga',name:'白神 美咲',role:'マネージャー',pw:'shiraga',staffId:101},
