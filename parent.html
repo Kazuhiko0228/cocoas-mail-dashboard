@@ -193,6 +193,16 @@
     justify-content:center;font-size:24px;flex-shrink:0;overflow:hidden;}
   .pthumb img{width:100%;height:100%;object-fit:cover;display:block;}
   .pgo{color:var(--tx3);font-size:20px;flex-shrink:0;margin-left:2px;}
+  .hide{display:none !important;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+  .sent-ok{background:var(--g-s,#EAF6E2);color:#2C5A12;border-radius:13px;padding:12px 14px;margin-top:12px;font-size:13.5px;line-height:1.6;}
+  .hist-in{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
+  .hist-t{font-size:13.5px;font-weight:700;margin-bottom:10px;}
+  .msgacts{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;}
+  .msgbtn{border:1px solid var(--line);background:var(--card);color:var(--tx);border-radius:99px;
+    padding:8px 15px;font-size:12.5px;font-weight:700;cursor:pointer;min-height:36px;}
+  .msgbtn.on{background:var(--g);border-color:var(--g);color:#fff;}
+  .msgbtn.rep{background:var(--c);border-color:var(--c);color:#fff;}
   .pback{background:none;border:none;color:var(--p);font-weight:700;font-size:13.5px;padding:6px 2px 10px;cursor:pointer;min-height:44px;}
   .phero{height:210px;border-radius:20px;background:linear-gradient(150deg,var(--o-s,#FDF0E4),var(--p-s,#FCE5F0));
     display:flex;align-items:center;justify-content:center;font-size:74px;overflow:hidden;}
@@ -589,6 +599,9 @@ function wireStore(c){
    まなぶ … 同じ形で、テーマがちがう */
 var WA_AGES=['0歳児','1歳児','2歳児','3歳児','4歳児','5歳児','小学生以上'];
 var WA_PLAY_CATS=['工作','外遊び','おうち遊び','感触遊び','食育','英語','STEAM','モンテッソーリ','絵本','音楽'];
+/* カテゴリの絵文字は、依頼どおりに統一する */
+var WA_PLAY_EMOJI={'工作':'✂️','外遊び':'⛲️','おうち遊び':'🏠','感触遊び':'🖐️','食育':'🍙',
+  '英語':'🗣️','STEAM':'🤖','モンテッソーリ':'🪽','絵本':'📚','音楽':'🎶'};
 var WA_LEARN_CATS=['英語','知育','発達','食育','子育て','教育コラム','健康','睡眠','防災','小学校準備'];
 
 /* おうちでできる遊び。cat=カテゴリ / ages=対象 */
@@ -644,7 +657,7 @@ function feedHTML(kind){
   var cats=isPlay?WA_PLAY_CATS:WA_LEARN_CATS;
   var items=isPlay?WA_PLAY_ITEMS:WA_LEARN_ITEMS;
   var col=isPlay?'o':'g', ttl=isPlay?'🎨 あそぶ':'🌱 まなぶ';
-  var sub=isPlay?'おうちでできる遊びを、カテゴリと年齢からさがせます。':'子育てと保育の読みものを、テーマと年齢からさがせます。';
+  var sub=isPlay?'おうちでできる遊びを、カテゴリと年齢から探す。':'子育てと保育の読みものを、テーマと年齢から探す。';
   var list=items.filter(function(x){
     if(f.cat&&x.cat!==f.cat)return false;
     if(f.age&&x.ages.indexOf(f.age)<0)return false;
@@ -655,7 +668,9 @@ function feedHTML(kind){
   function chips(name,vals,cur){
     return '<div class="fchips">'
       +'<button class="chip'+(cur===''?' on':'')+'" data-f="'+name+'" data-v="">すべて</button>'
-      +vals.map(function(v){return '<button class="chip'+(cur===v?' on':'')+'" data-f="'+name+'" data-v="'+esc(v)+'">'+esc(v)+'</button>';}).join('')
+      +vals.map(function(v){
+        var em=(isPlay&&name==='cat'&&WA_PLAY_EMOJI[v])?WA_PLAY_EMOJI[v]+' ':'';
+        return '<button class="chip'+(cur===v?' on':'')+'" data-f="'+name+'" data-v="'+esc(v)+'">'+em+esc(v)+'</button>';}).join('')
       +'</div>';
   }
   return '<h2 class="sec sec-'+col+'">'+ttl+'</h2>'
@@ -668,7 +683,7 @@ function feedHTML(kind){
     +'<div class="fcount">'+list.length+'件</div>'
     +(list.length?list.map(function(x){
       return '<div class="card petal-'+col+'" style="display:flex;gap:13px;align-items:flex-start;">'
-        +'<div style="font-size:27px;flex-shrink:0;line-height:1.2;">'+esc(x.e)+'</div>'
+        +'<div style="font-size:27px;flex-shrink:0;line-height:1.2;">'+esc((isPlay&&WA_PLAY_EMOJI[x.cat])||x.e)+'</div>'
         +'<div style="min-width:0;"><div style="font-weight:700;font-size:14.5px;">'+esc(x.t)+'</div>'
         +'<div class="muted" style="margin-top:5px;">'+esc(x.d)+'</div>'
         +'<div class="ftags"><span class="ftag">'+esc(x.cat)+'</span>'
@@ -1002,7 +1017,8 @@ function wirePortal(c){
     if(!linked){sc.innerHTML=linkHTML();wireLink();return;}
     /* homeHTML と newsHTML はどちらも「おたより・キャンペーン・SNS」を描画するため、
        並べると同じものが2度出る。スクールタブは newsHTML（全件）に一本化する。 */
-    sc.innerHTML=newsHTML(c)+attHTML(c)+dmHTML(c);
+    /* 依頼どおりの並び：出欠・連絡（履歴を内包）→ 園からの個人メッセージ → おたより・SNS */
+    sc.innerHTML=attHTML(c)+dmHTML(c)+newsHTML(c);
   }
   else if(tab==='play') sc.innerHTML='<div id="feedZone">'+feedHTML('play')+'</div>';
   else if(tab==='learn') sc.innerHTML=(linked?growthHTML(c):'')+'<div id="feedZone">'+feedHTML('learn')+'</div>';
@@ -1068,7 +1084,7 @@ function snsHTML(){
   var s=stGet('sns',{});
   var posts=allPosts();var seen=seenPosts();
   var newSns=posts.some(function(p){return p.type==='sns'&&seen.indexOf(p.id)<0;});
-  return '<div class="card"><h2 class="sec">🔗 SNS・最新情報</h2><div class="sns-row">'
+  return '<div class="card"><h2 class="sec sec-p">🔗 '+esc(waSchoolName())+'の SNS・最新情報</h2><div class="sns-row">'
     +'<a class="sns-btn" href="'+esc(s.instagram||'#')+'" target="_blank" rel="noopener"><span class="e">📷</span><span class="l">Instagram</span>'+(newSns?'<span class="dot"></span>':'')+'</a>'
     +'<a class="sns-btn" href="'+esc(s.line||'#')+'" target="_blank" rel="noopener"><span class="e">💬</span><span class="l">LINE</span></a>'
     +'<a class="sns-btn" href="'+esc(s.youtube||'#')+'" target="_blank" rel="noopener"><span class="e">▶️</span><span class="l">YouTube</span></a>'
@@ -1114,25 +1130,60 @@ function submitAbsence(c,date,kind,reason){
 function myAbsences(c){return (stGet('absence_log',[])||[]).filter(function(a){return a.childId===c.id;}).sort(function(a,b){return a.date<b.date?1:-1;});}
 function attHTML(c){
   var list=myAbsences(c);
-  return '<div class="card"><h2 class="sec sec-o">📅 おやすみ・遅刻の連絡</h2>'
+  /* 区分は「欠席」と「送迎時間変更」の2つ。
+     欠席は 都合欠／病欠 を選び、送迎時間変更は 登園・お迎えの時刻を入れる。
+     遅刻・早退は送迎時間変更と中身が同じなので置かない。 */
+  var absSub=(typeof attSub!=='undefined')?attSub:'病欠';
+  return '<div class="card"><h2 class="sec sec-o">📅 出欠・連絡</h2>'
     +'<div class="info" style="margin-bottom:14px;">送信すると、園の出欠記録にすぐ反映されます。前日までのご連絡にご協力ください。</div>'
     +'<div class="field"><label>日付</label><input id="at_date" type="date" value="'+addDaysISO(1)+'" min="'+todayISO()+'"></div>'
     +'<div class="field"><label>区分</label><div class="seg" id="at_seg">'
-      +['欠席','遅刻','早退','お迎え変更'].map(function(k){return '<button data-k="'+k+'" class="'+(k===attKind?'on':'')+'">'+k+'</button>';}).join('')+'</div></div>'
-    +'<div class="field"><label>理由・伝えたいこと</label><textarea id="at_reason" rows="3" placeholder="例：発熱のためお休みします（37.8度）"></textarea></div>'
-    +'<button class="btn" id="at_send">この内容で園に連絡する</button></div>'
-    +'<div class="card"><h2 class="sec">🗒 連絡の履歴</h2>'
+      +['欠席','送迎時間変更'].map(function(k){return '<button data-k="'+esc(k)+'" class="'+(k===attKind?'on':'')+'">'+esc(k)+'</button>';}).join('')+'</div></div>'
+    +'<div class="field'+(attKind==='欠席'?'':' hide')+'" id="at_absbox"><label>欠席の種類</label><div class="seg" id="at_sub">'
+      +['病欠','都合欠'].map(function(k){return '<button data-s="'+esc(k)+'" class="'+(k===absSub?'on':'')+'">'+esc(k)+'</button>';}).join('')+'</div></div>'
+    +'<div class="'+(attKind==='送迎時間変更'?'':'hide')+'" id="at_timebox">'
+      +'<div class="grid2"><div class="field"><label>登園の時間</label><input id="at_in" type="time"></div>'
+      +'<div class="field"><label>お迎えの時間</label><input id="at_out" type="time"></div></div></div>'
+    +'<div class="field"><label>伝えたいこと（自由記入）</label><textarea id="at_reason" rows="3" placeholder="例：発熱のためお休みします（37.8度）"></textarea></div>'
+    +'<button class="btn" id="at_send">この内容を送信する</button>'
+    +'<div id="at_done" class="sent-ok hide"></div>'
+    /* 送信履歴は送信欄と同じ枠の中に置く */
+    +'<div class="hist-in"><div class="hist-t">🗒 連絡の履歴</div>'
     +(list.length?list.map(function(a){var col=a.kind==='欠席'?'#FCEBEB;color:#A32D2D':(a.kind==='遅刻'||a.kind==='早退'?'#FAEEDA;color:#854F0B':'#E6F1FB;color:#0C447C');return '<div class="att-item"><div class="dt">'+fmtDate(a.date)+'</div><div style="flex:1;"><span class="badge-k" style="background:'+col+';">'+esc(a.kind)+'</span><div class="muted" style="margin-top:4px;">'+esc(a.reason||'（理由なし）')+'</div><div style="font-size:10.5px;color:var(--tx3);margin-top:2px;">送信：'+esc(a.at)+'</div></div></div>';}).join(''):bloomEmpty('まだ連絡はありません'))+'</div>';
 }
+var attSub='病欠';
 function wireAtt(c){
   var $=function(id){return document.getElementById(id);};
-  $('at_seg').querySelectorAll('[data-k]').forEach(function(b){b.onclick=function(){attKind=b.getAttribute('data-k');$('at_seg').querySelectorAll('[data-k]').forEach(function(x){x.classList.toggle('on',x===b);});};});
+  if(!$('at_seg'))return;
+  $('at_seg').querySelectorAll('[data-k]').forEach(function(b){b.onclick=function(){
+    attKind=b.getAttribute('data-k');
+    $('at_seg').querySelectorAll('[data-k]').forEach(function(x){x.classList.toggle('on',x===b);});
+    var ab=$('at_absbox'),tb=$('at_timebox');
+    if(ab)ab.classList.toggle('hide',attKind!=='欠席');
+    if(tb)tb.classList.toggle('hide',attKind!=='送迎時間変更');
+  };});
+  if($('at_sub'))$('at_sub').querySelectorAll('[data-s]').forEach(function(b){b.onclick=function(){
+    attSub=b.getAttribute('data-s');
+    $('at_sub').querySelectorAll('[data-s]').forEach(function(x){x.classList.toggle('on',x===b);});};});
   $('at_send').onclick=function(){
-    var date=$('at_date').value;var reason=$('at_reason').value.trim();
+    var date=$('at_date').value,reason=$('at_reason').value.trim();
     if(!date){toast('日付を選んでください');return;}
-    submitAbsence(c,date,attKind,reason);
-    toast('園に連絡しました（'+attKind+'）');
-    tab='school';render();
+    var kind=attKind,detail=reason;
+    if(kind==='欠席'){kind='欠席';detail=attSub+(reason?'　'+reason:'');}
+    else{
+      var i=$('at_in')?$('at_in').value:'',o=$('at_out')?$('at_out').value:'';
+      if(!i&&!o){toast('登園またはお迎えの時間を入れてください');return;}
+      detail=[i?'登園 '+i:'',o?'お迎え '+o:'',reason].filter(Boolean).join('　');
+    }
+    submitAbsence(c,date,kind,detail);
+    /* 送信したことが画面で分かるようにする */
+    var d=$('at_done');
+    if(d){d.classList.remove('hide');
+      d.innerHTML='<b>園に送信しました。</b><div class="muted" style="margin-top:4px;">'
+        +esc(fmtDate(date))+'　'+esc(kind)+(detail?'　'+esc(detail):'')+'</div>';}
+    $('at_reason').value='';
+    var hist=document.querySelector('.hist-in');
+    setTimeout(function(){wirePortal(c);},900);
   };
 }
 
@@ -1142,14 +1193,14 @@ function growthHTML(c){
   var bm=stGet('rec_身体測定',{})||{};
   var months=Object.keys(bm).sort();
   var rows=months.map(function(mk){var r=(bm[mk].rows||{})[c.id]||{};return {mk:mk,h:r.h,w:r.w};}).filter(function(r){return r.h||r.w;});
-  var head='<div class="card"><h2 class="sec sec-g">📈 '+esc(c.child)+'のせいちょう</h2>';
+  var head='<div class="card"><h2 class="sec sec-g">📈 '+esc(c.child)+'の身体記録</h2>';
   if(!rows.length) return head+'<div class="empty">まだ身体測定の記録がありません。<br>測定後にこちらに反映されます。</div></div>';
   // spark for height
   var hs=rows.map(function(r){return parseFloat(r.h)||0;});var mn=Math.min.apply(null,hs),mx=Math.max.apply(null,hs);var rng=(mx-mn)||1;
   var spark='<div class="muted" style="margin:2px 0 22px;">身長の推移（cm）</div><div class="spark">'+rows.map(function(r){var h=parseFloat(r.h)||0;var pct=18+((h-mn)/rng)*78;return '<div class="b" style="height:'+pct+'%;"><span>'+(r.h||'-')+'</span><em>'+r.mk.slice(5)+'月</em></div>';}).join('')+'</div>';
   var table='<table class="g-table" style="margin-top:14px;"><thead><tr><th style="text-align:left;">月</th><th>身長</th><th>体重</th><th>カウプ指数</th></tr></thead><tbody>'
     +rows.map(function(r){var k=kaupVal(r.h,r.w);return '<tr><td class="mo">'+r.mk.replace('-','年')+'月</td><td>'+(r.h||'-')+'</td><td>'+(r.w||'-')+'</td><td>'+(k?k.toFixed(1):'-')+'</td></tr>';}).join('')+'</tbody></table>';
-  return head+spark+table+'<div class="muted" style="margin-top:12px;">カウプ指数の目安：15〜17がふつうです。ご心配な点は園にご相談ください。</div></div>';
+  return head+spark+table+'<div class="muted" style="margin-top:12px;">カウプ指数の目安：15〜17が標準。ご不明点があれば、園にご相談ください。</div></div>';
 }
 
 
@@ -1182,7 +1233,7 @@ function dmUnreadParent(id){return dmThread(id).messages.filter(function(m){retu
 function dmMarkReadParent(id){var t=stGet('dmThreads',{});if(!t[id])return;t[id].messages.forEach(function(m){if(m.from==='staff')m.readByParent=true;});stSet('dmThreads',t);}
 function dmHTML(c){
   var th=dmThread(c.id);
-  var head='<div class="card"><h2 class="sec sec-c">💬 園とのメッセージ</h2><div class="muted" style="margin-bottom:11px;">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると園に通知が届きます。</div>';
+  var head='<div class="card"><h2 class="sec sec-c">💬 園からの個人メッセージ</h2><div class="muted" style="margin-bottom:11px;">園・担任からのメッセージです。既読・送信ボタンを押してください。</div><div class="hide">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると園に通知が届きます。</div>';
   var log='<div id="pdmLog" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:4px 0;">'
     +(th.messages.length?th.messages.map(function(m){var mine=m.from==='parent';
       return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:82%;">'
