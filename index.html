@@ -1128,6 +1128,35 @@ function waRate(){var s=stGet('wa_settings',null);return (s&&s.rate!=null)?s.rat
 function waSetRate(r){var s=stGet('wa_settings',{})||{};s.rate=r;stSet('wa_settings',s);}
 function waMonth(){return todayISO().slice(0,7);}
 var waTab2='items';
+/* 商品の写真。長辺600pxに縮めて端末内に保存する（外部サービスへは送らない） */
+function waImgPick(id){
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=function(){
+    var f=inp.files&&inp.files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){
+      var im=new Image();
+      im.onload=function(){
+        var MX=600,sc=Math.min(1,MX/Math.max(im.width,im.height));
+        var cv=document.createElement('canvas');
+        cv.width=Math.round(im.width*sc);cv.height=Math.round(im.height*sc);
+        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+        var ps=waProd();
+        ps.forEach(function(x){if(String(x.id)===String(id))x.img=cv.toDataURL('image/jpeg',0.78);});
+        try{stSet('wa_products',ps);}catch(e){alert('保存できませんでした。写真の枚数が多い可能性があります。');return;}
+        renderWaStore();
+      };
+      im.onerror=function(){alert('画像を読み込めませんでした。');};
+      im.src=rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+function waImgClear(id){
+  var ps=waProd();ps.forEach(function(x){if(String(x.id)===String(id))delete x.img;});
+  stSet('wa_products',ps);renderWaStore();
+}
 function renderWaStore(){
   var s=$('section[data-page="wastore"]'),rate=waRate(),mk=waMonth();
   var os=waOrd().filter(function(o){return String(o.at||'').slice(0,7)===mk;});
@@ -1170,11 +1199,17 @@ function renderWaStore(){
     s.innerHTML+='<div class="card"><h3>'+ic('folder')+'商品（'+ps.length+'点）</h3>'
       +'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">「今月のおすすめ」にすると、未来WAのストアで先頭に出ます。'
       +'「園の家庭だけ」は、園とつながっている保護者にしか表示しません（制服・行事費など）。</div>'
-      +'<div class="scrollx"><table><thead><tr><th style="width:34px;"></th><th>商品名</th><th style="width:120px;">分類</th>'
+      +'<div class="scrollx"><table><thead><tr><th style="width:62px;">写真</th><th>商品名</th><th style="width:120px;">分類</th>'
       +'<th style="width:120px;">ねらい</th><th style="width:100px;">価格</th><th style="width:74px;">毎月</th>'
       +'<th style="width:88px;">園の家庭だけ</th><th style="width:96px;">おすすめ</th><th style="width:56px;"></th></tr></thead><tbody>'
       +ps.map(function(x){
-        return '<tr><td style="font-size:19px;text-align:center;">'+esc(x.emoji||'📦')+'</td>'
+        return '<tr><td style="text-align:center;">'
+            +(x.img?'<img src="'+escImgSrc(x.img)+'" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:9px;display:block;margin:0 auto;">'
+                   :'<span style="font-size:21px;">'+esc(x.emoji||'📦')+'</span>')
+            +'<div style="display:flex;gap:4px;justify-content:center;margin-top:5px;">'
+              +'<button class="btn btn-sm btn-ghost" data-wimg="'+x.id+'" style="padding:2px 6px;font-size:10px;">写真</button>'
+              +(x.img?'<button class="btn btn-sm btn-ghost" data-wimgx="'+x.id+'" style="padding:2px 6px;font-size:10px;">×</button>':'')
+            +'</div></td>'
           +'<td><input data-wp="'+x.id+'" data-k="name" value="'+esc(x.name)+'" style="font-weight:600;">'
             +'<input data-wp="'+x.id+'" data-k="desc" value="'+esc(x.desc||'')+'" style="margin-top:4px;font-size:12px;color:var(--tx2);"></td>'
           +'<td><select data-wp="'+x.id+'" data-k="cat">'+WA_CATS.map(function(cc){return '<option'+(cc===x.cat?' selected':'')+'>'+esc(cc)+'</option>';}).join('')+'</select></td>'
@@ -1199,6 +1234,9 @@ function renderWaStore(){
         ps2.forEach(function(x){if(x.id!==id)return;
           x[k]=(el2.type==='checkbox')?el2.checked:(k==='price'?(parseInt(el2.value,10)||0):el2.value);});
         save(ps2);};});
+    s.querySelectorAll('[data-wimg]').forEach(function(b){b.onclick=function(){waImgPick(b.getAttribute('data-wimg'));};});
+    s.querySelectorAll('[data-wimgx]').forEach(function(b){b.onclick=function(){
+      if(confirm('この写真を外しますか？'))waImgClear(b.getAttribute('data-wimgx'));};});
     s.querySelectorAll('[data-wrec]').forEach(function(b){b.onclick=function(){
       var id=+b.getAttribute('data-wrec'),ps2=waProd();
       ps2.forEach(function(x){if(x.id===id)x.rec=!x.rec;});save(ps2);renderWaStore();};});
@@ -3810,6 +3848,9 @@ function kikiEdits(){return kikiStore().edits||{};}
 function kikiVal(k){var v=kikiVars()[k];if(v!=null&&v!=='')return v;var d=KIKI_VARDEF_MAP[k];return (d&&d.d)?d.d:'';}
 function kikiBody(sec){var e=kikiEdits()[sec.id];return e!=null?e:sec.body;}
 function kikiSubstPlain(body){return body.replace(/\{\{([^}]+)\}\}/g,function(m,k){k=k.trim();var v=kikiVal(k);return v||('（'+k+'）');});}
+/* 画像の src には、この端末で作った data:image/ 以外を入れない */
+function escImgSrc(u){u=String(u||'').replace(/[\s\u0000-\u001f]/g,'');
+  return /^data:image\//i.test(u)?u.replace(/"/g,'&quot;'):'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';}
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function kikiPrevHtml(sec){
   return esc(kikiBody(sec)).replace(/\{\{([^}]+)\}\}/g,function(m,k){k=k.trim();var v=kikiVal(k);
