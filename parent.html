@@ -52,8 +52,41 @@
   .err{background:#FCEBEB;color:#A32D2D;border-radius:11px;padding:10px 13px;font-size:13px;margin-bottom:12px;display:none;}
 
   /* ===== Portal ===== */
-  .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(100deg,var(--o),var(--p) 60%,var(--b));color:#fff;padding:13px 16px;display:flex;align-items:center;gap:12px;}
-  .topbar .walogo{height:30px;width:auto;background:rgba(255,255,255,.92);border-radius:9px;padding:4px 8px;flex-shrink:0;}
+  /* ===== 花びらのデザインシステム =====
+     ロゴは「中心に子どもがいて、5つの支えが囲んでいる」という形。
+     それを飾りではなくナビゲーションの構造として使う。
+     タブ＝花びら。いまどの花びらにいるかが、ヘッダーの花で分かる。 */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--card);color:var(--tx);
+    padding:11px 16px 12px;display:flex;align-items:center;gap:13px;border-bottom:1px solid var(--line);}
+  .topbar .walogo{height:28px;width:auto;flex-shrink:0;}
+  .topbar .who .p{color:var(--tx2);}
+  .topbar .who .n{color:var(--tx);}
+  .topbar .out{background:var(--line2);border:1px solid var(--line);color:var(--tx2);}
+
+  /* 現在地を示す花。押すとホームへ戻る */
+  .bloom{width:52px;height:52px;flex-shrink:0;background:none;border:none;padding:0;display:block;}
+  .bloom svg{width:100%;height:100%;display:block;}
+  .bloom .pt{transform-origin:50% 50%;transition:opacity .32s ease,transform .32s cubic-bezier(.34,1.4,.5,1);opacity:.36;}
+  .bloom .pt.on{opacity:1;transform:scale(1.16);}
+  .bloom .core{transition:r .3s ease;}
+
+  /* 花びら型のカード：3つの角は丸く、1つだけ絞る。ただの角丸との差はここ */
+  .card{border-radius:22px 22px 22px 7px;}
+  .card.petal-o{border-left:3px solid var(--o);}
+  .card.petal-p{border-left:3px solid var(--p);}
+  .card.petal-b{border-left:3px solid var(--b);}
+  .card.petal-g{border-left:3px solid var(--g);}
+  .card.petal-c{border-left:3px solid var(--c);}
+
+  /* 見出しに、その画面の花びら色の小さな花びらを添える */
+  h2.sec::before{content:"";width:12px;height:15px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+    background:var(--secc,var(--p));flex-shrink:0;transform:rotate(-12deg);}
+  .sec-o{--secc:var(--o);} .sec-p{--secc:var(--p);} .sec-b{--secc:var(--b);}
+  .sec-g{--secc:var(--g);} .sec-c{--secc:var(--c);}
+
+  /* 空の状態にも花を出す（無機質な「データがありません」を避ける） */
+  .bloom-empty{display:flex;flex-direction:column;align-items:center;gap:11px;padding:26px 10px;color:var(--tx3);font-size:13px;text-align:center;}
+  .bloom-empty svg{width:56px;height:56px;opacity:.34;}
   .topbar .av{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
   .topbar .who{flex:1;min-width:0;}
   .topbar .who .p{font-size:11px;opacity:.85;line-height:1.2;}
@@ -107,10 +140,22 @@
   .spark .b em{position:absolute;bottom:-19px;left:0;right:0;text-align:center;font-size:10px;color:var(--tx3);font-style:normal;}
 
   /* bottom nav */
-  .tabbar{position:sticky;bottom:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));}
-  .tabbar button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;color:var(--tx3);font-size:10.5px;font-weight:600;}
-  .tabbar button .e{font-size:20px;}
-  .tabbar button.on{color:var(--teal);}
+  .tabbar{position:sticky;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:flex;
+    padding:7px 4px calc(7px + env(safe-area-inset-bottom));}
+  .tabbar button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:6px 2px;color:var(--tx3);font-size:10.5px;font-weight:600;position:relative;min-height:46px;
+    transition:color .2s;}
+  .tabbar button .e{font-size:19px;line-height:1;transition:transform .26s cubic-bezier(.34,1.4,.5,1);}
+  /* 選ばれているタブの下に、その花びらの色の小さな花びらが咲く */
+  .tabbar button::after{content:"";position:absolute;bottom:1px;width:16px;height:5px;border-radius:99px;
+    background:currentColor;opacity:0;transform:scaleX(.4);transition:opacity .24s,transform .24s;}
+  .tabbar button.on::after{opacity:1;transform:scaleX(1);}
+  .tabbar button.on .e{transform:translateY(-2px) scale(1.14);}
+  .tabbar button.on{color:var(--tabc,var(--p));}
+  .tabbar button.t-home.on{color:var(--p);} .tabbar button.t-att.on{color:var(--o);}
+  .tabbar button.t-growth.on{color:var(--g);} .tabbar button.t-bill.on{color:var(--b);}
+  .tabbar button.t-dm.on{color:var(--c);} .tabbar button.t-news.on{color:var(--p);}
+  @media (prefers-reduced-motion:reduce){.bloom .pt,.tabbar button .e,.tabbar button::after{transition:none;}}
 
   /* toast */
   .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;}
@@ -293,26 +338,58 @@ function wireAuth(){
   }
 }
 
-/* ---------- PORTAL ---------- */
+/* ---------- PORTAL ----------
+   ロゴの5枚の花びらを、そのまま画面の構造にしている。
+   タブ＝花びら。中心（ホーム）に子どもがいて、5つの支えが囲む、という形をなぞる。 */
+var PETALS=[
+  {t:'att',   c:'var(--o)', a:-90},
+  {t:'growth',c:'var(--g)', a:-18},
+  {t:'bill',  c:'var(--b)', a:54},
+  {t:'dm',    c:'var(--c)', a:126},
+  {t:'news',  c:'var(--p)', a:198}
+];
+/* いまどの花びらにいるかを示す花。押すとホームへ戻る */
+function bloomSVG(active,size){
+  var s=size||52;
+  var petals=PETALS.map(function(p){
+    var on=(p.t===active||active==='home');
+    return '<ellipse class="pt'+(on?' on':'')+'" cx="0" cy="-13" rx="7.6" ry="10.4" fill="'+p.c+'"'
+      +' transform="rotate('+p.a+')"/>';
+  }).join('');
+  var core=(active==='home')?7.2:5.4;
+  return '<svg viewBox="-24 -24 48 48" width="'+s+'" height="'+s+'" aria-hidden="true">'
+    +'<g>'+petals+'</g>'
+    +'<circle class="core" r="'+core+'" fill="#fff" stroke="var(--line)" stroke-width="1"/>'
+    +'<circle cx="-1.9" cy="-1" r="1.05" fill="var(--tx)"/><circle cx="1.9" cy="-1" r="1.05" fill="var(--tx)"/>'
+    +'<path d="M-1.9 1.7 q1.9 1.9 3.8 0" stroke="var(--tx)" stroke-width="1" fill="none" stroke-linecap="round"/>'
+    +'</svg>';
+}
 function portalHTML(c){
   return '<div class="topbar">'
-    +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
+    +'<button class="bloom" id="bloomBtn" aria-label="ホームへ">'+bloomSVG(tab)+'</button>'
     +'<div class="who"><div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+'</div></div>'
+    +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
     +'<button class="out" id="logout">ログアウト</button></div>'
     +'<div class="scroll" id="scroll"></div>'
     +'<div class="tabbar">'
-    + tabBtn('home','🏠','ホーム')
+    + tabBtn('home','🌸','ホーム')
     + tabBtn('att','📅','出欠連絡')
-    + tabBtn('growth','📈','せいちょう')
+    + tabBtn('growth','🌱','せいちょう')
     + tabBtn('bill','💴','請求')
     + tabBtn('dm','💬','メッセージ')
     + tabBtn('news','📢','おしらせ')
     +'</div>';
 }
-function tabBtn(id,e,l){return '<button data-tab="'+id+'" class="'+(tab===id?'on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
+function tabBtn(id,e,l){return '<button data-tab="'+id+'" class="t-'+id+(tab===id?' on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
+/* 中身が無いときも、無機質な文字だけにしない */
+function bloomEmpty(msg){
+  return '<div class="bloom-empty">'+bloomSVG('',56)+'<div>'+esc(msg)+'</div></div>';
+}
 
 function wirePortal(c){
   document.getElementById('logout').onclick=logout;
+  var bb=document.getElementById('bloomBtn');
+  if(bb)bb.onclick=function(){tab='home';render();};
   document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.getAttribute('data-tab');render();};});
   var sc=document.getElementById('scroll');
   if(tab==='home') sc.innerHTML=homeHTML(c);
@@ -378,10 +455,10 @@ function homeHTML(c){
   setTimeout(function(){markSeen(posts.map(function(p){return p.id;}));},1200);
   var newCount=posts.filter(function(p){return seen.indexOf(p.id)<0;}).length;
   return promoHTML()
-    +'<div class="card"><h2 class="sec">📩 園からのおたより'+(newCount?' <span class="new">'+newCount+'件の新着</span>':'')+'<button class="sec-more" data-tab2="news">すべて見る</button></h2>'
-    +(latest.length?latest.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):'<div class="empty">まだおたよりはありません</div>')+'</div>'
+    +'<div class="card"><h2 class="sec sec-b">📩 園からのおたより'+(newCount?' <span class="new">'+newCount+'件の新着</span>':'')+'<button class="sec-more" data-tab2="news">すべて見る</button></h2>'
+    +(latest.length?latest.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):bloomEmpty('まだおたよりはありません'))+'</div>'
     + snsHTML()
-    +'<div class="card"><h2 class="sec">📅 おやすみの連絡</h2><div class="muted" style="margin-bottom:11px;">当日・事前のおやすみ／遅刻などを園に連絡できます。</div><button class="btn sec" data-tab2="att">出欠連絡をひらく</button></div>';
+    +'<div class="card"><h2 class="sec sec-o">📅 おやすみの連絡</h2><div class="muted" style="margin-bottom:11px;">当日・事前のおやすみ／遅刻などを園に連絡できます。</div><button class="btn sec" data-tab2="att">出欠連絡をひらく</button></div>';
 }
 
 /* ---- ATTENDANCE ---- */
@@ -401,7 +478,7 @@ function submitAbsence(c,date,kind,reason){
 function myAbsences(c){return (stGet('absence_log',[])||[]).filter(function(a){return a.childId===c.id;}).sort(function(a,b){return a.date<b.date?1:-1;});}
 function attHTML(c){
   var list=myAbsences(c);
-  return '<div class="card"><h2 class="sec">📅 おやすみ・遅刻の連絡</h2>'
+  return '<div class="card"><h2 class="sec sec-o">📅 おやすみ・遅刻の連絡</h2>'
     +'<div class="info" style="margin-bottom:14px;">送信すると、園の出欠記録にすぐ反映されます。前日までのご連絡にご協力ください。</div>'
     +'<div class="field"><label>日付</label><input id="at_date" type="date" value="'+addDaysISO(1)+'" min="'+todayISO()+'"></div>'
     +'<div class="field"><label>区分</label><div class="seg" id="at_seg">'
@@ -409,7 +486,7 @@ function attHTML(c){
     +'<div class="field"><label>理由・伝えたいこと</label><textarea id="at_reason" rows="3" placeholder="例：発熱のためお休みします（37.8度）"></textarea></div>'
     +'<button class="btn" id="at_send">この内容で園に連絡する</button></div>'
     +'<div class="card"><h2 class="sec">🗒 連絡の履歴</h2>'
-    +(list.length?list.map(function(a){var col=a.kind==='欠席'?'#FCEBEB;color:#A32D2D':(a.kind==='遅刻'||a.kind==='早退'?'#FAEEDA;color:#854F0B':'#E6F1FB;color:#0C447C');return '<div class="att-item"><div class="dt">'+fmtDate(a.date)+'</div><div style="flex:1;"><span class="badge-k" style="background:'+col+';">'+esc(a.kind)+'</span><div class="muted" style="margin-top:4px;">'+esc(a.reason||'（理由なし）')+'</div><div style="font-size:10.5px;color:var(--tx3);margin-top:2px;">送信：'+esc(a.at)+'</div></div></div>';}).join(''):'<div class="empty">まだ連絡はありません</div>')+'</div>';
+    +(list.length?list.map(function(a){var col=a.kind==='欠席'?'#FCEBEB;color:#A32D2D':(a.kind==='遅刻'||a.kind==='早退'?'#FAEEDA;color:#854F0B':'#E6F1FB;color:#0C447C');return '<div class="att-item"><div class="dt">'+fmtDate(a.date)+'</div><div style="flex:1;"><span class="badge-k" style="background:'+col+';">'+esc(a.kind)+'</span><div class="muted" style="margin-top:4px;">'+esc(a.reason||'（理由なし）')+'</div><div style="font-size:10.5px;color:var(--tx3);margin-top:2px;">送信：'+esc(a.at)+'</div></div></div>';}).join(''):bloomEmpty('まだ連絡はありません'))+'</div>';
 }
 function wireAtt(c){
   var $=function(id){return document.getElementById(id);};
@@ -429,7 +506,7 @@ function growthHTML(c){
   var bm=stGet('rec_身体測定',{})||{};
   var months=Object.keys(bm).sort();
   var rows=months.map(function(mk){var r=(bm[mk].rows||{})[c.id]||{};return {mk:mk,h:r.h,w:r.w};}).filter(function(r){return r.h||r.w;});
-  var head='<div class="card"><h2 class="sec">📈 '+esc(c.child)+'のせいちょう</h2>';
+  var head='<div class="card"><h2 class="sec sec-g">📈 '+esc(c.child)+'のせいちょう</h2>';
   if(!rows.length) return head+'<div class="empty">まだ身体測定の記録がありません。<br>測定後にこちらに反映されます。</div></div>';
   // spark for height
   var hs=rows.map(function(r){return parseFloat(r.h)||0;});var mn=Math.min.apply(null,hs),mx=Math.max.apply(null,hs);var rng=(mx-mn)||1;
@@ -447,7 +524,7 @@ function billHTML(c){
   var months=Object.keys(all).sort().reverse();
   var rows=[];
   months.forEach(function(mk){var r=(all[mk]||{})[c.id];if(r&&['送付済','入金済'].indexOf(r.status)>-1)rows.push({mk:mk,r:r});});
-  var head='<div class="card"><h2 class="sec">💴 保育料のご請求</h2>';
+  var head='<div class="card"><h2 class="sec sec-b">💴 保育料のご請求</h2>';
   if(!rows.length)return head+'<div class="empty">現在お知らせしている請求はありません。<br>発行されるとこちらに表示されます。</div></div>';
   return head+rows.map(function(x){
     var paid=x.r.status==='入金済';
@@ -469,13 +546,13 @@ function dmUnreadParent(id){return dmThread(id).messages.filter(function(m){retu
 function dmMarkReadParent(id){var t=stGet('dmThreads',{});if(!t[id])return;t[id].messages.forEach(function(m){if(m.from==='staff')m.readByParent=true;});stSet('dmThreads',t);}
 function dmHTML(c){
   var th=dmThread(c.id);
-  var head='<div class="card"><h2 class="sec">💬 園とのメッセージ</h2><div class="muted" style="margin-bottom:11px;">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると園に通知が届きます。</div>';
+  var head='<div class="card"><h2 class="sec sec-c">💬 園とのメッセージ</h2><div class="muted" style="margin-bottom:11px;">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると園に通知が届きます。</div>';
   var log='<div id="pdmLog" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:4px 0;">'
     +(th.messages.length?th.messages.map(function(m){var mine=m.from==='parent';
       return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:82%;">'
         +'<div style="font-size:10.5px;color:#98a09a;margin-bottom:2px;text-align:'+(mine?'right':'left')+';">'+(mine?'あなた':esc(m.by||'園'))+' ・ '+esc(m.at)+'</div>'
         +'<div style="padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.65;white-space:pre-wrap;'+(mine?'background:#0F6E56;color:#fff;border-bottom-right-radius:5px;':'background:#fff;border:1px solid #e7e8e3;border-bottom-left-radius:5px;')+'">'+esc(m.text)+'</div></div>';}).join('')
-      :'<div class="empty">まだメッセージはありません</div>')+'</div>';
+      :bloomEmpty('まだメッセージはありません'))+'</div>';
   var form='<div style="margin-top:12px;"><textarea id="pdmText" rows="3" placeholder="園へのご連絡・ご相談を入力してください" style="width:100%;box-sizing:border-box;border:1px solid #e7e8e3;border-radius:12px;padding:11px;font-size:14px;font-family:inherit;"></textarea>'
     +'<button class="btn sec" id="pdmSend" style="margin-top:8px;width:100%;">送信する</button><div class="muted" id="pdmMsg" style="margin-top:8px;"></div></div>';
   return head+log+form+'</div>';
@@ -506,8 +583,8 @@ function wireDM(c){
 function newsHTML(c){
   var posts=allPosts();var seen=seenPosts();
   setTimeout(function(){markSeen(posts.map(function(p){return p.id;}));},1200);
-  return promoHTML()+'<div class="card"><h2 class="sec">📢 園からのおたより・お知らせ</h2>'
-    +(posts.length?posts.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):'<div class="empty">まだおたよりはありません</div>')+'</div>'
+  return promoHTML()+'<div class="card"><h2 class="sec sec-p">📢 園からのおたより・お知らせ</h2>'
+    +(posts.length?posts.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):bloomEmpty('まだおたよりはありません'))+'</div>'
     + snsHTML();
 }
 
