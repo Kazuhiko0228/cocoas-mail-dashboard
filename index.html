@@ -158,7 +158,34 @@
     #printArea .bf-pad{padding:2mm;}
     #printArea .print-foot{margin-top:16px;font-size:11px;color:#333;}
   }
-  @media(max-width:880px){.sidebar{display:none;}.content{padding:18px;}}
+  /* ===== ホーム（アプリ一覧）: 保育士が迷わず選べるよう、大きなタイルで並べる ===== */
+  .hgroup{margin-bottom:26px;}
+  .hgroup h3{font-size:13px;font-weight:700;color:var(--tx2);margin:0 0 12px 2px;letter-spacing:.02em;display:flex;align-items:center;gap:9px;}
+  .hgroup h3::after{content:"";flex:1;height:1px;background:var(--line);}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:12px;}
+  .tile{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 10px 13px;
+    display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer;text-align:center;
+    transition:transform .12s,box-shadow .15s,border-color .15s;box-shadow:0 1px 2px rgba(20,50,40,.04);}
+  .tile:hover{transform:translateY(-2px);box-shadow:0 8px 20px -8px rgba(20,50,40,.22);border-color:var(--teal-l);}
+  .tile:active{transform:translateY(0);}
+  .tile:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+  .tile .ti{width:52px;height:52px;border-radius:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .tile .ti svg{width:26px;height:26px;}
+  .tile .tl{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--tx);}
+  .tile .tb{position:absolute;top:9px;right:9px;min-width:19px;height:19px;border-radius:99px;background:#E24B4A;color:#fff;
+    font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 6px;line-height:1;}
+  .tile .tb.ok{background:var(--accent);}
+  .tile .ts{font-size:10.5px;color:var(--tx3);line-height:1.3;}
+  .tile.attn{border-color:#F0B7B4;background:linear-gradient(180deg,#FFF8F7,var(--card));}
+  .hhero{background:linear-gradient(105deg,var(--teal-d),var(--teal) 62%,var(--accent));border-radius:18px;padding:20px 22px;color:#fff;margin-bottom:24px;
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  .hhero .hh{flex:1;min-width:220px;}
+  .hhero h2{font-size:19px;margin:0 0 5px;color:#fff;}
+  .hhero p{font-size:13px;margin:0;color:rgba(255,255,255,.88);line-height:1.6;}
+  .hhero .hstat{display:flex;gap:9px;flex-wrap:wrap;}
+  .hstat b{background:rgba(255,255,255,.17);border-radius:11px;padding:8px 13px;font-size:12.5px;font-weight:600;white-space:nowrap;}
+  @media(max-width:880px){.sidebar{display:none;}.content{padding:18px;}.tiles{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;}
+    .tile{padding:13px 7px 11px;}.tile .ti{width:46px;height:46px;border-radius:13px;}.tile .tl{font-size:11.5px;}}
   /* ===== 保育AIアシスタント ウィジェット ===== */
   #aiFab{position:fixed;right:22px;bottom:22px;z-index:900;width:58px;height:58px;border-radius:50%;background:var(--teal);color:#fff;border:none;box-shadow:0 8px 22px rgba(15,110,86,.42);display:flex;align-items:center;justify-content:center;font-size:25px;cursor:pointer;transition:transform .1s;}
   #aiFab:hover{transform:scale(1.06);}
@@ -223,7 +250,8 @@
       <div><div class="sub" id="brandSchool">大宮与野校</div></div>
     </div>
     <nav class="nav" id="nav">
-      <a data-go="dashboard" class="active">{ic:home}ダッシュボード</a>
+      <a data-go="home" class="active">{ic:grid}ホーム</a>
+      <a data-go="dashboard">{ic:home}ダッシュボード</a>
       <div class="nav-label">配信</div>
       <a data-go="compose">{ic:send}個別メール送信</a>
       <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
@@ -264,7 +292,8 @@
       <button class="btn btn-primary" data-go="compose">{ic:plus}新規メール</button>
     </div>
     <div class="content">
-      <section data-page="dashboard"></section>
+      <section data-page="home"></section>
+  <section data-page="dashboard"></section>
       <section data-page="compose" hidden></section>
       <section data-page="broadcast" hidden></section>
       <section data-page="dm" hidden></section>
@@ -297,6 +326,7 @@
 
 <script>
 var ICONS={
+  grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
   send:'<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
   users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
@@ -943,7 +973,7 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={home:['ホーム','EduGrow ホーム'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
@@ -951,7 +981,102 @@ function go(page){
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
-  ({dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+}
+
+/* ---------- ホーム（アプリ一覧） ----------
+   保育士はPCの業務システムに慣れているとは限らないので、大きなタイルで選べるようにする。
+   ただ並べるだけでなく、タイルに「いま何件やることがあるか」を出して、開く前に分かるようにした。 */
+var HOME_GROUPS=[
+  {t:'よく使う',items:[
+    {p:'records',i:'activity',l:'日常チェック',c:'#0F6E56',bg:'#E1F5EE'},
+    {p:'dm',i:'mail',l:'保護者DM',c:'#A32D2D',bg:'#FCEBEB'},
+    {p:'broadcast',i:'cast',l:'全体配信',c:'#0C447C',bg:'#E6F1FB'},
+    {p:'carerec',i:'report',l:'保育記録',c:'#854F0B',bg:'#FAEEDA'},
+    {p:'dashboard',i:'home',l:'ダッシュボード',c:'#3C3489',bg:'#EEEDFE'},
+    {p:'audit',i:'audit',l:'監査対応',c:'#A32D2D',bg:'#FCEBEB'}
+  ]},
+  {t:'記録・書類',items:[
+    {p:'curriculum',i:'book',l:'月間カリキュラム',c:'#27500A',bg:'#EAF3DE'},
+    {p:'drill',i:'shield',l:'避難訓練',c:'#0C447C',bg:'#E6F1FB'},
+    {p:'bouka',i:'alert',l:'防火・消火訓練',c:'#854F0B',bg:'#FAEEDA'},
+    {p:'docgen',i:'fileplus',l:'書類作成',c:'#3C3489',bg:'#EEEDFE'},
+    {p:'reqnav',i:'clipboard',l:'提出書類ナビ',c:'#0F6E56',bg:'#E1F5EE'},
+    {p:'docs',i:'folder',l:'書類格納',c:'#5f6b64',bg:'#F1EFE8'},
+    {p:'tasks',i:'clipboard',l:'年間スケジュール',c:'#0C447C',bg:'#E6F1FB'}
+  ]},
+  {t:'園児・保護者',items:[
+    {p:'contacts',i:'users',l:'連絡先',c:'#0F6E56',bg:'#E1F5EE'},
+    {p:'roster',i:'idcard',l:'生徒台帳',c:'#3C3489',bg:'#EEEDFE'},
+    {p:'enroll',i:'yen',l:'生徒情報',c:'#854F0B',bg:'#FAEEDA'},
+    {p:'billing',i:'yen',l:'請求管理',c:'#27500A',bg:'#EAF3DE'},
+    {p:'trial',i:'clipboard',l:'体験結果報告',c:'#A32D2D',bg:'#FCEBEB'},
+    {p:'compose',i:'send',l:'個別メール',c:'#0C447C',bg:'#E6F1FB'},
+    {p:'deliveries',i:'cal',l:'配信カレンダー',c:'#3C3489',bg:'#EEEDFE'},
+    {p:'templates',i:'doc',l:'メールテンプレート',c:'#5f6b64',bg:'#F1EFE8'}
+  ]},
+  {t:'職員・施設',items:[
+    {p:'staff',i:'staff',l:'職員管理',c:'#0F6E56',bg:'#E1F5EE'},
+    {p:'shift',i:'tableg',l:'シフト表',c:'#0C447C',bg:'#E6F1FB'},
+    {p:'expense',i:'yen',l:'経費管理',c:'#854F0B',bg:'#FAEEDA'},
+    {p:'facility',i:'gear',l:'施設管理',c:'#5f6b64',bg:'#F1EFE8'},
+    {p:'settings',i:'gear',l:'設定',c:'#5f6b64',bg:'#F1EFE8'}
+  ]}
+];
+/* タイルに出す件数。「開く前に分かる」ことが、ただのランチャーとの違い */
+function homeBadge(page){
+  try{
+    if(page==='records'){
+      var n=0;['rec_登園シート','rec_安全点検','rec_午睡チェック','rec_健康チェック','rec_日報'].forEach(function(k){
+        if(!stGet(k,{})[todayISO()])n++;});
+      return n?{n:n,s:'未入力',attn:true}:{n:0,s:'本日ぶん済',ok:true};
+    }
+    if(page==='dm'){var u=(typeof dmUnreadTotal==='function')?dmUnreadTotal():0;
+      return u?{n:u,s:'未読',attn:true}:{n:0,s:''};}
+    if(page==='audit'){
+      var st=auditState(),f=auditItemsFlat(),d=0;
+      f.forEach(function(it){if(st[it.key]==='済')d++;});
+      var r=f.length-d;return r?{n:r,s:'残り',attn:r>f.length*0.5}:{n:0,s:'すべて済',ok:true};
+    }
+    if(page==='trial'){
+      var leads=DB.contacts.filter(function(c){return c.kind==='lead';});
+      var un=leads.filter(function(c){return !trGet(c.id);}).length;
+      return un?{n:un,s:'未報告',attn:true}:{n:0,s:''};
+    }
+    if(page==='billing'){var mk=(typeof invMonthCur==='function')?invMonthCur():todayISO().slice(0,7);
+      var all=invAll()[mk]||{};return {n:Object.keys(all).length,s:'今月ぶん'};}
+    if(page==='contacts')return {n:DB.contacts.filter(function(c){return c.kind==='lead';}).length,s:'リード'};
+    if(page==='roster')return {n:enrolled().length,s:'在園児'};
+    if(page==='staff')return {n:(DB.staff||[]).length,s:'職員'};
+  }catch(e){}
+  return {n:0,s:''};
+}
+function renderHome(){
+  var s=$('section[data-page="home"]'),en=enrolled();
+  var att=stGet('rec_登園シート',{})[todayISO()],done=0;
+  ['rec_登園シート','rec_安全点検','rec_午睡チェック','rec_健康チェック','rec_日報'].forEach(function(k){if(stGet(k,{})[todayISO()])done++;});
+  var unread=0;try{unread=dmUnreadTotal();}catch(e){}
+  var wd=WD[new Date().getDay()];
+  var html='<div class="hhero"><div class="hh"><h2>'+esc(SET.school||'')+'</h2>'
+    +'<p>'+esc(fmt(todayISO()))+'　きょうは'+esc(wd)+'曜日です。使いたい機能を選んでください。</p></div>'
+    +'<div class="hstat"><b>在園児 '+en.length+'名</b><b>本日の記録 '+done+'/5</b>'
+    +(unread?'<b style="background:rgba(255,255,255,.32)">保護者からの連絡 '+unread+'件</b>':'')+'</div></div>';
+  HOME_GROUPS.forEach(function(g){
+    var items=g.items.filter(function(x){return typeof canView!=='function'||canView(x.p);});
+    if(!items.length)return;
+    html+='<div class="hgroup"><h3>'+esc(g.t)+'</h3><div class="tiles">'
+      +items.map(function(x){
+        var b=homeBadge(x.p);
+        return '<button class="tile'+(b.attn?' attn':'')+'" data-tile="'+esc(x.p)+'">'
+          +(b.n?'<span class="tb'+(b.ok?' ok':'')+'">'+b.n+'</span>':'')
+          +'<span class="ti" style="background:'+x.bg+';color:'+x.c+'">'+ic(x.i)+'</span>'
+          +'<span class="tl">'+esc(x.l)+'</span>'
+          +(b.s?'<span class="ts">'+esc(b.s)+'</span>':'')
+          +'</button>';}).join('')
+      +'</div></div>';
+  });
+  s.innerHTML=html;
+  s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-tile'));};});
 }
 
 /* ---------- dashboard ---------- */
@@ -3880,7 +4005,7 @@ function initSyncBar(){
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
-  {p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
+  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
@@ -3892,9 +4017,9 @@ var DEFAULT_PERMS={
   'マネージャー':ACCESS_PAGES.map(function(x){return x.p;}),
   /* 一般スタッフ：配信はデイリーメールのみ編集可、個別メールは在園児のみ送信可。
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
-  '一般':['dashboard','dm','trial','broadcast','records','carerec','drill','shift','contacts','curriculum']
+  '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','shift','contacts','curriculum']
 };
-var PERMS_VERSION=6;
+var PERMS_VERSION=7;
 function staffAccountsSeed(){return [
   {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin',staffId:null},
   {id:2,loginId:'shiraga',name:'白神 美咲',role:'マネージャー',pw:'shiraga',staffId:101},
@@ -4038,7 +4163,7 @@ function staffBoot(){
       if(typeof toastAI==='function')toastAI('この記録は紙の取り込みに対応していません。画面から入力してください。');
     },300);
   }
-  else if(dl&&canView('dm')){dmSel=dl;go('dm');}else go('dashboard');
+  else if(dl&&canView('dm')){dmSel=dl;go('dm');}else go(canView('home')?'home':'dashboard');
   if(typeof initAI==='function')initAI();
 }
 /* 設定タブに追加：生徒情報リンク・職員アカウント・権限管理 */
