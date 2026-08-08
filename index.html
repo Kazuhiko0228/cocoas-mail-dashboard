@@ -64,6 +64,17 @@
   .metric .num{font-size:26px;font-weight:600;line-height:1;}
   .metric .lab{font-size:12.5px;color:var(--tx2);margin-top:3px;}
   .pill{font-size:11.5px;padding:3px 9px;border-radius:99px;white-space:nowrap;font-weight:500;}
+  /* スクールガイド */
+  .gd-row{display:flex;gap:13px;align-items:center;}
+  .gd-ic{width:42px;height:42px;border-radius:13px;background:#EFF1EE;display:flex;align-items:center;
+    justify-content:center;font-size:19px;flex-shrink:0;}
+  .gd-ic.f{background:#FAEEDA;}
+  .gd-act{display:flex;gap:7px;flex-shrink:0;}
+  .btn.xs{padding:7px 14px;font-size:12.5px;width:auto;}
+  .btn.xs.gh{background:#fff;color:#A32D2D;border:1px solid #E8D3D3;}
+  .note-b{font-size:12px;line-height:1.75;background:#E6F1FB;border:1px solid #CFE0F2;
+    border-radius:10px;padding:10px 13px;color:#0C447C;}
+  @media(max-width:640px){.gd-row{flex-wrap:wrap;}.gd-act{width:100%;margin-top:4px;}}
   .st-問い合わせ{background:var(--gray-b);color:var(--gray-t);}
   .st-体験予約{background:var(--blue-b);color:var(--blue-t);}
   .st-体験済{background:var(--amber-b);color:var(--amber-t);}
@@ -327,6 +338,7 @@
       <section data-page="shift" hidden></section>
       <section data-page="expense" hidden></section>
       <section data-page="docgen" hidden></section>
+      <section data-page="guide" hidden></section>
       <section data-page="reqnav" hidden></section>
       <section data-page="docs" hidden></section>
       <section data-page="settings" hidden></section>
@@ -1006,7 +1018,7 @@ expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
@@ -1014,7 +1026,7 @@ function go(page){
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
-  ({home:renderHome,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 /* ---------- ホーム（アプリ一覧） ----------
@@ -1031,6 +1043,7 @@ var HOME_GROUPS=[
     {p:'wastore',i:'yen',l:'未来WA ストア',c:'#A8560F',bg:'#FDEDE2'}
   ]},
   {t:'記録・書類',items:[
+    {p:'guide',i:'book',l:'スクールガイド',c:'#0C447C',bg:'#E6F1FB'},
     {p:'curriculum',i:'book',l:'月間カリキュラム',c:'#27500A',bg:'#EAF3DE'},
     {p:'drill',i:'shield',l:'避難訓練',c:'#0C447C',bg:'#E6F1FB'},
     {p:'bouka',i:'alert',l:'防火・消火訓練',c:'#854F0B',bg:'#FAEEDA'},
@@ -1165,6 +1178,119 @@ function waImgPick(id){
 function waImgClear(id){
   var ps=waProd();ps.forEach(function(x){if(String(x.id)===String(id))delete x.img;});
   stSet('wa_products',ps);renderWaStore();
+}
+/* ---------- スクールガイド（入園時にお渡しする一式） ----------
+   紙で配っているものを園がここに入れておくと、保護者は未来WAでいつでも見られる。
+   中身は園ごとにちがうので、ひな型の上に園の原本を重ねる形にしている。
+   ファイルはこの端末のブラウザにだけ置き、外には送らない。 */
+var GUIDE_CATS=['はじめに','毎日のこと','健康・お薬','安全・災害','手続き','園の情報'];
+var GUIDE_BASE=[
+  {id:'g_cover',cat:'はじめに',t:'ガイダンスブック',kind:'read'},
+  {id:'g_school',cat:'はじめに',t:'スクール概要',kind:'read'},
+  {id:'g_items',cat:'毎日のこと',t:'服装・持ち物について',kind:'read'},
+  {id:'g_kansen',cat:'健康・お薬',t:'感染症と出席停止の基準',kind:'read'},
+  {id:'g_toyaku',cat:'健康・お薬',t:'投薬の依頼について',kind:'read'},
+  {id:'g_hinan',cat:'安全・災害',t:'避難場所について',kind:'read'},
+  {id:'g_keiho',cat:'安全・災害',t:'警報が出たときの休園について',kind:'read'},
+  {id:'g_ninka',cat:'園の情報',t:'施設の内容の掲示（利用にあたって）',kind:'read'},
+  {id:'d_kyoka',cat:'健康・お薬',t:'登園許可証／治癒証明書',kind:'form'},
+  {id:'d_toyaku',cat:'健康・お薬',t:'投薬依頼書',kind:'form'},
+  {id:'d_kenshin',cat:'健康・お薬',t:'在園児健康診断書',kind:'form'},
+  {id:'d_henko',cat:'手続き',t:'変更届',kind:'form'},
+  {id:'d_kyuen',cat:'手続き',t:'休園届',kind:'form'},
+  {id:'d_taien',cat:'手続き',t:'退園届',kind:'form'}
+];
+function guideFiles(){return stGet('guide_files',{})||{};}
+function guideExtra(){return stGet('guide_extra',[])||[];}
+function guideAll(){
+  return GUIDE_BASE.concat(guideExtra().map(function(x){var m={};for(var k in x)m[k]=x[k];m.custom=true;return m;}));
+}
+function guideBytes(){
+  var f=guideFiles(),n=0;
+  for(var k in f)n+=String(f[k].data||'').length;
+  return n;
+}
+function fmtBytes(n){
+  if(n<1024)return n+' B';
+  if(n<1024*1024)return Math.round(n/1024)+' KB';
+  return (n/1024/1024).toFixed(1)+' MB';
+}
+function guidePick(id){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='application/pdf,image/png,image/jpeg';
+  inp.onchange=function(){
+    var f=inp.files&&inp.files[0];if(!f)return;
+    if(f.size>4*1024*1024){alert('ファイルが大きすぎます（4MBまで）。\nPDFを軽くしてからお試しください。');return;}
+    var rd=new FileReader();
+    rd.onload=function(){
+      var d=String(rd.result||'');
+      if(!/^data:(application\/pdf|image\/(png|jpe?g));base64,/i.test(d)){
+        alert('PDF・PNG・JPEG のみ登録できます。');return;}
+      var all=guideFiles();
+      all[id]={data:d,name:f.name,type:f.type,at:todayISO(),size:f.size};
+      try{stSet('guide_files',all);}
+      catch(e){alert('保存できませんでした。ブラウザの保存容量がいっぱいです。\n不要な資料を削除してからお試しください。');return;}
+      renderGuide();
+    };
+    rd.onerror=function(){alert('ファイルを読み込めませんでした。');};
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+function guideDrop(id){
+  if(!confirm('登録した原本を削除しますか？（ひな型の説明は残ります）'))return;
+  var all=guideFiles();delete all[id];stSet('guide_files',all);renderGuide();
+}
+function guideAddCustom(){
+  var t=prompt('資料の名前を入力してください（例：年間行事予定）');
+  if(!t||!t.trim())return;
+  var a=guideExtra();
+  a.push({id:'x_'+Date.now(),cat:'園の情報',t:t.trim(),kind:'read',d:''});
+  stSet('guide_extra',a);renderGuide();
+}
+function renderGuide(){
+  var files=guideFiles(),list=guideAll();
+  var done=list.filter(function(g){return !!files[g.id];}).length;
+  var byCat={};
+  list.forEach(function(g){(byCat[g.cat]=byCat[g.cat]||[]).push(g);});
+  var cats=GUIDE_CATS.filter(function(k){return byCat[k];});
+  var html='<div class="page-h"><h1>📚 スクールガイド</h1>'
+    +'<div class="sub">入園のときに紙でお渡ししている一式を、ここに登録します。'
+    +'登録すると、保護者は未来WAのマイページからいつでも見られます。</div></div>'
+    +'<div class="card"><div class="row" style="align-items:center;gap:14px;">'
+      +'<div><div style="font-size:22px;font-weight:800;">'+done+' <span style="font-size:14px;color:var(--tx2);font-weight:600;">/ '+list.length+' 件</span></div>'
+      +'<div class="mini">原本を登録ずみ</div></div>'
+      +'<div style="margin-left:auto;text-align:right;"><div style="font-size:15px;font-weight:700;">'+fmtBytes(guideBytes())+'</div>'
+      +'<div class="mini">この端末での保存量</div></div></div>'
+      +'<div class="note-b" style="margin-top:13px;">'
+      +'ファイルはこの端末のブラウザにだけ保存され、外部には送信されません。'
+      +'園の共有パソコンなど、いつも同じ端末でご登録ください。'
+      +'（PDF・PNG・JPEG、1ファイル4MBまで）</div></div>';
+  cats.forEach(function(k){
+    html+='<h2 class="sec">'+esc(k)+'</h2>';
+    byCat[k].forEach(function(g){
+      var f=files[g.id];
+      html+='<div class="card gd-row">'
+        +'<div class="gd-ic'+(g.kind==='form'?' f':'')+'">'+(g.kind==='form'?'✍️':'📄')+'</div>'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-weight:700;font-size:14px;">'+esc(g.t)
+            +(g.custom?' <span class="pill">追加</span>':'')+'</div>'
+          +'<div class="mini" style="margin-top:3px;">'
+            +(f?'✅ '+esc(f.name)+'（'+fmtBytes(f.size||String(f.data).length)+'・'+esc(f.at)+' 登録）'
+               :'原本は未登録。保護者には、ひな型の説明'+(g.kind==='form'?'と記入用紙':'')+'だけが表示されます。')
+          +'</div></div>'
+        +'<div class="gd-act">'
+          +'<button class="btn xs" data-gpick="'+esc(g.id)+'">'+(f?'差し替え':'原本を登録')+'</button>'
+          +(f?'<button class="btn xs gh" data-gdrop="'+esc(g.id)+'">削除</button>':'')
+        +'</div></div>';
+    });
+  });
+  html+='<div style="margin-top:18px;"><button class="btn sec" id="gAdd">＋ 資料を追加する</button></div>';
+  var sec=$('section[data-page="guide"]');
+  sec.innerHTML=html;
+  sec.querySelectorAll('[data-gpick]').forEach(function(b){b.onclick=function(){guidePick(b.getAttribute('data-gpick'));};});
+  sec.querySelectorAll('[data-gdrop]').forEach(function(b){b.onclick=function(){guideDrop(b.getAttribute('data-gdrop'));};});
+  sec.querySelector('#gAdd').onclick=guideAddCustom;
 }
 function renderWaStore(){
   var s=$('section[data-page="wastore"]'),rate=waRate(),mk=waMonth();
@@ -4209,7 +4335,7 @@ function initSyncBar(){
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
-  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'wastore',label:'未来WA ストア管理'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
+  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'wastore',label:'未来WA ストア管理'},{p:'guide',label:'スクールガイド'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},

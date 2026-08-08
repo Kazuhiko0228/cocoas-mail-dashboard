@@ -205,13 +205,16 @@
   .sellerchip .pgo{margin-left:auto;font-size:17px;}
   .sellerchip:hover .snm{text-decoration:underline;}
   /* スクールガイド */
-  .guide-row{display:flex;gap:12px;align-items:center;cursor:pointer;}
+  .guide-row{display:flex;gap:12px;align-items:flex-start;cursor:pointer;}
   .guide-row:hover{border-color:var(--b);}
+  .guide-row .pgo{align-self:center;}
   .gicon{width:42px;height:42px;border-radius:13px;background:var(--line2);display:flex;
     align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
   .gicon.f{background:#FDF1E3;}
   .gpoints{margin:13px 0 0;padding-left:19px;font-size:13.5px;line-height:1.9;}
   .gpoints li{margin-bottom:5px;}
+  /* スマホのブラウザは画面の中にPDFを出せないので、そこでは埋め込みを隠す */
+  @media(max-width:767px){.pdfembed{display:none;}}
   /* 園からのメッセージの 既読／返信する */
   .dmacts{display:flex;gap:7px;margin-top:6px;}
   .dmbtn{font:inherit;font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:999px;
@@ -1055,7 +1058,7 @@ function openDoc(id,c){
 }
 /* 園が登録したファイルだけを開く。外のURLは受けつけない。 */
 function escFileSrc(u){
-  u=String(u||'').replace(/[\s -]/g,'');
+  u=String(u||'').replace(/[\s\u0000-\u001f]/g,'');
   return /^data:(image\/(png|jpe?g|gif|webp)|application\/pdf);base64,[A-Za-z0-9+\/=]+$/i.test(u)?u:'';
 }
 var waGuideView=false,waGuideOpen=null,waGuideQ='',waGuideCat='';
@@ -1110,13 +1113,19 @@ function guidePageHTML(id,c){
     +(src
       ? '<div class="flabel" style="margin:16px 2px 8px;">園が登録した原本'
           +(g.fileAt?'（'+esc(g.fileAt)+' 更新）':'')+'</div>'
+        /* スマホはPDFを画面の中に出せないので、開く・保存を先に置く */
+        +'<div class="card"><div style="display:flex;gap:11px;align-items:center;">'
+          +'<div class="gicon">'+(isPdf?'📕':'🖼️')+'</div>'
+          +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:13.5px;overflow:hidden;'
+            +'text-overflow:ellipsis;white-space:nowrap;">'+esc(g.fileName||g.t)+'</div>'
+          +'<div class="muted">'+(isPdf?'PDF':'画像')+'</div></div></div>'
+          +'<div style="display:flex;gap:8px;margin-top:11px;">'
+          +'<a class="btn" href="'+src+'" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">ひらく</a>'
+          +'<a class="btn sec" href="'+src+'" download="'+esc(g.fileName||g.t)+'" style="flex:1;text-align:center;text-decoration:none;">保存する</a></div></div>'
         +(isPdf
-          ? '<div class="card" style="padding:0;overflow:hidden;">'
+          ? '<div class="card pdfembed" style="padding:0;overflow:hidden;">'
             +'<iframe src="'+src+'" title="'+esc(g.t)+'" style="width:100%;height:62vh;border:none;display:block;"></iframe></div>'
           : '<div class="card" style="padding:8px;"><img src="'+src+'" alt="'+esc(g.t)+'" style="width:100%;display:block;border-radius:10px;"></div>')
-        +'<div style="display:flex;gap:8px;margin:10px 0;">'
-          +'<a class="btn sec" href="'+src+'" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">別の画面で開く</a>'
-          +'<a class="btn sec" href="'+src+'" download="'+esc(g.fileName||g.t)+'" style="flex:1;text-align:center;text-decoration:none;">保存する</a></div>'
       : '<div class="card"><div class="muted">この資料の原本は、まだ園から登録されていません。'
         +(g.kind==='form'?'下のボタンから、記入用の用紙を開けます。':'内容は上のとおりです。')+'</div></div>')
     +(g.kind==='form'?'<div style="margin:4px 0 14px;">'
