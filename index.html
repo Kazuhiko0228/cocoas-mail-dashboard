@@ -59,12 +59,22 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;}
   .card h3{font-size:14.5px;font-weight:600;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
   .card h3 svg{width:17px;height:17px;color:var(--teal);}
+  .page-h h1{display:flex;align-items:center;gap:9px;}
+  .page-h h1 svg{width:21px;height:21px;color:var(--teal);flex-shrink:0;}
   .metric{display:flex;align-items:center;gap:14px;}
   .metric .ico{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .metric .ico svg{width:22px;height:22px;}
   .metric .num{font-size:26px;font-weight:600;line-height:1;}
   .metric .lab{font-size:12.5px;color:var(--tx2);margin-top:3px;}
   .pill{font-size:11.5px;padding:3px 9px;border-radius:99px;white-space:nowrap;font-weight:500;}
+  /* 書類格納の入口 */
+  .docpick{transition:border-color .12s,transform .12s;}
+  .docpick:hover{border-color:#0B5F8F;transform:translateY(-1px);}
+  .dpic{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;}
+  .dpic svg{width:22px;height:22px;}
+  .dpstat{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-size:12.5px;color:var(--tx2);}
+  .dpstat b{font-size:19px;font-weight:800;color:var(--tx);}
+  @media(max-width:880px){.docpick+.docpick{margin-top:0;}}
   /* スクールガイド */
   .gd-row{display:flex;gap:13px;align-items:center;}
   .gd-ic{width:42px;height:42px;border-radius:13px;background:#EFF1EE;display:flex;align-items:center;
@@ -1464,7 +1474,8 @@ function renderGuide(){
   var byCat={};
   list.forEach(function(g){(byCat[g.cat]=byCat[g.cat]||[]).push(g);});
   var cats=GUIDE_CATS.filter(function(k){return byCat[k];});
-  var html='<div class="page-h"><h1>📚 スクールガイド</h1>'
+  var html='<div style="margin-bottom:14px;"><button class="btn btn-sm" id="gdBack">‹ 書類格納にもどる</button></div>'
+    +'<div class="page-h"><h1>📚 スクールガイド</h1>'
     +'<div class="sub">入園のときに紙でお渡ししている一式を、ここに登録します。'
     +'登録すると、保護者は未来WAのマイページからいつでも見られます。</div></div>'
     +'<div class="card"><div class="row" style="align-items:center;gap:14px;">'
@@ -1501,6 +1512,8 @@ function renderGuide(){
   sec.querySelectorAll('[data-gpick]').forEach(function(b){b.onclick=function(){guidePick(b.getAttribute('data-gpick'));};});
   sec.querySelectorAll('[data-gdrop]').forEach(function(b){b.onclick=function(){guideDrop(b.getAttribute('data-gdrop'));};});
   sec.querySelector('#gAdd').onclick=guideAddCustom;
+  var gb=sec.querySelector('#gdBack');
+  if(gb)gb.onclick=function(){docsView='';go('docs');};
 }
 /* 園が「保護者にどう見せるか」を決める画面。
    ここで指定したものが、未来WAのストアの上に別枠で出る。 */
@@ -4479,9 +4492,60 @@ function dgAnzen(){
 }
 
 /* ---------- 書類格納・緊急連絡先 ---------- */
+/* 書類格納は入口。ここで「監査書類」か「保護者へのガイダンス資料」かを選ぶ。 */
+var docsView='';           /* '' … 選ぶ画面 ／ 'audit' … 監査書類 */
 function renderDocs(){
+  if(docsView!=='audit'){ renderDocsHub(); return; }
+  renderDocsAudit();
+}
+function renderDocsHub(){
+  var s=$('section[data-page="docs"]');
+  var docs=stGet('docs',{});
+  var nAudit=docSlotsAll().filter(function(n){return docs[n]&&docs[n].url;}).length;
+  var nAll=docSlotsAll().length;
+  var gf=stGet('guide_files',{})||{};
+  var nGuide=Object.keys(gf).length;
+  var nGuideAll=(typeof guideAll==='function')?guideAll().length:14;
+
+  s.innerHTML='<div class="page-h"><h1>'+ic('folder')+'書類格納</h1>'
+    +'<div class="sub">どちらの書類をあつかいますか。</div></div>'
+    +'<div class="grid" style="grid-template-columns:repeat(2,1fr);gap:16px;">'
+
+    /* ① 監査書類 */
+    +'<div class="card docpick" id="dpAudit" style="cursor:pointer;">'
+      +'<div class="dpic" style="background:#E3F1F9;color:#0B5F8F;">'+ic('clipboard')+'</div>'
+      +'<h3 style="margin:14px 0 6px;">監査書類の格納</h3>'
+      +'<div class="muted" style="line-height:1.8;">'
+      +'指導監査で見られる書類の保管先（Google Drive等のURL）を登録します。'
+      +'園の中で保管している場所を、どこからでも辿れるようにしておくための欄です。</div>'
+      +'<div class="dpstat"><b>'+nAudit+'</b> / '+nAll+' 件 登録ずみ</div>'
+      +'<button class="btn btn-primary" style="margin-top:14px;">監査書類をひらく</button></div>'
+
+    /* ② 保護者へのガイダンス資料 */
+    +'<div class="card docpick" id="dpGuide" style="cursor:pointer;">'
+      +'<div class="dpic" style="background:#FDF3E3;color:#854F0B;">'+ic('book')+'</div>'
+      +'<h3 style="margin:14px 0 6px;">保護者へのガイダンス資料</h3>'
+      +'<div class="muted" style="line-height:1.8;">'
+      +'入園のときにお渡ししている一式です。ここに登録したものが、'
+      +'そのまま保護者の未来WAに出ます。紙をなくされても、保護者がいつでも見られます。</div>'
+      +'<div class="dpstat"><b>'+nGuide+'</b> / '+nGuideAll+' 件 原本を登録ずみ</div>'
+      +'<button class="btn btn-primary" style="margin-top:14px;">ガイダンス資料をひらく</button></div>'
+    +'</div>'
+
+    +'<div class="card" style="margin-top:16px;display:flex;gap:12px;align-items:flex-start;">'
+      +'<span style="color:#854F0B;width:18px;height:18px;flex-shrink:0;margin-top:2px;">'+ic('info')+'</span>'
+      +'<div class="muted" style="line-height:1.8;">'
+      +'<b>違いは、誰が見るかです。</b><br>'
+      +'監査書類は、監査のときに園が示すもの。保管先のURLだけを控えます。<br>'
+      +'ガイダンス資料は、保護者が見るもの。PDFの実物をここに置きます。</div></div>';
+
+  $('#dpAudit').onclick=function(){docsView='audit';renderDocs();};
+  $('#dpGuide').onclick=function(){docsView='';go('guide');};
+}
+function renderDocsAudit(){
   var docs=stGet('docs',{}),hosp=stGet('hospitals',HOSP_DEFAULT),s=$('section[data-page="docs"]');
-  s.innerHTML='<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
+  s.innerHTML='<div style="margin-bottom:14px;"><button class="btn btn-sm" id="dcBack">‹ 書類格納にもどる</button></div>'
+    +'<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
     '<div class="muted" style="margin-bottom:12px;">PDF等はDriveに保存し、そのURLをここに登録。監査チェックリスト・最終チェックリスト出力に「格納済み」として反映されます。</div>'+
     '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
     docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td style="white-space:nowrap;"><input data-dname="'+esc(name)+'" value="'+esc(docLabel(name)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="font-weight:600;border:none;background:transparent;padding:2px 3px;min-width:180px;" title="書類名を変更できます">'+(isCustom?'<span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
@@ -4493,6 +4557,7 @@ function renderDocs(){
       '<button class="btn btn-sm" id="dcAdd">'+ic('plus')+'追加</button></div>'+
     '<div style="margin-top:12px;"><button class="btn btn-primary" id="dcSave">'+ic('check')+'保存</button> <span class="muted" id="dcMsg"></span></div></div>'+
     '<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><span style="color:#854F0B;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="flex:1;min-width:200px;font-size:12.5px;color:var(--tx2);">病院等の緊急連絡先は<b>「施設管理 → 提携医療機関」</b>で管理します（壁掲示用の出力もそちらから行えます）。</div><button class="btn btn-sm" id="dcGoFac">施設管理へ</button></div>';
+  $('#dcBack').onclick=function(){docsView='';renderDocs();};
   $('#dcAdd').onclick=function(){
     var n=$('#dcNewName').value.trim(),u=$('#dcNewUrl').value.trim();
     if(!n){alert('書類名を入力してください');return;}
