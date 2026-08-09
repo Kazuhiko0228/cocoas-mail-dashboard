@@ -250,6 +250,7 @@
     text-decoration:underline;cursor:pointer;padding:0;}
   #staffLogin .sl-hint-w{font-size:11.5px;line-height:1.7;background:#FDF3E3;border:1px solid #F0DCBC;
     border-radius:9px;padding:9px 11px;margin:9px 0;color:#7A5312;}
+  #staffLogin .sl-hint-r{font-size:11.5px;line-height:1.7;color:var(--tx2);margin:9px 0;}
   #staffLogin .sl-hint table{width:100%;border-collapse:collapse;font-size:12.5px;}
   #staffLogin .sl-hint td{border-bottom:1px solid var(--line);padding:6px 4px;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
@@ -4410,8 +4411,30 @@ function renderDocs(){
 var API={
   base:function(){return (stGetRaw('apiBase')||'').replace(/\/$/,'');},
   setBase:function(v){localStorage.setItem('cocoas_apiBase',JSON.stringify(String(v||'').replace(/\/$/,'')));},
-  token:function(){return stGetRaw('apiToken')||'';},
-  setToken:function(t){if(t)localStorage.setItem('cocoas_apiToken',JSON.stringify(t));else localStorage.removeItem('cocoas_apiToken');},
+  /* ログイン用のトークンは sessionStorage（このタブの中だけ）に置きます。
+     localStorage だと、端末に残り続けるうえ、バックアップの書き出しにも混ざってしまうためです。
+     タブを閉じると消えます（共用のタブレットでは、この方が安全です）。
+     ※ 新しいタブを開いたときは、もう一度ログインが必要になります。 */
+  token:function(){
+    var t='';
+    try{t=sessionStorage.getItem('cocoas_apiToken')||'';}catch(e){}
+    if(!t){
+      /* これまで localStorage に入っていた分は、いまのタブへ移してから消します
+         （この入れ替えで、ログインし直しが必要になることはありません）。 */
+      var old=null;
+      try{old=localStorage.getItem('cocoas_apiToken');}catch(e){}
+      if(old){
+        try{old=JSON.parse(old);}catch(e){old=null;}
+        if(old&&typeof old==='string'){t=old;try{sessionStorage.setItem('cocoas_apiToken',t);}catch(e){}}
+        try{localStorage.removeItem('cocoas_apiToken');}catch(e){}
+      }
+    }
+    return t;
+  },
+  setToken:function(t){
+    try{if(t)sessionStorage.setItem('cocoas_apiToken',String(t));else sessionStorage.removeItem('cocoas_apiToken');}catch(e){}
+    try{localStorage.removeItem('cocoas_apiToken');}catch(e){}
+  },
   tenant:function(){return stGetRaw('apiTenant')||null;},
   setTenant:function(t){if(t)localStorage.setItem('cocoas_apiTenant',JSON.stringify(t));else localStorage.removeItem('cocoas_apiTenant');},
   enabled:function(){return !!API.base();},
@@ -4536,6 +4559,158 @@ function initSyncBar(){
   document.getElementById('syncNow').onclick=function(){SYNC.push().then(SYNC.pull).then(function(){location.reload();});};
 }
 
+/* ========== パスワードの保管（平文をやめる） ==========
+   ブラウザに標準で入っている暗号の機能（Web Crypto）を使い、パスワードを
+   PBKDF2（15万回・SHA-256）のハッシュに変えてから保存します。
+   端末に残るのは「ハッシュ」と「ソルト」だけで、パスワードそのものは残りません。
+   照合には少し時間がかかるため、結果はコールバックでお返しします。
+   ※ 古い環境などで暗号の機能が使えないときは、これまでどおりの動きに戻します
+     （安全性は下がりますが、ログインできなくなるより良いと判断しました）。 */
+var CRED={
+  IT:150000,
+  can:function(){try{return !!(window.crypto&&window.crypto.subtle&&window.crypto.subtle.importKey&&window.TextEncoder&&window.btoa&&window.atob);}catch(e){return false;}},
+  _b64:function(buf){var b=new Uint8Array(buf),s='',i;for(i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);},
+  _bin:function(s){var r=atob(String(s)),a=new Uint8Array(r.length),i;for(i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;},
+  _salt:function(){var a=new Uint8Array(16),i;try{window.crypto.getRandomValues(a);}catch(e){for(i=0;i<16;i++)a[i]=Math.floor(Math.random()*256);}return a;},
+  _bits:function(pw,salt,it){
+    var raw=new TextEncoder().encode(String(pw));
+    return window.crypto.subtle.importKey('raw',raw,{name:'PBKDF2'},false,['deriveBits'])
+      .then(function(k){return window.crypto.subtle.deriveBits({name:'PBKDF2',salt:salt,iterations:it,hash:'SHA-256'},k,256);});
+  },
+  /* パスワードからハッシュを作ります。使えない環境では null をお返しします。 */
+  hash:function(pw,done){
+    done=done||function(){};
+    if(!CRED.can()||!pw){done(null);return;}
+    var salt=CRED._salt();
+    try{
+      CRED._bits(pw,salt,CRED.IT).then(function(bits){
+        done({v:1,alg:'PBKDF2-SHA256',it:CRED.IT,salt:CRED._b64(salt),h:CRED._b64(bits)});
+      },function(){done(null);});
+    }catch(e){done(null);}
+  },
+  /* 入力されたパスワードが、保存されているハッシュと合っているかを調べます。 */
+  verify:function(pw,rec,done){
+    done=done||function(){};
+    if(!rec||!rec.h||!rec.salt||!CRED.can()||!pw){done(false);return;}
+    try{
+      CRED._bits(pw,CRED._bin(rec.salt),rec.it||CRED.IT).then(function(bits){
+        done(CRED._same(CRED._b64(bits),rec.h));
+      },function(){done(false);});
+    }catch(e){done(false);}
+  },
+  /* どこで違っていても同じ時間で答えるように、最後まで比べます。 */
+  _same:function(a,b){
+    if(typeof a!=='string'||typeof b!=='string'||a.length!==b.length)return false;
+    var d=0,i;for(i=0;i<a.length;i++)d|=a.charCodeAt(i)^b.charCodeAt(i);
+    return d===0;
+  }
+};
+
+/* ========== 自動ロック（共用タブレット向け） ==========
+   しばらく操作がないと、画面に鍵をかけます。
+   ★ここが大事：ロックは「画面をおおうだけ」です。
+     入力の途中の内容も、まだ送っていない記録も、消しません。
+     鍵を開ければ、さっきまでの画面がそのまま出てきます。ログアウトとは別のものです。 */
+var IDLE={
+  MS:20*60*1000,      /* 20分さわらなければ、鍵をかけます */
+  MAXMS:60*60*1000,   /* 入力の途中でも、1時間で必ず鍵をかけます（内容は消えません） */
+  last:Date.now(), locked:false, started:false, timer:null,
+  bump:function(){IDLE.last=Date.now();},
+  start:function(){
+    if(IDLE.started)return;IDLE.started=true;IDLE.bump();
+    var evs=['mousedown','keydown','touchstart','wheel','focusin'],i;
+    for(i=0;i<evs.length;i++){try{document.addEventListener(evs[i],IDLE.bump,true);}catch(e){}}
+    IDLE.timer=setInterval(IDLE.tick,15000);
+  },
+  /* いま入力の途中かどうか。途中なら、しばらく待ちます。 */
+  typing:function(){
+    var a=document.activeElement;
+    if(!a)return false;
+    if(a.isContentEditable)return true;
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||''))return String(a.value||'')!=='';
+    return false;
+  },
+  tick:function(){
+    if(IDLE.locked)return;
+    var idle=Date.now()-IDLE.last;
+    if(idle<IDLE.MS)return;
+    if(idle<IDLE.MAXMS&&IDLE.typing())return;
+    IDLE.lock();
+  },
+  lock:function(){
+    if(IDLE.locked)return;
+    try{if(typeof currentStaff==='function'&&!currentStaff())return;}catch(e){return;}
+    IDLE.locked=true;
+    /* まだ送っていない分をサーバへ送っておきます。送れなくても、内容はこの端末に残ります。 */
+    try{if(typeof SYNC!=='undefined'&&SYNC.push)SYNC.push();}catch(e){}
+    IDLE.show();
+  },
+  show:function(){
+    var ov=document.getElementById('idleLock');
+    if(!ov){ov=document.createElement('div');ov.id='idleLock';document.body.appendChild(ov);}
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:linear-gradient(135deg,#0F6E56,#0a4d3c);display:flex;align-items:center;justify-content:center;padding:20px;';
+    var s=null;try{s=(typeof currentStaff==='function')?currentStaff():null;}catch(e){}
+    s=s||{};
+    ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit;">'
+      +'<div style="font-size:19px;font-weight:700;margin-bottom:6px;">画面をロックしました</div>'
+      +'<div style="font-size:12.5px;color:#5F5E5A;line-height:1.75;margin-bottom:14px;">しばらく操作がなかったため、画面に鍵をかけました。<br>入力の途中の内容は消えていません。パスワードを入れると、続きからお使いいただけます。</div>'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:8px;">'+esc(s.name||'')+'（'+esc(s.role||'')+'）</div>'
+      +'<div id="idleErr" style="color:#B00;font-size:12px;margin-bottom:8px;display:none;line-height:1.6;"></div>'
+      +'<input id="idlePw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" style="width:100%;border:1px solid #E5E2D9;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px;box-sizing:border-box;font-family:inherit;">'
+      +'<button id="idleGo" style="width:100%;background:#0F6E56;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">ロックを解除する</button>'
+      +'<div style="text-align:center;margin-top:12px;"><button id="idleOut" style="background:none;border:none;color:#5F5E5A;font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit;">別の職員としてログインし直す</button></div>'
+      +'</div>';
+    var go=document.getElementById('idleGo'),pw=document.getElementById('idlePw'),er=document.getElementById('idleErr');
+    function stop(msg){er.textContent=msg;er.style.display='block';go.disabled=false;go.textContent='ロックを解除する';}
+    go.onclick=function(){
+      var v=pw.value;
+      if(!v){stop('パスワードを入力してください');return;}
+      er.style.display='none';go.disabled=true;go.textContent='確認中…';
+      IDLE.check(v,function(ok,why){
+        if(ok){IDLE.unlock();return;}
+        /* サーバから理由が返ってきたときは、そのまま出す
+           （「何度も間違えたので少し待ってください」などを、パスワード違いと取り違えないため） */
+        stop(why||'パスワードが違います');
+      });
+    };
+    pw.addEventListener('keydown',function(e){if(e.key==='Enter')go.click();});
+    document.getElementById('idleOut').onclick=function(){
+      /* ここではデータを一切消しません。ログアウトの処理はこれまでどおりです。 */
+      if(confirm('ログアウトして、別の職員としてログインし直しますか？\n（入力済みの内容は、この端末に残ります）'))staffLogout();
+    };
+    try{pw.focus();}catch(e){}
+  },
+  /* 鍵を開けてよいかの確認。サーバに接続しているときは、サーバに聞きます。 */
+  check:function(pw,done){
+    try{
+      if(typeof API!=='undefined'&&API.online()){
+        var t=(API.tenant()||{}).code||'';
+        var u=(typeof serverUser==='function'&&serverUser())||{};
+        if(!t||!u.loginId){done(false);return;}
+        /* ここでは API.call を使いません。合わないときに、いまのログインまで切れてしまうためです。 */
+        fetch(API.base()+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({tenant:t,loginId:u.loginId,password:pw})})
+          .then(function(r){
+            return r.json().then(function(j){return {ok:r.ok,j:j};},function(){return {ok:r.ok,j:{}};});
+          })
+          .then(function(x){
+            if(x.ok&&x.j&&x.j.token){API.setToken(x.j.token);done(true);return;}
+            done(false,(x.j&&x.j.error)?x.j.error:'');
+          },function(){done(false,'通信ができませんでした。電波の状態をご確認のうえ、もう一度お試しください。');});
+        return;
+      }
+    }catch(e){}
+    var s=null;try{s=(typeof currentStaff==='function')?currentStaff():null;}catch(e){}
+    if(!s){done(false);return;}
+    staffLoginBy(s.loginId,pw,function(ok){done(ok);});
+  },
+  unlock:function(){
+    var ov=document.getElementById('idleLock');
+    if(ov&&ov.parentNode)ov.parentNode.removeChild(ov);
+    IDLE.locked=false;IDLE.bump();
+  }
+};
+
 /* ========== 権限管理・職員ログイン（RBAC・デモ） ==========
    役割(管理者/マネージャー/一般)ごとに閲覧できる画面を制御。管理者が権限を設定できる。
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
@@ -4556,10 +4731,18 @@ var DEFAULT_PERMS={
   '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','shift','contacts','curriculum']
 };
 var PERMS_VERSION=8;
+/* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
+   （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
+   平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
+var SEED_PWH={
+  admin:{v:1,alg:'PBKDF2-SHA256',it:150000,salt:'VmZNqFbrMSclCv2G1qzQSA==',h:'ZqxJte/D6Yo3wdw1PymdUNeLMIhwngFez/kf6sHK2oc='},
+  shiraga:{v:1,alg:'PBKDF2-SHA256',it:150000,salt:'sVdSOawQ0HsJwqla6q4L3w==',h:'W2w5rDL8sMsU/Lwnxl2DrpRczF9RoFA9zBegvBCxiXA='},
+  staff:{v:1,alg:'PBKDF2-SHA256',it:150000,salt:'ZW4JsRezp+q/LGSYXJ+Bcw==',h:'bQp990OW9h7hvbQeybDhXM64xVYLnc4SUZ6++WQ5in0='}
+};
 function staffAccountsSeed(){return [
-  {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pw:'admin',staffId:null},
-  {id:2,loginId:'shiraga',name:'白神 美咲',role:'マネージャー',pw:'shiraga',staffId:101},
-  {id:3,loginId:'staff',name:'一般 スタッフ',role:'一般',pw:'staff',staffId:null}
+  {id:1,loginId:'admin',name:'本部 管理者',role:'管理者',pwh:SEED_PWH.admin,seed:true,staffId:null},
+  {id:2,loginId:'shiraga',name:'白神 美咲',role:'マネージャー',pwh:SEED_PWH.shiraga,seed:true,staffId:101},
+  {id:3,loginId:'staff',name:'一般 スタッフ',role:'一般',pwh:SEED_PWH.staff,seed:true,staffId:null}
 ];}
 var ACCOUNTS_VERSION=2;
 function staffAccounts(){
@@ -4579,7 +4762,85 @@ function roleColor(r){return r==='管理者'?{bg:'#FCEBEB',fg:'#A32D2D'}:r==='�
 function currentStaff(){var id=sessionStorage.getItem('cocoas_staffSession');if(!id)return null;return staffAccounts().filter(function(a){return String(a.id)===String(id);})[0]||null;}
 function currentRole(){var s=currentStaff();return s?s.role:null;}
 function canView(page){var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;return (rolePerms()[s.role]||[]).indexOf(page)>-1;}
-function staffLoginBy(loginId,pw){loginId=(loginId||'').trim().toLowerCase();pw=(pw||'').trim();var a=staffAccounts().filter(function(x){return String(x.loginId).toLowerCase()===loginId;})[0];if(a&&pw===String(a.pw)){sessionStorage.setItem('cocoas_staffSession',a.id);return true;}return false;}
+/* ログインの確認。ハッシュの照合に少し時間がかかるため、結果はコールバックでお返しします。
+   まだ平文のまま残っているアカウントは、照合が通った瞬間にハッシュへ置き換えます。
+   （置き換えによって、ログインできなくなることはありません） */
+function staffLoginBy(loginId,pw,cb){
+  cb=cb||function(){};
+  loginId=(loginId||'').trim().toLowerCase();pw=(pw||'').trim();
+  var arr=staffAccounts();
+  var a=arr.filter(function(x){return String(x.loginId).toLowerCase()===loginId;})[0];
+  /* パスワードが空のままログインできてしまわないようにします。 */
+  if(!a||!pw){cb(false);return;}
+  function grant(){sessionStorage.setItem('cocoas_staffSession',a.id);cb(true);}
+  if(a.pwh){CRED.verify(pw,a.pwh,function(ok){if(ok)grant();else cb(false);});return;}
+  var old=(a.pw==null)?'':String(a.pw).trim();
+  if(old&&pw===old){
+    CRED.hash(pw,function(rec){
+      if(rec){a.pwh=rec;delete a.pw;stSet('staffAccounts',arr);}
+      grant();
+    });
+    return;
+  }
+  cb(false);
+}
+/* パスワードを設定します。保存されるのはハッシュだけです。 */
+function staffSetPassword(acc,pw,done){
+  done=done||function(){};
+  CRED.hash(pw,function(rec){
+    if(rec){acc.pwh=rec;delete acc.pw;}
+    else{acc.pw=String(pw);delete acc.pwh;}  /* 暗号の機能が使えない環境では、これまでどおりの保存に戻します */
+    delete acc.seed;
+    done();
+  });
+}
+/* 起動したときに、平文のまま残っているパスワードをハッシュへ置き換えます。
+   置き換えたあとも、同じパスワードでこれまでどおりログインできます。 */
+function staffCredSweep(){
+  if(!CRED.can())return;
+  var todo=staffAccounts().filter(function(a){return a.pw!=null&&String(a.pw)!==''&&!a.pwh;});
+  if(!todo.length)return;
+  var made={},n=0;
+  todo.forEach(function(a){
+    CRED.hash(String(a.pw),function(rec){
+      if(rec)made[a.id]=rec;
+      if(++n<todo.length)return;
+      /* 途中で編集されていても困らないように、保存し直す直前にもう一度読み直します。 */
+      var cur=staffAccounts(),ch=false;
+      cur.forEach(function(x){if(made[x.id]&&!x.pwh){x.pwh=made[x.id];delete x.pw;ch=true;}});
+      if(ch)stSet('staffAccounts',cur);
+    });
+  });
+}
+/* 端末内で使っているときのパスワード変更。 */
+function localPasswordModal(){
+  var s=currentStaff();
+  if(!s){alert('ログインし直してください');return;}
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.innerHTML='<div class="modal" style="width:460px;"><h2>パスワードの変更</h2>'
+    +'<div class="muted" style="margin:-6px 0 12px;">'+esc(s.name)+'（'+esc(s.role)+'）のパスワードを変更します。</div>'
+    +'<div class="field"><label>現在のパスワード</label><input type="password" id="lp_cur" autocomplete="current-password"></div>'
+    +'<div class="field"><label>新しいパスワード（8文字以上）</label><input type="password" id="lp_new" autocomplete="new-password"></div>'
+    +'<div class="field"><label>新しいパスワード（確認）</label><input type="password" id="lp_new2" autocomplete="new-password"></div>'
+    +'<div class="muted" id="lp_msg" style="margin-bottom:10px;"></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;"><button class="btn" id="lp_cancel">キャンセル</button><button class="btn btn-primary" id="lp_save">変更する</button></div></div>';
+  $('#lp_cancel').onclick=function(){m.remove();};
+  $('#lp_save').onclick=function(){
+    var c=$('#lp_cur').value,n=$('#lp_new').value,n2=$('#lp_new2').value,msg=$('#lp_msg');
+    if(n!==n2){msg.textContent='新しいパスワードが一致しません';return;}
+    if(n.length<8){msg.textContent='8文字以上にしてください';return;}
+    msg.textContent='確認中…';
+    staffLoginBy(s.loginId,c,function(ok){
+      if(!ok){msg.textContent='現在のパスワードが違います';return;}
+      var arr=staffAccounts(),acc=arr.filter(function(x){return String(x.id)===String(s.id);})[0];
+      if(!acc){msg.textContent='アカウントが見つかりません';return;}
+      staffSetPassword(acc,n,function(){
+        stSet('staffAccounts',arr);m.remove();alert('パスワードを変更しました。');
+      });
+    });
+  };
+}
+
 function staffLogout(){sessionStorage.removeItem('cocoas_staffSession');sessionStorage.removeItem('cocoas_serverUser');if(typeof API!=='undefined'&&API.enabled())API.setToken('');location.reload();}
 function applyPerms(){
   var s=currentStaff();if(!s)return;
@@ -4590,7 +4851,19 @@ function applyPerms(){
   var dmb=document.getElementById('navDM');
   if(dmb&&typeof dmUnreadTotal==='function'){var un=dmUnreadTotal();dmb.textContent=un||'';dmb.style.display=un?'':'none';}
   var foot=document.querySelector('.side-foot');
-  if(foot){foot.innerHTML='<div style="color:#fff;font-weight:600;font-size:12.5px;">'+esc(s.name)+'</div><div style="color:#9fc7b8;font-size:11px;margin-bottom:6px;">'+s.role+'としてログイン中</div><button id="slLogout" style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">ログアウト</button>';var lo=document.getElementById('slLogout');if(lo)lo.onclick=staffLogout;}
+  if(foot){
+    var btn='background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;';
+    foot.innerHTML='<div style="color:#fff;font-weight:600;font-size:12.5px;">'+esc(s.name)+'</div><div style="color:#9fc7b8;font-size:11px;margin-bottom:6px;">'+s.role+'としてログイン中</div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      +'<button id="slLock" style="'+btn+'">画面をロック</button>'
+      +'<button id="slPwc" style="'+btn+'">パスワード変更</button>'
+      +'<button id="slLogout" style="'+btn+'">ログアウト</button></div>';
+    var lo=document.getElementById('slLogout');if(lo)lo.onclick=staffLogout;
+    var lk=document.getElementById('slLock');if(lk)lk.onclick=function(){IDLE.last=0;IDLE.lock();};
+    var pc=document.getElementById('slPwc');if(pc)pc.onclick=function(){
+      if(typeof API!=='undefined'&&API.online())passwordChangeModal(false);else localPasswordModal();
+    };
+  }
 }
 /* 職員名簿とログインアカウントの紐付け（staffId で対応、無ければ氏名で判定） */
 function acctOfStaff(st){var a=staffAccounts();return a.filter(function(x){return (x.staffId&&x.staffId===st.id)||x.name===st.name;})[0]||null;}
@@ -4603,7 +4876,8 @@ function acctModal(acctId,staffId){
     var nid=Math.max.apply(null,accs.map(function(x){return x.id;}).concat([0]))+1;
     var base=(st&&st.kana)?st.kana.split(/[\s　]+/)[0]:'';
     var romaji={'シラガ':'shiraga','タムラ':'tamura','ササキ':'sasaki','ジョン':'john'}[base]||('staff'+nid);
-    a={id:nid,staffId:staffId||null,loginId:romaji,name:st?st.name:'',role:'一般',pw:'pass'+nid};
+    /* 推測できるパスワードを自動でつけません。作成時にご指定いただきます。 */
+    a={id:nid,staffId:staffId||null,loginId:romaji,name:st?st.name:'',role:'一般'};
   }
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
@@ -4611,7 +4885,7 @@ function acctModal(acctId,staffId){
     +'<div class="muted" style="margin:-6px 0 12px;font-size:12px;">この職員がシステムにログインするためのIDとパスワードです。役割によって見える画面が変わります（設定 → 権限管理で調整可）。</div>'
     +'<div class="field"><label>氏名</label><input id="ac_name" value="'+String(a.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>ログインID（半角英数）</label><input id="ac_id" value="'+String(a.loginId||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
-    +'<div class="field"><label>パスワード</label><input id="ac_pw" value="'+String(a.pw||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" autocapitalize="none" autocorrect="off" spellcheck="false"></div></div>'
+    +'<div class="field"><label>パスワード</label><input id="ac_pw" type="password" value="" placeholder="変更するときだけ入力（8文字以上）" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false"><div class="mini" style="margin-top:4px;">空欄のまま保存すると、いまのパスワードのままになります。</div></div></div>'
     +'<div class="field"><label>役割</label><select id="ac_role">'+STAFF_ROLES.map(function(r){return '<option'+(r===a.role?' selected':'')+'>'+r+'</option>';}).join('')+'</select></div>'
     +'<div class="muted" style="font-size:11.5px;line-height:1.6;margin-bottom:12px;">管理者＝すべて／マネージャー＝運営全般（職員アカウントと権限管理を除く）／一般＝記録・デイリーメール・保護者DMなど日々の業務。</div>'
     +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">'+(isNew?'':'<button class="btn btn-ghost" id="ac_del">'+ic('trash')+'削除</button>')+'<button class="btn" id="ac_cancel">キャンセル</button><button class="btn btn-primary" id="ac_save">'+ic('check')+'保存</button></div></div>';
@@ -4621,11 +4895,17 @@ function acctModal(acctId,staffId){
     var lid=$('#ac_id').value.trim().toLowerCase();
     if(!lid){alert('ログインIDを入力してください');return;}
     if(staffAccounts().filter(function(x){return x.id!==a.id&&String(x.loginId).toLowerCase()===lid;}).length){alert('このログインIDは既に使われています');return;}
-    if(!$('#ac_pw').value.trim()){alert('パスワードを入力してください');return;}
-    a.loginId=lid;a.name=$('#ac_name').value.trim();a.pw=$('#ac_pw').value.trim();a.role=$('#ac_role').value;
-    var arr=staffAccounts();var idx=-1;arr.forEach(function(x,i){if(x.id===a.id)idx=i;});
-    if(idx>-1)arr[idx]=a;else arr.push(a);
-    stSet('staffAccounts',arr);m.remove();applyPerms();renderStaff();
+    var newPw=$('#ac_pw').value;
+    if(isNew&&!newPw){alert('パスワードを入力してください（8文字以上）');return;}
+    if(newPw&&newPw.length<8){alert('パスワードは8文字以上にしてください');return;}
+    a.loginId=lid;a.name=$('#ac_name').value.trim();a.role=$('#ac_role').value;
+    function acStore(){
+      var arr=staffAccounts();var idx=-1;arr.forEach(function(x,i){if(x.id===a.id)idx=i;});
+      if(idx>-1)arr[idx]=a;else arr.push(a);
+      stSet('staffAccounts',arr);m.remove();applyPerms();renderStaff();
+    }
+    /* 空欄のときは、いまのパスワードのままにします（うっかり消さないため）。 */
+    if(newPw)staffSetPassword(a,newPw,acStore);else acStore();
   };
 }
 function showStaffLogin(){
@@ -4645,8 +4925,10 @@ function showStaffLogin(){
        実データを入れる前に、設定 → 職員アカウント からパスワードを変更する。 */
     +'<div class="sl-hint"><button id="slHintT" type="button">デモのログイン情報を見る</button>'
     +'<div id="slHintB" class="hide"><div class="sl-hint-w">⚠️ 実際の園児情報を入れる前に、必ず「設定 → 職員アカウント」でパスワードを変更してください。</div>'
+    +'<div class="sl-hint-r">お試し用のアカウントは、<b>パスワードがログインIDと同じ文字列</b>です。<br>'
+      +'（例：ID が admin ならパスワードも admin）</div>'
     +'<table>'+staffAccounts().map(function(a){
-        return '<tr><td>'+esc(a.loginId)+'</td><td>'+esc(a.pw)+'</td><td>'+esc(a.role)+'</td></tr>';}).join('')
+        return '<tr><td>'+esc(a.loginId)+'</td><td>'+esc(a.role)+'</td></tr>';}).join('')
     +'</table></div></div></div>';
   ov.style.display='flex';
   /* タップしただけでログインできてしまうと、公開中の画面が実質ノーガードになる。
@@ -4660,12 +4942,21 @@ function showStaffLogin(){
   var ht=document.getElementById('slHintT'),hb=document.getElementById('slHintB');
   if(ht)ht.onclick=function(){hb.classList.toggle('hide');
     ht.textContent=hb.classList.contains('hide')?'デモのログイン情報を見る':'デモのログイン情報を隠す';};
-  document.getElementById('slGo').onclick=function(){if(staffLoginBy(document.getElementById('slId').value,document.getElementById('slPw').value))staffEnter();else document.getElementById('slErr').style.display='block';};
+  document.getElementById('slGo').onclick=function(){
+    var b=document.getElementById('slGo'),e=document.getElementById('slErr');
+    e.style.display='none';b.disabled=true;b.textContent='確認中…';
+    staffLoginBy(document.getElementById('slId').value,document.getElementById('slPw').value,function(ok){
+      b.disabled=false;b.textContent='ログイン';
+      if(ok){staffEnter();return;}
+      e.textContent='ログインIDまたはパスワードが違います';e.style.display='block';
+    });
+  };
   document.getElementById('slPw').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('slGo').click();});
 }
 function staffEnter(){
   var ov=document.getElementById('staffLogin');if(ov)ov.style.display='none';
   applyPerms();
+  try{IDLE.start();}catch(e){}
   var dl=dmDeepLink();
   var first=(dl&&canView('dm'))?'dm':(canView('dashboard')?'dashboard':(ACCESS_PAGES.map(function(x){return x.p;}).filter(canView)[0]||'dashboard'));
   if(dl&&canView('dm'))dmSel=dl;
@@ -4680,13 +4971,17 @@ function recDeepLink(){
 function dmDeepLink(){var m=location.search.match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
 function staffBoot(){
   try{autoSnapshot();}catch(e){}
+  /* 平文のまま残っているパスワードを、ハッシュへ置き換えます（ログインには影響しません）。 */
+  try{staffCredSweep();}catch(e){}
   if(API.enabled()){
     if(!API.online()){showStaffLogin();return;}
     var su=serverUser();
     if(su){
       /* サーバのアカウントを、画面の権限判定に使う */
       var accs=staffAccounts(),hit=accs.filter(function(a){return String(a.loginId).toLowerCase()===String(su.loginId).toLowerCase();})[0];
-      if(!hit){hit={id:Date.now(),loginId:su.loginId,name:su.name,role:su.role,pw:''};accs.push(hit);stSet('staffAccounts',accs);}
+      /* 本人確認はサーバ側で済んでいるので、こちらにはパスワードを持たせません
+         （持たせないことで、この控えを使った端末内ログインができなくなります）。 */
+      if(!hit){hit={id:Date.now(),loginId:su.loginId,name:su.name,role:su.role,server:true};accs.push(hit);stSet('staffAccounts',accs);}
       else{hit.name=su.name;hit.role=su.role;stSet('staffAccounts',accs);}
       sessionStorage.setItem('cocoas_staffSession',hit.id);
     }
@@ -4694,6 +4989,7 @@ function staffBoot(){
   }
   if(!currentStaff()){showStaffLogin();return;}
   applyPerms();try{initSyncBar();}catch(e){}
+  try{IDLE.start();}catch(e){}
   var dl=dmDeepLink(),rl=recDeepLink();
   if(rl&&canView(recPageOf(rl.type))){
     recType=rl.type;
@@ -4727,7 +5023,7 @@ function renderAccessSettings(s){
     var accs=staffAccounts();
     html+='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('staff')+'職員アカウント</h3><div class="muted" style="margin-bottom:10px;">職員ごとにログインIDと役割を発行します。役割で閲覧できる画面が決まります。</div>'
       +'<table><thead><tr><th>ログインID</th><th>氏名</th><th>役割</th><th>パスワード</th><th></th></tr></thead><tbody>'
-      +accs.map(function(a){return '<tr><td><input data-sa="'+a.id+'|loginId" value="'+esc(a.loginId)+'" style="width:110px;"></td><td><input data-sa="'+a.id+'|name" value="'+esc(a.name)+'" style="width:150px;"></td><td><select data-sa="'+a.id+'|role">'+STAFF_ROLES.map(function(r){return '<option'+(r===a.role?' selected':'')+'>'+r+'</option>';}).join('')+'</select></td><td><input data-sa="'+a.id+'|pw" value="'+esc(a.pw)+'" style="width:100px;"></td><td><button class="btn btn-sm btn-ghost" data-sadel="'+esc(a.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')
+      +accs.map(function(a){return '<tr><td><input data-sa="'+a.id+'|loginId" value="'+esc(a.loginId)+'" style="width:110px;"></td><td><input data-sa="'+a.id+'|name" value="'+esc(a.name)+'" style="width:150px;"></td><td><select data-sa="'+a.id+'|role">'+STAFF_ROLES.map(function(r){return '<option'+(r===a.role?' selected':'')+'>'+r+'</option>';}).join('')+'</select></td><td><input data-sa="'+a.id+'|pw" type="password" value="" placeholder="変更時のみ" autocomplete="new-password" style="width:100px;"></td><td><button class="btn btn-sm btn-ghost" data-sadel="'+esc(a.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')
       +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
     var perms=rolePerms();
     html+='<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('shield')+'権限管理（役割ごとの閲覧範囲）</h3><div class="muted" style="margin-bottom:10px;">チェックした画面だけ、その役割の職員に表示されます。管理者は常に全画面。（例：一般スタッフは監査・請求書・設定を非表示に）</div>'
@@ -4749,8 +5045,37 @@ function renderAccessSettings(s){
   s.insertAdjacentHTML('beforeend',html);
   var gr=document.getElementById('setGoRoster');if(gr)gr.onclick=function(){go('roster');};
   if(role==='管理者'){
-    document.getElementById('saAdd').onclick=function(){var a=staffAccounts();var nid=Math.max.apply(null,a.map(function(x){return x.id;}).concat([0]))+1;a.push({id:nid,loginId:'staff'+nid,name:'新規職員',role:'一般',pw:'pass'+nid});stSet('staffAccounts',a);renderSettings();};
-    document.getElementById('saSave').onclick=function(){var a=staffAccounts();document.querySelectorAll('[data-sa]').forEach(function(inp){var pp=inp.getAttribute('data-sa').split('|');var acc=a.filter(function(x){return String(x.id)===pp[0];})[0];if(acc)acc[pp[1]]=inp.value;});stSet('staffAccounts',a);document.getElementById('saMsg').textContent='保存しました';applyPerms();};
+    /* 追加した時点ではパスワードなし＝ログインできません。表の欄で設定していただきます。 */
+    document.getElementById('saAdd').onclick=function(){var a=staffAccounts();var nid=Math.max.apply(null,a.map(function(x){return x.id;}).concat([0]))+1;a.push({id:nid,loginId:'staff'+nid,name:'新規職員',role:'一般'});stSet('staffAccounts',a);renderSettings();};
+    document.getElementById('saSave').onclick=function(){
+      var a=staffAccounts(),pend=[],tooShort=false;
+      document.querySelectorAll('[data-sa]').forEach(function(inp){
+        var pp=inp.getAttribute('data-sa').split('|');
+        var acc=a.filter(function(x){return String(x.id)===pp[0];})[0];
+        if(!acc)return;
+        if(pp[1]==='pw'){
+          var v=String(inp.value||'');
+          if(!v)return;                                  /* 空欄は「そのまま」。消しません。 */
+          if(v.length<8){tooShort=true;return;}
+          pend.push({acc:acc,pw:v});
+          return;
+        }
+        acc[pp[1]]=inp.value;
+      });
+      var msg=document.getElementById('saMsg');
+      if(tooShort){msg.textContent='パスワードは8文字以上にしてください';return;}
+      function saDone(){
+        stSet('staffAccounts',a);
+        document.querySelectorAll('[data-sa]').forEach(function(inp){
+          if(/\|pw$/.test(inp.getAttribute('data-sa')||''))inp.value='';
+        });
+        msg.textContent='保存しました';applyPerms();
+      }
+      if(!pend.length){saDone();return;}
+      msg.textContent='保存中…';
+      var n=0;
+      pend.forEach(function(x){staffSetPassword(x.acc,x.pw,function(){if(++n===pend.length)saDone();});});
+    };
     document.querySelectorAll('[data-sadel]').forEach(function(b){b.onclick=function(){if(!confirm('この職員アカウントを削除しますか？'))return;var a=staffAccounts().filter(function(x){return String(x.id)!==b.getAttribute('data-sadel');});stSet('staffAccounts',a);renderSettings();};});
     document.querySelectorAll('[data-tpmsave]').forEach(function(btn){btn.onclick=function(){
       var kind=btn.getAttribute('data-tpmsave');
@@ -6169,7 +6494,7 @@ function renderReqNav(){
    すべての保存操作を自動で記録し、日次スナップショットを保持する。
    バックアップファイル（JSON）の書き出し／復元も可能。
    ※これは「この端末（ブラウザ）内」での保護。別端末・障害時の完全な永続化はバックエンド接続後。 */
-var LOG_MAX=800, SNAP_MAX=7, LOG_SKIP={'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1,'cocoas_psession':1};
+var LOG_MAX=800, SNAP_MAX=7, LOG_SKIP={'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1,'cocoas_psession':1,'cocoas_apiToken':1};
 var LOG_LABEL={
   'cocoas_rec_登園シート':'登園（出席）','cocoas_rec_安全点検':'安全点検','cocoas_rec_午睡チェック':'午睡チェック',
   'cocoas_rec_健康チェック':'健康チェック','cocoas_rec_身体測定':'身体測定','cocoas_rec_hiyari':'ヒヤリハット・怪我',
@@ -6211,6 +6536,8 @@ function collectAll(){
   for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
     if(String(k).indexOf('cocoas_')!==0)continue;
     if(k==='cocoas_snapshots'||k==='cocoas_eventLog')continue;
+    /* ログイン用のトークンは書き出しません（バックアップの受け渡しから乗っ取られないようにするためです）。 */
+    if(k==='cocoas_apiToken')continue;
     o[k]=localStorage.getItem(k);}
   return o;
 }
