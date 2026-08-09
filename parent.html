@@ -313,6 +313,212 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ============================================================================
+   画面へ文字を差し込む「出口」を、一か所にまとめて安全にする仕組み
+
+   これまでの作りでは、園児名・保護者名・自由記入などを画面に出すときに
+   esc() を書き忘れた場所が、そのまま穴になっていました。
+   出口は 130 か所以上あり、一つずつ直すやり方では必ず取りこぼします。
+
+   そこで「差し込む場所を直す」のではなく、
+   「差し込む瞬間を、必ずここに通す」形に変えます。
+   いったん画面の外（表示にも通信にも使われない別の文書）で組み立て、
+   動きを持つ部分（on◯◯ の指定、script など）を取り除いてから画面へ移します。
+   組み立て中は画像も読み込まれないため、img の onerror のような仕掛けは
+   動き出す前に取り除かれます。
+
+   壊さないための約束
+     ・見た目、レイアウト、style、data-◯◯ の指定はそのまま残します
+     ・相対パスのリンク（例 parent.html、./img/a.png、#top）は弾きません
+     ・日本語のキーや記号もそのまま残します
+     ・このシステムは on◯◯ を文字列で書いていない（すべて el.onclick = ... の
+       形で付けている）ため、取り除いても既存の動きに影響はありません
+   ========================================================================== */
+(function(){
+  if(window.__safeHtmlReady)return;
+  var D=document,W=window,proto=null,desc=null;
+  try{
+    proto=Element.prototype;desc=Object.getOwnPropertyDescriptor(proto,'innerHTML');
+    if(!desc||!desc.set){proto=HTMLElement.prototype;desc=Object.getOwnPropertyDescriptor(proto,'innerHTML');}
+  }catch(e){desc=null;}
+  /* 差し替えられない環境では、これまでどおり動かす（画面を止めない） */
+  if(!desc||!desc.set||!desc.get)return;
+
+  var rawSet=desc.set,rawGet=desc.get;
+  var LAB=D.implementation.createHTMLDocument('safe');   /* 組み立て用の別文書 */
+
+  /* 画面に置いてはいけない部品 */
+  var DROP='script,iframe,object,embed,base,link,meta,form,noscript,frame,frameset,applet,template,style';
+  /* 行き先を確かめる指定 */
+  var URLAT={href:1,src:1,srcset:1,action:1,poster:1,background:1,data:1,cite:1,
+             longdesc:1,lowsrc:1,manifest:1,archive:1,codebase:1,profile:1};
+
+  /* 危ないリンクだけを弾く。相対パス・ローカルのパスは必ず通す。 */
+  function badUrl(v){
+    var s=String(v==null?'':v).replace(/[\u0000-\u0020\u00a0\u1680\u2000-\u200d\u2028\u2029\u202f\u205f\u3000\ufeff]/g,'').toLowerCase();
+    if(s.indexOf('javascript:')===0)return true;
+    if(s.indexOf('vbscript:')===0)return true;
+    if(s.indexOf('livescript:')===0)return true;
+    if(s.indexOf('data:')===0)
+      return !/^data:image\/(png|jpeg|jpg|gif|webp|bmp|avif|heic|heif|x-icon|vnd\.microsoft\.icon)[;,]/.test(s);
+    /* ここまでで弾かれないもの（相対パス・# ・http ・https ・mailto ・tel ・blob
+       ・ファイル名など）は、これまでどおりそのまま通す */
+    return false;
+  }
+
+  /* タグ名は元の文字にそのまま現れる（実体参照では作れない）ので、
+     文字の中に無ければ、その部品は絶対に出来ていない。探す手間を省いてよい。 */
+  var DROPRE=/<\s*\/?\s*(script|iframe|object|embed|base|link|meta|form|noscript|frame|frameset|applet|template|style)[\s\/>]/i;
+
+  function scrub(root,src){
+    var i,k,el,at,nm,ln,base,bad;
+    if(src==null||DROPRE.test(src)){
+      bad=root.querySelectorAll(DROP);
+      for(i=bad.length-1;i>=0;i--){if(bad[i].parentNode)bad[i].parentNode.removeChild(bad[i]);}
+    }
+    var all=root.querySelectorAll('*');
+    for(i=0;i<all.length;i++){
+      el=all[i];at=el.attributes;if(!at)continue;
+      for(k=at.length-1;k>=0;k--){
+        nm=at[k].name;ln=nm.toLowerCase();
+        if(ln.indexOf('on')===0){el.removeAttribute(nm);continue;}
+        if(ln==='srcdoc'||ln==='formaction'||ln==='ping'||ln==='is'){el.removeAttribute(nm);continue;}
+        base=ln.indexOf(':')>-1?ln.slice(ln.lastIndexOf(':')+1):ln;
+        if(URLAT[base]&&badUrl(at[k].value)){el.removeAttribute(nm);continue;}
+      }
+    }
+    return root;
+  }
+
+  /* 画面の外で組み立てる。組み立て先のタグを本物と合わせるので、
+     表の <tr> や選択肢の <option> も、これまでと同じ形に組み上がる。 */
+  function build(tagName,html,foreign){
+    var host,sv;
+    if(foreign){
+      host=LAB.createElement('div');
+      rawSet.call(host,'<svg>'+html+'</svg>');
+      scrub(host,html);
+      sv=host.firstChild;
+      return (sv&&sv.nodeType===1)?sv:host;
+    }
+    try{host=LAB.createElement(tagName||'div');}catch(e){host=LAB.createElement('div');}
+    rawSet.call(host,html);
+    return scrub(host,html);
+  }
+  function isForeign(el){
+    var ns=el.namespaceURI;
+    return !!(ns&&ns!=='http://www.w3.org/1999/xhtml');
+  }
+  function drain(host){
+    var frag=D.createDocumentFragment(),n;
+    while((n=host.firstChild))frag.appendChild(n);
+    return frag;
+  }
+
+  /* 部品を移し替えると、選択肢（option）の「選ばれている状態」が落ちることがある。
+     もとの指定（selected）から選び直して、これまでとまったく同じ状態に戻す。
+     指定が無いときは先頭（使えない項目は飛ばす）＝ブラウザと同じ決まりにする。 */
+  function fixOne(sel){
+    var op=sel.options,last=-1,first=-1,j,pg;
+    if(!op)return;
+    for(j=0;j<op.length;j++){
+      if(op[j].hasAttribute('selected'))last=j;
+      if(first<0){
+        pg=op[j].parentNode;
+        if(!op[j].disabled&&!(pg&&pg.tagName==='OPTGROUP'&&pg.disabled))first=j;
+      }
+    }
+    if(sel.multiple){for(j=0;j<op.length;j++)op[j].selected=op[j].hasAttribute('selected');}
+    else sel.selectedIndex=(last>=0?last:first);
+  }
+  /* 直すのは「いま入れたところ」だけ。
+     もとから画面にあった選択肢には絶対に触らない
+     （例：画面の一部を追記しただけなのに、別の選択欄が先頭に戻ってしまう事故を防ぐ）。 */
+  function fixAdded(added,host){
+    var i,j,q;
+    if(host&&host.tagName==='SELECT')fixOne(host);
+    for(i=0;i<added.length;i++){
+      if(added[i].nodeType!==1)continue;
+      if(added[i].tagName==='SELECT')fixOne(added[i]);
+      if(added[i].querySelectorAll){q=added[i].querySelectorAll('select');for(j=0;j<q.length;j++)fixOne(q[j]);}
+    }
+  }
+  /* 差し込む前に、新しく入る部品を控えておく */
+  function kids(frag){
+    var a=[],c=frag.firstChild;
+    while(c){if(c.nodeType===1)a.push(c);c=c.nextSibling;}
+    return a;
+  }
+
+  Object.defineProperty(proto,'innerHTML',{
+    configurable:true,enumerable:!!desc.enumerable,
+    get:function(){return rawGet.call(this);},
+    set:function(v){
+      var s=(v==null?'':String(v));
+      /* 「<」が無い文字は、部品になりようがないのでそのまま入れる */
+      if(s.indexOf('<')<0){rawSet.call(this,s);return;}
+      var host=build(this.tagName,s,isForeign(this));
+      var frag=drain(host),added=kids(frag);
+      while(this.firstChild)this.removeChild(this.firstChild);
+      this.appendChild(frag);
+      fixAdded(added,this);
+    }
+  });
+
+  var rawIns=Element.prototype.insertAdjacentHTML;
+  if(rawIns){
+    Element.prototype.insertAdjacentHTML=function(where,v){
+      var w=String(where==null?'':where).toLowerCase(),s=(v==null?'':String(v));
+      var outside=(w==='beforebegin'||w==='afterend'),ctx=outside?this.parentNode:this;
+      if(w!=='beforebegin'&&w!=='afterbegin'&&w!=='beforeend'&&w!=='afterend')return rawIns.call(this,where,v);
+      if(!ctx||ctx.nodeType!==1)return rawIns.call(this,where,v);
+      if(s.indexOf('<')<0)return rawIns.call(this,where,s);
+      var frag=drain(build(ctx.tagName,s,isForeign(ctx))),added=kids(frag);
+      if(w==='beforebegin')ctx.insertBefore(frag,this);
+      else if(w==='afterend')ctx.insertBefore(frag,this.nextSibling);
+      else if(w==='afterbegin')this.insertBefore(frag,this.firstChild);
+      else this.appendChild(frag);
+      fixAdded(added,outside?ctx:this);
+    };
+  }
+
+  var od=null;
+  try{od=Object.getOwnPropertyDescriptor(Element.prototype,'outerHTML');}catch(e){od=null;}
+  if(od&&od.set&&od.get){
+    var rawOutSet=od.set,rawOutGet=od.get;
+    Object.defineProperty(Element.prototype,'outerHTML',{
+      configurable:true,enumerable:!!od.enumerable,
+      get:function(){return rawOutGet.call(this);},
+      set:function(v){
+        var s=(v==null?'':String(v)),p=this.parentNode;
+        if(s.indexOf('<')<0||!p||p.nodeType!==1){rawOutSet.call(this,s);return;}
+        var frag=drain(build(p.tagName,s,isForeign(p))),added=kids(frag);
+        p.replaceChild(frag,this);
+        fixAdded(added,p);
+      }
+    });
+  }
+
+  /* 点検用。画面に動く仕掛けが残っていないかを数える（確認作業で使う） */
+  W.__xssAudit=function(root){
+    var r=root||D,out={handlers:0,badUrl:0,badTags:0,samples:[]},i,k,at,ln,base,el;
+    var all=r.querySelectorAll('*');
+    for(i=0;i<all.length;i++){
+      el=all[i];at=el.attributes;if(!at)continue;
+      for(k=0;k<at.length;k++){
+        ln=at[k].name.toLowerCase();
+        if(ln.indexOf('on')===0){out.handlers++;if(out.samples.length<10)out.samples.push(el.tagName+'['+ln+']');continue;}
+        base=ln.indexOf(':')>-1?ln.slice(ln.lastIndexOf(':')+1):ln;
+        if(URLAT[base]&&badUrl(at[k].value)){out.badUrl++;if(out.samples.length<10)out.samples.push(el.tagName+'['+ln+']='+String(at[k].value).slice(0,40));}
+      }
+    }
+    var t=r.querySelectorAll('iframe,object,embed,form,noscript,frameset,applet');
+    out.badTags=t.length;
+    return out;
+  };
+  W.__safeHtmlReady=true;
+})();
+
 /* =========================================================================
    COCOAS KIDS 保護者ページ（プロトタイプ）
    - 職員ダッシュボード(index.html)と同一オリジンのlocalStorageでデータ共有
@@ -544,7 +750,7 @@ function waOrders(){return stGet('wa_orders',[]);}
 /* 見た商品をおぼえておき、ストアの上に「最近見たもの」として出す */
 /* 商品の写真は、園がこの端末で登録した data:image/ だけを表示する */
 function escImgSrc(u){u=String(u||'').replace(/[\s\u0000-\u001f]/g,'');
-  return /^data:image\//i.test(u)?u.replace(/"/g,'&quot;'):'';}
+  return /^data:image\//i.test(u)?u.replace(/&/g,'&amp;').replace(/"/g,'&quot;'):'';}
 function waViewed(){return stGet('wa_viewed',[]);}
 function waSeeProduct(id){
   var v=waViewed().filter(function(x){return String(x)!==String(id);});
@@ -623,7 +829,7 @@ function isSchoolProduct(x){return !x.by||x.by==='school';}
 function prodCardHTML(x){
   var im=escImgSrc(x.img);
   return '<div class="card prodcard" style="padding-bottom:12px;">'
-    +'<div data-open="'+x.id+'" style="display:flex;gap:12px;align-items:center;cursor:pointer;">'
+    +'<div data-open="'+esc(x.id)+'" style="display:flex;gap:12px;align-items:center;cursor:pointer;">'
       +'<div class="pthumb">'+(im?'<img src="'+im+'" alt="">':'<span>'+esc(x.emoji)+'</span>')+'</div>'
       +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">'+esc(x.name)
         +(x.rec?' <span class="chip" style="background:var(--g);color:#fff;border:none;padding:2px 8px;font-size:10.5px;">おすすめ</span>':'')
@@ -633,8 +839,8 @@ function prodCardHTML(x){
         +(x.sub?'<div class="muted" style="font-size:10.5px;">／月</div>':'')+'</div>'
       +'<span class="pgo">›</span></div>'
     +'<div style="display:flex;gap:8px;margin-top:11px;">'
-      +'<button class="btn sec" data-open="'+x.id+'" style="flex:1;">教材の詳細を見る</button>'
-      +'<button class="btn" data-buy="'+x.id+'" style="flex:1;">購入する</button></div>'
+      +'<button class="btn sec" data-open="'+esc(x.id)+'" style="flex:1;">教材の詳細を見る</button>'
+      +'<button class="btn" data-buy="'+esc(x.id)+'" style="flex:1;">購入する</button></div>'
     +sellerChip(x.by)
     +'</div>';
 }
@@ -659,13 +865,13 @@ function storeHTML(c){
     +WA_STORE_KINDS.map(function(k){
       var n=k[0]===''?all.length:all.filter(function(x){
         return k[0]==='school'?isSchoolProduct(x):!isSchoolProduct(x);}).length;
-      return '<button class="chip'+(waStoreKind===k[0]?' on':'')+'" data-sk="'+k[0]+'">'+esc(k[1])+(n?' '+n:'')+'</button>';
+      return '<button class="chip'+(waStoreKind===k[0]?' on':'')+'" data-sk="'+esc(k[0])+'">'+esc(k[1])+(n?' '+n:'')+'</button>';
     }).join('')+'</div>';
   var searchRow='<div class="fsearch"><input id="stq" value="'+esc(waStoreQ)+'" placeholder="商品や出品者をさがす（例：ワーク）">'
     +(waStoreQ?'<button class="fclear" id="stqx" aria-label="消す">×</button>':'')+'</div>'
     +kindRow
     +'<div class="flabel">並べかえ</div><div class="fchips">'
-    +WA_SORTS.map(function(s){return '<button class="chip'+(waStoreSort===s[0]?' on':'')+'" data-ss="'+s[0]+'">'+esc(s[1])+'</button>';}).join('')
+    +WA_SORTS.map(function(s){return '<button class="chip'+(waStoreSort===s[0]?' on':'')+'" data-ss="'+esc(s[0])+'">'+esc(s[1])+'</button>';}).join('')
     +'</div>';
   var catRow=searchRow+'<div class="flabel">カテゴリ</div><div class="fchips">'
     +'<button class="chip'+(waStoreCat===''?' on':'')+'" data-sc="">すべて</button>'
@@ -705,7 +911,7 @@ function recentHTML(all){
   if(!items.length)return '';
   return '<div class="flabel" style="margin:2px 2px 8px;">最近見たもの</div>'
     +'<div class="recent">'+items.map(function(x){
-      return '<button class="rcard" data-open="'+x.id+'">'
+      return '<button class="rcard" data-open="'+esc(x.id)+'">'
         +'<span class="rem">'+esc(x.emoji)+'</span>'
         +'<span class="rnm">'+esc(x.name)+'</span>'
         +'<span class="rpr">'+yen(x.price)+(x.sub?'／月':'')+'</span></button>';}).join('')
@@ -895,10 +1101,10 @@ function feedHTML(kind){
   }
   function chips(name,vals,cur){
     return '<div class="fchips">'
-      +'<button class="chip'+(cur===''?' on':'')+'" data-f="'+name+'" data-v="">すべて</button>'
+      +'<button class="chip'+(cur===''?' on':'')+'" data-f="'+esc(name)+'" data-v="">すべて</button>'
       +vals.map(function(v){
         var em=(isPlay&&name==='cat'&&WA_PLAY_EMOJI[v])?WA_PLAY_EMOJI[v]+' ':'';
-        return '<button class="chip'+(cur===v?' on':'')+'" data-f="'+name+'" data-v="'+esc(v)+'">'+em+esc(v)+'</button>';}).join('')
+        return '<button class="chip'+(cur===v?' on':'')+'" data-f="'+esc(name)+'" data-v="'+esc(v)+'">'+em+esc(v)+'</button>';}).join('')
       +'</div>';
   }
   var nNew=items.filter(isNewPost).length;
@@ -909,7 +1115,7 @@ function feedHTML(kind){
     +'<div class="fchips" style="margin:0 2px 12px;">'
       +WA_FEED_VIEWS.map(function(v){
         var n=counts[v[0]];
-        return '<button class="chip'+(view===v[0]?' on':'')+'" data-fv="'+v[0]+'">'+esc(v[1])+(n?' '+n:'')+'</button>';
+        return '<button class="chip'+(view===v[0]?' on':'')+'" data-fv="'+esc(v[0])+'">'+esc(v[1])+(n?' '+n:'')+'</button>';
       }).join('')+'</div>'
     +'<div class="card petal-'+col+'"><div class="muted">'+sub+'</div>'
       +'<div class="fsearch"><input id="fq" value="'+esc(f.q)+'" placeholder="さがす（例：'+(isPlay?'工作':'睡眠')+'）">'
@@ -1350,7 +1556,7 @@ function productPageHTML(p,c){
         +'このお買いもので、'+esc(waSchoolName())+' に '+yen(kb)+' が還元されます。</div>'
         +'<div class="muted" style="margin-top:5px;">還元は園の運営に使われます。</div></div>'
        :'<div class="card"><div class="muted">園とつながっていると、購入の一部が園の運営に還元されます。</div></div>')
-    +'<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+p.id+'">'+(p.sub?'この教材を毎月うけとる':'購入する')+'</button></div>'
+    +'<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'+(p.sub?'この教材を毎月うけとる':'購入する')+'</button></div>'
     +'<div id="waKick" style="display:none;" class="card petal-g"></div>';
 }
 
@@ -1397,7 +1603,7 @@ function openProduct(p,c){
        :'<div class="muted" style="margin-top:13px;font-size:12.5px;">園とつながっていると、購入の一部が園の運営に還元されます。</div>')
     +'<div style="display:flex;gap:10px;margin-top:16px;">'
       +'<button class="btn ghost" id="shClose" style="flex:0 0 auto;">とじる</button>'
-      +'<button class="btn" data-buy="'+p.id+'" style="flex:1;">'+(p.sub?'この教材を続ける':'購入する')+'</button></div></div>';
+      +'<button class="btn" data-buy="'+esc(p.id)+'" style="flex:1;">'+(p.sub?'この教材を続ける':'購入する')+'</button></div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
   ov.querySelector('#shClose').onclick=function(){ov.remove();};
@@ -1497,8 +1703,8 @@ function connectHTML(c){
       +'<button class="chip'+(!isEv?' on':'')+'" data-cs="community">コミュニティ</button></div>';
   function chips(name,vals,cur){
     return '<div class="fchips">'
-      +'<button class="chip'+(cur===''?' on':'')+'" data-cf="'+name+'" data-v="">すべて</button>'
-      +vals.map(function(v){return '<button class="chip'+(cur===v?' on':'')+'" data-cf="'+name+'" data-v="'+esc(v)+'">'+esc(v)+'</button>';}).join('')+'</div>';
+      +'<button class="chip'+(cur===''?' on':'')+'" data-cf="'+esc(name)+'" data-v="">すべて</button>'
+      +vals.map(function(v){return '<button class="chip'+(cur===v?' on':'')+'" data-cf="'+esc(name)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>';}).join('')+'</div>';
   }
   if(isEv){
     var list=WA_EVENTS.filter(function(x){
@@ -1591,7 +1797,7 @@ function eventPageHTML(id,c){
       +'<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">'
         +'<div class="flabel" style="margin:0 0 7px;">この会に参加された方は、感想を書けます</div>'
         +'<div class="fchips" id="rvStars">'+[1,2,3,4,5].map(function(n){
-          return '<button class="chip'+(n===5?' on':'')+'" data-star="'+n+'">'+stars(n)+'</button>';}).join('')+'</div>'
+          return '<button class="chip'+(n===5?' on':'')+'" data-star="'+esc(n)+'">'+stars(n)+'</button>';}).join('')+'</div>'
         +'<textarea id="rvTxt" rows="3" placeholder="どんな会でしたか？　これから行く方の参考になります。" style="margin-top:8px;"></textarea>'
         +'<button class="btn sec" id="rvSend" style="margin-top:9px;">感想を送る</button></div>'
     +'</div>';
@@ -1718,7 +1924,7 @@ function portalHTML(c){
     +'<div class="shell">'
       +'<nav class="sidenav">'+PETALS.map(function(p){
         var dis=(p.t==='school'&&!linked);
-        return '<button data-tab="'+p.t+'" class="sn t-'+p.t+(tab===p.t?' on':'')+(dis?' dis':'')+'">'
+        return '<button data-tab="'+esc(p.t)+'" class="sn t-'+p.t+(tab===p.t?' on':'')+(dis?' dis':'')+'">'
           +'<span class="e">'+p.e+'</span><span class="l">'+esc(dis?'園とつながる':p.l)+'</span></button>';}).join('')
       +'</nav>'
       +'<div class="scroll" id="scroll"></div>'
@@ -1733,7 +1939,7 @@ function portalHTML(c){
       }
       return tabBtn(p.t,p.e,lb);}).join('')+'</div>';
 }
-function tabBtn(id,e,l){return '<button data-tab="'+id+'" class="t-'+id+(tab===id?' on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
+function tabBtn(id,e,l){return '<button data-tab="'+esc(id)+'" class="t-'+id+(tab===id?' on':'')+'"><span class="e">'+e+'</span>'+l+'</button>';}
 /* ラベルに入るバッジ。数字だけを入れるので esc は不要（呼び出し側で件数のみ） */
 /* 中身が無いときも、無機質な文字だけにしない */
 function bloomEmpty(msg){
@@ -1936,7 +2142,7 @@ function attHTML(c){
   var absSub=(typeof attSub!=='undefined')?attSub:'病欠';
   return '<div class="card"><h2 class="sec sec-o">📅 出欠・連絡</h2>'
     +'<div class="info" style="margin-bottom:14px;">送信すると、園の出欠記録にすぐ反映されます。前日までのご連絡にご協力ください。</div>'
-    +'<div class="field"><label>日付</label><input id="at_date" type="date" value="'+addDaysISO(1)+'" min="'+todayISO()+'"></div>'
+    +'<div class="field"><label>日付</label><input id="at_date" type="date" value="'+esc(addDaysISO(1))+'" min="'+todayISO()+'"></div>'
     +'<div class="field"><label>区分</label><div class="seg" id="at_seg">'
       +['欠席','送迎時間変更'].map(function(k){return '<button data-k="'+esc(k)+'" class="'+(k===attKind?'on':'')+'">'+esc(k)+'</button>';}).join('')+'</div></div>'
     +'<div class="field'+(attKind==='欠席'?'':' hide')+'" id="at_absbox"><label>欠席の種類</label><div class="seg" id="at_sub">'
