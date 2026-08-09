@@ -220,6 +220,16 @@
   .amzbtn{display:block;width:100%;text-align:center;text-decoration:none;
     background:#FF9900;color:#111;border:none;}
   .amzbtn:hover{filter:brightness(1.05);}
+  .rkbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;flex-shrink:0;}
+  .rkbadge.pla{background:#EEF2F7;color:#4A5B70;border:1px solid #D8E0EA;}
+  .rkbadge.pre{background:linear-gradient(135deg,#F7C948,#EFA00B);color:#4A3200;}
+  .stile{flex:0 0 132px;background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 6px;
+    padding:14px 11px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font:inherit;color:inherit;}
+  .stile:hover{border-color:var(--p);}
+  .stile .snm2{font-size:11.5px;font-weight:700;text-align:center;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .stile .srk{font-size:10px;font-weight:800;color:var(--p);}
+  .stile .scnt{font-size:10px;color:var(--tx3);}
   .pickhead{margin:18px 2px 9px;}
   .pickttl{font-size:14px;font-weight:800;}
   /* 出品者アカウント */
@@ -1046,8 +1056,44 @@ function waStars(n){var s='';for(var i=1;i<=5;i++)s+=(i<=Math.round(n)?'★':'�
    園が指定したものは、その前に別枠で出す（順位そのものは動かさない）。 */
 function prodScore(p){
   var r=prodRating(p),n=prodReviewCount(p),v=(p.stat&&p.stat.v)||0;
-  if(!n)return v/1000;                       /* 口コミがまだ無いものは閲覧数だけで見る */
-  return r*Math.log(1+n)*1.6 + v/2000;
+  var base=n?(r*Math.log(1+n)*1.6 + v/2000):(v/1000);
+  /* 出品者のランクぶん、上に出やすくする */
+  return base*sellerRank(p.by).boost;
+}
+/* ── 出品者のランク ──────────────────────────────
+   クリエイター側と同じ考え方で、出品者ごとに算出する。
+   ランクが上がるほど、ストアの並び順で上に出る（＝露出が増える）。
+   出品できる数に上限はかけていない。頑張ったぶんだけ見つけてもらいやすくする、という設計。 */
+var WA_RANKS=[
+  {k:'bronze',  n:'ブロンズ',          boost:1.0, min:0},
+  {k:'silver',  n:'シルバー',          boost:1.3, min:25},
+  {k:'gold',    n:'ゴールド',          boost:1.6, min:45},
+  {k:'platinum',n:'プラチナ',          boost:2.0, min:65},
+  {k:'premium', n:'プレミアム（認定）',boost:2.5, min:85}
+];
+function sellerRank(id){
+  var ps=waProducts().filter(function(x){return (x.by||'school')===(id||'school');});
+  if(!ps.length)return WA_RANKS[0];
+  var n=ps.length,rev=0,rsum=0,rn=0,sold=0;
+  ps.forEach(function(p){
+    var c=prodReviewCount(p),r=prodRating(p);
+    rev+=c; if(r){rsum+=r;rn++;}
+  });
+  var O=waOrders()||[];
+  O.forEach(function(o){
+    var p=ps.filter(function(x){return String(x.id)===String(o.pid);})[0];
+    if(p)sold++;
+  });
+  var avg=rn?rsum/rn:0;
+  var pct=function(v,g){return Math.max(0,Math.min(100,v/g*100));};
+  var total=Math.round(
+      pct(n,20)*0.30
+    + (avg?Math.max(0,Math.min(100,(avg-3.0)/2.0*100)):0)*0.30
+    + pct(rev,60)*0.20
+    + pct(sold,50)*0.20);
+  var out=WA_RANKS[0];
+  for(var i=WA_RANKS.length-1;i>=0;i--){ if(total>=WA_RANKS[i].min){out=WA_RANKS[i];break;} }
+  return out;
 }
 function prodIsAmazon(p){return p.src==='amazon';}
 /* 運営が発行したリンクだけを開く。申請中・未承認のものは押せない。 */
@@ -1113,9 +1159,12 @@ function sellerAvatar(s,px){
 }
 /* カードの下に出す「アカウント画像＋アカウント名」。押すと出品者ページへ。 */
 function sellerChip(id){
-  var s=waSeller(id);
+  var s=waSeller(id),rk=sellerRank(id);
+  /* 上位のときだけ印を出す。全部に付けると意味がなくなる。 */
+  var badge=(rk.k==='premium')?'<span class="rkbadge pre">認定</span>'
+           :(rk.k==='platinum')?'<span class="rkbadge pla">プラチナ</span>':'';
   return '<button class="sellerchip" data-seller="'+esc(s.id)+'">'
-    +sellerAvatar(s,26)+'<span class="snm">'+esc(s.name)+'</span>'
+    +sellerAvatar(s,26)+'<span class="snm">'+esc(s.name)+'</span>'+badge
     +'<span class="skind">'+esc(s.kind)+'</span><span class="pgo">›</span></button>';
 }
 
@@ -1238,6 +1287,7 @@ function storeHTML(c){
         +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
         +'<button class="btn sec" id="wantLink" style="margin-top:11px;">園とつながる</button></div>')
     +((waStoreNeed||waStoreCat||waStoreQ||waStoreKind)?'':schoolPickHTML(all,linked))
+    +((waStoreNeed||waStoreCat||waStoreQ||waStoreKind)?'':topSellersHTML(all))
     +recentHTML(all)
     +'<div class="card petal-p">'+catRow+'</div>'
     +'<div class="fcount">'+ps.length+'件</div>'
@@ -1246,6 +1296,27 @@ function storeHTML(c){
 }
 /* 園が「これを見せたい」と指定したもの。
    保護者には、園がえらんだ理由として素直に見せる。 */
+/* 評価が積み上がっている出品者を、名前で見つけられるようにする。
+   出品者にとっては「ここに載る」ことがランクを上げる動機になる。 */
+function topSellersHTML(all){
+  var byId={};
+  all.forEach(function(p){var k=p.by||'school';(byId[k]=byId[k]||[]).push(p);});
+  var tops=Object.keys(byId).map(function(k){
+    return {id:k,rank:sellerRank(k),n:byId[k].length};
+  }).filter(function(x){return x.rank.min>=65 && x.id!=='school';})
+    .sort(function(a,b){return b.rank.min-a.rank.min;});
+  if(!tops.length)return '';
+  return '<div class="pickhead"><div class="pickttl">注目の出品者</div>'
+    +'<div class="muted">評価と口コミが積み上がっている方々です。</div></div>'
+    +'<div class="prow">'+tops.map(function(t){
+      var s=waSeller(t.id);
+      return '<button class="stile" data-seller="'+esc(s.id)+'">'
+        +sellerAvatar(s,44)
+        +'<span class="snm2">'+esc(s.name)+'</span>'
+        +'<span class="srk">'+esc(t.rank.n.replace('（認定）',''))+'</span>'
+        +'<span class="scnt">'+t.n+'点を出品</span></button>';}).join('')
+    +'</div>';
+}
 function schoolPickHTML(all,linked){
   if(!linked)return '';
   var picks=all.filter(function(x){return x.pick;}).sort(function(a,b){return a.pick-b.pick;});

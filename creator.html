@@ -106,6 +106,15 @@
   .rankrow div.on{background:var(--p);color:#fff;border-color:var(--p);}
   .rankrow div.past{background:#FCE4EF;color:var(--p);border-color:#F6CFE2;}
 
+  .boostline{margin-top:10px;font-size:13px;}
+  .boostline b{font-size:19px;font-weight:800;color:var(--p);}
+  .rankrow div em{display:block;font-style:normal;font-size:9.5px;opacity:.8;margin-top:1px;}
+  .todobox{margin-top:13px;padding-top:12px;border-top:1px solid #F0DCC8;}
+  .todoh{font-size:13px;font-weight:800;}
+  .todo{display:flex;align-items:baseline;gap:9px;background:#fff;border:1px solid var(--line);
+    border-radius:11px;padding:9px 12px;margin-bottom:7px;}
+  .todo .tk{font-size:13px;font-weight:700;}
+  .todo .ts{font-size:11.5px;color:var(--tx3);margin-left:auto;white-space:nowrap;}
   /* 一覧 */
   .item{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line);}
   .item:first-child{border-top:none;padding-top:2px;}
@@ -396,28 +405,33 @@ var PLAY_EMOJI={'工作':'✂️','外遊び':'⛲️','おうち遊び':'🏠',
   '英語':'🗣️','STEAM':'🤖','モンテッソーリ':'🪽','絵本':'📚','音楽':'🎶'};
 
 /* ランク制度 */
+/* ランクは「制限をゆるめるもの」ではなく「見つけてもらいやすくするもの」。
+   出品できる数に上限は設けていない。頑張ったぶん、上に出る。
+   boost … ストアの並び順にかかる重み。そのまま露出の差になる。 */
 var RANKS=[
-  {k:'bronze',  n:'ブロンズ',  need:'新規登録',
-   perk:'基本機能の利用、投稿・商品登録・イベント作成・コミュニティ参加'},
-  {k:'silver',  n:'シルバー',  need:'投稿数・保存数・いいね数・継続利用・口コミ獲得が一定以上',
-   perk:'投稿上限アップ、商品出品数アップ、コミュニティ作成数アップ、イベント掲載数アップ'},
-  {k:'gold',    n:'ゴールド',  need:'高評価レビュー・販売実績・イベント開催実績・コミュニティ運営実績',
-   perk:'自然検索の順位アップ、特集掲載の候補、フォロワーへのおすすめ表示、AI簡易分析'},
-  {k:'platinum',n:'プラチナ',  need:'高評価の継続・口コミ数・リピート率・高い信頼スコア・違反なし',
-   perk:'ホームのおすすめ掲載、公式おすすめ表示、詳細分析、限定イベント参加、優先サポート'},
-  {k:'premium', n:'プレミアム（認定）',need:'運営審査・トップクリエイター・高品質な投稿・高い社会貢献度',
-   perk:'未来WA認定クリエイター、公式バッジ、検索の最優先候補、企業コラボ優先、講師・アンバサダー依頼、限定機能の先行利用'}
+  {k:'bronze',  n:'ブロンズ',  boost:1.0, min:0,
+   need:'登録するとここから',
+   perk:'ストアに出品できます。並び順はふつうの重みです。'},
+  {k:'silver',  n:'シルバー',  boost:1.3, min:25,
+   need:'出品をふやす、口コミがつきはじめる',
+   perk:'ストアの並び順が 1.3倍 優遇されます。'},
+  {k:'gold',    n:'ゴールド',  boost:1.6, min:45,
+   need:'評価が高く、売れはじめている',
+   perk:'並び順が 1.6倍。園が保護者に見せる「おすすめ」の候補に入ります。'},
+  {k:'platinum',n:'プラチナ',  boost:2.0, min:65,
+   need:'高い評価と口コミが積み上がっている',
+   perk:'並び順が 2.0倍。ストアの「注目の出品者」に載ります。'},
+  {k:'premium', n:'プレミアム（認定）',boost:2.5, min:85,
+   need:'運営の審査を通過',
+   perk:'並び順が 2.5倍。商品に公式バッジが付き、いちばん上の候補になります。'}
 ];
 /* ランク評価項目 */
+/* 自分で動かせるものだけにする。目標の数も画面に出す。 */
 var RANK_ITEMS=[
-  {k:'post',   n:'投稿実績',        d:'投稿数・継続投稿'},
-  {k:'pop',    n:'人気度',          d:'閲覧数・保存数・いいね数・シェア数'},
-  {k:'trust',  n:'信頼度',          d:'口コミ数・平均評価・返信率'},
-  {k:'sales',  n:'販売実績',        d:'商品販売数・レンタル実績・リピート率'},
-  {k:'event',  n:'イベント実績',    d:'開催数・参加率・口コミ評価'},
-  {k:'com',    n:'コミュニティ実績',d:'参加者数・継続率・投稿数'},
-  {k:'keep',   n:'継続利用',        d:'ログイン・活動日数'},
-  {k:'ops',    n:'運営評価',        d:'違反履歴・認証・品質チェック'}
+  {k:'items', n:'出しているもの', d:'公開中の商品・投稿・イベント・コミュニティの数', w:0.30, goal:20, unit:'件'},
+  {k:'star',  n:'評価',           d:'口コミの平均。★3.0から数えはじめます',       w:0.30, goal:5,  unit:'★'},
+  {k:'review',n:'口コミの数',     d:'買った方・参加した方からの声',                w:0.20, goal:60, unit:'件'},
+  {k:'sold',  n:'売れた数',       d:'商品が売れた回数',                            w:0.20, goal:50, unit:'件'}
 ];
 /* Premium（ランクとは別制度） */
 var PLANS=[
@@ -574,41 +588,66 @@ function orders(){return stGet('wa_orders',[])||[];}
    スプレッドシートの「ランク評価項目」8つを、実際の数字から出す。
    何をどう数えているかを画面にも出すので、上げ方が分かる。 */
 function rankScore(){
-  var P=posts(),E=events(),C=comms(),PR=products(),O=orders(),M=me();
+  var P=posts(),E=events(),C=comms(),PR=products(),O=orders();
   var pub=function(a){return a.filter(function(x){return x.status==='public';});};
   var sum=function(a,f){var n=0;a.forEach(function(x){n+=(f(x)||0);});return n;};
-  var allPub=pub(P).concat(pub(E)).concat(pub(C));
+
+  var allPub=pub(P).concat(pub(E)).concat(pub(C)).concat(pub(PR));
+  var nItems=allPub.length;
+  var rev=sum(allPub,function(x){return x.stats&&x.stats.review;});
+  var rated=allPub.filter(function(x){return x.stats&&x.stats.rating;});
+  var avg=rated.length?sum(rated,function(x){return x.stats.rating;})/rated.length:0;
+  var sold=O.length;
   var view=sum(allPub,function(x){return x.stats&&x.stats.view;});
   var save=sum(allPub,function(x){return x.stats&&x.stats.save;});
   var like=sum(allPub,function(x){return x.stats&&x.stats.like;});
-  var rev =sum(allPub,function(x){return x.stats&&x.stats.review;});
-  var rated=allPub.filter(function(x){return x.stats&&x.stats.rating;});
-  var avg=rated.length?sum(rated,function(x){return x.stats.rating;})/rated.length:0;
   var sales=sum(O,function(o){return o.amount;});
-  var applied=sum(pub(E),function(e){return e.applied;});
-  var cap=sum(pub(E),function(e){return e.cap;});
-  var members=sum(pub(C),function(c){return c.members;});
-  var keep=pub(C).length?sum(pub(C),function(c){return c.keep;})/pub(C).length:0;
 
-  function cap100(v){return Math.max(0,Math.min(100,Math.round(v)));}
-  var s={
-    post : cap100(pub(P).length/12*100),
-    pop  : cap100((view/8000*50)+(save/600*25)+(like/900*25)),
-    trust: cap100((rev/40*50)+(avg/5*50)),
-    sales: cap100(sales/300000*100),
-    event: cap100((pub(E).length/8*50)+(cap?applied/cap*50:0)),
-    com  : cap100((members/300*50)+(keep*50)),
-    keep : cap100((M.days||0)/180*100),
-    ops  : 100   /* 違反なし・認証済みを既定にしている */
+  function pct(v,goal){return Math.max(0,Math.min(100,Math.round(v/goal*100)));}
+  var items={
+    items : pct(nItems,20),
+    star  : avg?Math.max(0,Math.min(100,Math.round((avg-3.0)/2.0*100))):0,  /* ★3.0で0、★5.0で100 */
+    review: pct(rev,60),
+    sold  : pct(sold,50)
   };
-  var total=0;RANK_ITEMS.forEach(function(it){total+=s[it.k];});
-  total=Math.round(total/RANK_ITEMS.length);
-  var idx=total>=90?4:total>=72?3:total>=52?2:total>=28?1:0;
-  var next=idx<4?[28,52,72,90][idx]:100;
-  return {items:s,total:total,idx:idx,next:next,
-    raw:{view:view,save:save,like:like,review:rev,rating:avg,sales:sales,
-         applied:applied,cap:cap,members:members,keep:keep,
-         nPost:pub(P).length,nEvent:pub(E).length,nCom:pub(C).length,nProd:PR.length}};
+  var total=0;
+  RANK_ITEMS.forEach(function(it){total+=items[it.k]*it.w;});
+  total=Math.round(total);
+
+  var idx=0;
+  for(var i=RANKS.length-1;i>=0;i--){ if(total>=RANKS[i].min){idx=i;break;} }
+  var next=idx<RANKS.length-1?RANKS[idx+1].min:100;
+
+  return {items:items,total:total,idx:idx,next:next,boost:RANKS[idx].boost,
+    raw:{nItems:nItems,avg:avg,review:rev,sold:sold,view:view,save:save,like:like,sales:sales,
+         nPost:pub(P).length,nEvent:pub(E).length,nCom:pub(C).length,nProd:pub(PR).length}};
+}
+
+/* 「あと◯ポイント」では何をすればいいか分からないので、
+   1つやれば届く行動を、実際の数で出す。 */
+function rankTodo(R){
+  if(R.idx>=RANKS.length-1)return [];
+  var need=RANKS[R.idx+1].min-R.total;      /* 総合であと何点いるか */
+  var raw=R.raw,out=[];
+  RANK_ITEMS.forEach(function(it){
+    var now=R.items[it.k];
+    if(now>=100)return;
+    var up=Math.ceil(need/it.w);            /* その項目で何点あげればよいか */
+    if(now+up>100)return;                   /* 1項目では届かないものは出さない */
+    var target=Math.ceil((now+up)/100*it.goal);
+    if(it.k==='items') out.push({t:'出しているものを あと '+(target-raw.nItems)+' 件ふやす',
+      sub:'いま '+raw.nItems+' 件 → '+target+' 件'});
+    else if(it.k==='review') out.push({t:'口コミを あと '+(target-raw.review)+' 件もらう',
+      sub:'いま '+raw.review+' 件 → '+target+' 件'});
+    else if(it.k==='sold') out.push({t:'あと '+(target-raw.sold)+' 件 売れる',
+      sub:'いま '+raw.sold+' 件 → '+target+' 件'});
+    else if(it.k==='star'){
+      var needStar=3.0+(now+up)/100*2.0;
+      out.push({t:'平均評価を ★'+needStar.toFixed(1)+' まで上げる',
+        sub:'いま ★'+(raw.avg?raw.avg.toFixed(1):'—')});
+    }
+  });
+  return out;
 }
 
 /* ============================================================
@@ -664,13 +703,23 @@ function homeHTML(){
       +'<div style="margin-left:auto;text-align:right;">'
       +'<div class="mini">ポイント</div>'
       +'<div style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;">'+num(M.points)+'</div></div></div>'
+    +'<div class="boostline">いまの露出　<b>'+r.boost.toFixed(1)+'倍</b>'
+      +'<span class="mini">　ストアの並び順にかかります</span></div>'
     +'<div class="rankbar"><i style="width:'+Math.min(100,R.total)+'%;"></i></div>'
-    +'<div class="mini">'+(R.idx<4
-        ? '総合スコア '+R.total+' ／ 次の「'+esc(RANKS[R.idx+1].n)+'」まで あと '+Math.max(0,R.next-R.total)+' ポイント'
-        : '最上位です。認定クリエイターとして表示されています。')+'</div>'
     +'<div class="rankrow">'+RANKS.map(function(x,i){
-        return '<div class="'+(i===R.idx?'on':(i<R.idx?'past':''))+'">'+esc(x.n.replace('（認定）',''))+'</div>';}).join('')+'</div>'
-    +'<div class="mini" style="margin-top:10px;">'+esc(nextHint(R))+'</div>'
+        return '<div class="'+(i===R.idx?'on':(i<R.idx?'past':''))+'">'+esc(x.n.replace('（認定）',''))
+          +'<em>'+x.boost.toFixed(1)+'倍</em></div>';}).join('')+'</div>'
+    +(R.idx<RANKS.length-1?(function(){
+        var td=rankTodo(R);
+        return '<div class="todobox"><div class="todoh">'
+          +esc(RANKS[R.idx+1].n)+' になると、露出が '+RANKS[R.idx+1].boost.toFixed(1)+'倍 になります</div>'
+          +(td.length
+            ? '<div class="mini" style="margin:7px 0 8px;">どれか1つで届きます</div>'
+              +td.map(function(x){return '<div class="todo"><span class="tk">'+esc(x.t)+'</span>'
+                +'<span class="ts">'+esc(x.sub)+'</span></div>';}).join('')
+            : '<div class="mini" style="margin-top:7px;">いくつかを合わせて伸ばすと届きます。'
+              +'下の「'+esc(RANKS[R.idx+1].n)+'までの内訳」をご覧ください。</div>')
+          +'</div>';})():'<div class="mini" style="margin-top:11px;">最上位です。認定クリエイターとして表示されています。</div>')
   +'</div>'
 
   /* ⑥出品・開催一覧 */
@@ -901,21 +950,28 @@ function rankHTML(){
   var R=rankScore();
   return '<h2 class="sec">🏅 ランク制度</h2>'
     +'<div class="card"><div class="scrollx"><table class="t">'
-      +'<thead><tr><th>ランク</th><th>上がる条件</th><th>特典</th></tr></thead><tbody>'
+      +'<thead><tr><th>ランク</th><th style="width:88px;">総合</th><th style="width:78px;">露出</th><th>こうなります</th></tr></thead><tbody>'
       +RANKS.map(function(x,i){
         return '<tr'+(i===R.idx?' style="background:#FDF1F7;"':'')+'>'
           +'<td style="font-weight:700;white-space:nowrap;">'+esc(x.n)
           +(i===R.idx?' <span class="tag pub">いまここ</span>':'')+'</td>'
-          +'<td>'+esc(x.need)+'</td><td>'+esc(x.perk)+'</td></tr>';}).join('')
+          +'<td class="mini">'+x.min+' 以上</td>'
+          +'<td style="font-weight:800;">'+x.boost.toFixed(1)+'倍</td>'
+          +'<td>'+esc(x.perk)+'</td></tr>';}).join('')
       +'</tbody></table></div></div>'
 
     +'<h2 class="sec">📐 ランク評価項目</h2>'
     +'<div class="card">'
       +RANK_ITEMS.map(function(it){
-        var v=R.items[it.k];
-        return '<div style="padding:9px 0;border-bottom:1px solid var(--line2);">'
+        var v=R.items[it.k],raw=R.raw;
+        var now={items:raw.nItems+'件',star:(raw.avg?'★'+raw.avg.toFixed(1):'—'),
+                 review:raw.review+'件',sold:raw.sold+'件'}[it.k];
+        var goal={items:it.goal+'件',star:'★5.0',review:it.goal+'件',sold:it.goal+'件'}[it.k];
+        return '<div style="padding:10px 0;border-bottom:1px solid var(--line2);">'
           +'<div class="row"><div style="font-weight:700;font-size:13px;">'+esc(it.n)+'</div>'
-          +'<div style="margin-left:auto;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;">'+v+'</div></div>'
+          +'<div class="mini" style="margin-left:8px;">重み '+Math.round(it.w*100)+'%</div>'
+          +'<div style="margin-left:auto;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;">'
+            +esc(now)+' <span class="mini">/ '+esc(goal)+'</span></div></div>'
           +'<div class="mini">'+esc(it.d)+'</div>'
           +'<div class="rankbar" style="height:6px;margin:6px 0 0;"><i style="width:'+v+'%;"></i></div></div>';
       }).join('')
