@@ -59,6 +59,15 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;}
   .card h3{font-size:14.5px;font-weight:600;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
   .card h3 svg{width:17px;height:17px;color:var(--teal);}
+  /* サイドバーの開閉 */
+  .nav-label{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+    border-radius:8px;transition:background .12s;}
+  .nav-label:hover{background:rgba(255,255,255,.07);}
+  .nav-label .caret{margin-left:auto;font-size:9px;opacity:.6;transition:transform .16s;}
+  .nav-label.closed .caret{transform:rotate(-90deg);}
+  .nav-label .cnt{font-size:10px;opacity:.55;font-variant-numeric:tabular-nums;}
+  .nav-grp{overflow:hidden;transition:max-height .18s ease;}
+  .nav-grp.closed{max-height:0 !important;}
   .page-h h1{display:flex;align-items:center;gap:9px;}
   .page-h h1 svg{width:21px;height:21px;color:var(--teal);flex-shrink:0;}
   .metric{display:flex;align-items:center;gap:14px;}
@@ -1232,9 +1241,76 @@ var WEEKDAYS=[['Mon','月'],['Tue','火'],['Wed','水'],['Thu','木'],['Fri','�
 function spinSvg(){return '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#185FA5" stroke-width="2"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9"/></svg>';}
 
 function expandIcons(node){node.innerHTML=node.innerHTML.replace(/\{ic:(\w+)\}/g,function(_,n){return ic(n);});}
+
+/* サイドバーを、見出しごとに開閉できるようにする。
+   見出しの下にある項目を1つの箱にまとめ、見出しを押すと閉じる。
+   いま開いている画面のある組は、閉じていても自動で開く。 */
+function navGroups(){
+  var nav=document.getElementById('nav');
+  if(!nav||nav.getAttribute('data-grouped'))return;
+  var kids=[].slice.call(nav.children),groups=[],cur=null;
+  kids.forEach(function(el){
+    if(el.classList&&el.classList.contains('nav-label')){
+      cur={label:el,items:[]};groups.push(cur);
+    }else if(cur){cur.items.push(el);}
+  });
+  var open=stGet('navOpen',null);
+  groups.forEach(function(g,i){
+    var box=document.createElement('div');
+    box.className='nav-grp';
+    var name=(g.label.textContent||'').trim();
+    box.setAttribute('data-grp',name);
+    g.label.parentNode.insertBefore(box,g.label.nextSibling);
+    g.items.forEach(function(x){box.appendChild(x);});
+    g.label.innerHTML='<span>'+esc(name)+'</span>'
+      +'<span class="cnt">'+g.items.length+'</span><span class="caret">▼</span>';
+    g.label.setAttribute('data-grp',name);
+    g.label.setAttribute('role','button');
+    g.label.setAttribute('tabindex','0');
+    var closed=open?(open.indexOf(name)<0):false;   /* 控えが無いときは全部ひらく */
+    setGrp(g.label,box,!closed,true);
+    g.label.onclick=function(){
+      var nowOpen=box.classList.contains('closed');
+      setGrp(g.label,box,nowOpen,false);
+      saveNavOpen();
+    };
+    g.label.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();g.label.click();}};
+  });
+  nav.setAttribute('data-grouped','1');
+  navRevealActive();
+}
+function setGrp(label,box,open,instant){
+  if(open){
+    box.classList.remove('closed');label.classList.remove('closed');
+    box.style.maxHeight=instant?'none':(box.scrollHeight+'px');
+    if(!instant)setTimeout(function(){if(!box.classList.contains('closed'))box.style.maxHeight='none';},200);
+  }else{
+    box.style.maxHeight=box.scrollHeight+'px';
+    void box.offsetHeight;
+    box.classList.add('closed');label.classList.add('closed');
+  }
+}
+function saveNavOpen(){
+  var out=[];
+  document.querySelectorAll('#nav .nav-grp').forEach(function(b){
+    if(!b.classList.contains('closed'))out.push(b.getAttribute('data-grp'));
+  });
+  stSet('navOpen',out);
+}
+/* いま開いている画面が閉じた組の中にあるときは、その組を開く */
+function navRevealActive(){
+  var a=document.querySelector('#nav a.active');
+  if(!a)return;
+  var box=a.closest('.nav-grp');
+  if(box&&box.classList.contains('closed')){
+    var label=box.previousElementSibling;
+    if(label&&label.classList.contains('nav-label')){setGrp(label,box,true,false);saveNavOpen();}
+  }
+}
 expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
 document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
+navGroups();
 
 var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
 function go(page){
@@ -1242,6 +1318,7 @@ function go(page){
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
+  if(typeof navRevealActive==='function')navRevealActive();   /* 閉じた組の中なら開く */
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
   (page==='creator') ? (function(){window.open('creator.html','_blank','noopener');page='home';})() :
