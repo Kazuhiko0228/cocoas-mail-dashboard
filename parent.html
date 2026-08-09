@@ -276,6 +276,33 @@
   .sstat{display:flex;gap:18px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
   .sstat b{display:block;font-size:16px;font-weight:800;}
   .sstat span{font-size:11px;color:var(--tx3);}
+  /* 使い方サポート */
+  #waHelpFab{position:fixed;right:16px;bottom:78px;z-index:900;width:48px;height:48px;border-radius:50%;
+    background:var(--p);color:#fff;border:none;font-size:22px;font-weight:800;cursor:pointer;
+    box-shadow:0 6px 18px rgba(235,78,155,.38);}
+  #waHelpPanel{position:fixed;right:12px;bottom:136px;z-index:901;width:min(370px,calc(100vw - 24px));
+    height:min(500px,calc(100vh - 200px));background:var(--card);border:1px solid var(--line);
+    border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.2);display:none;flex-direction:column;overflow:hidden;}
+  #waHelpPanel.open{display:flex;}
+  .wh-head{background:var(--p);color:#fff;padding:12px 14px;display:flex;align-items:center;
+    font-weight:800;font-size:14px;}
+  .wh-head button{margin-left:auto;background:rgba(255,255,255,.18);border:none;color:#fff;
+    width:26px;height:26px;border-radius:8px;font-size:16px;cursor:pointer;line-height:1;}
+  .wh-body{flex:1;overflow-y:auto;padding:13px;background:var(--bg);display:flex;flex-direction:column;gap:9px;}
+  .wh-msg{max-width:88%;padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;}
+  .wh-msg.bot{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;align-self:flex-start;}
+  .wh-msg.me{background:var(--p);color:#fff;border-bottom-right-radius:4px;align-self:flex-end;}
+  .wh-acts{display:flex;flex-wrap:wrap;gap:6px;}
+  .wh-acts button{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;
+    font:inherit;font-size:11.5px;font-weight:700;color:var(--p);cursor:pointer;}
+  .wh-acts button:disabled{opacity:.5;}
+  .wh-chips{display:flex;gap:6px;overflow-x:auto;padding:9px 11px;background:#fff;border-top:1px solid var(--line);}
+  .wh-chips button{flex-shrink:0;background:var(--line2);border:1px solid var(--line);border-radius:999px;
+    padding:6px 12px;font:inherit;font-size:11.5px;font-weight:700;color:var(--tx2);cursor:pointer;}
+  .wh-foot{display:flex;gap:7px;padding:10px 11px;background:#fff;border-top:1px solid var(--line);}
+  .wh-foot input{flex:1;border:1px solid var(--line);border-radius:999px;padding:9px 13px;font-size:13px;}
+  .wh-foot button{background:var(--p);color:#fff;border:none;border-radius:50%;width:36px;height:36px;
+    font-size:14px;cursor:pointer;flex-shrink:0;}
   .hide{display:none !important;}
   .sns-btn .e{display:flex;align-items:center;justify-content:center;line-height:0;}
   .sns-btn .e svg{display:block;}
@@ -2878,8 +2905,213 @@ document.addEventListener('click',function(e){
   var t=e.target.closest('[data-tab2]');if(t){tab=t.getAttribute('data-tab2');render();}
 });
 
+
+/* ============================================================
+   使い方サポート（保護者向け）
+   園に電話する前に、ここで解決できるようにする。
+   ============================================================ */
+var WA_HELP={
+ school:{t:'スクール',
+  kw:'欠席 休み 遅刻 早退 送迎 連絡 出欠 メッセージ 返信 既読 おたより お知らせ 連絡帳 やすみ 熱 発熱 病気 電話 先生 担任',
+  can:'園への連絡と、園からのお知らせを見るところです。',
+  steps:['「📅 出欠・連絡」で、日付をえらびます。',
+   '区分を「欠席」か「送迎時間変更」からえらびます。欠席のときは、病欠か都合欠かもえらべます。',
+   '送迎時間変更をえらぶと、登園とお迎えの時刻を入れられます。',
+   '伝えたいことを書いて「この内容を送信する」を押します。',
+   '送ったあとは、同じ枠の下にある「連絡の履歴」で確認できます。'],
+  tips:['送った内容は、その場で園の出欠記録に入ります。お電話は不要です。',
+        '園からのメッセージは、1件ずつ「既読」を押してください。「返信する」から返事も書けます。']},
+
+ store:{t:'ストア',
+  kw:'買う 購入 商品 教材 注文 配送 届く レンタル Amazon 支払 値段 口コミ 評価 探す 体操服 制服 絵本 おもちゃ 知育 返品 キャンセル',
+  can:'園がえらんだ教材や、教育事業者の商品を買えるところです。',
+  steps:['「こんなときに」から、いまお困りのことをえらぶと絞りこめます。',
+   '写真を押すと、くわしい内容と口コミが見られます。',
+   '「購入する」を押すとお申し込みになります。',
+   '買ったあとは、マイページの「購入履歴・配送状況」で今どこにあるか分かります。'],
+  tips:['いちばん上に出ているのは、園がえらんだものです。',
+        '「Amazonで見る」と出ているものは、園で使っている市販品です。Amazonのページへ移ります。',
+        '「要ご用意」の札が付いているものは、入園・進級までにご用意をお願いしているものです。']},
+
+ me:{t:'マイページ',
+  kw:'請求 保育料 支払 身体 身長 体重 成長 書類 ガイド しおり 治癒証明 投薬 休園 退園 プロフィール 購入履歴 申込履歴 持ち物 持物 用意 準備 入園 進級 感染症 出席停止 インフル コロナ 避難 警報 休園 おむつ 着替え タオル 名前つけ 記名',
+  can:'お子さまの情報と、園から届いているものがまとまっています。',
+  steps:['上から順に、お子さまの情報・保育料のご請求・スクールの連絡先・身体記録が並びます。',
+   '「📚 スクールガイド」を押すと、入園のときにお渡しした一式が見られます。',
+   '持ち物・感染症のきまり・避難場所などが、分類と検索から探せます。',
+   '治癒証明書などの用紙は、その場で印刷できます。'],
+  tips:['紙をなくされても、ここに全部あります。',
+        '保育料は、園が送付の手続きをしたものだけが出ます。']},
+
+ play:{t:'あそぶ',
+  kw:'遊び あそび 工作 外遊び 感触 食育 英語 STEAM モンテッソーリ 絵本 音楽 保存 お気に入り 年齢',
+  can:'おうちでできる遊びを探すところです。',
+  steps:['上のタブで「すべて／閲覧履歴／お気に入り／保存済み」を切り替えられます。',
+   'カテゴリと年齢でしぼりこめます。','気に入ったものは「♡お気に入り」「☆保存」に入れておけます。'],
+  tips:['1週間以内に出たものには NEW が付いて、上に出ます。']},
+
+ learn:{t:'まなぶ',
+  kw:'読みもの コラム 知育 発達 睡眠 防災 小学校 子育て 健康',
+  can:'子育てと教育の読みものです。使い方は「あそぶ」と同じです。',
+  steps:['カテゴリと年齢でしぼりこめます。','保存・お気に入りができます。'],
+  tips:[]},
+
+ connect:{t:'つながる',
+  kw:'イベント 申込 参加 講演 体験 マルシェ 交流 コミュニティ 口コミ 募集',
+  can:'イベントの申込と、保護者どうしのコミュニティです。',
+  steps:['「募集中」「開催済み」を切り替えられます。ふだんは募集中だけが出ます。',
+   '開催期間・種別・テーマ・年齢でしぼりこめます。',
+   '「詳細」でくわしい内容と口コミが見られます。','「申込をする」でお申し込みできます。'],
+  tips:['申し込んだ控えは、マイページの「イベントの申込履歴」に残ります。']}
+};
+var waHelpOpen=false, waHelpStep=null;
+
+function waHelpNow(){
+  if(typeof waGuideView!=='undefined'&&waGuideView)return 'me';
+  return (typeof tab!=='undefined')?tab:'school';
+}
+function waHelpTitle(k){return (WA_HELP[k]&&WA_HELP[k].t)||k;}
+function waHelpLog(q,hit){
+  var a=stGet('wa_help_log',[])||[];
+  a.push({at:new Date().toISOString().slice(0,16).replace('T',' '),
+    q:String(q).slice(0,120), tab:waHelpNow(), hit:hit?1:0});
+  stSet('wa_help_log',a.slice(-200));
+}
+function waHelpFind(q){
+  var best=null,bs=0;
+  Object.keys(WA_HELP).forEach(function(k){
+    var h=WA_HELP[k],v=0;
+    (h.kw||'').split(' ').forEach(function(w){if(w&&w.length>=2&&q.indexOf(w)>-1)v+=6;});
+    if(q.indexOf(h.t)>-1)v+=8;
+    (h.steps||[]).forEach(function(st){if(st.length>4&&q.length>3&&st.indexOf(q.slice(0,4))>-1)v+=2;});
+    if(v>bs){bs=v;best=k;}
+  });
+  return bs>=4?best:null;
+}
+function waHelpPush(role,html){
+  var b=document.getElementById('waHelpBody');
+  var d=document.createElement('div');
+  d.className=role==='me'?'wh-msg me':'wh-msg bot';
+  d.innerHTML=html;
+  b.appendChild(d);b.scrollTop=b.scrollHeight;
+}
+function waHelpAsk(q){
+  waHelpPush('me',esc(q));
+  setTimeout(function(){
+    if(/園に聞|電話|わからな|分からな|解決しない/.test(q)){waHelpLog(q,1);return waHelpToSchool();}
+    var k=waHelpFind(q);
+    waHelpLog(q,!!k);
+    waHelpShow(k||waHelpNow(),!k);
+  },160);
+}
+function waHelpShow(k,guessed){
+  var h=WA_HELP[k];
+  if(!h){waHelpToSchool();return;}
+  waHelpPush('bot',(guessed?'いま開いている「'+esc(h.t)+'」のご案内です。\n\n':'')+esc(h.can));
+  waHelpStep={k:k,i:0};
+  waHelpNext();
+}
+function waHelpNext(){
+  if(!waHelpStep)return;
+  var h=WA_HELP[waHelpStep.k];
+  if(!h||!h.steps||waHelpStep.i>=h.steps.length){waHelpDone();return;}
+  waHelpPush('bot','<b>'+(waHelpStep.i+1)+'／'+h.steps.length+'</b>　'+esc(h.steps[waHelpStep.i]));
+  waHelpStep.i++;
+  var box=document.createElement('div');box.className='wh-acts';
+  box.innerHTML='<button data-whnext="1">'+(waHelpStep.i>=h.steps.length?'ここまで':'つづき →')+'</button>'
+    +'<button data-whgo="'+esc(waHelpStep.k)+'">その画面をひらく</button>'
+    +'<button data-whask="1">園に聞く</button>';
+  document.getElementById('waHelpBody').appendChild(box);
+  waHelpWire();
+}
+function waHelpDone(){
+  var k=waHelpStep?waHelpStep.k:waHelpNow();
+  var h=WA_HELP[k];waHelpStep=null;
+  if(h&&h.tips&&h.tips.length){
+    waHelpPush('bot','<b>知っておくと便利なこと</b><br>'+h.tips.map(function(t){return '・'+esc(t);}).join('<br>'));
+  }
+  var box=document.createElement('div');box.className='wh-acts';
+  box.innerHTML='<button data-whgo="'+esc(k)+'">その画面をひらく</button>'
+    +'<button data-whok="1">わかりました</button><button data-whask="1">園に聞く</button>';
+  document.getElementById('waHelpBody').appendChild(box);
+  waHelpWire();
+}
+/* 園への連絡につなぐ。何を見ていたかを添える。 */
+function waHelpToSchool(){
+  var c=(typeof sessionChild==='function')?sessionChild():null;
+  waHelpPush('bot','園にお聞きになる場合は、「スクール」の<b>園からの個人メッセージ</b>から'
+    +'お送りいただけます。<br>下のボタンで移動します。');
+  var box=document.createElement('div');box.className='wh-acts';
+  box.innerHTML='<button data-whgo="school">メッセージをひらく</button>';
+  if(c)box.innerHTML+='<button data-whtel="1">園に電話する</button>';
+  document.getElementById('waHelpBody').appendChild(box);
+  waHelpWire();
+}
+function waHelpWire(){
+  var b=document.getElementById('waHelpBody');
+  b.querySelectorAll('[data-whnext]:not([data-w])').forEach(function(x){x.setAttribute('data-w','1');
+    x.onclick=function(){x.disabled=true;waHelpNext();};});
+  b.querySelectorAll('[data-whgo]:not([data-w])').forEach(function(x){x.setAttribute('data-w','1');
+    x.onclick=function(){
+      waHelpToggle(false);
+      var k=x.getAttribute('data-whgo');
+      waProdOpen=null;waSellerOpen=null;waEventOpen=null;waPersonOpen=null;waPostOpen=null;
+      waGuideView=false;waGuideOpen=null;
+      tab=k;render();};});
+  b.querySelectorAll('[data-whok]:not([data-w])').forEach(function(x){x.setAttribute('data-w','1');
+    x.onclick=function(){x.disabled=true;waHelpPush('bot','よかったです。ほかにもあればいつでもどうぞ。');};});
+  b.querySelectorAll('[data-whask]:not([data-w])').forEach(function(x){x.setAttribute('data-w','1');
+    x.onclick=function(){x.disabled=true;waHelpToSchool();};});
+  b.querySelectorAll('[data-whtel]:not([data-w])').forEach(function(x){x.setAttribute('data-w','1');
+    x.onclick=function(){
+      var st=stGet('settings',{})||{};
+      var tel=st.tel||st.phone||'';
+      if(tel)location.href='tel:'+String(tel).replace(/[^0-9+]/g,'');
+      else waHelpPush('bot','園の電話番号は、マイページの「スクールの連絡先」でご確認ください。');};});
+  b.scrollTop=b.scrollHeight;
+}
+function waHelpToggle(open){
+  waHelpOpen=(open===undefined)?!waHelpOpen:open;
+  var p=document.getElementById('waHelpPanel');
+  if(p)p.classList.toggle('open',waHelpOpen);
+  if(waHelpOpen&&!document.getElementById('waHelpBody').children.length){
+    waHelpPush('bot','使い方をご案内します。\nいま開いているのは「'+esc(waHelpTitle(waHelpNow()))+'」です。\n'
+      +'知りたいことを入れるか、下からおえらびください。');
+  }
+}
+function waHelpInit(){
+  if(document.getElementById('waHelpFab'))return;
+  var fab=document.createElement('button');
+  fab.id='waHelpFab';fab.title='使い方';fab.innerHTML='?';
+  var p=document.createElement('div');p.id='waHelpPanel';
+  p.innerHTML='<div class="wh-head"><span>使い方サポート</span><button id="waHelpClose">×</button></div>'
+    +'<div class="wh-body" id="waHelpBody"></div>'
+    +'<div class="wh-chips" id="waHelpChips"></div>'
+    +'<div class="wh-foot"><input id="waHelpInput" placeholder=""><button id="waHelpSend">➤</button></div>';
+  document.body.appendChild(p);document.body.appendChild(fab);
+  fab.onclick=function(){waHelpToggle();};
+  document.getElementById('waHelpClose').onclick=function(){waHelpToggle(false);};
+  document.getElementById('waHelpInput').placeholder='聞きたいことを入れてください';
+  var send=function(){
+    var i=document.getElementById('waHelpInput');
+    var v=(i.value||'').trim();if(!v)return;i.value='';waHelpAsk(v);};
+  document.getElementById('waHelpSend').onclick=send;
+  document.getElementById('waHelpInput').addEventListener('keydown',function(e){if(e.key==='Enter')send();});
+  var chips=['この画面の使い方','おやすみの連絡','買ったものはどこ','スクールガイド','園に聞く'];
+  document.getElementById('waHelpChips').innerHTML=chips.map(function(c){
+    return '<button data-whchip="'+esc(c)+'">'+esc(c)+'</button>';}).join('');
+  document.getElementById('waHelpChips').querySelectorAll('[data-whchip]').forEach(function(b){
+    b.onclick=function(){
+      waHelpToggle(true);
+      var c=b.getAttribute('data-whchip');
+      if(c==='この画面の使い方'){waHelpPush('me',esc(c));waHelpLog(c,1);
+        setTimeout(function(){waHelpShow(waHelpNow(),false);},160);return;}
+      waHelpAsk(c);};});
+}
+
 /* ---- boot ---- */
 seedAll();
+waHelpInit();
 render();
 </script>
 </body>
