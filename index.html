@@ -1244,6 +1244,22 @@ function actTypes(cls){var st=(typeof SET!=='undefined'&&SET.activityTypes)||{};
 var WEEKDAYS=[['Mon','月'],['Tue','火'],['Wed','水'],['Thu','木'],['Fri','金']];
 function spinSvg(){return '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#185FA5" stroke-width="2"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9"/></svg>';}
 
+/* 保存できなかったことを、画面のいちばん上に出す。1度出したら重ねない。 */
+function storageFullBanner(){
+  if(document.getElementById('storageFull'))return;
+  var d=document.createElement('div');
+  d.id='storageFull';
+  d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:2000;background:#A32D2D;color:#fff;'
+    +'padding:11px 16px;font-size:13px;line-height:1.65;box-shadow:0 3px 12px rgba(0,0,0,.25);';
+  d.innerHTML='<b>この端末の保存容量がいっぱいで、いま入力した内容を保存できませんでした。</b><br>'
+    +'設定 → データのバックアップ から控えをダウンロードしたうえで、'
+    +'写真や取り込み画像を減らしてください。'
+    +'<button id="storageFullX" style="float:right;background:rgba(255,255,255,.2);border:none;color:#fff;'
+    +'border-radius:8px;padding:4px 12px;font:inherit;cursor:pointer;">閉じる</button>';
+  document.body.appendChild(d);
+  var x=document.getElementById('storageFullX');
+  if(x)x.onclick=function(){d.remove();};
+}
 function expandIcons(node){node.innerHTML=node.innerHTML.replace(/\{ic:(\w+)\}/g,function(_,n){return ic(n);});}
 
 /* サイドバーを、見出しごとに開閉できるようにする。
@@ -6821,7 +6837,13 @@ function logStamp(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()
   var raw=localStorage.setItem.bind(localStorage),busy=false;
   window.__rawSet=raw;
   localStorage.setItem=function(k,v){
-    raw(k,v);
+    try{ raw(k,v); }
+    catch(err){
+      /* 保存容量がいっぱいのとき、これまでは例外が出るだけで画面に何も出ず、
+         入力した内容が保存されていないことに気づけなかった。 */
+      try{ storageFullBanner(); }catch(e2){}
+      throw err;                       /* 呼び出し元の扱いは変えない */
+    }
     if(busy||String(k).indexOf('cocoas_')!==0||LOG_SKIP[k])return;
     busy=true;
     try{
@@ -6887,7 +6909,12 @@ function backupRestoreFile(file,done){
       var p=JSON.parse(rd.result);
       if(!p||!p.data)throw new Error('形式が違います');
       takeSnapshot('ファイル復元前の自動保存');
-      Object.keys(p.data).forEach(function(k){if(String(k).indexOf('cocoas_')===0)(window.__rawSet||localStorage.setItem.bind(localStorage))(k,p.data[k]);});
+      /* 控えから戻さないもの。
+         接続先とトークンは端末ごとのものなので、他の端末の控えで上書きすると繋がらなくなる。
+         変更ログとスナップショットは「いつ誰が何をしたか」の証跡なので、上書きしない。 */
+      var NO_RESTORE={'cocoas_apiToken':1,'cocoas_apiBase':1,'cocoas_apiTenant':1,
+                      'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1};
+      Object.keys(p.data).forEach(function(k){if(NO_RESTORE[k])return;if(String(k).indexOf('cocoas_')===0)(window.__rawSet||localStorage.setItem.bind(localStorage))(k,p.data[k]);});
       done(null,Object.keys(p.data).length);
     }catch(e){done(e);}
   };
@@ -6997,7 +7024,13 @@ function renderBackupSettings(s){
     +'<button class="btn btn-primary btn-sm" id="bkDl">'+ic('folder')+'バックアップをダウンロード</button>'
     +'<button class="btn btn-sm" id="bkSnap">'+ic('check')+'いまの状態を保存</button>'
     +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('edit')+'バックアップから復元<input type="file" id="bkFile" accept="application/json,.json" style="display:none;"></label>'
-    +'<span class="muted" style="font-size:11.5px;">使用容量 約'+Math.round(used/1024)+'KB</span><span class="muted" id="bkMsg"></span></div>'
+    +'<span class="muted" style="font-size:11.5px;">使用容量 約'+Math.round(used/1024)+'KB</span>'
+      +(stGet('lastSnap','')!==todayISO()
+        ? '<div style="margin-top:9px;padding:9px 12px;border-radius:9px;background:#FCEBEB;'
+          +'border:1px solid #E8C9C9;color:#A32D2D;font-size:12.5px;line-height:1.7;">'
+          +'<b>本日の自動保存が作れていません。</b>保存容量が足りない可能性があります。'
+          +'データを失わないために、いま控えをダウンロードしてください。</div>'
+        : '')+'<span class="muted" id="bkMsg"></span></div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;align-items:start;">'
     +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">自動保存（スナップショット）</div>'
     +(sn.length?'<table><thead><tr><th>日時</th><th>種別</th><th></th></tr></thead><tbody>'+sn.map(function(x,i){var realIdx=snapshots().length-1-i;return '<tr><td class="row-sub">'+esc(x.at)+'</td><td>'+esc(x.reason)+'</td><td style="text-align:right;"><button class="btn btn-sm" data-bkres="'+esc(realIdx)+'">この時点に戻す</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ自動保存はありません</div>')
