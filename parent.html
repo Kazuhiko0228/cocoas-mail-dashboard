@@ -193,6 +193,35 @@
     justify-content:center;font-size:24px;flex-shrink:0;overflow:hidden;}
   .pthumb img{width:100%;height:100%;object-fit:cover;display:block;}
   .pgo{color:var(--tx3);font-size:20px;flex-shrink:0;margin-left:2px;}
+  /* ストアのタイル（写真が主役） */
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:2px 0 6px;}
+  .prow{display:flex;gap:11px;overflow-x:auto;padding:2px 2px 10px;-webkit-overflow-scrolling:touch;}
+  .prow .ptile{flex:0 0 152px;}
+  .ptile{display:block;width:100%;background:var(--card);border:1px solid var(--line);
+    border-radius:16px 16px 16px 6px;overflow:hidden;padding:0;text-align:left;cursor:pointer;font:inherit;color:inherit;}
+  .ptile:hover{border-color:var(--p);}
+  .ptile .pimg{display:block;position:relative;width:100%;aspect-ratio:1/1;background:var(--line2);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .ptile .pimg img{width:100%;height:100%;object-fit:cover;display:block;}
+  .ptile .pem{font-size:44px;line-height:1;}
+  .ptile .pbadge{position:absolute;left:7px;top:7px;font-size:10px;font-weight:800;
+    background:rgba(35,38,46,.78);color:#fff;padding:3px 8px;border-radius:7px;}
+  .ptile .pbadge.need{background:var(--o);}
+  .ptile .pbadge.use{background:var(--g);}
+  .ptile .pbody{display:block;padding:9px 10px 11px;}
+  .ptile .pname{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    font-size:12.5px;font-weight:700;line-height:1.45;min-height:36px;}
+  .ptile .prate{display:flex;align-items:center;gap:4px;margin-top:5px;font-size:10.5px;color:var(--tx3);}
+  .ptile .prate b{font-size:11.5px;font-weight:800;color:var(--tx2);}
+  .ptile .prate i{color:var(--o);font-style:normal;letter-spacing:-1px;}
+  .ptile .pprice{display:block;margin-top:5px;font-size:14px;font-weight:800;}
+  .ptile .pprice em{font-size:10.5px;font-weight:600;color:var(--tx3);font-style:normal;margin-left:2px;}
+  .ptile .pamz{font-size:12px;font-weight:800;color:#B45309;}
+  .amzbtn{display:block;width:100%;text-align:center;text-decoration:none;
+    background:#FF9900;color:#111;border:none;}
+  .amzbtn:hover{filter:brightness(1.05);}
+  .pickhead{margin:18px 2px 9px;}
+  .pickttl{font-size:14px;font-weight:800;}
   /* 出品者アカウント */
   .savatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;
     flex-shrink:0;overflow:hidden;font-weight:800;line-height:1;}
@@ -930,7 +959,7 @@ function wireAuth(){
 
 /* ---------- 教材ストア（EC） ----------
    未来WAの収益の柱。園とつながっている家庭には「先生が選んだ」文脈がつき、
-   購入の一部が園に還元される。つながっていない家庭でも買える（一般のECとして成立させる）。 */
+   つながっていない家庭でも買える（一般のECとして成立させる）。 */
 function yen(n){return '¥'+Math.round(n||0).toLocaleString('ja-JP');}
 function nowStr(){var d=new Date(),z=function(n){return (n<10?'0':'')+n;};
   return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}
@@ -940,12 +969,17 @@ function waProducts(){
   /* 値段は単品が基本。毎月おとどけのものだけ sub:true にして「／月」を出す。 */
   d=[
     /* 園からのおすすめ教材 */
-    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',cat:'教材',sub:true,aim:'かず・かたち',rec:true,by:'school'},
-    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',cat:'教材',sub:false,aim:'ことば',rec:false,by:'school'},
-    {id:3,name:'リズムあそび 音源＋絵本',desc:'からだを動かしながら音を楽しむ',price:1800,emoji:'🎵',cat:'教材',sub:false,aim:'おんがく',rec:false,by:'school'},
-    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',cat:'教材',sub:false,aim:'しぜん',rec:false,by:'school'},
-    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',cat:'制服',sub:false,aim:'',rec:false,schoolOnly:true,by:'school'},
-    {id:6,name:'サマーキャンプ 参加費',desc:'8/20-21 一泊二日',price:8000,emoji:'🏕️',cat:'イベント用品',sub:false,aim:'',rec:false,schoolOnly:true,by:'school'},
+    /* pick … 園が保護者に見せたい順位（小さいほど上）。need … 用意が要るもの。
+       use  … 園でいま使っているもの。src:'amazon' … 外部の教材（運営が発行したリンクで開く）。 */
+    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',cat:'教材',sub:true,aim:'かず・かたち',rec:true,by:'school',pick:1,use:true,stat:{v:2140,r:4.6,n:31}},
+    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',cat:'教材',sub:false,aim:'ことば',rec:false,by:'school',use:true,stat:{v:1180,r:4.2,n:14}},
+    {id:3,name:'リズムあそび 音源＋絵本',desc:'からだを動かしながら音を楽しむ',price:1800,emoji:'🎵',cat:'教材',sub:false,aim:'おんがく',rec:false,by:'school',stat:{v:620,r:4.0,n:6}},
+    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',cat:'教材',sub:false,aim:'しぜん',rec:false,by:'school',stat:{v:540,r:4.4,n:9}},
+    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',cat:'制服',sub:false,aim:'',rec:false,schoolOnly:true,by:'school',pick:2,need:'入園までにご用意ください',stat:{v:1620,r:4.1,n:22}},
+    {id:6,name:'サマーキャンプ 参加費',desc:'8/20-21 一泊二日',price:8000,emoji:'🏕️',cat:'イベント用品',sub:false,aim:'',rec:false,schoolOnly:true,by:'school',stat:{v:880,r:4.7,n:11}},
+    /* 園で使っている外部の教材。運営が発行したリンクでのみ開く。 */
+    {id:7,name:'くもん こどもえんぴつ 6B（3本入）',desc:'園のクラフトの時間で使っています。三角軸で持ち方がくずれません。',price:0,emoji:'✏️',cat:'教材',sub:false,aim:'てさき',by:'school',src:'amazon',need:'入園までにご用意ください',pick:3,use:true,amz:{status:'approved',url:'https://www.amazon.co.jp/dp/B002XKXVXG?tag=DEMO-22',at:'2026-07-20'},stat:{v:1960,r:4.5,n:18}},
+    {id:8,name:'ジップロック フリーザーバッグ（M）',desc:'着替えの持ち帰りに使います。名前を書いてお持ちください。',price:0,emoji:'🧷',cat:'食育用品',sub:false,aim:'',by:'school',src:'amazon',need:'常備をお願いします',use:true,amz:{status:'approved',url:'https://www.amazon.co.jp/dp/B00OA4RARW?tag=DEMO-22',at:'2026-07-20'},stat:{v:740,r:4.0,n:5}},
     /* 一般サービス（園以外の教育事業者） */
     {id:11,name:'はじめての のこぎりセット',desc:'国産ひのき／4歳から・保護者の付きそい前提',price:4800,emoji:'🪚',cat:'クラフト材料',sub:false,aim:'つくる',rec:false,by:'morinotsukue'},
     {id:12,name:'木のつみき 42ピース',desc:'角を落とした無塗装のつみき',price:6800,emoji:'🧱',cat:'知育玩具',sub:false,aim:'かたち',rec:true,by:'morinotsukue'},
@@ -972,6 +1006,46 @@ function waSeeProduct(id){
   v.unshift(id); stSet('wa_viewed',v.slice(0,12));
 }
 function waKickRate(){var s=stGet('wa_settings',null);return (s&&s.rate)||0.20;}
+
+/* ── 商品の口コミ ──────────────────────────────
+   買った方が星と感想を残せる。数と評価が、そのまま並び順に効く。 */
+var WA_PROD_REVIEWS={
+  1:[{who:'ひなた母',star:5,at:'2026-07-18',txt:'毎月とどくので、やる習慣がつきました。1回分が短いのがちょうどいいです。'},
+     {who:'そうた父',star:4,at:'2026-06-30',txt:'内容は良いのですが、シールがもう少し多いとうれしいです。'}],
+  2:[{who:'みお母',star:4,at:'2026-07-02',txt:'かけ流しているだけで口に出すようになりました。'}],
+  5:[{who:'れん母',star:4,at:'2026-05-11',txt:'生地がしっかりしていて、洗ってもへたりません。サイズは大きめでした。'}],
+  7:[{who:'かえで母',star:5,at:'2026-07-25',txt:'園と同じものが分かるので迷わず買えました。持ち方が自然に直りました。'}]
+};
+function prodReviews(id){
+  var mine=stGet('wa_prod_reviews',{})||{};
+  return (WA_PROD_REVIEWS[id]||[]).concat(mine[id]||[]);
+}
+function prodRating(p){
+  var rs=prodReviews(p.id);
+  if(rs.length){var t=0;rs.forEach(function(r){t+=(r.star||0);});return Math.round(t/rs.length*10)/10;}
+  return (p.stat&&p.stat.r)||0;
+}
+function prodReviewCount(p){
+  return prodReviews(p.id).length + (((p.stat&&p.stat.n)||0) - (WA_PROD_REVIEWS[p.id]||[]).length>0
+    ? (p.stat.n-(WA_PROD_REVIEWS[p.id]||[]).length) : 0);
+}
+function waStars(n){var s='';for(var i=1;i<=5;i++)s+=(i<=Math.round(n)?'★':'☆');return s;}
+
+/* 露出のスコア。評価が高くて、口コミが多いものほど上に出る。
+   園が指定したものは、その前に別枠で出す（順位そのものは動かさない）。 */
+function prodScore(p){
+  var r=prodRating(p),n=prodReviewCount(p),v=(p.stat&&p.stat.v)||0;
+  if(!n)return v/1000;                       /* 口コミがまだ無いものは閲覧数だけで見る */
+  return r*Math.log(1+n)*1.6 + v/2000;
+}
+function prodIsAmazon(p){return p.src==='amazon';}
+/* 運営が発行したリンクだけを開く。申請中・未承認のものは押せない。 */
+function amzUrl(p){
+  var a=p.amz;
+  if(!a||a.status!=='approved')return '';
+  var u=String(a.url||'');
+  return /^https:\/\/(www\.)?amazon\.co\.jp\//i.test(u)?u:'';
+}
 function waSchoolName(){try{return (stGet('settings',{})||{}).school||'COCOAS KIDS 大宮与野校';}catch(e){return 'COCOAS KIDS 大宮与野校';}}
 
 /* ── 出品者アカウント ──────────────────────────────────
@@ -1038,26 +1112,29 @@ var WA_STORE_CATS=['教材','絵本','知育玩具','制服','クラフト材料
 /* 区分：園が選んだものと、それ以外の教育事業者のものを分ける */
 var WA_STORE_KINDS=[['','すべて'],['school','園の教材'],['general','一般サービス']];
 var waStoreKind='',waStoreCat='',waStoreQ='',waStoreSort='rec';
-var WA_SORTS=[['rec','おすすめ順'],['low','価格が安い順'],['high','価格が高い順'],['name','名前順']];
+var WA_SORTS=[['rec','おすすめ順'],['star','評価が高い順'],['low','価格が安い順'],['high','価格が高い順'],['name','名前順']];
 function isSchoolProduct(x){return !x.by||x.by==='school';}
 /* 1枚の商品カード。顔は絵文字ではなく出品者のアカウント画像を下に出す。 */
-function prodCardHTML(x){
-  var im=escImgSrc(x.img);
-  return '<div class="card prodcard" style="padding-bottom:12px;">'
-    +'<div data-open="'+esc(x.id)+'" style="display:flex;gap:12px;align-items:center;cursor:pointer;">'
-      +'<div class="pthumb">'+(im?'<img src="'+im+'" alt="">':'<span>'+esc(x.emoji)+'</span>')+'</div>'
-      +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">'+esc(x.name)
-        +(x.rec?' <span class="chip" style="background:var(--g);color:#fff;border:none;padding:2px 8px;font-size:10.5px;">おすすめ</span>':'')
-        +(x.rental?' <span class="chip" style="padding:2px 8px;font-size:10.5px;">レンタル</span>':'')+'</div>'
-        +'<div class="muted">'+esc(x.desc)+(x.aim?' ・ '+esc(x.aim):'')+'</div></div>'
-      +'<div style="text-align:right;flex-shrink:0;"><div style="font-weight:800;font-size:14px;">'+yen(x.price)+'</div>'
-        +(x.sub?'<div class="muted" style="font-size:10.5px;">／月</div>':'')+'</div>'
-      +'<span class="pgo">›</span></div>'
-    +'<div style="display:flex;gap:8px;margin-top:11px;">'
-      +'<button class="btn sec" data-open="'+esc(x.id)+'" style="flex:1;">教材の詳細を見る</button>'
-      +'<button class="btn" data-buy="'+esc(x.id)+'" style="flex:1;">購入する</button></div>'
-    +sellerChip(x.by)
-    +'</div>';
+/* 商品のタイル。写真が主役で、押すと詳細ページへ。 */
+function prodTileHTML(x){
+  var im=escImgSrc(x.img),r=prodRating(x),n=prodReviewCount(x);
+  var amz=prodIsAmazon(x);
+  return '<button class="ptile" data-open="'+esc(x.id)+'">'
+    +'<span class="pimg">'+(im?'<img src="'+im+'" alt="">':'<span class="pem">'+esc(x.emoji||'📦')+'</span>')
+      +(x.need?'<span class="pbadge need">'+esc(x.need.length>8?'要ご用意':x.need)+'</span>'
+        :(x.use?'<span class="pbadge use">園で使用中</span>'
+        :(x.rental?'<span class="pbadge">レンタル</span>':'')))+'</span>'
+    +'<span class="pbody">'
+      +'<span class="pname">'+esc(x.name)+'</span>'
+      +'<span class="prate">'+(n?'<b>'+r.toFixed(1)+'</b><i>'+waStars(r)+'</i><em>('+n+')</em>':'<em>口コミはまだありません</em>')+'</span>'
+      +'<span class="pprice">'+(amz?'<span class="pamz">Amazonで見る</span>'
+        :yen(x.price)+(x.sub?'<em>／月</em>':''))+'</span>'
+    +'</span></button>';
+}
+/* 一覧を2列のタイルで並べる */
+function prodGridHTML(list){
+  if(!list.length)return '';
+  return '<div class="pgrid">'+list.map(prodTileHTML).join('')+'</div>';
 }
 function storeHTML(c){
   var ps=waProducts(),linked=!!c;
@@ -1074,7 +1151,12 @@ function storeHTML(c){
     if(waStoreSort==='low')return (a.price||0)-(b.price||0);
     if(waStoreSort==='high')return (b.price||0)-(a.price||0);
     if(waStoreSort==='name')return String(a.name||'').localeCompare(String(b.name||''),'ja');
-    return (b.rec?1:0)-(a.rec?1:0);
+    if(waStoreSort==='star'){
+      var d=prodRating(b)-prodRating(a);
+      return d!==0?d:prodReviewCount(b)-prodReviewCount(a);
+    }
+    /* おすすめ順＝評価と口コミの多さで自然に上がる */
+    return prodScore(b)-prodScore(a);
   });
   var kindRow='<div class="flabel">区分</div><div class="fchips">'
     +WA_STORE_KINDS.map(function(k){
@@ -1098,11 +1180,11 @@ function storeHTML(c){
   /* 区分をしぼっていないときは、園のものと一般のものを見出しで分けて並べる */
   var body;
   if(!ps.length)body=bloomEmpty('この条件の商品はまだありません');
-  else if(waStoreKind)body=ps.map(prodCardHTML).join('');
+  else if(waStoreKind)body=prodGridHTML(ps);
   else{
     var sc=ps.filter(isSchoolProduct),gn=ps.filter(function(x){return !isSchoolProduct(x);});
-    body=(sc.length?'<div class="flabel" style="margin:14px 2px 8px;">園からのおすすめ教材</div>'+sc.map(prodCardHTML).join(''):'')
-        +(gn.length?'<div class="flabel" style="margin:14px 2px 8px;">一般サービス</div>'+gn.map(prodCardHTML).join(''):'');
+    body=(sc.length?'<div class="flabel" style="margin:16px 2px 9px;">園からのおすすめ教材</div>'+prodGridHTML(sc):'')
+        +(gn.length?'<div class="flabel" style="margin:16px 2px 9px;">一般サービス</div>'+prodGridHTML(gn):'');
   }
   return '<h2 class="sec sec-g">🛍️ ストア</h2>'
     +(linked
@@ -1112,11 +1194,37 @@ function storeHTML(c){
       : '<div class="card petal-c"><div style="font-weight:700;font-size:14px;">おうちで使える教材</div>'
         +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
         +'<button class="btn sec" id="wantLink" style="margin-top:11px;">園とつながる</button></div>')
+    +schoolPickHTML(all,linked)
     +recentHTML(all)
     +'<div class="card petal-p">'+catRow+'</div>'
     +'<div class="fcount">'+ps.length+'件</div>'
     +body
-    +'<div id="waKick" style="display:none;" class="card petal-g"></div>';
+    +'';
+}
+/* 園が「これを見せたい」と指定したもの。
+   保護者には、園がえらんだ理由として素直に見せる。 */
+function schoolPickHTML(all,linked){
+  if(!linked)return '';
+  var picks=all.filter(function(x){return x.pick;}).sort(function(a,b){return a.pick-b.pick;});
+  var needs=all.filter(function(x){return x.need&&!x.pick;});
+  var uses =all.filter(function(x){return x.use&&!x.pick&&!x.need;});
+  var out='';
+  if(picks.length){
+    out+='<div class="pickhead"><div class="pickttl">'+esc(waSchoolName())+' がえらんだもの</div>'
+      +'<div class="muted">今月のねらいに合わせて、先生が選んでいます。</div></div>'
+      +'<div class="prow">'+picks.map(prodTileHTML).join('')+'</div>';
+  }
+  if(needs.length){
+    out+='<div class="pickhead"><div class="pickttl">ご用意をお願いしているもの</div>'
+      +'<div class="muted">入園・進級のときに必要になります。</div></div>'
+      +'<div class="prow">'+needs.map(prodTileHTML).join('')+'</div>';
+  }
+  if(uses.length){
+    out+='<div class="pickhead"><div class="pickttl">園で使っている教材</div>'
+      +'<div class="muted">同じものをおうちでも使えます。</div></div>'
+      +'<div class="prow">'+uses.map(prodTileHTML).join('')+'</div>';
+  }
+  return out;
 }
 function recentHTML(all){
   var ids=waViewed(),items=[];
@@ -1165,6 +1273,23 @@ function wireStore(c){
     var sc=document.getElementById('scroll');
     sc.innerHTML=storeHTML(c);wireStore(c);};});
   wireSeller();
+  /* 商品の口コミ */
+  var pstar=5;
+  document.querySelectorAll('[data-pstar]').forEach(function(b){b.onclick=function(){
+    pstar=+b.getAttribute('data-pstar');
+    document.querySelectorAll('[data-pstar]').forEach(function(o){o.className='chip';});
+    b.className='chip on';};});
+  var prs=document.getElementById('prSend');
+  if(prs)prs.onclick=function(){
+    var t=document.getElementById('prTxt'),v=(t.value||'').trim();
+    if(!v){toast('感想を書いてから送ってください');return;}
+    var id=prs.getAttribute('data-pid');
+    var all=stGet('wa_prod_reviews',{})||{};
+    (all[id]=all[id]||[]).push({who:'あなた',star:pstar,at:todayISO(),txt:v.slice(0,600)});
+    stSet('wa_prod_reviews',all);
+    toast('感想を送りました。ありがとうございます。');
+    render();
+  };
   document.querySelectorAll('[data-buy]').forEach(function(b){b.onclick=function(){
     if(b.disabled)return;                     /* 二重に注文が入らないようにする */
     var id=+b.getAttribute('data-buy'),p=waProducts().filter(function(x){return x.id===id;})[0];
@@ -1753,26 +1878,61 @@ function wireMe(c){
 /* 商品の詳細ページ。ストアのタブ内で切り替える（戻るで一覧へ） */
 var waProdOpen=null;
 function productPageHTML(p,c){
-  var rate=waKickRate(),kb=c?Math.round(p.price*rate):0,im=escImgSrc(p.img);
+  var im=escImgSrc(p.img),amz=prodIsAmazon(p),url=amzUrl(p);
+  var r=prodRating(p),n=prodReviewCount(p),rs=prodReviews(p.id);
   return '<button class="pback" id="pBack">‹ ストアにもどる</button>'
     +'<div class="phero">'+(im?'<img src="'+im+'" alt="'+esc(p.name)+'">':'<span>'+esc(p.emoji||'📦')+'</span>')+'</div>'
     +'<div class="card petal-p" style="margin-top:-26px;position:relative;">'
       +'<div class="ftags" style="margin:0 0 8px;"><span class="ftag">'+esc(p.cat||'')+'</span>'
         +(p.aim?'<span class="ftag">'+esc(p.aim)+'</span>':'')
-        +(p.rec?'<span class="ftag" style="background:var(--g);color:#fff;">おすすめ</span>':'')+'</div>'
+        +(p.use?'<span class="ftag" style="background:var(--g);color:#fff;">園で使用中</span>':'')
+        +(p.need?'<span class="ftag" style="background:var(--o);color:#fff;">'+esc(p.need)+'</span>':'')+'</div>'
       +'<div style="font-weight:800;font-size:18px;line-height:1.45;">'+esc(p.name)+'</div>'
+      +(n?'<div style="display:flex;align-items:center;gap:7px;margin-top:8px;">'
+          +'<span style="color:var(--o);font-size:14px;letter-spacing:-1px;">'+waStars(r)+'</span>'
+          +'<b style="font-size:14px;">'+r.toFixed(1)+'</b>'
+          +'<span class="muted">'+n+'件の口コミ</span></div>':'')
       +'<div style="display:flex;align-items:baseline;gap:8px;margin-top:10px;">'
-        +'<div style="font-weight:800;font-size:24px;">'+yen(p.price)+'</div>'
-        +(p.sub?'<div class="muted">／月　毎月おとどけ</div>':'<div class="muted">（単品）</div>')+'</div>'
+        +(amz?'<div class="muted" style="font-size:13px;">価格はAmazonでご確認ください</div>'
+          :'<div style="font-weight:800;font-size:24px;">'+yen(p.price)+'</div>'
+            +(p.sub?'<div class="muted">／月　毎月おとどけ</div>':'<div class="muted">（単品）</div>'))+'</div>'
       +'<div style="margin-top:14px;font-size:14px;line-height:1.8;">'+esc(p.desc||'')+'</div>'
       +sellerChip(p.by)
     +'</div>'
-    +(c?'<div class="card petal-g"><div style="font-weight:700;color:var(--g);font-size:13.5px;">'
-        +'このお買いもので、'+esc(waSchoolName())+' に '+yen(kb)+' が還元されます。</div>'
-        +'<div class="muted" style="margin-top:5px;">還元は園の運営に使われます。</div></div>'
-       :'<div class="card"><div class="muted">園とつながっていると、購入の一部が園の運営に還元されます。</div></div>')
-    +'<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'+(p.sub?'この教材を毎月うけとる':'購入する')+'</button></div>'
-    +'<div id="waKick" style="display:none;" class="card petal-g"></div>';
+    /* 外部の教材は、運営が発行したリンクからAmazonへ。承認前は押せない。 */
+    +(amz
+      ? (url
+          ? '<div style="margin:4px 0 6px;"><a class="btn amzbtn" href="'+esc(url)+'" target="_blank" rel="noopener nofollow sponsored">Amazonで見る</a></div>'
+            +'<div class="muted" style="margin:0 2px 12px;font-size:11px;">'
+            +'当サイトはAmazonアソシエイト・プログラムに参加しており、適格販売により収入を得ることがあります。</div>'
+          : '<div class="card"><div class="muted">この教材のリンクは、いま準備しています。'
+            +'園にご確認いただくか、お手数ですが商品名でお探しください。</div></div>')
+      : '<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
+        +(p.sub?'この教材を毎月うけとる':'購入する')+'</button></div>')
+    +prodReviewHTML(p,rs,r,n);
+}
+/* 商品の口コミ。買った方が書けるようにしてある。 */
+function prodReviewHTML(p,rs,r,n){
+  return '<div class="card">'
+    +'<div style="display:flex;align-items:center;gap:10px;">'
+      +'<div style="font-weight:700;font-size:14px;">口コミ・評価</div>'
+      +(n?'<div class="muted" style="margin-left:auto;"><span style="color:var(--o);">'+waStars(r)+'</span> '+r.toFixed(1)+'　'+n+'件</div>'
+         :'<div class="muted" style="margin-left:auto;">まだありません</div>')+'</div>'
+    +(rs.length?'<div style="margin-top:12px;">'+rs.map(function(x){
+      return '<div style="border-top:1px solid var(--line);padding:11px 0 2px;">'
+        +'<div style="display:flex;align-items:center;gap:8px;">'+personAvatar(x.who,24)
+          +'<span style="font-weight:700;font-size:12.5px;">'+esc(x.who)+'</span>'
+          +'<span style="color:var(--o);font-size:12px;">'+waStars(x.star)+'</span>'
+          +'<span class="muted" style="margin-left:auto;font-size:11px;">'+esc(x.at)+'</span></div>'
+        +'<div style="margin-top:7px;font-size:13.5px;line-height:1.75;">'+esc(x.txt)+'</div></div>';
+      }).join('')+'</div>':'')
+    +'<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">'
+      +'<div class="flabel" style="margin:0 0 7px;">お使いになった方は、感想を書けます</div>'
+      +'<div class="fchips" id="prStars">'+[1,2,3,4,5].map(function(k){
+        return '<button class="chip'+(k===5?' on':'')+'" data-pstar="'+k+'">'+waStars(k)+'</button>';}).join('')+'</div>'
+      +'<textarea id="prTxt" rows="3" placeholder="どんなふうに使いましたか？　これから買う方の参考になります。" style="margin-top:8px;"></textarea>'
+      +'<button class="btn sec" id="prSend" data-pid="'+esc(p.id)+'" style="margin-top:9px;">感想を送る</button></div>'
+    +'</div>';
 }
 
 /* 出品者ページ。その出品者が出しているものを一覧で見せる。 */
@@ -1795,11 +1955,11 @@ function sellerPageHTML(id,c){
         +'<div><b>'+esc(s.since||'—')+'</b><span>から活動</span></div>'
       +'</div>'
     +'</div>'
-    +(ps.length?'<div class="flabel" style="margin:16px 2px 8px;">出品しているもの</div>'+ps.map(prodCardHTML).join('')
+    +(ps.length?'<div class="flabel" style="margin:16px 2px 8px;">出品しているもの</div>'+prodGridHTML(ps)
       :bloomEmpty('いま出品しているものはありません'))
     +(evs.length?'<div class="flabel" style="margin:16px 2px 8px;">開催しているイベント</div>'
       +evs.map(function(e){return eventCardHTML(e);}).join(''):'')
-    +'<div id="waKick" style="display:none;" class="card petal-g"></div>';
+    +'';
 }
 /* 旧：下から出るシート（いまは詳細ページを使う） */
 function openProduct(p,c){
@@ -1814,8 +1974,7 @@ function openProduct(p,c){
     +'<div style="display:flex;align-items:baseline;gap:8px;margin-top:16px;">'
       +'<div style="font-weight:800;font-size:22px;">'+yen(p.price)+'</div>'
       +(p.sub?'<div class="muted">／月　毎月おとどけ</div>':'<div class="muted">（単品）</div>')+'</div>'
-    +(c?'<div class="kick" style="margin-top:13px;">このお買いもので、'+esc(waSchoolName())+' に <b>'+yen(kb)+'</b> が還元されます。</div>'
-       :'<div class="muted" style="margin-top:13px;font-size:12.5px;">園とつながっていると、購入の一部が園の運営に還元されます。</div>')
+
     +'<div style="display:flex;gap:10px;margin-top:16px;">'
       +'<button class="btn ghost" id="shClose" style="flex:0 0 auto;">とじる</button>'
       +'<button class="btn" data-buy="'+esc(p.id)+'" style="flex:1;">'+(p.sub?'この教材を続ける':'購入する')+'</button></div></div>';

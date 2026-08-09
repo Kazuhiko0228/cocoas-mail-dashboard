@@ -1501,6 +1501,131 @@ function renderGuide(){
   sec.querySelectorAll('[data-gdrop]').forEach(function(b){b.onclick=function(){guideDrop(b.getAttribute('data-gdrop'));};});
   sec.querySelector('#gAdd').onclick=guideAddCustom;
 }
+/* 園が「保護者にどう見せるか」を決める画面。
+   ここで指定したものが、未来WAのストアの上に別枠で出る。 */
+function renderWaPick(s){
+  var ps=waProd();
+  var picked=ps.filter(function(x){return x.pick;}).sort(function(a,b){return a.pick-b.pick;});
+  s.innerHTML+='<div class="card"><h3>'+ic('star')+'保護者のストアの上に出すもの</h3>'
+    +'<div class="muted" style="margin-bottom:12px;">'
+    +'えらんだ順に、未来WAのストアのいちばん上に並びます。'
+    +'「今月のねらいに合わせて先生が選んでいます」という枠で出ます。</div>'
+    +'<div class="scrollx"><table><thead><tr>'
+    +'<th style="width:44px;">見せる</th><th>商品</th><th style="width:88px;">表示順</th>'
+    +'<th style="width:190px;">ご用意のお願い</th><th style="width:96px;">園で使用中</th></tr></thead><tbody>'
+    +ps.map(function(x){
+      return '<tr><td style="text-align:center;">'
+        +'<input type="checkbox" data-pk="'+esc(x.id)+'"'+(x.pick?' checked':'')+' style="width:auto;"></td>'
+        +'<td><div style="font-weight:600;">'+esc(x.name)+'</div>'
+          +'<div class="row-sub">'+esc(x.cat||'')+' ・ '+(x.src==='amazon'?'外部教材':yen(x.price))+'</div></td>'
+        +'<td><input type="number" min="1" max="99" data-po="'+esc(x.id)+'" value="'+esc(x.pick||'')+'" style="width:70px;"></td>'
+        +'<td><input type="text" data-pn="'+esc(x.id)+'" value="'+esc(x.need||'')+'" placeholder="例：入園までにご用意ください"></td>'
+        +'<td style="text-align:center;"><input type="checkbox" data-pu="'+esc(x.id)+'"'+(x.use?' checked':'')+' style="width:auto;"></td></tr>';
+    }).join('')
+    +'</tbody></table></div>'
+    +'<div style="margin-top:14px;display:flex;gap:10px;align-items:center;">'
+    +'<button class="btn btn-primary" id="pkSave">この内容で保護者に見せる</button>'
+    +'<span class="muted" id="pkMsg"></span></div></div>'
+    +'<div class="card"><h3>'+ic('eye')+'いま保護者に出ているもの</h3>'
+    +(picked.length
+      ? '<ol style="margin:0;padding-left:20px;line-height:2;">'
+        +picked.map(function(x){return '<li>'+esc(x.name)
+          +(x.need?' <span class="pill" style="background:#FDEDE2;color:#A8560F;">'+esc(x.need)+'</span>':'')
+          +(x.use?' <span class="pill" style="background:#EAF3DE;color:#27500A;">園で使用中</span>':'')+'</li>';}).join('')
+        +'</ol>'
+      : '<div class="empty">まだ指定していません。上の表でチェックを入れてください。</div>')
+    +'</div>';
+  $('#pkSave').onclick=function(){
+    var ps=waProd();
+    ps.forEach(function(x){
+      var ck=document.querySelector('[data-pk="'+x.id+'"]');
+      var od=document.querySelector('[data-po="'+x.id+'"]');
+      var nd=document.querySelector('[data-pn="'+x.id+'"]');
+      var us=document.querySelector('[data-pu="'+x.id+'"]');
+      if(ck&&ck.checked){ x.pick=parseInt(od&&od.value,10)||99; } else { delete x.pick; }
+      var nv=nd?nd.value.trim():''; if(nv)x.need=nv; else delete x.need;
+      if(us&&us.checked)x.use=true; else delete x.use;
+    });
+    stSet('wa_products',ps);
+    $('#pkMsg').textContent='保存しました。保護者の画面に反映されています。';
+    renderWaStore();
+  };
+}
+
+/* 外部の教材は、運営が発行したリンクでのみ保護者に出す。
+   園が勝手にリンクを貼れる形にすると、どこへ飛ばされるか分からなくなるため。 */
+function renderWaAmz(s){
+  var ps=waProd();
+  var ext=ps.filter(function(x){return x.src==='amazon';});
+  var LB={approved:['発行ずみ','#EAF3DE','#27500A'],requested:['申請中','#FDF3E3','#7A5312'],
+          none:['未申請','#F1F1EF','#6E6A72']};
+  s.innerHTML+='<div class="card"><h3>'+ic('link')+'園で使っている外部の教材</h3>'
+    +'<div class="muted" style="margin-bottom:12px;">'
+    +'園で使っているけれど未来WAでは売っていないもの（市販の文具など）を、保護者に知らせる欄です。<br>'
+    +'リンクは<b>運営が発行します</b>。申請すると内容を確認したうえでお返しします。'
+    +'発行前のものは、保護者の画面ではボタンが出ません。</div>'
+    +'<div class="scrollx"><table><thead><tr><th>教材</th><th style="width:110px;">状態</th>'
+    +'<th>リンク</th><th style="width:130px;"></th></tr></thead><tbody>'
+    +(ext.length?ext.map(function(x){
+      var st=(x.amz&&x.amz.status)||'none',lb=LB[st]||LB.none;
+      return '<tr><td><div style="font-weight:600;">'+esc(x.name)+'</div>'
+        +'<div class="row-sub">'+esc(x.desc||'')+'</div></td>'
+        +'<td><span class="pill" style="background:'+lb[1]+';color:'+lb[2]+';">'+lb[0]+'</span></td>'
+        +'<td class="row-sub" style="word-break:break-all;">'+esc((x.amz&&x.amz.url)||'—')+'</td>'
+        +'<td>'+(st==='approved'
+          ? '<span class="muted" style="font-size:12px;">保護者に出ています</span>'
+          : '<button class="btn btn-sm" data-amz="'+esc(x.id)+'">'+(st==='requested'?'申請しなおす':'リンクを申請する')+'</button>')
+        +'</td></tr>';}).join('')
+      :'<tr><td colspan="4" class="empty">外部教材はまだ登録されていません。</td></tr>')
+    +'</tbody></table></div></div>'
+    +'<div class="card"><h3>'+ic('plus')+'外部教材を足す</h3>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;">'
+    +'<div><label class="lbl">教材の名前</label><input id="az_name" placeholder="例：くもん こどもえんぴつ 6B"></div>'
+    +'<div><label class="lbl">カテゴリ</label><select id="az_cat">'
+      +['教材','絵本','知育玩具','クラフト材料','食育用品','制服'].map(function(c){
+        return '<option>'+esc(c)+'</option>';}).join('')+'</select></div></div>'
+    +'<div style="margin-top:10px;"><label class="lbl">保護者への説明</label>'
+    +'<input id="az_desc" placeholder="例：クラフトの時間で使っています。三角軸で持ち方がくずれません。"></div>'
+    +'<div style="margin-top:10px;"><label class="lbl">参考にするページ（Amazonの商品ページ）</label>'
+    +'<input id="az_url" placeholder="https://www.amazon.co.jp/dp/..."></div>'
+    +'<div style="margin-top:10px;"><label class="lbl">ご用意のお願い（任意）</label>'
+    +'<input id="az_need" placeholder="例：入園までにご用意ください"></div>'
+    +'<div style="display:flex;gap:10px;align-items:center;margin-top:14px;">'
+    +'<button class="btn btn-primary" id="azAdd">この内容で申請する</button>'
+    +'<span class="muted" id="azMsg"></span></div>'
+    +'<div class="muted" style="margin-top:10px;font-size:12px;">'
+    +'※ 保護者の画面には、広告であることを示す表示が自動で入ります（法令上の決まりです）。</div></div>';
+
+  document.querySelectorAll('[data-amz]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-amz'),ps=waProd();
+    ps.forEach(function(x){if(String(x.id)===String(id)){
+      x.amz=x.amz||{};x.amz.status='requested';x.amz.at=todayISO();}});
+    stSet('wa_products',ps);
+    amzLog(id,'再申請');
+    renderWaStore();
+  };});
+  $('#azAdd').onclick=function(){
+    var n=$('#az_name').value.trim(),u=$('#az_url').value.trim();
+    if(!n){$('#azMsg').textContent='教材の名前を入れてください';return;}
+    if(!/^https:\/\/(www\.)?amazon\.co\.jp\//i.test(u)){
+      $('#azMsg').textContent='Amazon（amazon.co.jp）の商品ページのURLを入れてください';return;}
+    var ps=waProd();
+    var nid=Math.max.apply(null,ps.map(function(x){return +x.id||0;}).concat([100]))+1;
+    ps.push({id:nid,name:n,desc:$('#az_desc').value.trim(),price:0,emoji:'📎',
+      cat:$('#az_cat').value,sub:false,aim:'',by:'school',src:'amazon',use:true,
+      need:$('#az_need').value.trim()||undefined,
+      amz:{status:'requested',url:u,at:todayISO()},stat:{v:0,r:0,n:0}});
+    stSet('wa_products',ps);
+    amzLog(nid,'新規申請');
+    renderWaStore();
+  };
+}
+function amzLog(id,what){
+  var a=stGet('wa_amz_log',[])||[];
+  a.push({id:id,what:what,at:new Date().toISOString().slice(0,16).replace('T',' '),
+    by:(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:''});
+  stSet('wa_amz_log',a);
+}
 function renderWaStore(){
   var s=$('section[data-page="wastore"]'),rate=waRate(),mk=waMonth();
   var os=waOrd().filter(function(o){return String(o.at||'').slice(0,7)===mk;});
@@ -1509,8 +1634,12 @@ function renderWaStore(){
   s.innerHTML='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
     +'<div class="chips" style="margin:0;flex:1;">'
       +'<span class="chip'+(waTab2==='items'?' on':'')+'" data-wt="items">商品の管理</span>'
+      +'<span class="chip'+(waTab2==='pick'?' on':'')+'" data-wt="pick">保護者に見せる</span>'
+      +'<span class="chip'+(waTab2==='amz'?' on':'')+'" data-wt="amz">外部教材のリンク</span>'
       +'<span class="chip'+(waTab2==='sales'?' on':'')+'" data-wt="sales">売上と還元</span></div>'
     +'<span class="muted" style="font-size:12px;">ここで登録すると、保護者アプリ「未来WA」にすぐ表示されます</span></div>';
+  if(waTab2==='pick'){ renderWaPick(s); return; }
+  if(waTab2==='amz'){ renderWaAmz(s); return; }
   if(waTab2==='sales'){
     var net=fee-kb;
     s.innerHTML+='<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">'
@@ -1533,7 +1662,7 @@ function renderWaStore(){
       +'<div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;">'
         +'<span style="font-size:13px;font-weight:600;">園への還元率</span>'
         +'<input id="waRate" type="number" min="0" max="50" step="1" value="'+esc(Math.round(rate*100))+'" style="width:90px;">'
-        +'<span class="muted" style="font-size:12.5px;">%　商品の粗利から決めます。保護者にも「園の運営に使われます」と表示されます。</span>'
+        +'<span class="muted" style="font-size:12.5px;">%　商品の粗利から決めます。<b>この数字は保護者の画面には出ません。</b></span>'
         +'<button class="btn btn-sm btn-primary" id="waRateSave">保存</button><span class="muted" id="waRateMsg"></span></div></div>';
     $('#waRateSave').onclick=function(){
       waSetRate((parseFloat($('#waRate').value)||0)/100);
