@@ -428,10 +428,10 @@ var RANKS=[
 /* ランク評価項目 */
 /* 自分で動かせるものだけにする。目標の数も画面に出す。 */
 var RANK_ITEMS=[
-  {k:'sold',  n:'売れた実績',     d:'売れた件数と売上。実際に選ばれたかをいちばん強く見ます', w:0.35, goal:50, unit:'件'},
+  {k:'sold',  n:'売れた実績',     d:'売れた件数と売上。実際に選ばれたかをいちばん強く見ます', w:0.35, goal:20, unit:'件', amt:120000},
   {k:'star',  n:'評価',           d:'口コミの平均。★3.0から数えはじめます',                 w:0.25, goal:5,  unit:'★'},
-  {k:'review',n:'口コミの数',     d:'買った方・参加した方からの声',                          w:0.20, goal:60, unit:'件'},
-  {k:'items', n:'出しているもの', d:'公開中の商品・投稿・イベント・コミュニティの数',        w:0.20, goal:20, unit:'件'}
+  {k:'review',n:'口コミの数',     d:'買った方・参加した方からの声',                          w:0.20, goal:25, unit:'件'},
+  {k:'items', n:'出しているもの', d:'公開中の商品・投稿・イベント・コミュニティの数',        w:0.20, goal:10, unit:'件'}
 ];
 /* Premium（ランクとは別制度） */
 var PLANS=[
@@ -461,16 +461,16 @@ function saveMe(m){stSet('wa_creator',m);}
 /* 投稿（あそぶ・まなぶ） */
 function postsSeed(){
   return [
-    {id:'po_1',kind:'play',cat:'工作',ages:['2歳児','3歳児','4歳児'],t:'牛乳パックの積み木',
+    {by:'school',id:'po_1',kind:'play',cat:'工作',ages:['2歳児','3歳児','4歳児'],t:'牛乳パックの積み木',
      d:'牛乳パックを切って詰めるだけ。角に紙を貼ると安全に遊べます。',status:'public',at:'2026-08-02',
      stats:{view:1284,save:96,like:212,review:8,rating:4.6}},
-    {id:'po_2',kind:'play',cat:'感触遊び',ages:['0歳児','1歳児','2歳児'],t:'寒天ゼリーの感触あそび',
+    {by:'school',id:'po_2',kind:'play',cat:'感触遊び',ages:['0歳児','1歳児','2歳児'],t:'寒天ゼリーの感触あそび',
      d:'色をつけた寒天を大きめのバットに。つぶす・すくうを楽しみます。',status:'public',at:'2026-07-21',
      stats:{view:842,save:71,like:140,review:5,rating:4.4}},
-    {id:'po_3',kind:'learn',cat:'睡眠',ages:['1歳児','2歳児','3歳児'],t:'寝かしつけの前にやめること',
+    {by:'school',id:'po_3',kind:'learn',cat:'睡眠',ages:['1歳児','2歳児','3歳児'],t:'寝かしつけの前にやめること',
      d:'画面と強い光を1時間前に切るだけで、寝つきが変わります。',status:'public',at:'2026-07-08',
      stats:{view:2110,save:265,like:388,review:14,rating:4.8}},
-    {id:'po_4',kind:'learn',cat:'小学校準備',ages:['5歳児'],t:'入学前の1年でほんとうに必要なこと',
+    {by:'school',id:'po_4',kind:'learn',cat:'小学校準備',ages:['5歳児'],t:'入学前の1年でほんとうに必要なこと',
      d:'ひらがなよりも、話を最後まで聞ける力のほうが効きます。',status:'draft',at:'2026-08-06',
      stats:{view:0,save:0,like:0,review:0,rating:0}}
   ];
@@ -524,10 +524,15 @@ function allProducts(){
   return cur;
 }
 function products(){
-  /* 自分（この事業者）が出しているものだけ。状態と成績の欄がなければ足す。 */
+  /* 自分（この事業者）が出しているものだけ。
+     商品は stat:{v,r,n}、投稿などは stats:{view,review,rating} と形が違うので、
+     ここで揃えておく（揃えないと評価の集計から商品が漏れる）。 */
   return allProducts().filter(function(x){return (x.by||'school')===MY_SELLER;})
     .map(function(x){
-      if(!x.stats)x.stats={view:0,save:0,like:0,review:0,rating:0};
+      if(!x.stats){
+        var st=x.stat||{};
+        x.stats={view:st.v||0,save:0,like:0,review:st.n||0,rating:st.r||0};
+      }
       if(!x.status)x.status='public';
       return x;});
 }
@@ -548,15 +553,15 @@ function fmtDate(iso){
 /* イベント */
 function eventsSeed(){
   return [
-    {id:'ev_u1',target:'親子イベント',theme:'工作',kind:'',ages:['3歳児','4歳児','5歳児'],
+    {by:'school',id:'ev_u1',target:'親子イベント',theme:'工作',kind:'',ages:['3歳児','4歳児','5歳児'],
      t:'木のスプーンをつくる',d:'削って、磨いて、持ち帰ります。刃物は保護者の付きそいで。',
      date:'2026-09-14',place:'ときがわ町 工房',fee:'￥3,000',cap:12,applied:9,
      status:'public',stats:{view:640,save:44,like:71,review:3,rating:4.7}},
-    {id:'ev_u2',target:'保護者向けイベント',theme:'',kind:'講演会',ages:['0歳児','1歳児','2歳児'],
+    {by:'school',id:'ev_u2',target:'保護者向けイベント',theme:'',kind:'講演会',ages:['0歳児','1歳児','2歳児'],
      t:'イヤイヤ期のとらえ方',d:'発達の順序から見ると、何が起きているかが分かります。',
      date:'2026-09-28',place:'オンライン（Zoom）',fee:'￥1,000',cap:60,applied:37,
      status:'public',stats:{view:1180,save:118,like:159,review:9,rating:4.5}},
-    {id:'ev_u3',target:'子供向けイベント',theme:'運動',kind:'',ages:['4歳児','5歳児'],
+    {by:'school',id:'ev_u3',target:'子供向けイベント',theme:'運動',kind:'',ages:['4歳児','5歳児'],
      t:'はじめてのなわとび',d:'跳ぶ前の「まわす」から。1時間で回せるようになります。',
      date:'2026-10-12',place:'与野公園',fee:'￥1,500',cap:20,applied:0,
      status:'draft',stats:{view:0,save:0,like:0,review:0,rating:0}}
@@ -568,13 +573,13 @@ function saveEvents(a){stSet('wa_events_user',a);}
 /* コミュニティ */
 function commsSeed(){
   return [
-    {id:'cm_u1',cat:'保育アイディア',t:'雨の日の室内あそび、鉄板を共有しませんか',
+    {by:'school',id:'cm_u1',cat:'保育アイディア',t:'雨の日の室内あそび、鉄板を共有しませんか',
      d:'3歳児クラスで盛り上がったものを持ち寄る場です。',status:'public',at:'2026-06-11',
      members:128,keep:0.72,stats:{view:1960,save:203,like:288,review:22,rating:4.6}},
-    {id:'cm_u2',cat:'食育',t:'園の給食を家で再現する会',
+    {by:'school',id:'cm_u2',cat:'食育',t:'園の給食を家で再現する会',
      d:'レシピと写真を出しあっています。栄養士も見ています。',status:'public',at:'2026-07-02',
      members:64,keep:0.65,stats:{view:880,save:97,like:121,review:7,rating:4.3}},
-    {id:'cm_u3',cat:'発達',t:'ことばがゆっくりな子の親の会',
+    {by:'school',id:'cm_u3',cat:'発達',t:'ことばがゆっくりな子の親の会',
      d:'比べない場所を作りたくて立てました。',status:'draft',at:'2026-08-07',
      members:0,keep:0,stats:{view:0,save:0,like:0,review:0,rating:0}}
   ];
@@ -597,19 +602,22 @@ function rankScore(){
   var rev=sum(allPub,function(x){return x.stats&&x.stats.review;});
   var rated=allPub.filter(function(x){return x.stats&&x.stats.rating;});
   var avg=rated.length?sum(rated,function(x){return x.stats.rating;})/rated.length:0;
-  var sold=O.length;
+  /* 自分が出しているものの注文だけを数える（他の出品者の売上は入れない） */
+  var mine={};PR.forEach(function(p){mine[String(p.id)]=1;});
+  var myO=O.filter(function(o){return mine[String(o.pid)];});
+  var sold=myO.length;
   var view=sum(allPub,function(x){return x.stats&&x.stats.view;});
   var save=sum(allPub,function(x){return x.stats&&x.stats.save;});
   var like=sum(allPub,function(x){return x.stats&&x.stats.like;});
-  var sales=sum(O,function(o){return o.amount;});
+  var sales=sum(myO,function(o){return o.amount;});
 
   function pct(v,goal){return Math.max(0,Math.min(100,Math.round(v/goal*100)));}
   var items={
-    items : pct(nItems,20),
+    items : pct(nItems,10),
     star  : avg?Math.max(0,Math.min(100,Math.round((avg-3.0)/2.0*100))):0,  /* ★3.0で0、★5.0で100 */
-    review: pct(rev,60),
+    review: pct(rev,25),
     /* 件数と金額の両方を見る。数多く売れた方も、大口の方も評価されるように。 */
-    sold  : Math.round((pct(sold,50)+pct(sales,300000))/2)
+    sold  : Math.round((pct(sold,20)+pct(sales,120000))/2)
   };
   var total=0;
   RANK_ITEMS.forEach(function(it){total+=items[it.k]*it.w;});
@@ -967,7 +975,8 @@ function rankHTML(){
         var v=R.items[it.k],raw=R.raw;
         var now={items:raw.nItems+'件',star:(raw.avg?'★'+raw.avg.toFixed(1):'—'),
                  review:raw.review+'件',sold:raw.sold+'件'}[it.k];
-        var goal={items:it.goal+'件',star:'★5.0',review:it.goal+'件',sold:it.goal+'件'}[it.k];
+        var goal={items:it.goal+'件',star:'★5.0',review:it.goal+'件',
+                  sold:it.goal+'件 / '+yen(it.amt||0)}[it.k];
         return '<div style="padding:10px 0;border-bottom:1px solid var(--line2);">'
           +'<div class="row"><div style="font-weight:700;font-size:13px;">'+esc(it.n)+'</div>'
           +'<div class="mini" style="margin-left:8px;">重み '+Math.round(it.w*100)+'%</div>'
@@ -1284,9 +1293,10 @@ function wireEditor(){
       x.id=uid(type);
       x.at=todayISO();
       x.stats={view:0,save:0,like:0,review:0,rating:0};
+      x.by=MY_SELLER;                       /* どの出品者のものかを残す */
       if(type==='events'){x.applied=x.applied||0;}
       if(type==='comms'){x.members=x.members||0;x.keep=x.keep||0;}
-      if(type==='shop'){x.by='school';x.aim=x.aim||'';x.rec=false;}
+      if(type==='shop'){x.aim=x.aim||'';x.rec=false;}
       x.status=status;
       arr.push(x);
     }else{

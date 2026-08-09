@@ -1102,13 +1102,30 @@ var WA_RANKS=[
   {k:'platinum',n:'プラチナ',          boost:3.2, min:65},
   {k:'premium', n:'プレミアム（認定）',boost:4.5, min:85}
 ];
+/* 出品者が出しているもの。商品だけでなく、投稿・イベント・コミュニティも数える
+   （クリエイター側と同じ数え方にして、両方の画面でランクが一致するようにする） */
+function sellerItems(id){
+  id=id||'school';
+  var out=waProducts().filter(function(x){return (x.by||'school')===id;});
+  ['wa_posts','wa_events_user','wa_comms_user'].forEach(function(k){
+    (stGet(k,[])||[]).forEach(function(x){
+      if((x.by||'school')===id && x.status==='public')out.push(x);
+    });
+  });
+  return out;
+}
 function sellerRank(id){
   var ps=waProducts().filter(function(x){return (x.by||'school')===(id||'school');});
-  if(!ps.length)return WA_RANKS[0];
-  var n=ps.length,rev=0,rsum=0,rn=0,sold=0;
+  var allItems=sellerItems(id);
+  if(!allItems.length)return WA_RANKS[0];
+  var n=allItems.length,rev=0,rsum=0,rn=0,sold=0;
   ps.forEach(function(p){
     var c=prodReviewCount(p),r=prodRating(p);
     rev+=c; if(r){rsum+=r;rn++;}
+  });
+  /* 投稿・イベント・コミュニティの評価も入れる */
+  allItems.forEach(function(x){
+    if(x.stats){ rev+=(x.stats.review||0); if(x.stats.rating){rsum+=x.stats.rating;rn++;} }
   });
   var O=waOrders()||[];
   O.forEach(function(o){
@@ -1122,12 +1139,12 @@ function sellerRank(id){
   (waOrders()||[]).forEach(function(o){
     if(ps.filter(function(x){return String(x.id)===String(o.pid);}).length)amt+=(+o.amount||0);
   });
-  var soldScore=(pct(sold,50)+pct(amt,300000))/2;
+  var soldScore=(pct(sold,20)+pct(amt,120000))/2;
   var total=Math.round(
       soldScore*0.35
     + (avg?Math.max(0,Math.min(100,(avg-3.0)/2.0*100)):0)*0.25
-    + pct(rev,60)*0.20
-    + pct(n,20)*0.20);
+    + pct(rev,25)*0.20
+    + pct(n,10)*0.20);
   var out=WA_RANKS[0];
   for(var i=WA_RANKS.length-1;i>=0;i--){ if(total>=WA_RANKS[i].min){out=WA_RANKS[i];break;} }
   return out;
