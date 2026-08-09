@@ -467,26 +467,47 @@ function savePosts(a){stSet('wa_posts',a);}
 /* 商品（保護者側と同じキーを使うので、公開するとそのままストアに出る）
    このページに出すのは「自分が出品しているもの」だけ。 */
 var MY_SELLER='school';
+/* 未来WA と同じ一覧。どちらから先に開いても、ストアの中身が欠けないようにする。 */
+var WA_SEED_V=3;
 function productsSeed(){
   return [
-    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',
-     cat:'教材',sub:true,aim:'かず・かたち',rec:true,by:'school',status:'public',
-     stats:{view:1420,save:112,like:186,review:9,rating:4.5}},
-    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',
-     cat:'教材',sub:false,aim:'ことば',rec:false,by:'school',status:'public',
-     stats:{view:760,save:48,like:82,review:4,rating:4.2}},
-    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',
-     cat:'教材',sub:false,aim:'しぜん',rec:false,by:'school',status:'public',
-     stats:{view:530,save:36,like:57,review:2,rating:4.0}},
-    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',
-     cat:'制服',sub:false,aim:'',rec:false,schoolOnly:true,by:'school',status:'public',
-     stats:{view:980,save:22,like:31,review:6,rating:4.1}}
+    /* 園からのおすすめ教材 */
+    /* pick … 園が保護者に見せたい順位（小さいほど上）。need … 用意が要るもの。
+       use  … 園でいま使っているもの。src:'amazon' … 外部の教材（運営が発行したリンクで開く）。 */
+    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',cat:'教材',sub:true,aim:'かず・かたち',rec:true,by:'school',pick:1,use:true,stat:{v:2140,r:4.6,n:31}},
+    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',cat:'教材',sub:false,aim:'ことば',rec:false,by:'school',use:true,stat:{v:1180,r:4.2,n:14}},
+    {id:3,name:'リズムあそび 音源＋絵本',desc:'からだを動かしながら音を楽しむ',price:1800,emoji:'🎵',cat:'教材',sub:false,aim:'おんがく',rec:false,by:'school',stat:{v:620,r:4.0,n:6}},
+    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',cat:'教材',sub:false,aim:'しぜん',rec:false,by:'school',stat:{v:540,r:4.4,n:9}},
+    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',cat:'制服',sub:false,aim:'',rec:false,schoolOnly:true,by:'school',pick:2,need:'入園までにご用意ください',stat:{v:1620,r:4.1,n:22}},
+    {id:6,name:'サマーキャンプ 参加費',desc:'8/20-21 一泊二日',price:8000,emoji:'🏕️',cat:'イベント用品',sub:false,aim:'',rec:false,schoolOnly:true,by:'school',stat:{v:880,r:4.7,n:11}},
+    /* 園で使っている外部の教材。運営が発行したリンクでのみ開く。 */
+    {id:7,name:'くもん こどもえんぴつ 6B（3本入）',desc:'園のクラフトの時間で使っています。三角軸で持ち方がくずれません。',price:0,emoji:'✏️',cat:'教材',sub:false,aim:'てさき',by:'school',src:'amazon',need:'入園までにご用意ください',pick:3,use:true,amz:{status:'approved',url:'https://www.amazon.co.jp/dp/B002XKXVXG?tag=DEMO-22',at:'2026-07-20'},stat:{v:1960,r:4.5,n:18}},
+    {id:8,name:'ジップロック フリーザーバッグ（M）',desc:'着替えの持ち帰りに使います。名前を書いてお持ちください。',price:0,emoji:'🧷',cat:'食育用品',sub:false,aim:'',by:'school',src:'amazon',need:'常備をお願いします',use:true,amz:{status:'approved',url:'https://www.amazon.co.jp/dp/B00OA4RARW?tag=DEMO-22',at:'2026-07-20'},stat:{v:740,r:4.0,n:5}},
+    /* 一般サービス（園以外の教育事業者） */
+    {id:11,name:'はじめての のこぎりセット',desc:'国産ひのき／4歳から・保護者の付きそい前提',price:4800,emoji:'🪚',cat:'クラフト材料',sub:false,aim:'つくる',rec:false,by:'morinotsukue'},
+    {id:12,name:'木のつみき 42ピース',desc:'角を落とした無塗装のつみき',price:6800,emoji:'🧱',cat:'知育玩具',sub:false,aim:'かず・かたち',rec:true,by:'morinotsukue'},
+    {id:13,name:'おとえいご かけながしCD＋絵カード',desc:'1日15分・親の英語力は要りません',price:3200,emoji:'🎧',cat:'教材',sub:false,aim:'ことば',rec:false,by:'otoeigo'},
+    {id:14,name:'こども包丁と まな板',desc:'刃をまるくした3〜6歳向け／レシピ12点つき',price:3900,emoji:'🔪',cat:'食育用品',sub:false,aim:'たべる',rec:true,by:'kodomoshoku'},
+    {id:15,name:'モンテッソーリ 日常生活の教具 5点',desc:'すくう・うつす・そそぐ。手引きつき',price:7400,emoji:'🥄',cat:'知育玩具',sub:false,aim:'てさき',rec:false,by:'hidamari'},
+    {id:16,name:'年齢で選ぶ絵本 3冊びん',desc:'司書が選ぶ3冊／毎月おとどけ',price:2980,emoji:'📚',cat:'絵本',sub:true,aim:'ことば',rec:false,by:'ehonbin'},
+    {id:17,name:'はじめてのプログラミング ブロック',desc:'文字を読めなくても動かせる／5歳から',price:9800,emoji:'🤖',cat:'知育玩具',sub:false,aim:'かんがえる',rec:false,by:'steamkids'},
+    {id:18,name:'お名前つけ アイロンシール（120枚）',desc:'書体と色が選べます／入園準備に',price:1200,emoji:'🏷️',cat:'ハンドメイド',sub:false,aim:'',rec:false,by:'mamanote'},
+    {id:19,name:'通園リュック（受注制作）',desc:'背中のあたる面はメッシュ／名前の刺しゅう無料',price:6500,emoji:'🎒',cat:'ハンドメイド',sub:false,aim:'',rec:false,by:'mamanote'},
+    {id:20,name:'おうち実験キット（1か月レンタル）',desc:'返却用の伝票つき。こわしても追加費用なし',price:2400,emoji:'⚗️',cat:'中古・レンタル',sub:false,aim:'かんがえる',rec:false,by:'steamkids',rental:true},
+    {id:21,name:'季節の工作キット ダウンロード版',desc:'印刷してすぐ使えるPDF／12か月分',price:1800,emoji:'🖨️',cat:'ダウンロード教材',sub:false,aim:'つくる',rec:false,by:'morinotsukue'}
   ];
 }
 function allProducts(){
-  var p=stGet('wa_products',null);
-  if(!p||!p.length){p=productsSeed();stSet('wa_products',p);}
-  return p;
+  var d=productsSeed();
+  var cur=stGet('wa_products',null);
+  if(!cur||!cur.length){stSet('wa_products',d.slice());return d.slice();}
+  if(stGet('wa_seed_v',0)!==WA_SEED_V){
+    var have={};cur.forEach(function(x){have[String(x.id)]=1;});
+    var add=d.filter(function(x){return !have[String(x.id)];});
+    if(add.length){cur=cur.concat(add);stSet('wa_products',cur);}
+    stSet('wa_seed_v',WA_SEED_V);
+  }
+  return cur;
 }
 function products(){
   /* 自分（この事業者）が出しているものだけ。状態と成績の欄がなければ足す。 */

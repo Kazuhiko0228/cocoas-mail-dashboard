@@ -963,11 +963,9 @@ function wireAuth(){
 function yen(n){return '¥'+Math.round(n||0).toLocaleString('ja-JP');}
 function nowStr(){var d=new Date(),z=function(n){return (n<10?'0':'')+n;};
   return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());}
-function waProducts(){
-  var d=stGet('wa_products',null);
-  if(d&&d.length)return d;
-  /* 値段は単品が基本。毎月おとどけのものだけ sub:true にして「／月」を出す。 */
-  d=[
+var WA_SEED_V=3;
+/* 値段は単品が基本。毎月おとどけのものだけ sub:true にして「／月」を出す。 */
+var WA_SEED_PRODUCTS=[
     /* 園からのおすすめ教材 */
     /* pick … 園が保護者に見せたい順位（小さいほど上）。need … 用意が要るもの。
        use  … 園でいま使っているもの。src:'amazon' … 外部の教材（運営が発行したリンクで開く）。 */
@@ -982,7 +980,7 @@ function waProducts(){
     {id:8,name:'ジップロック フリーザーバッグ（M）',desc:'着替えの持ち帰りに使います。名前を書いてお持ちください。',price:0,emoji:'🧷',cat:'食育用品',sub:false,aim:'',by:'school',src:'amazon',need:'常備をお願いします',use:true,amz:{status:'approved',url:'https://www.amazon.co.jp/dp/B00OA4RARW?tag=DEMO-22',at:'2026-07-20'},stat:{v:740,r:4.0,n:5}},
     /* 一般サービス（園以外の教育事業者） */
     {id:11,name:'はじめての のこぎりセット',desc:'国産ひのき／4歳から・保護者の付きそい前提',price:4800,emoji:'🪚',cat:'クラフト材料',sub:false,aim:'つくる',rec:false,by:'morinotsukue'},
-    {id:12,name:'木のつみき 42ピース',desc:'角を落とした無塗装のつみき',price:6800,emoji:'🧱',cat:'知育玩具',sub:false,aim:'かたち',rec:true,by:'morinotsukue'},
+    {id:12,name:'木のつみき 42ピース',desc:'角を落とした無塗装のつみき',price:6800,emoji:'🧱',cat:'知育玩具',sub:false,aim:'かず・かたち',rec:true,by:'morinotsukue'},
     {id:13,name:'おとえいご かけながしCD＋絵カード',desc:'1日15分・親の英語力は要りません',price:3200,emoji:'🎧',cat:'教材',sub:false,aim:'ことば',rec:false,by:'otoeigo'},
     {id:14,name:'こども包丁と まな板',desc:'刃をまるくした3〜6歳向け／レシピ12点つき',price:3900,emoji:'🔪',cat:'食育用品',sub:false,aim:'たべる',rec:true,by:'kodomoshoku'},
     {id:15,name:'モンテッソーリ 日常生活の教具 5点',desc:'すくう・うつす・そそぐ。手引きつき',price:7400,emoji:'🥄',cat:'知育玩具',sub:false,aim:'てさき',rec:false,by:'hidamari'},
@@ -992,8 +990,21 @@ function waProducts(){
     {id:19,name:'通園リュック（受注制作）',desc:'背中のあたる面はメッシュ／名前の刺しゅう無料',price:6500,emoji:'🎒',cat:'ハンドメイド',sub:false,aim:'',rec:false,by:'mamanote'},
     {id:20,name:'おうち実験キット（1か月レンタル）',desc:'返却用の伝票つき。こわしても追加費用なし',price:2400,emoji:'⚗️',cat:'中古・レンタル',sub:false,aim:'かんがえる',rec:false,by:'steamkids',rental:true},
     {id:21,name:'季節の工作キット ダウンロード版',desc:'印刷してすぐ使えるPDF／12か月分',price:1800,emoji:'🖨️',cat:'ダウンロード教材',sub:false,aim:'つくる',rec:false,by:'morinotsukue'}
-  ];
-  stSet('wa_products',d);return d;
+];
+function waProducts(){
+  /* 種データは EduGrow・未来WA・クリエイターのどこから開いても同じになるよう、
+     「空なら全部入れる」ではなく「足りない id だけ足す」形にしている。
+     園が消した商品が復活しないよう、版数を控えて一度だけ動かす。 */
+  var d=WA_SEED_PRODUCTS;
+  var cur=stGet('wa_products',null);
+  if(!cur||!cur.length){stSet('wa_products',d.slice());return d.slice();}
+  if(stGet('wa_seed_v',0)!==WA_SEED_V){
+    var have={};cur.forEach(function(x){have[String(x.id)]=1;});
+    var add=d.filter(function(x){return !have[String(x.id)];});
+    if(add.length){cur=cur.concat(add);stSet('wa_products',cur);}
+    stSet('wa_seed_v',WA_SEED_V);
+  }
+  return cur;
 }
 function waOrders(){return stGet('wa_orders',[]);}
 /* 見た商品をおぼえておき、ストアの上に「最近見たもの」として出す */
@@ -1111,7 +1122,24 @@ function sellerChip(id){
 var WA_STORE_CATS=['教材','絵本','知育玩具','制服','クラフト材料','食育用品','ハンドメイド','ダウンロード教材','イベント用品','中古・レンタル'];
 /* 区分：園が選んだものと、それ以外の教育事業者のものを分ける */
 var WA_STORE_KINDS=[['','すべて'],['school','園の教材'],['general','一般サービス']];
-var waStoreKind='',waStoreCat='',waStoreQ='',waStoreSort='rec';
+/* 「こんなときに」＝保護者が困っていることから探す入口。
+   商品のねらい（aim）を、家庭で使う言葉に読み替えて束ねている。 */
+var WA_NEEDS=[
+  {k:'kotoba',l:'ことばを増やしたい',e:'🗣️',aims:['ことば']},
+  {k:'tesaki',l:'手先を使わせたい',  e:'✏️',aims:['てさき']},
+  {k:'kazu',  l:'かず・かたちにふれたい',e:'🔢',aims:['かず・かたち']},
+  {k:'taberu',l:'食べムラをどうにかしたい',e:'🍚',aims:['たべる']},
+  {k:'tsukuru',l:'おうちで何かつくりたい',e:'✂️',aims:['つくる']},
+  {k:'naze',  l:'「なぜ？」に答えたい',e:'🔎',aims:['しぜん','かんがえる']},
+  {k:'karada',l:'からだを動かしたい',  e:'🎶',aims:['おんがく']},
+  {k:'junbi', l:'入園・進級の準備',    e:'🎒',cats:['制服','イベント用品'],need:true}
+];
+function needMatch(n,x){
+  if(n.need&&x.need)return true;
+  if(n.cats&&n.cats.indexOf(x.cat)>-1)return true;
+  return !!(n.aims&&x.aim&&n.aims.indexOf(x.aim)>-1);
+}
+var waStoreKind='',waStoreCat='',waStoreQ='',waStoreSort='rec',waStoreNeed='';
 var WA_SORTS=[['rec','おすすめ順'],['star','評価が高い順'],['low','価格が安い順'],['high','価格が高い順'],['name','名前順']];
 function isSchoolProduct(x){return !x.by||x.by==='school';}
 /* 1枚の商品カード。顔は絵文字ではなく出品者のアカウント画像を下に出す。 */
@@ -1143,6 +1171,10 @@ function storeHTML(c){
   if(waStoreKind==='school')ps=ps.filter(isSchoolProduct);
   if(waStoreKind==='general')ps=ps.filter(function(x){return !isSchoolProduct(x);});
   var inKind=ps.slice();
+  if(waStoreNeed){
+    var nd=WA_NEEDS.filter(function(n){return n.k===waStoreNeed;})[0];
+    if(nd)ps=ps.filter(function(x){return needMatch(nd,x);});
+  }
   if(waStoreCat)ps=ps.filter(function(x){return x.cat===waStoreCat;});
   if(waStoreQ){var q=waStoreQ.toLowerCase();
     ps=ps.filter(function(x){var s=waSeller(x.by);
@@ -1166,6 +1198,14 @@ function storeHTML(c){
     }).join('')+'</div>';
   var searchRow='<div class="fsearch"><input id="stq" value="'+esc(waStoreQ)+'" placeholder="商品や出品者をさがす（例：ワーク）">'
     +(waStoreQ?'<button class="fclear" id="stqx" aria-label="消す">×</button>':'')+'</div>'
+    +'<div class="flabel">こんなときに</div><div class="fchips">'
+    +'<button class="chip'+(waStoreNeed===''?' on':'')+'" data-sn="">すべて</button>'
+    +WA_NEEDS.map(function(n){
+      var cnt=all.filter(function(x){return needMatch(n,x);}).length;
+      if(!cnt&&waStoreNeed!==n.k)return '';
+      return '<button class="chip'+(waStoreNeed===n.k?' on':'')+'" data-sn="'+esc(n.k)+'">'
+        +n.e+' '+esc(n.l)+(cnt?' '+cnt:'')+'</button>';}).join('')
+    +'</div>'
     +kindRow
     +'<div class="flabel">並べかえ</div><div class="fchips">'
     +WA_SORTS.map(function(s){return '<button class="chip'+(waStoreSort===s[0]?' on':'')+'" data-ss="'+esc(s[0])+'">'+esc(s[1])+'</button>';}).join('')
@@ -1179,7 +1219,10 @@ function storeHTML(c){
     +'</div>';
   /* 区分をしぼっていないときは、園のものと一般のものを見出しで分けて並べる */
   var body;
-  if(!ps.length)body=bloomEmpty('この条件の商品はまだありません');
+  if(!ps.length){
+    var nd2=WA_NEEDS.filter(function(n){return n.k===waStoreNeed;})[0];
+    body=bloomEmpty(nd2?('「'+nd2.l+'」に合うものは、いまはありません'):'この条件の商品はまだありません');
+  }
   else if(waStoreKind)body=prodGridHTML(ps);
   else{
     var sc=ps.filter(isSchoolProduct),gn=ps.filter(function(x){return !isSchoolProduct(x);});
@@ -1194,7 +1237,7 @@ function storeHTML(c){
       : '<div class="card petal-c"><div style="font-weight:700;font-size:14px;">おうちで使える教材</div>'
         +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
         +'<button class="btn sec" id="wantLink" style="margin-top:11px;">園とつながる</button></div>')
-    +schoolPickHTML(all,linked)
+    +((waStoreNeed||waStoreCat||waStoreQ||waStoreKind)?'':schoolPickHTML(all,linked))
     +recentHTML(all)
     +'<div class="card petal-p">'+catRow+'</div>'
     +'<div class="fcount">'+ps.length+'件</div>'
@@ -1265,6 +1308,9 @@ function wireStore(c){
     var sc2=document.getElementById('scroll');sc2.innerHTML=storeHTML(c);wireStore(c);};});
   var wl=document.getElementById('wantLink');
   if(wl)wl.onclick=function(){tab='me';render();};
+  document.querySelectorAll('[data-sn]').forEach(function(b){b.onclick=function(){
+    waStoreNeed=b.getAttribute('data-sn');waStoreCat='';
+    var sc=document.getElementById('scroll');sc.innerHTML=storeHTML(c);wireStore(c);};});
   document.querySelectorAll('[data-sk]').forEach(function(b){b.onclick=function(){
     waStoreKind=b.getAttribute('data-sk');waStoreCat='';
     var sc=document.getElementById('scroll');sc.innerHTML=storeHTML(c);wireStore(c);};});
