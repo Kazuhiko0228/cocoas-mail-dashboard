@@ -907,7 +907,14 @@ function render(){
    版を上げると、もう一度ご同意をいただく形になる。
    【　】は未確定。事業者名・所在地などが決まったら差し替える。 */
 var WA_TERMS_VER='2026-08-11.1';
-var WA_OPERATOR='【事業者名】';
+var WA_OPERATOR='株式会社BIM JAPAN';
+/* 保有個人データについて、事業者の名称・所在地・代表者名を
+   お客さまが知り得る状態に置く必要がある（個人情報保護法32条）。
+   決まり次第、ここを差し替える。 */
+var WA_BIZ={name:'株式会社BIM JAPAN',
+            addr:'沖縄県那覇市赤嶺2-11-9 エンゼルハイム小禄赤嶺第３ 601',
+            rep:'代表取締役　安田 応彦',
+            contact:'【メールアドレス／お問い合わせフォーム】'};
 var WA_LEGAL={
 terms:{t:'未来WA 利用規約',d:'',s:[
 {h:'第1条（適用）',b:[
@@ -1013,12 +1020,12 @@ terms:{t:'未来WA 利用規約',d:'',s:[
  '効力発生日以後に本サービスをご利用になった場合、変更後の規約にご同意いただいたものとみなします。']},
 {h:'第26条（準拠法・管轄）',b:[
  '本規約の準拠法は日本法とします。',
- '本サービスに関して生じた紛争については、【　地方裁判所】を第一審の専属的合意管轄裁判所とします。']}
+ '本サービスに関して生じた紛争については、那覇地方裁判所を第一審の専属的合意管轄裁判所とします。']}
 ]},
 privacy:{t:'未来WA プライバシーポリシー',d:'',s:[
 {h:'1. 事業者',b:[
- '名称：'+WA_OPERATOR,'所在地：【　】','代表者：【　】',
- '個人情報お問い合わせ窓口：【メールアドレス／フォーム】']},
+ '名称：'+WA_BIZ.name,'所在地：'+WA_BIZ.addr,'代表者：'+WA_BIZ.rep,
+ '個人情報お問い合わせ窓口：'+WA_BIZ.contact]},
 {h:'2. ご入力いただく情報',b:[
  '保護者の方：お名前、メールアドレス、電話番号、パスワード（暗号化して保存します）。',
  'お子さま：お名前、生年月日、所属する園・クラス、ご住所。',
@@ -1057,7 +1064,7 @@ privacy:{t:'未来WA プライバシーポリシー',d:'',s:[
  'お子さまの情報は、親権者または未成年後見人の方に、法定代理人としてご提供いただきます。',
  'お子さまの顔が判別できる写真は、保護者の方の個別の同意がない限り、本サービスの提供以外の目的（広報・宣伝など）には使用しません。']},
 {h:'7. 第三者へお渡しする場合',b:[
- 'ショップでご購入いただいたとき：出品者へ、お名前・ご連絡先・お届け先・注文内容。',
+ 'ショップでご購入いただいたとき：出品者へ、お名前・ご連絡先・お届け先・注文内容。商品は出品者からお客さまへ直接お届けします。',
  'イベントにお申し込みいただいたとき：主催者へ、お名前・参加されるお子さまのお名前と年齢・ご連絡先。',
  '園と連携されている場合：園へ、出欠・連絡、成長記録に関する情報。',
  'このほか、法令に基づく場合、人の生命・身体・財産の保護のために必要でご本人の同意を得ることが困難な場合、公衆衛生の向上または児童の健全な育成のために特に必要な場合、国の機関等に協力する必要がある場合には、同意なくお渡しすることがあります。']},
@@ -1127,7 +1134,8 @@ function consentOk(){ var r=consentGet(); return !!(r&&r.ver===WA_TERMS_VER); }
 function consentSave(){
   var a=stGet('wa_consent',{})||{};
   a[consentKey()]={at:new Date().toISOString().slice(0,19).replace('T',' '),
-    ver:WA_TERMS_VER, dev:(typeof waDevice==='function')?waDevice():''};
+    ver:WA_TERMS_VER, dev:(typeof waDevice==='function')?waDevice():'',
+    items:['利用規約・プライバシーポリシー','健康に関する情報の取扱い']};
   stSet('wa_consent',a);
   try{ if(typeof waTrack==='function')waTrack('利用規約に同意',{cid:WA_TERMS_VER}); }catch(e){}
 }
@@ -1162,24 +1170,40 @@ function consentHTML(){
     +cPoint('5','ご利用状況の記録',
       'どの記事が読まれているかを集計し、改善に使います。'
       +'<b>お名前・メールアドレス・電話番号は記録しません。</b>匿名のIDだけで数えます。')
+    +cPoint('6','データの置き場所',
+      'いまは、お使いの<b>ブラウザの中だけ</b>に保存しています。'
+      +'サーバとの同期をはじめるときは、保存先の国もあわせて、あらためてご案内します。')
 
     +'<div style="display:flex;gap:9px;margin:18px 0 6px;">'
       +'<button class="btn sec" id="cTerms" style="flex:1;">利用規約を読む</button>'
       +'<button class="btn sec" id="cPriv" style="flex:1;">プライバシーポリシーを読む</button></div>'
 
-    +'<label for="cChk" style="display:flex;gap:11px;align-items:flex-start;margin:18px 0 4px;'
-      +'padding:14px;border:1px solid var(--line2);border-radius:13px;cursor:pointer;">'
-      +'<input type="checkbox" id="cChk" style="width:20px;height:20px;margin-top:1px;flex:none;">'
-      +'<span style="font-size:13px;line-height:1.85;">私は、登録する児童の保護者または法定代理人であり、'
+    +cChk('cChk','私は、登録する児童の保護者または法定代理人であり、'
       +'利用規約およびプライバシーポリシーを確認したうえで、自身および登録する児童の情報が'
-      +'記載された目的・範囲で取り扱われることに同意します。</span></label>'
+      +'記載された目的・範囲で取り扱われることに同意します。')
+    /* 健康に関する情報は法律上の「要配慮個人情報」にあたり、
+       ほかとまとめてではなく、それだけの同意をいただく必要がある。 */
+    +cChk('cChkH','お子さまの健康に関する情報（アレルギー、既往症、服薬、'
+      +'けが・体調の記録）を園にお預けいただき、お子さまの安全のために必要な範囲で、'
+      +'園および関係する職員が取り扱うことに同意します。')
 
     +'<button class="btn" id="cGo" disabled style="margin-top:14px;opacity:.45;">同意して利用をはじめる</button>'
     +'<div style="text-align:center;margin-top:13px;">'
       +'<button class="link" id="cOut">同意せずにログアウトする</button></div>'
-    +'<div class="muted" style="text-align:center;margin-top:16px;font-size:11px;line-height:1.7;">'
+    +'<div class="card" style="margin-top:20px;background:transparent;border-style:dashed;">'
+      +'<div style="font-weight:700;font-size:12.5px;margin-bottom:7px;">このサービスを提供している事業者</div>'
+      +'<div class="muted" style="font-size:11.5px;line-height:1.9;">'
+      +'名称　'+esc(WA_BIZ.name)+'<br>所在地　'+esc(WA_BIZ.addr)+'<br>代表者　'+esc(WA_BIZ.rep)+'<br>'
+      +'個人情報のお問い合わせ窓口　'+esc(WA_BIZ.contact)+'</div></div>'
+    +'<div class="muted" style="text-align:center;margin-top:14px;font-size:11px;line-height:1.7;">'
       +'版 '+esc(WA_TERMS_VER)+'　｜　同意された日時は、マイページからいつでもご確認いただけます。</div>'
     +'</div>';
+}
+function cChk(id,txt){
+  return '<label for="'+id+'" style="display:flex;gap:11px;align-items:flex-start;margin:11px 0 0;'
+    +'padding:14px;border:1px solid var(--line2);border-radius:13px;cursor:pointer;">'
+    +'<input type="checkbox" id="'+id+'" style="width:20px;height:20px;margin-top:1px;flex:none;">'
+    +'<span style="font-size:13px;line-height:1.85;">'+txt+'</span></label>';
 }
 function cPoint(n,t,b){
   return '<div class="card" style="margin-bottom:9px;padding:14px 15px;">'
@@ -1235,12 +1259,18 @@ function wireConsent(){
   }
   if($('cTerms'))$('cTerms').onclick=function(){consentDoc='terms';render();};
   if($('cPriv'))$('cPriv').onclick=function(){consentDoc='privacy';render();};
-  if($('cChk'))$('cChk').onchange=function(){
-    var b=$('cGo'); if(!b)return;
-    b.disabled=!this.checked; b.style.opacity=this.checked?'1':'.45';
+  var allChecked=function(){
+    var a=$('cChk'),b=$('cChkH');
+    return !!(a&&a.checked&&b&&b.checked);
   };
+  var sync=function(){
+    var b=$('cGo'); if(!b)return;
+    var ok=allChecked();
+    b.disabled=!ok; b.style.opacity=ok?'1':'.45';
+  };
+  ['cChk','cChkH'].forEach(function(i){ if($(i))$(i).onchange=sync; });
   if($('cGo'))$('cGo').onclick=function(){
-    if(!$('cChk')||!$('cChk').checked)return;
+    if(!allChecked())return;
     consentSave(); showFab(); toast('ありがとうございます'); render();
   };
   if($('cOut'))$('cOut').onclick=function(){ logout(); };
@@ -2429,7 +2459,9 @@ function consentCardHTML(){
   return '<div class="card" style="margin-top:14px;">'
     +'<div style="font-weight:800;font-size:13.5px;">利用規約・プライバシーポリシー</div>'
     +(r?'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
-        +esc(r.at)+' に同意（版 '+esc(r.ver)+'）<br>'+esc(r.dev||'')+'</div>'
+        +esc(r.at)+' に同意（版 '+esc(r.ver)+'）<br>'+esc(r.dev||'')
+        +((r.items&&r.items.length)?'<br>'+r.items.map(function(x){return '・'+esc(x);}).join('<br>'):'')
+        +'</div>'
       :'<div class="muted" style="margin-top:7px;font-size:12px;">同意の記録がありません。</div>')
     +'<div style="display:flex;gap:8px;margin-top:11px;">'
     +'<button class="btn sec" data-legal="terms" style="flex:1;font-size:12.5px;">利用規約</button>'
