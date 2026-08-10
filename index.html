@@ -7038,7 +7038,8 @@ function renderBackupSettings(s){
     +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">最近の変更ログ（新しい順）</div>'
     +(lg.length?'<table><thead><tr><th>日時</th><th>項目</th><th>操作者</th></tr></thead><tbody>'+lg.map(function(x){return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(x.at.slice(5))+'</td><td>'+esc(x.label)+(x.n>1?' <span class="muted">×'+x.n+'</span>':'')+'</td><td class="row-sub">'+esc(x.by||'—')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ記録はありません</div>')
     +'</div></div></div>';
-  s.insertAdjacentHTML('beforeend',html);
+  s.insertAdjacentHTML('beforeend',kpiCardHTML()+html);
+  kpiWire(s);
   document.getElementById('bkDl').onclick=backupDownload;
   document.getElementById('bkSnap').onclick=function(){var ok=takeSnapshot('手動');document.getElementById('bkMsg').textContent=ok?'現在の状態を保存しました':'保存できませんでした（容量が不足している可能性があります）';renderSettings();};
   document.getElementById('bkFile').onchange=function(e){
@@ -7054,6 +7055,97 @@ function renderBackupSettings(s){
     if(restoreSnapshot(+b.getAttribute('data-bkres'))){alert('復元しました。画面を再読み込みします。');location.reload();}
     else alert('復元できませんでした');
   };});
+}
+
+
+/* ── 未来WA アクセス数値管理表への書き出し ────────────────
+   数値管理表の「②行動ログ（生データ）」「④問い合わせログ（生データ）」の
+   列の並びに合わせて書き出す。貼り付ければ ①③ の集計はシート側で動く。 */
+function kpiRows(){
+  var a=stGet('wa_track',[])||[];
+  return a.map(function(x){
+    var at=String(x.at||''), d=at.slice(0,10), t=at.slice(11,19);
+    return [d,t,x.sid||'',x.sname||'',x.hid||'',x.act||'',
+            x.cid||'',x.cat||'',x.by||'',x.dev||'',x.ses||''];
+  });
+}
+function kpiHelpRows(){
+  var a=stGet('wa_help_log',[])||[];
+  return a.map(function(x){
+    var at=String(x.at||''), d=at.slice(0,10), t=at.slice(11,19);
+    return [d,t,x.hid||'',x.kind||'',x.tab||'',
+            x.hit?'答えられた':'答えられず',x.q||'',x.dev||'',x.sid||''];
+  });
+}
+function kpiTsv(rows){
+  return rows.map(function(r){
+    return r.map(function(c){
+      return String(c==null?'':c).replace(/[\t\r\n]/g,' ');
+    }).join('\t');
+  }).join('\n');
+}
+function kpiDownload(rows,name){
+  if(!rows.length){alert('まだ記録がありません。');return;}
+  /* Excel・スプレッドシートで文字化けしないよう BOM を付ける */
+  var blob=new Blob(['﻿'+kpiTsv(rows)],{type:'text/tab-separated-values;charset=utf-8'});
+  var u=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=u; a.download=name+'_'+todayISO()+'.tsv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u);},1500);
+}
+function kpiCopy(rows,btn){
+  if(!rows.length){alert('まだ記録がありません。');return;}
+  var txt=kpiTsv(rows), done=function(){
+    var o=btn.textContent; btn.textContent='コピーしました';
+    setTimeout(function(){btn.textContent=o;},1600);
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done,function(){kpiFallback(txt,done);});
+  }else kpiFallback(txt,done);
+}
+function kpiFallback(txt,done){
+  var ta=document.createElement('textarea');
+  ta.value=txt; ta.style.cssText='position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(ta); ta.select();
+  try{document.execCommand('copy');done();}catch(e){alert('コピーできませんでした');}
+  ta.remove();
+}
+function kpiCardHTML(){
+  var t=stGet('wa_track',[])||[], h=stGet('wa_help_log',[])||[];
+  var days={}; t.forEach(function(x){days[String(x.at||'').slice(0,10)]=1;});
+  var homes={}; t.forEach(function(x){if(x.hid)homes[x.hid]=1;});
+  return '<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')
+    +'未来WA アクセス数値管理表への書き出し</h3>'
+    +'<div class="muted" style="margin-bottom:11px;font-size:12px;line-height:1.8;">'
+    +'保護者の方が未来WAでどの機能を使われたか、AIサポートにどんなご質問が届いたかを、'
+    +'数値管理表に貼り付けられる形で書き出します。<br>'
+    +'<b>お名前・メールアドレス・電話番号は含まれません。</b>'
+    +'ご家庭は匿名のID（例 h1konqtd）だけで数えます。'
+    +'ご質問の内容に混ざった連絡先は、記録する前に ○○ に置きかえています。</div>'
+    +'<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;font-size:12.5px;">'
+    +'<div><b>'+t.length+'</b> 件の行動</div>'
+    +'<div><b>'+h.length+'</b> 件の問い合わせ</div>'
+    +'<div><b>'+Object.keys(homes).length+'</b> ご家庭</div>'
+    +'<div><b>'+Object.keys(days).length+'</b> 日ぶん</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    +'<button class="btn btn-primary btn-sm" id="kpiC1">②行動ログをコピー</button>'
+    +'<button class="btn btn-sm" id="kpiD1">ファイルで保存</button>'
+    +'<span style="width:12px;"></span>'
+    +'<button class="btn btn-primary btn-sm" id="kpiC2">④問い合わせログをコピー</button>'
+    +'<button class="btn btn-sm" id="kpiD2">ファイルで保存</button></div>'
+    +'<div class="muted" style="margin-top:11px;font-size:11.5px;line-height:1.8;">'
+    +'貼り付け先 … 数値管理表の「②行動ログ（生データ）」は3行目から、'
+    +'「④問い合わせログ（生データ）」は3行目から。'
+    +'①③の集計は貼り付けた時点で自動で計算されます。<br>'
+    +'いまは、この端末に残っている記録だけが出ます。'
+    +'ご家庭の端末ぶんをまとめて自動で集めるには、サーバとの接続が要ります。</div></div>';
+}
+function kpiWire(s){
+  var b;
+  if(b=document.getElementById('kpiC1'))b.onclick=function(){kpiCopy(kpiRows(),this);};
+  if(b=document.getElementById('kpiD1'))b.onclick=function(){kpiDownload(kpiRows(),'未来WA_行動ログ');};
+  if(b=document.getElementById('kpiC2'))b.onclick=function(){kpiCopy(kpiHelpRows(),this);};
+  if(b=document.getElementById('kpiD2'))b.onclick=function(){kpiDownload(kpiHelpRows(),'未来WA_問い合わせログ');};
 }
 
 /* ========== 使い方ヘルプ（各ページの「?」→ その場で説明・AIにも聞ける） ==========

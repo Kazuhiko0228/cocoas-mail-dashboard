@@ -1440,6 +1440,8 @@ function wireStore(c){
   document.querySelectorAll('[data-open]').forEach(function(b){b.onclick=function(e){
     if(e.target.closest('[data-buy]'))return;
     var id=b.getAttribute('data-open');
+    var p=waProducts().filter(function(x){return String(x.id)===String(id);})[0];
+    waTrack('商品閲覧',{cid:id,cat:(p&&p.cat)||'',by:waSourceOf(p&&p.by)});
     waSeeProduct(id); waProdOpen=id; render();
   };});
   var bk=document.getElementById('pBack');
@@ -1499,6 +1501,7 @@ function wireStore(c){
     a.push({id:Date.now(),at:nowStr(),childId:c?c.id:null,pid:p.id,name:p.name,
       amount:p.price,kickback:kb,by:p.by||'school',status:'paid',eta:addDaysISO(todayISO(),4)});
     stSet('wa_orders',a);
+    waTrack('購入',{cid:p.id,cat:p.cat||'',by:waSourceOf(p.by)});
     toast('ご購入ありがとうございます。配送状況はマイページで見られます。');
     setTimeout(function(){b.disabled=false;b.textContent='購入する';},1500);
   };});
@@ -1717,15 +1720,18 @@ function wireFeed(kind){
 /* 記事を開く・お気に入り・保存。詳細ページからも使う。 */
 function wirePostActs(kind){
   document.querySelectorAll('[data-post]').forEach(function(b){b.onclick=function(){
-    var id=b.getAttribute('data-post');
+    var id=b.getAttribute('data-post'),p=feedFind(id);
+    waTrack('教育・育児コンテンツ閲覧',{cid:id,cat:(p&&p.cat)||'',by:waSourceOf(p&&p.by)});
     feedSee(id);waPostOpen=id;render();};});
   document.querySelectorAll('[data-fav]').forEach(function(b){b.onclick=function(e){
     e.stopPropagation();
-    var on=feedToggle('fav',b.getAttribute('data-fav'));
+    var id=b.getAttribute('data-fav'),p=feedFind(id),on=feedToggle('fav',id);
+    if(on)waTrack('いいね',{cid:id,cat:(p&&p.cat)||'',by:waSourceOf(p&&p.by)});
     toast(on?'お気に入りに入れました':'お気に入りから外しました');render();};});
   document.querySelectorAll('[data-save]').forEach(function(b){b.onclick=function(e){
     e.stopPropagation();
-    var on=feedToggle('save',b.getAttribute('data-save'));
+    var id=b.getAttribute('data-save'),p=feedFind(id),on=feedToggle('save',id);
+    if(on)waTrack('保存',{cid:id,cat:(p&&p.cat)||'',by:waSourceOf(p&&p.by)});
     toast(on?'保存しました':'保存をやめました');render();};});
   var pb=document.getElementById('postBack');
   if(pb)pb.onclick=function(){waPostOpen=null;render();};
@@ -2422,6 +2428,7 @@ function wireEvJoin(c){
     var j=stGet('wa_ev_joindetail',[])||[];
     j.push({id:id,title:x.t,date:x.date,place:x.place,fee:x.fee,at:nowStr(),childId:c?c.id:null});
     stSet('wa_ev_joindetail',j);
+    waTrack('イベント参加申込',{cid:id,cat:x.target||x.k||'',by:waSourceOf(x.by)});
     b.disabled=true;b.textContent='お申し込みずみです';b.style.opacity='.6';
     toast('「'+x.t+'」にお申し込みしました。控えはマイページで見られます。');
   };});
@@ -2574,6 +2581,9 @@ function wirePortal(c){
   }
   else if(tab==='connect') sc.innerHTML=waEventOpen?eventPageHTML(waEventOpen,c):connectHTML(c);
   else if(tab==='me') sc.innerHTML=meHTML(c);
+  /* どの画面を開いたかを1件残す（詳細ページを開いているときは数えない） */
+  try{ if(!waEventOpen&&!waProdOpen&&!waPostOpen&&!waSellerOpen&&!waPersonOpen&&!waGuideOpen)
+    waTrack('画面をひらいた',{cid:tab}); }catch(e){}
   wireCommon(c);
   if(tab==='school'){wireAtt(c);wireDM(c);}
   if(tab==='play') waPostOpen?wirePostActs('play'):wireFeed('play');
@@ -2595,7 +2605,14 @@ function promoHTML(){
 function postIcon(type){return {sns:'📷',daily:'📖',news:'📢',event:'🎪'}[type]||'📩';}
 function postIconBg(type){return {sns:'#FBEAF0',daily:'#EAF3DE',news:'#E6F1FB',event:'#FAEEDA'}[type]||'#eef0ec';}
 function seenPosts(){return stGet('posts_seen_'+ (sessionStorage.getItem('cocoas_psession')||'x'), []);}
-function markSeen(ids){stSet('posts_seen_'+(sessionStorage.getItem('cocoas_psession')||'x'), ids);}
+function markSeen(ids){
+  /* まだ見ていなかったものだけ、閲覧として1件残す */
+  try{
+    var was=seenPosts();
+    (ids||[]).forEach(function(id){
+      if(was.indexOf(id)<0)waTrack('お知らせ閲覧',{cid:id,by:'園'});
+    });
+  }catch(e){}stSet('posts_seen_'+(sessionStorage.getItem('cocoas_psession')||'x'), ids);}
 function allPosts(){
   var posts=(stGet('posts',[])||[]).slice();
   // 職員の全体配信(history)も おたより として取り込む
@@ -2667,6 +2684,8 @@ function snsHTML(){
     +'</div>'+(newSns?'<div class="muted" style="margin-top:10px;">📷 Instagramに新しい投稿があります。</div>':'')+'</div>';
 }
 function wireCommon(c){
+  var tk=document.getElementById('trackOk');
+  if(tk)tk.onclick=function(){stSet('wa_track_ok',true);render();};
   document.querySelectorAll('[data-cta],[data-open]').forEach(function(b){b.onclick=function(){var u=b.getAttribute('data-cta')||b.getAttribute('data-open');if(u&&u!=='#')window.open(u,'_blank','noopener');else toast('リンク先はデモのため未設定です');};});
 }
 
@@ -2895,7 +2914,7 @@ function dmSend(c,tx){
 function newsHTML(c){
   var posts=allPosts();var seen=seenPosts();
   setTimeout(function(){markSeen(posts.map(function(p){return p.id;}));},1200);
-  return promoHTML()+'<div class="card"><h2 class="sec sec-p">📢 園からのおたより・お知らせ</h2>'
+  return waTrackNotice()+promoHTML()+'<div class="card"><h2 class="sec sec-p">📢 園からのおたより・お知らせ</h2>'
     +(posts.length?posts.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):bloomEmpty('まだおたよりはありません'))+'</div>'
     + snsHTML();
 }
@@ -2971,11 +2990,52 @@ function waHelpNow(){
   return (typeof tab!=='undefined')?tab:'school';
 }
 function waHelpTitle(k){return (WA_HELP[k]&&WA_HELP[k].t)||k;}
-function waHelpLog(q,hit){
+/* 数値表の分類に合わせる。
+   AI24時間回答 ／ 人へ移管 ／ 個人情報・誤配信 ／ システム障害 ／ 機能要望 */
+function waHelpKind(q,hit,human){
+  /* 「間違えて」だけでは入力ミスの相談も入ってしまうので、
+     宛先・配信にかかわる言葉と組み合わさったときだけ誤配信とみなす。 */
+  var miss=/(間違|誤|別の方|よそ|他のご家庭|他の家庭|他の子|他の人|ほかの)/.test(q)
+        && /(送|届|配信|共有|公開|見え|表示|宛先)/.test(q);
+  if(/個人情報|誤配信|宛先/.test(q)||miss)return '個人情報・誤配信対応';
+  if(/動かない|開かない|エラー|落ちる|真っ白|表示されない|止ま|使えな|反応しな|固ま/.test(q))return 'システム障害：緊急対応';
+  if(/ほしい|欲しい|できたら|要望|追加して|あったら|してほしい/.test(q))return '機能要望';
+  if(human)return 'AIで解決できず人へ移管';
+  return hit?'AI24時間回答':'AIで解決できず人へ移管';
+}
+/* 質問文をそのまま残すと、お子さまの名前・メール・電話が混ざることがある。
+   園と未来WAは「どの画面が分かりにくいか」を知りたいだけなので、
+   個人が分かる部分は残さず伏せる。 */
+function waMask(s){
+  s=String(s||'');
+  try{
+    var names=[];
+    (stGet('contacts',[])||[]).forEach(function(c){
+      [c.child,c.name,c.parent,c.guardian].forEach(function(n){
+        if(!n)return;
+        n=String(n).replace(/(ちゃん|くん|君|さん|先生)$/,'').trim();
+        if(n.length>=2)names.push(n);
+        n.split(/[\s\u3000]+/).forEach(function(w){ if(w.length>=2)names.push(w); });
+      });
+    });
+    names.sort(function(a,b){return b.length-a.length;}).forEach(function(n){
+      s=s.split(n).join('○○');
+    });
+  }catch(e){}
+  s=s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g,'○○');
+  s=s.replace(/0\d{1,4}-?\d{1,4}-?\d{3,4}/g,'○○');
+  return s;
+}
+function waHelpLog(q,hit,human){
   var a=stGet('wa_help_log',[])||[];
-  a.push({at:new Date().toISOString().slice(0,16).replace('T',' '),
-    q:String(q).slice(0,120), tab:waHelpNow(), hit:hit?1:0});
-  stSet('wa_help_log',a.slice(-200));
+  var c=(typeof sessionChild==='function')?sessionChild():null;
+  a.push({at:new Date().toISOString().slice(0,19).replace('T',' '),
+    q:waMask(String(q)).slice(0,160), tab:waHelpNow(), hit:hit?1:0,
+    kind:waHelpKind(String(q),hit,human),
+    sid:(typeof waSchoolId==='function')?waSchoolId():'',
+    hid:(typeof waHouseholdId==='function')?waHouseholdId(c):'',
+    dev:(typeof waDevice==='function')?waDevice():''});
+  stSet('wa_help_log',a.slice(-400));
 }
 function waHelpFind(q){
   var best=null,bs=0;
@@ -2998,7 +3058,9 @@ function waHelpPush(role,html){
 function waHelpAsk(q){
   waHelpPush('me',esc(q));
   setTimeout(function(){
-    if(/園に聞|電話|わからな|分からな|解決しない/.test(q)){waHelpLog(q,1);return waHelpToSchool();}
+    /* 人に代わってほしい、という合図。ここに来たものは「人へ移管」として数える。 */
+    if(/園に聞|電話|わからな|分からな|解決しない|担当|人に代わ|人へ|オペレー|つないで|繋いで/.test(q)){
+      waHelpLog(q,1,true);return waHelpToSchool();}
     var k=waHelpFind(q);
     waHelpLog(q,!!k);
     waHelpShow(k||waHelpNow(),!k);
@@ -3039,6 +3101,15 @@ function waHelpDone(){
 /* 園への連絡につなぐ。何を見ていたかを添える。 */
 function waHelpToSchool(){
   var c=(typeof sessionChild==='function')?sessionChild():null;
+  try{
+    var e=stGet('wa_help_esc',[])||[];
+    var last=(stGet('wa_help_log',[])||[]).slice(-1)[0];
+    e.push({at:new Date().toISOString().slice(0,19).replace('T',' '),
+      tab:waHelpNow(), q:(last&&last.q)||'',
+      kind:(last&&last.kind)||'AIで解決できず人へ移管',
+      sid:waSchoolId(), hid:waHouseholdId(c)});
+    stSet('wa_help_esc',e.slice(-200));
+  }catch(x){}
   waHelpPush('bot','園にお聞きになる場合は、「スクール」の<b>園からの個人メッセージ</b>から'
     +'お送りいただけます。<br>下のボタンで移動します。');
   var box=document.createElement('div');box.className='wh-acts';
@@ -3107,6 +3178,79 @@ function waHelpInit(){
       if(c==='この画面の使い方'){waHelpPush('me',esc(c));waHelpLog(c,1);
         setTimeout(function(){waHelpShow(waHelpNow(),false);},160);return;}
       waHelpAsk(c);};});
+}
+
+
+/* ── 行動ログ ────────────────────────────────────
+   どのご家庭が何をしたかを、匿名のIDで残す。
+   氏名・メールアドレスは記録しない。園がご家庭を特定できないようにする。
+   （利用目的の明示と同意が要る。下の waTrackNotice で案内している） */
+function waSessionId(){
+  var k='wa_sid',v=null;
+  try{ v=sessionStorage.getItem('cocoas_'+k); }catch(e){}
+  if(!v){ v='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+    try{ sessionStorage.setItem('cocoas_'+k,v); }catch(e){} }
+  return v;
+}
+/* 匿名の家庭ID。端末ごとの合言葉と園児IDから作るので、
+   同じ端末では同じIDになり、氏名からは逆にたどれない。 */
+function waHouseholdId(c){
+  if(!c)return 'guest';
+  var salt=stGet('wa_hid_salt',null);
+  if(!salt){ salt=Math.random().toString(36).slice(2)+Date.now().toString(36);
+    stSet('wa_hid_salt',salt); }
+  var src=salt+'|'+c.id, h=5381;
+  for(var i=0;i<src.length;i++){ h=((h<<5)+h+src.charCodeAt(i))>>>0; }
+  return 'h'+h.toString(36);
+}
+function waDevice(){
+  var w=window.innerWidth||0;
+  var ua=navigator.userAgent||'';
+  var os=/iPhone|iPad|iPod/.test(ua)?'iOS':(/Android/.test(ua)?'Android':
+         (/Mac/.test(ua)?'Mac':(/Windows/.test(ua)?'Windows':'その他')));
+  return (w<768?'スマートフォン':(w<1100?'タブレット':'パソコン'))+'／'+os;
+}
+function waSchoolId(){
+  var st=stGet('settings',{})||{};
+  return (st.schoolId||st.code||'S001');
+}
+/* 行動を1件残す。act … 行動種類、cid … コンテンツID、cat … 分類、by … 発信者 */
+function waTrack(act,o){
+  o=o||{};
+  var c=(typeof sessionChild==='function')?sessionChild():null;
+  var a=stGet('wa_track',[])||[];
+  a.push({
+    at:new Date().toISOString().slice(0,19).replace('T',' '),
+    sid:waSchoolId(),
+    sname:(stGet('settings',{})||{}).school||'',
+    hid:waHouseholdId(c),
+    act:act,
+    cid:o.cid==null?'':String(o.cid),
+    cat:o.cat||'',
+    by:o.by||'',
+    dev:waDevice(),
+    ses:waSessionId()
+  });
+  stSet('wa_track',a.slice(-2000));       /* 古いものから捨てる */
+}
+/* 発信者の名前（園／未来WA／教育事業者）を返す */
+function waSourceOf(id){
+  if(!id||id==='school')return '園';
+  var s=(typeof waSeller==='function')?waSeller(id):null;
+  if(!s)return '未来WA';
+  return s.kind==='園'?'園':(s.kind==='個人'?'教育事業者（個人）':'教育事業者');
+}
+/* 記録していることを、保護者にお伝えする。1度閉じたら出さない。 */
+function waTrackNotice(){
+  if(stGet('wa_track_ok',false))return '';
+  return '<div class="card" style="border-color:#F0DCBC;background:#FDF6EC;">'
+    +'<div style="font-weight:700;font-size:13.5px;">このアプリでの操作を記録しています</div>'
+    +'<div class="muted" style="margin-top:6px;line-height:1.8;">'
+    +'どの記事が読まれているか、どの教材が選ばれているかを集計し、'
+    +'園と未来WAのサービス改善に使わせていただきます。'
+    +'<b>お名前・メールアドレスは記録していません。</b>'
+    +'園がどのご家庭かを特定することもできません。</div>'
+    +'<button class="btn sec" id="trackOk" style="margin-top:11px;">わかりました</button></div>';
 }
 
 /* ---- boot ---- */
