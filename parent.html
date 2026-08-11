@@ -1094,7 +1094,7 @@ privacy:{t:'未来WA プライバシーポリシー',d:'',s:[
  '記録にお名前・メールアドレス・電話番号は含みません。',
  'ご家庭は匿名のIDでのみ数えます。このIDは、お使いの端末ごとに作られる値とお子さまの登録番号から作られ、IDから元の情報を復元することはできません。',
  'この記録を、広告の配信や、ご本人を特定する目的に使うことはありません。',
- '記録を望まれない場合は、お問い合わせ窓口へご連絡ください。']},
+ '記録を望まれない場合は、マイページの「ご利用状況の記録」からいつでもお止めいただけます。お止めになっても、機能はこれまでどおりお使いいただけます。']},
 {h:'12. AIサポートの記録',b:[
  'ご質問の文面を記録します。ただし記録する前に、園に登録されているお子さま・保護者の方のお名前、メールアドレス、電話番号を ○○ に置き換えます。',
  'あわせて、ご質問を「AIが24時間回答したもの」「AIで解決できず担当者へ引き継いだもの」「個人情報・誤配信に関するもの」「システム障害など緊急のもの」「機能のご要望」に分類して記録します。']},
@@ -2462,6 +2462,7 @@ function meHTML(c){
       +'<div class="muted" style="margin:8px 2px 0;">記入して出す用紙は '+nf+' 種類。印刷してご提出いただけます。</div>';
   }
   h2+=consentCardHTML();
+  h2+=waTrackCardHTML();
   h2+=waSyncCardHTML();
   return h2;
 }
@@ -2478,7 +2479,9 @@ function consentCardHTML(){
     +'<div style="display:flex;gap:8px;margin-top:11px;">'
     +'<button class="btn sec" data-legal="terms" style="flex:1;font-size:12.5px;">利用規約</button>'
     +'<button class="btn sec" data-legal="privacy" style="flex:1;font-size:12.5px;">プライバシーポリシー</button>'
-    +'</div></div>';
+    +'</div>'
+    +'<button class="btn sec" id="lawBtn" style="margin-top:8px;width:100%;font-size:12.5px;">'
+    +'特定商取引法に基づく表示</button></div>';
 }
 function wireMe(c){
   var g=document.getElementById('goLink');
@@ -2525,9 +2528,11 @@ function productPageHTML(p,c){
             +'園にご確認いただくか、お手数ですが商品名でお探しください。</div></div>')
       : '<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
         +(p.sub?'この教材を毎月うけとる':'購入する')+'</button></div>')
-    +prodReviewHTML(p,rs,r,n);
+    +prodReviewHTML(p,rs,r,n)
+    +prodLawHTML(p);
 }
 /* 商品の口コミ。買った方が書けるようにしてある。 */
+function prodLawHTML(p){ return lawSellerHTML(p); }
 function prodReviewHTML(p,rs,r,n){
   return '<div class="card">'
     +'<div style="display:flex;align-items:center;gap:10px;">'
@@ -3097,6 +3102,8 @@ function snsHTML(){
 }
 function wireCommon(c){
   try{waSyncWire();}catch(e){}
+  var lb=document.getElementById('lawBtn');
+  if(lb)lb.onclick=function(){waLawOpen();};
   document.querySelectorAll('[data-legal]').forEach(function(b){b.onclick=function(){
     waLegalOpen(b.getAttribute('data-legal'));
   };});
@@ -3632,6 +3639,8 @@ function waSchoolId(){
 }
 /* 行動を1件残す。act … 行動種類、cid … コンテンツID、cat … 分類、by … 発信者 */
 function waTrack(act,o){
+  /* 記録を止めていらっしゃる場合は、何も残さない */
+  if(stGet('wa_track_off',false))return;
   o=o||{};
   var c=(typeof sessionChild==='function')?sessionChild():null;
   var a=stGet('wa_track',[])||[];
@@ -3799,6 +3808,90 @@ function waServerLogin(email,pw,cb){
 })();
 
 /* マイページに出す、接続の状態。つながっていないときは出さない。 */
+
+/* ══ 特定商取引法に基づく表示 ════════════════
+   売買契約は、利用者と販売者との間に成立する。
+   したがって表示も「未来WAを運営している者」と「その商品を売っている者」の
+   2つに分かれる。販売者ぶんが未登録のときは、そのことをはっきり書く。 */
+function lawOperatorHTML(){
+  var rows=[
+    ['販売業者','株式会社BIM JAPAN'],
+    ['運営統括責任者','安田 応彦'],
+    ['所在地','沖縄県那覇市赤嶺2-11-9 エンゼルハイム小禄赤嶺第３ 601'],
+    ['お問い合わせ','info@bimjapan.jp'],
+    ['当社の立場','未来WAは、販売者と利用者の取引の場を提供しています。'
+      +'商品の売買契約は、利用者と販売者との間に成立します。'
+      +'当社自身が販売者として表示されている商品を除き、当社は売買契約の当事者ではありません。'],
+    ['販売価格','各商品ページに表示します（消費税込み）。'],
+    ['商品代金以外の必要料金','送料。金額は各商品ページに表示します。'],
+    ['お支払方法','【要確定】'],
+    ['お支払時期','【要確定】'],
+    ['引渡時期','各商品ページに表示するお届け予定日によります。'],
+    ['返品・交換','各商品ページの表示によります。'
+      +'販売者の定めがない場合は、商品到着後8日以内にご連絡ください。'],
+    ['販売者について知りたいとき','各商品ページの「販売者の表示」をご覧ください。'
+      +'表示が見当たらない場合は info@bimjapan.jp へご連絡ください。'
+      +'取引デジタルプラットフォーム法にもとづき、必要な範囲でお伝えします。']
+  ];
+  return '<div class="card"><h2 class="sec sec-c" style="margin-top:0;">特定商取引法に基づく表示</h2>'
+    +'<div class="muted" style="font-size:11.5px;">未来WA を運営している者について</div></div>'
+    +'<div class="card">'+rows.map(function(x){
+      return '<div style="padding:11px 0;border-bottom:1px solid var(--line);">'
+        +'<div style="font-size:11.5px;color:var(--tx3);font-weight:700;">'+esc(x[0])+'</div>'
+        +'<div style="margin-top:4px;font-size:13px;line-height:1.85;">'+esc(x[1])+'</div></div>';
+    }).join('')+'</div>';
+}
+/* 販売者ぶんの表示。出品者が登録した内容を出す。 */
+function lawSellerHTML(p){
+  var sid=p&&p.by, sl=(typeof waSeller==='function'&&sid)?waSeller(sid):null;
+  var law=(sl&&sl.law)||null;
+  if(sid==='school'||!sid){
+    return '<div class="card"><div style="font-weight:800;font-size:13.5px;">販売者の表示</div>'
+      +'<div class="muted" style="margin-top:7px;font-size:12.5px;line-height:1.85;">'
+      +'この商品は園が取り扱っています。お問い合わせは園、または info@bimjapan.jp へお願いします。</div></div>';
+  }
+  if(!law){
+    return '<div class="card" style="border-color:#F0DCBC;background:#FDF6EC;">'
+      +'<div style="font-weight:800;font-size:13.5px;">販売者の表示が未登録です</div>'
+      +'<div class="muted" style="margin-top:7px;font-size:12.5px;line-height:1.85;">'
+      +'この販売者（'+esc((sl&&sl.name)||'—')+'）の事業者情報は、まだ登録されていません。'
+      +'ご購入前に確認をご希望の場合は info@bimjapan.jp へご連絡ください。</div></div>';
+  }
+  var rows=[['販売業者',law.name],['責任者',law.rep],['所在地',law.addr],
+            ['連絡先',law.contact],['返品・交換',law.ret]];
+  return '<div class="card"><div style="font-weight:800;font-size:13.5px;margin-bottom:4px;">販売者の表示</div>'
+    +rows.map(function(x){
+      if(!x[1])return '';
+      return '<div style="padding:9px 0;border-bottom:1px solid var(--line);">'
+        +'<div style="font-size:11px;color:var(--tx3);font-weight:700;">'+esc(x[0])+'</div>'
+        +'<div style="margin-top:3px;font-size:12.5px;line-height:1.8;">'+esc(x[1])+'</div></div>';
+    }).join('')+'</div>';
+}
+function waLawOpen(){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:1400;background:var(--bg,#fff);'
+    +'overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 16px 40px;';
+  ov.innerHTML='<div style="max-width:640px;margin:0 auto;">'+lawOperatorHTML()
+    +'<button class="btn" id="lawX" style="margin-top:8px;">とじる</button></div>';
+  document.body.appendChild(ov);
+  try{window.scrollTo(0,0);}catch(e){}
+  var x=document.getElementById('lawX');
+  if(x)x.onclick=function(){ov.remove();};
+}
+
+function waTrackCardHTML(){
+  var off=stGet('wa_track_off',false);
+  return '<div class="card" style="margin-top:14px;">'
+    +'<div style="font-weight:800;font-size:13.5px;">ご利用状況の記録</div>'
+    +'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
+    +'どの記事が読まれているかを集計し、園と未来WAの改善に使わせていただいています。'
+    +'<b>お名前・メールアドレス・電話番号は記録していません。</b>'
+    +'いつでもお止めいただけます。お止めになっても、機能はこれまでどおりお使いいただけます。</div>'
+    +'<div style="display:flex;align-items:center;gap:11px;margin-top:12px;">'
+    +'<div style="font-size:13px;font-weight:700;">'+(off?'いま：止めています':'いま：記録しています')+'</div>'
+    +'<button class="btn sec" id="waTrackTgl" style="margin-left:auto;font-size:12.5px;">'
+    +(off?'記録を再開する':'記録を止める')+'</button></div></div>';
+}
 function waSyncCardHTML(){
   if(!WAPI.enabled())return '';
   return '<div class="card" style="margin-top:14px;">'
@@ -3812,6 +3905,13 @@ function waSyncCardHTML(){
     +'</div></div>';
 }
 function waSyncWire(){
+  var tg=document.getElementById('waTrackTgl');
+  if(tg)tg.onclick=function(){
+    var off=stGet('wa_track_off',false);
+    stSet('wa_track_off',!off);
+    toast(off?'記録を再開しました':'記録を止めました');
+    render();
+  };
   var a=document.getElementById('waSyncNow');
   if(a)a.onclick=function(){
     WSYNC.push().then(function(){return WSYNC.pull();})
