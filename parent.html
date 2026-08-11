@@ -847,6 +847,16 @@ var WA_LOGO="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAjAAAADcCAYAAABu6Ju/A
 function login(email,pw,cb){
   cb=cb||function(){};
   email=(email||'').trim().toLowerCase();pw=(pw||'').trim();
+  /* サーバにつながっているときは、サーバに確かめる。
+     つながっていなければ、これまでどおり端末の中で確かめる。 */
+  if(typeof WAPI!=='undefined'&&WAPI.enabled()){
+    if(!email||!pw){cb(false);return;}
+    waServerLogin(email,pw,function(ok,err){
+      if(!ok&&err)try{toast(err);}catch(e){}
+      cb(ok);
+    });
+    return;
+  }
   var acc=stGet('parentAccounts',{}),a=acc[email];
   /* パスワードが空のままログインできてしまわないようにします。 */
   if(!a||!pw){cb(false);return;}
@@ -864,6 +874,7 @@ function login(email,pw,cb){
 }
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
 function logout(){
+  try{WAPI.setToken('');}catch(e){}
   sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');render();}
 function resetDemo(){
   ['parentAccounts','absence_log'].forEach(function(k){localStorage.removeItem('cocoas_'+k);});
@@ -2451,6 +2462,7 @@ function meHTML(c){
       +'<div class="muted" style="margin:8px 2px 0;">記入して出す用紙は '+nf+' 種類。印刷してご提出いただけます。</div>';
   }
   h2+=consentCardHTML();
+  h2+=waSyncCardHTML();
   return h2;
 }
 /* いつ・どの版にご同意いただいたかを、いつでも見返せるようにする。 */
@@ -3084,6 +3096,7 @@ function snsHTML(){
     +'</div>'+(newSns?'<div class="muted" style="margin-top:10px;">📷 Instagramに新しい投稿があります。</div>':'')+'</div>';
 }
 function wireCommon(c){
+  try{waSyncWire();}catch(e){}
   document.querySelectorAll('[data-legal]').forEach(function(b){b.onclick=function(){
     waLegalOpen(b.getAttribute('data-legal'));
   };});
@@ -3656,10 +3669,167 @@ function waTrackNotice(){
     +'<button class="btn sec" id="trackOk" style="margin-top:11px;">わかりました</button></div>';
 }
 
+
+/* ══ サーバ同期 ══════════════════════════════
+   接続先が未設定のときは、これまでどおり端末の中だけで動く。
+   接続すると、園のサーバに保存され、端末を変えても残る。
+
+   保護者むけの入口（/parent/…）だけを使う。園の入口には触れない。
+   何が読めて何が書けるかは、サーバ側の一覧で決まる。画面側では決めない。 */
+var WAPI={
+  base:function(){return String(stGet('wa_apiBase','')||'').replace(/\/$/,'');},
+  setBase:function(v){stSet('wa_apiBase',String(v||'').replace(/\/$/,''));},
+  tenant:function(){return stGet('wa_apiTenant','')||'';},
+  setTenant:function(v){stSet('wa_apiTenant',String(v||''));},
+  /* トークンはこのタブの中だけに置く。端末に残さない。 */
+  token:function(){try{return sessionStorage.getItem('cocoas_wa_token')||'';}catch(e){return '';}},
+  setToken:function(t){try{
+    if(t)sessionStorage.setItem('cocoas_wa_token',String(t));
+    else sessionStorage.removeItem('cocoas_wa_token');
+  }catch(e){}},
+  enabled:function(){return !!WAPI.base();},
+  online:function(){return WAPI.enabled()&&!!WAPI.token();},
+  call:function(method,path,body){
+    var h={'Content-Type':'application/json'};
+    if(WAPI.token())h.Authorization='Bearer '+WAPI.token();
+    return fetch(WAPI.base()+path,{method:method,headers:h,
+      body:body?JSON.stringify(body):undefined})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+        if(r.status===401){WAPI.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
+        if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
+        return j;});});
+  }
+};
+
+/* 送るのは、保護者ご自身が書いたものだけ。
+   サーバ側でも同じ一覧で弾いているので、二重に守っている。 */
+var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref)$/;
+
+var WSYNC={q:{},timer:null,busy:false,msg:'',
+  mark:function(key){
+    if(!WAPI.online())return;
+    var k=String(key).replace(/^cocoas_/,'');
+    if(!WA_SEND.test(k))return;
+    WSYNC.q[k]=true;
+    clearTimeout(WSYNC.timer);
+    WSYNC.timer=setTimeout(WSYNC.push,1500);
+  },
+  push:function(){
+    if(!WAPI.online()||WSYNC.busy)return Promise.resolve();
+    var keys=Object.keys(WSYNC.q);
+    if(!keys.length)return Promise.resolve();
+    WSYNC.busy=true;WSYNC.q={};WSYNC.say('保存中…');
+    var data={};
+    keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){data[k]=null;}});
+    return WAPI.call('PUT','/parent/state',{data:data})
+      .then(function(){WSYNC.say('保存しました',true);})
+      .catch(function(e){
+        /* 送れなかったぶんは、次の機会にもう一度送る */
+        keys.forEach(function(k){WSYNC.q[k]=true;});
+        WSYNC.say('未保存：'+e.message);
+      })
+      .then(function(){WSYNC.busy=false;});
+  },
+  pull:function(){
+    if(!WAPI.online())return Promise.resolve();
+    WSYNC.say('読み込み中…');
+    return WAPI.call('GET','/parent/state').then(function(j){
+      Object.keys(j.data||{}).forEach(function(k){
+        /* 接続先そのものをサーバ応答で書き換えられないようにする */
+        if(/^wa_api/.test(k))return;
+        if(j.data[k]==null)return;
+        var raw=window.__rawSet||localStorage.setItem.bind(localStorage);
+        raw('cocoas_'+k,JSON.stringify(j.data[k]));
+      });
+      if(j.childId!=null){try{sessionStorage.setItem('cocoas_psession',String(j.childId));}catch(e){}}
+      WSYNC.say('最新の状態です',true);
+      return j;
+    }).catch(function(e){WSYNC.say('読み込み失敗：'+e.message);throw e;});
+  },
+  say:function(t,fade){
+    WSYNC.msg=t;
+    var el=document.getElementById('waSyncMsg');
+    if(el){el.textContent=t;el.style.opacity='1';
+      if(fade)setTimeout(function(){if(el)el.style.opacity='.45';},1600);}
+  }
+};
+
+/* stSet を通った保存を、そのまま同期の対象にする。
+   画面側のコードには手を入れない（入れ忘れが起きないようにするため）。 */
+(function(){
+  if(window.__waSyncReady)return; window.__waSyncReady=true;
+  var orig=stSet;
+  stSet=function(k,v){ orig(k,v); try{WSYNC.mark(k);}catch(e){} };
+})();
+
+/* サーバに向けたログイン。つながっていなければ、これまでの動きに戻す。 */
+function waServerLogin(email,pw,cb){
+  cb=cb||function(){};
+  if(!WAPI.enabled()){cb(false,'接続先が設定されていません');return;}
+  WAPI.call('POST','/parent/login',{tenant:WAPI.tenant(),email:String(email||'').trim().toLowerCase(),password:pw})
+    .then(function(j){
+      WAPI.setToken(j.token);
+      /* 前にこの端末を使った方の内容を残さない。
+         共用のタブレットで、別のご家庭のものが見えてしまわないようにするため。
+         接続先の設定だけは残す。 */
+      try{
+        var keep={'cocoas_wa_apiBase':1,'cocoas_wa_apiTenant':1};
+        Object.keys(localStorage).forEach(function(k){
+          if(/^cocoas_/.test(k)&&!keep[k])localStorage.removeItem(k);
+        });
+      }catch(e){}
+      return WSYNC.pull().then(function(){cb(true);});
+    })
+    .catch(function(e){cb(false,e.message);});
+}
+
+/* 接続先の設定。?api=https://… &tenant=omiya で入れられる。 */
+(function(){
+  try{
+    var q=new URLSearchParams(location.search);
+    var a=q.get('api'), t=q.get('tenant');
+    if(a!==null||t!==null){
+      if(a!==null)WAPI.setBase(a);
+      if(t!==null)WAPI.setTenant(t);
+      q.delete('api');q.delete('tenant');
+      var u=location.pathname+(q.toString()?'?'+q.toString():'');
+      history.replaceState(null,'',u);
+    }
+  }catch(e){}
+})();
+
+/* マイページに出す、接続の状態。つながっていないときは出さない。 */
+function waSyncCardHTML(){
+  if(!WAPI.enabled())return '';
+  return '<div class="card" style="margin-top:14px;">'
+    +'<div style="font-weight:800;font-size:13.5px;">サーバとの同期</div>'
+    +'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
+    +'接続先　'+esc(WAPI.base())+'<br>園コード　'+esc(WAPI.tenant()||'（未設定）')+'<br>'
+    +'状態　<span id="waSyncMsg" style="opacity:.45;">'+esc(WSYNC.msg||(WAPI.online()?'つながっています':'ログインが必要です'))+'</span></div>'
+    +'<div style="display:flex;gap:8px;margin-top:11px;">'
+    +'<button class="btn sec" id="waSyncNow" style="flex:1;font-size:12.5px;">いま同期する</button>'
+    +'<button class="btn sec" id="waSyncOff" style="flex:1;font-size:12.5px;">接続をやめる</button>'
+    +'</div></div>';
+}
+function waSyncWire(){
+  var a=document.getElementById('waSyncNow');
+  if(a)a.onclick=function(){
+    WSYNC.push().then(function(){return WSYNC.pull();})
+      .then(function(){render();}).catch(function(){});
+  };
+  var b=document.getElementById('waSyncOff');
+  if(b)b.onclick=function(){
+    if(!confirm('サーバとの接続をやめます。この端末の中だけで動く状態に戻ります。よろしいですか？'))return;
+    WAPI.setToken('');WAPI.setBase('');WAPI.setTenant('');render();
+  };
+}
+
 /* ---- boot ---- */
 seedAll();
 waHelpInit();
 render();
+/* すでにログイン済みのタブでは、開いたときに最新を取りにいく */
+if(WAPI.online()){ WSYNC.pull().then(function(){render();}).catch(function(){}); }
 </script>
 </body>
 </html>
