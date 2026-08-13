@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>未来WA／EduGrow 運営管理</title>
+<style>
+:root{
+  --bg:#F4F5F7; --card:#FFF; --ink:#131A22; --ink2:#3C4654; --mute:#6C7686;
+  --line:#E2E5EA; --line2:#EFF1F4;
+  --eg:#0B5F8F; --eg-d:#063E5F; --eg-w:#E9F1F7;
+  --ok:#1D7A56; --ok-w:#E5F3ED;
+  --warn:#A26A12; --warn-w:#FBF1DE;
+  --bad:#A3302F; --bad-w:#FAE9E8;
+  --accent:#B4541F; --accent-w:#FBEEE6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic Medium","Yu Gothic","Noto Sans JP",system-ui,-apple-system,sans-serif;
+  font-size:13.5px; line-height:1.75; -webkit-font-smoothing:antialiased;
+  font-feature-settings:"palt" 1;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── 骨組み ── */
+.top{
+  background:linear-gradient(180deg,var(--eg-d),var(--eg));color:#fff;
+  padding:0 18px;display:flex;align-items:center;gap:14px;height:52px;
+  position:sticky;top:0;z-index:60;box-shadow:0 1px 6px rgba(0,0,0,.14)
+}
+.top .lg{font-weight:800;font-size:15px;letter-spacing:-.01em}
+.top .sub{font-size:11px;opacity:.72;letter-spacing:.04em}
+.top .sp{margin-left:auto}
+.top button{
+  background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:7px;
+  padding:6px 13px;font-size:12px;cursor:pointer
+}
+.top button:hover{background:rgba(255,255,255,.26)}
+.nav{
+  background:var(--card);border-bottom:1px solid var(--line);padding:0 18px;
+  display:flex;gap:2px;position:sticky;top:52px;z-index:55;overflow-x:auto
+}
+.nav button{
+  background:none;border:none;padding:11px 15px;cursor:pointer;font-size:13px;
+  color:var(--mute);border-bottom:2px solid transparent;white-space:nowrap;font-weight:600
+}
+.nav button.on{color:var(--eg);border-bottom-color:var(--eg)}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
+@media(max-width:640px){.wrap{padding:16px 12px 70px}.top{padding:0 12px}.nav{padding:0 12px}}
+
+h2{font-size:17px;font-weight:800;margin:0 0 3px;letter-spacing:-.01em}
+.lead{color:var(--mute);font-size:12.5px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 17px;margin-bottom:13px}
+.card h3{font-size:14px;font-weight:800;margin:0 0 11px}
+
+/* ── 数字タイル ── */
+.tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px 15px}
+.tile .k{font-size:11px;color:var(--mute);font-weight:700;letter-spacing:.03em}
+.tile .v{font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:3px;line-height:1.2}
+.tile .u{font-size:12px;font-weight:700;color:var(--mute);margin-left:3px}
+.tile .n{font-size:11.5px;color:var(--mute);margin-top:4px}
+
+/* ── 表 ── */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--card);
+    border:1px solid var(--line);border-radius:11px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:12.5px}
+th{
+  text-align:left;font-weight:700;font-size:10.5px;letter-spacing:.05em;color:var(--mute);
+  padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--line2)
+}
+td{padding:11px 13px;border-bottom:1px solid var(--line2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--eg-w)}
+td.r,th.r{text-align:right}
+
+.pill{display:inline-block;font-size:10.5px;font-weight:700;padding:2.5px 9px;border-radius:99px;white-space:nowrap}
+.p-lead{background:var(--line2);color:var(--mute)}
+.p-talk{background:var(--warn-w);color:var(--warn)}
+.p-mon{background:var(--eg-w);color:var(--eg)}
+.p-live{background:var(--ok-w);color:var(--ok)}
+.p-end{background:var(--bad-w);color:var(--bad)}
+.plan{display:inline-block;font-size:10.5px;font-weight:700;padding:2.5px 9px;border-radius:5px;
+      background:var(--accent-w);color:var(--accent);white-space:nowrap}
+
+/* ── 入力 ── */
+.f{margin-bottom:11px}
+.f label{display:block;font-size:11.5px;font-weight:700;color:var(--mute);margin-bottom:4px}
+.f input,.f select,.f textarea{
+  width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:#fff
+}
+.f input:focus,.f select:focus,.f textarea:focus{outline:2px solid var(--eg);outline-offset:-1px;border-color:var(--eg)}
+.grid2{display:grid;gap:0 13px;grid-template-columns:1fr 1fr}
+.grid3{display:grid;gap:0 13px;grid-template-columns:1fr 1fr 1fr}
+@media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.btn{
+  background:var(--eg);color:#fff;border:none;border-radius:8px;padding:9px 17px;
+  font-weight:700;cursor:pointer;font-size:13px
+}
+.btn:hover{background:var(--eg-d)}
+.btn.sec{background:#fff;color:var(--eg);border:1px solid var(--eg)}
+.btn.sec:hover{background:var(--eg-w)}
+.btn.warn{background:#fff;color:var(--bad);border:1px solid var(--bad)}
+.btn.warn:hover{background:var(--bad-w)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:6px 12px;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.msg{font-size:12px;margin-left:4px}
+.msg.ok{color:var(--ok)}.msg.ng{color:var(--bad)}
+.note{border-left:3px solid var(--warn);background:var(--warn-w);color:var(--warn);
+      padding:10px 13px;border-radius:0 8px 8px 0;font-size:12px;line-height:1.75;margin:0 0 12px}
+.note.bad{border-left-color:var(--bad);background:var(--bad-w);color:var(--bad)}
+.note.ok{border-left-color:var(--ok);background:var(--ok-w);color:var(--ok)}
+.empty{text-align:center;color:var(--mute);padding:34px 10px;font-size:13px}
+
+/* ── ログイン ── */
+.login{max-width:390px;margin:9vh auto;padding:0 18px}
+.login .card{padding:26px 24px}
+.login h1{font-size:20px;font-weight:800;margin:0 0 4px;letter-spacing:-.01em}
+.login .s{color:var(--mute);font-size:12.5px;margin:0 0 20px}
+.err{background:var(--bad-w);color:var(--bad);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:13px;display:none}
+
+/* ── 明細 ── */
+.lines{border-top:1px solid var(--line);margin-top:10px}
+.lines div{display:flex;padding:7px 0;border-bottom:1px solid var(--line2);font-size:12.5px}
+.lines div:last-child{border-bottom:none}
+.lines .l{color:var(--ink2)}
+.lines .y{margin-left:auto;font-weight:700}
+.lines .tot{border-top:2px solid var(--ink);margin-top:2px;padding-top:9px;font-size:14px;font-weight:800}
+.back{background:none;border:none;color:var(--eg);cursor:pointer;font-size:13px;font-weight:700;padding:0;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   未来WA／EduGrow 運営管理
+
+   園をまたいで見られる唯一の画面。園の職員も保護者もここには入れない。
+   お金の計算はすべてサーバ側（src/admin.js）で行い、ここでは表示だけ。
+   画面ごとに違う金額が出ないようにするため。
+   ══════════════════════════════════════════ */
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function yen(n){return n==null?'—':'¥'+Math.round(n).toLocaleString('ja-JP');}
+function $(id){return document.getElementById(id);}
+
+/* ── 接続 ───────────────────────────── */
+var API={
+  base:function(){return String(localStorage.getItem('adm_api')||'').replace(/\/$/,'');},
+  setBase:function(v){localStorage.setItem('adm_api',String(v||'').replace(/\/$/,''));},
+  /* 札はこのタブの中だけ。端末に残さない。 */
+  token:function(){try{return sessionStorage.getItem('adm_token')||'';}catch(e){return '';}},
+  setToken:function(t){try{t?sessionStorage.setItem('adm_token',t):sessionStorage.removeItem('adm_token');}catch(e){}},
+  call:function(m,p,body){
+    var h={'Content-Type':'application/json'};
+    if(API.token())h.Authorization='Bearer '+API.token();
+    return fetch(API.base()+p,{method:m,headers:h,body:body?JSON.stringify(body):undefined})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+        if(r.status===401){API.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
+        if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
+        return j;});});
+  }
+};
+/* ?api=… で接続先を入れられる。入れたらURLから消す。 */
+(function(){try{
+  var q=new URLSearchParams(location.search),a=q.get('api');
+  if(a!==null){API.setBase(a);q.delete('api');
+    history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:''));}
+}catch(e){}})();
+
+var view='home', openId=null, DATA={}, PLANS={};
+
+/* ── 見た目の部品 ────────────────────── */
+function statusPill(s){
+  var m={'見込み':'p-lead','商談中':'p-talk','モニター':'p-mon','契約中':'p-live','解約予定':'p-end','解約済':'p-end'};
+  return '<span class="pill '+(m[s]||'p-lead')+'">'+esc(s||'見込み')+'</span>';
+}
+function planTag(p){
+  var n=(PLANS[p]&&PLANS[p].name)||p||'—';
+  return '<span class="plan">'+esc(n)+'</span>';
+}
+
+/* ── ログイン ────────────────────────── */
+function loginHTML(){
+  return '<div class="login"><div class="card">'
+    +'<h1>運営管理</h1><div class="s">未来WA ／ EduGrow</div>'
+    +'<div class="err" id="e"></div>'
+    +'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>'
+    +'<div class="f"><label>メールアドレス</label><input id="em" type="email" autocomplete="username"></div>'
+    +'<div class="f"><label>パスワード</label><input id="pw" type="password" autocomplete="current-password"></div>'
+    +'<button class="btn" id="go" style="width:100%;margin-top:6px;">ログイン</button>'
+    +'<div style="margin-top:15px;font-size:11.5px;color:var(--mute);line-height:1.75;">'
+    +'この画面は運営のためのものです。園の職員・保護者のアカウントでは入れません。</div>'
+    +'</div></div>';
+}
+function wireLogin(){
+  function go(){
+    var b=$('go'),e=$('e');
+    API.setBase($('ap').value.trim());
+    if(!API.base()){e.textContent='接続先を入れてください。';e.style.display='block';return;}
+    e.style.display='none';b.disabled=true;b.textContent='確認中…';
+    API.call('POST','/admin/login',{email:$('em').value.trim(),password:$('pw').value})
+      .then(function(j){
+        API.setToken(j.token);DATA.me=j.admin;view='home';
+        /* 料金表を先に読む。読めなくても画面は出す。 */
+        return API.call('GET','/admin/plans')
+          .then(function(p){PLANS=p.plans;},function(){})
+          .then(function(){render();});
+      })
+      .catch(function(x){b.disabled=false;b.textContent='ログイン';
+        e.textContent=x.message;e.style.display='block';});
+  }
+  $('go').onclick=go;
+  $('pw').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
+}
+
+/* ── 全体の骨組み ───────────────────── */
+function shell(inner){
+  var tabs=[['home','ホーム'],['tenants','園の一覧'],['docs','書類'],['me','設定']];
+  return '<div class="top"><div><div class="lg">運営管理</div>'
+    +'<div class="sub">未来WA ／ EduGrow</div></div>'
+    +'<div class="sp"></div><button id="out">ログアウト</button></div>'
+    +'<div class="nav">'+tabs.map(function(t){
+      return '<button data-v="'+t[0]+'" class="'+(view===t[0]?'on':'')+'">'+t[1]+'</button>';
+    }).join('')+'</div>'
+    +'<div class="wrap">'+inner+'</div>';
+}
+
+/* ── ホーム ─────────────────────────── */
+function homeHTML(){
+  var k=DATA.kpi;
+  if(!k)return '<div class="empty">読み込んでいます…</div>';
+  var st=k.byStatus||{};
+  return '<h2>ホーム</h2><div class="lead">'+esc(k.today)+' 時点（日本時間）</div>'
+    +'<div class="tiles">'
+    +tile('月あたりの売上（税別）',yen(k.mrr),'','契約中・モニターの園の合計')
+    +tile('契約中の園',k.contracted,'園','登録は '+k.tenants+' 園')
+    +tile('在籍園児',k.seats,'名','全園の合計')
+    +tile('保護者アカウント',k.parents,'件','有効なもの')
+    +'</div>'
+    +'<div class="card"><h3>園の状態</h3>'
+    +(Object.keys(st).length
+      ? '<div class="row">'+Object.keys(st).map(function(s){
+          return '<span style="margin-right:14px;">'+statusPill(s)
+            +' <b class="num" style="font-size:15px;">'+st[s]+'</b></span>';}).join('')+'</div>'
+      : '<div class="empty">まだ園がありません</div>')
+    +'</div>'
+    +'<div class="note">売上は、いま登録されている契約と在籍数から計算した見込みです。'
+    +'Stripe とはまだつないでいないため、実際の入金とは別です。</div>';
+}
+function tile(k,v,u,n){
+  return '<div class="tile"><div class="k">'+esc(k)+'</div>'
+    +'<div class="v num">'+esc(v)+(u?'<span class="u">'+esc(u)+'</span>':'')+'</div>'
+    +(n?'<div class="n">'+esc(n)+'</div>':'')+'</div>';
+}
+
+/* ── 園の一覧 ───────────────────────── */
+function tenantsHTML(){
+  var t=DATA.tenants;
+  if(!t)return '<div class="empty">読み込んでいます…</div>';
+  return '<h2>園の一覧</h2><div class="lead">行を押すと、契約と書類を開けます</div>'
+    +'<div class="card"><h3>園をあたらしく登録する</h3>'
+    +'<div class="grid2">'
+    +'<div class="f"><label>園コード（ログインに使います）</label><input id="nc" placeholder="omiya"></div>'
+    +'<div class="f"><label>園名</label><input id="nn" placeholder="COCOAS KIDS 大宮与野校"></div></div>'
+    +'<div class="row"><button class="btn sm" id="add">登録する</button><span class="msg" id="am"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;">'
+    +'園コードは半角の英小文字・数字・ハイフンで。あとから変えられません。</div></div>'
+    +(t.length? '<div class="tw"><table><thead><tr>'
+      +'<th>園</th><th>状態</th><th>プラン</th><th class="r">在籍</th>'
+      +'<th class="r">当月（税別）</th><th class="r">残債</th><th>開始</th></tr></thead><tbody>'
+      +t.map(function(x){
+        var q=x.quote||{},c=x.cancel||{};
+        return '<tr data-t="'+x.id+'">'
+          +'<td><b>'+esc(x.name)+'</b><div style="font-size:11px;color:var(--mute);">'+esc(x.code)+'</div></td>'
+          +'<td>'+statusPill(x.status)+'</td>'
+          +'<td>'+planTag(x.plan)+(q.inCampaign?'<div style="font-size:10.5px;color:var(--accent);margin-top:3px;">キャンペーン中</div>':'')+'</td>'
+          +'<td class="r num">'+x.seats+'</td>'
+          +'<td class="r num"><b>'+yen(q.total)+'</b>'
+            +(q.note?'<div style="font-size:10.5px;color:var(--warn);">単価未設定</div>':'')+'</td>'
+          +'<td class="r num">'+(c.months?yen(c.total):'—')+'</td>'
+          +'<td class="num" style="font-size:11.5px;color:var(--mute);">'+esc(x.started_on||'—')+'</td>'
+          +'</tr>';
+      }).join('')+'</tbody></table></div>'
+      : '<div class="card"><div class="empty">まだ園がありません</div></div>');
+}
+
+/* ── 園の詳細 ───────────────────────── */
+function tenantHTML(){
+  var d=DATA.one;
+  if(!d)return '<div class="empty">読み込んでいます…</div>';
+  var c=d.contract||{},q=d.quote||{},cn=d.cancel||{};
+  var plans=['connect','standard','pro','business'];
+  var sts=['見込み','商談中','モニター','契約中','解約予定','解約済'];
+  return '<button class="back" id="bk">‹ 園の一覧にもどる</button>'
+    +'<h2>'+esc(d.tenant.name)+'</h2>'
+    +'<div class="lead">'+esc(d.tenant.code)+'　'+statusPill(c.status)+'　'+planTag(c.plan)+'</div>'
+
+    +'<div class="tiles">'
+    +tile('在籍園児',d.seats,'名','いまの帳簿から')
+    +tile('当月の請求（税別）',yen(q.total),'',q.inCampaign?'キャンペーン適用中':'通常料金')
+    +tile('職員',d.staff.length,'人','')
+    +tile('保護者アカウント',d.parentCount,'件','')
+    +'</div>'
+
+    +(q.note?'<div class="note">'+esc(q.note)+'</div>':'')
+
+    +'<div class="card"><h3>当月の内訳</h3>'
+    +'<div class="lines">'
+    +(q.lines||[]).map(function(l){
+      return '<div><span class="l">'+esc(l.label)+'</span><span class="y num">'+yen(l.yen)+'</span></div>';
+    }).join('')
+    +'<div class="tot"><span class="l">合計（税別）</span><span class="y num">'+yen(q.total)+'</span></div>'
+    +'</div>'
+    +'<div class="row" style="margin-top:12px;">'
+    +'<button class="btn sec sm" id="cnt">いまの在籍数を記録する</button>'
+    +'<span class="msg" id="cm"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
+    +'毎月の課金日に記録します。あとから「なぜこの金額か」を示せるようにするためです。</div>'
+    +(d.seatHistory.length? '<div class="lines" style="margin-top:11px;">'
+      +d.seatHistory.map(function(h){
+        return '<div><span class="l">'+esc(h.counted_on)+'</span>'
+          +'<span class="y num">'+h.seats+'名（超過 '+h.billable+'名）</span></div>';}).join('')
+      +'</div>':'')
+    +'</div>'
+
+    +'<div class="card"><h3>契約</h3>'
+    +'<div class="grid3">'
+    +'<div class="f"><label>プラン</label><select id="c_plan">'
+      +plans.map(function(p){return '<option value="'+p+'"'+(c.plan===p?' selected':'')+'>'
+        +esc((PLANS[p]&&PLANS[p].name)||p)+'</option>';}).join('')+'</select></div>'
+    +'<div class="f"><label>状態</label><select id="c_status">'
+      +sts.map(function(s){return '<option'+(c.status===s?' selected':'')+'>'+esc(s)+'</option>';}).join('')+'</select></div>'
+    +'<div class="f"><label>開始日</label><input id="c_started" type="date" value="'+esc(c.started_on||'')+'"></div>'
+    +'</div>'
+    +'<div class="grid3">'
+    +'<div class="f"><label>月額（税別・空欄でプランの既定）</label><input id="c_monthly" class="num" inputmode="numeric" value="'+esc(c.monthly_yen==null?'':c.monthly_yen)+'"></div>'
+    +'<div class="f"><label>定額に含む園児数</label><input id="c_inc" class="num" inputmode="numeric" value="'+esc(c.seat_included==null?'':c.seat_included)+'"></div>'
+    +'<div class="f"><label>超過1人あたり（税別）</label><input id="c_unit" class="num" inputmode="numeric" placeholder="未確定" value="'+esc(c.seat_unit_yen==null?'':c.seat_unit_yen)+'"></div>'
+    +'</div>'
+    +'<div class="grid3">'
+    +'<div class="f"><label>キャンペーン（か月）</label><input id="c_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
+    +'<div class="f"><label>キャンペーンの割引率</label><input id="c_cr" class="num" value="'+esc(c.campaign_rate)+'"></div>'
+    +'<div class="f"><label>最低契約期間（か月）</label><input id="c_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div>'
+    +'</div>'
+    +'<div class="f"><label>メモ</label><textarea id="c_note" rows="2">'+esc(c.note||'')+'</textarea></div>'
+    +'<div class="row"><button class="btn" id="save">契約を保存する</button><span class="msg" id="sm"></span></div>'
+    +'</div>'
+
+    +'<div class="card"><h3>解約したときの残債</h3>'
+    +(cn.months
+      ? '<div class="note bad"><b>残り '+cn.months+'か月ぶん　'+yen(cn.total)+'（税別）</b><br>'+esc(cn.note)+'</div>'
+      : '<div class="note ok">'+esc(cn.note||'残債はありません')+'</div>')
+    +'<div style="font-size:11.5px;color:var(--mute);line-height:1.75;">'
+    +'この画面は金額を示すだけです。<b>自動で請求することはありません。</b>'
+    +'請求するかどうかは運営で判断し、状態を「解約予定」に変えてください。</div>'
+    +'</div>'
+
+    +'<div class="card"><h3>書類</h3>'
+    +docListHTML(d.documents,false)
+    +'<div class="grid3" style="margin-top:12px;">'
+    +'<div class="f"><label>種類</label><select id="d_kind">'
+      +['利用契約書','同意書','モニター契約書','見積書','請求書','その他'].map(function(k){
+        return '<option>'+k+'</option>';}).join('')+'</select></div>'
+    +'<div class="f"><label>表題</label><input id="d_title" placeholder="○○園 利用契約書"></div>'
+    +'<div class="f"><label>締結日</label><input id="d_signed" type="date"></div>'
+    +'</div>'
+    +'<div class="f"><label>リンク（https）</label><input id="d_url" placeholder="https://drive.google.com/…"></div>'
+    +'<div class="row"><button class="btn sec sm" id="dadd">書類を登録する</button><span class="msg" id="dm"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.7;">'
+    +'書類そのものは Drive などに置き、ここには所在と締結日だけを持ちます。</div>'
+    +'</div>'
+
+    +'<div class="card"><h3>保護者アカウントの発行</h3>'
+    +'<div class="grid3">'
+    +'<div class="f"><label>メールアドレス</label><input id="p_em" type="email"></div>'
+    +'<div class="f"><label>仮のパスワード（8文字以上）</label><input id="p_pw"></div>'
+    +'<div class="f"><label>お子さまのID</label><input id="p_cid" class="num" inputmode="numeric"></div>'
+    +'</div>'
+    +'<div class="row"><button class="btn sec sm" id="padd">発行する</button><span class="msg" id="pm"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.7;">'
+    +'お子さまのIDは、EduGrow の連絡先管理で確認できます。'
+    +'発行したパスワードは、保護者の方が最初のログインのあとに変更できます。</div>'
+    +'</div>';
+}
+
+function docListHTML(docs,withTenant){
+  if(!docs||!docs.length)return '<div class="empty">まだ書類がありません</div>';
+  return '<div class="tw"><table style="min-width:520px;"><thead><tr>'
+    +(withTenant?'<th>園</th>':'')+'<th>種類</th><th>表題</th><th>締結日</th><th></th>'
+    +'</tr></thead><tbody>'
+    +docs.map(function(d){
+      return '<tr style="cursor:default;">'
+        +(withTenant?'<td>'+esc(d.tenant_name||'—')+'</td>':'')
+        +'<td>'+esc(d.kind)+'</td>'
+        +'<td>'+(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener">'+esc(d.title)+'</a>':esc(d.title))+'</td>'
+        +'<td class="num">'+esc(d.signed_on||'—')+'</td>'
+        +'<td class="r"><button class="btn sm warn" data-del="'+d.id+'">削除</button></td>'
+        +'</tr>';
+    }).join('')+'</tbody></table></div>';
+}
+
+/* ── 書類（全体）───────────────────── */
+function docsHTML(){
+  if(!DATA.docs)return '<div class="empty">読み込んでいます…</div>';
+  return '<h2>書類</h2><div class="lead">園ごとの契約書・同意書。新しい順</div>'
+    +'<div class="card">'+docListHTML(DATA.docs,true)+'</div>';
+}
+
+/* ── 設定 ───────────────────────────── */
+function meHTML(){
+  return '<h2>設定</h2><div class="lead">'+esc((DATA.me&&DATA.me.email)||'')+'</div>'
+    +'<div class="card"><h3>接続先</h3>'
+    +'<div class="f"><input id="s_api" value="'+esc(API.base())+'"></div>'
+    +'<div class="row"><button class="btn sec sm" id="s_save">保存して読み直す</button></div></div>'
+    +'<div class="card"><h3>パスワードの変更</h3>'
+    +'<div class="grid2">'
+    +'<div class="f"><label>いまのパスワード</label><input id="o_pw" type="password"></div>'
+    +'<div class="f"><label>新しいパスワード（8文字以上）</label><input id="n_pw" type="password"></div></div>'
+    +'<div class="row"><button class="btn sm" id="pw_go">変更する</button><span class="msg" id="pw_m"></span></div></div>'
+    +'<div class="card"><h3>料金表</h3>'
+    +'<div class="tw"><table style="min-width:420px;"><thead><tr><th>プラン</th>'
+    +'<th class="r">月額（税別）</th><th class="r">定額に含む人数</th></tr></thead><tbody>'
+    +Object.keys(PLANS).map(function(k){var p=PLANS[k];
+      return '<tr style="cursor:default;"><td>'+esc(p.name)+'</td>'
+        +'<td class="r num">'+(p.monthly==null?'個別見積':yen(p.monthly))+'</td>'
+        +'<td class="r num">'+(p.seatIncluded==null?'無制限':p.seatIncluded+'名')+'</td></tr>';
+    }).join('')+'</tbody></table></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:10px;line-height:1.75;">'
+    +'超過分の単価は最終調整中のため、園ごとの契約に入れる形にしています。'
+    +'入っていない園は、超過分を請求に含めません。</div></div>';
+}
+
+/* ── 読み込みと描画 ─────────────────── */
+function load(){
+  if(view==='home')  return API.call('GET','/admin/kpi').then(function(j){DATA.kpi=j;});
+  if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
+  if(view==='one')   return API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;});
+  if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
+  return Promise.resolve();
+}
+
+function render(){
+  var r=$('root');
+  if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
+  var inner={home:homeHTML,tenants:tenantsHTML,one:tenantHTML,docs:docsHTML,me:meHTML}[view];
+  r.innerHTML=shell(inner());
+  wire();
+  load().then(function(){
+    r.innerHTML=shell(inner());
+    wire();
+  }).catch(function(e){
+    r.innerHTML=shell('<div class="note bad">'+esc(e.message)+'</div>');
+    wire();
+    if(!API.token()){r.innerHTML=loginHTML();wireLogin();}
+  });
+}
+
+function say(id,t,ok){var e=$(id);if(!e)return;e.textContent=t;e.className='msg '+(ok?'ok':'ng');}
+
+function wire(){
+  document.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){
+    view=b.getAttribute('data-v');openId=null;render();};});
+  if($('out'))$('out').onclick=function(){API.setToken('');render();};
+
+  /* 園の一覧 */
+  document.querySelectorAll('[data-t]').forEach(function(tr){tr.onclick=function(){
+    openId=tr.getAttribute('data-t');view='one';render();};});
+  if($('add'))$('add').onclick=function(){
+    var c=$('nc').value.trim(),n=$('nn').value.trim();
+    if(!c||!n){say('am','園コードと園名を入れてください');return;}
+    say('am','登録中…',true);
+    API.call('POST','/admin/tenants',{code:c,name:n})
+      .then(function(){render();}).catch(function(e){say('am',e.message);});
+  };
+  if($('bk'))$('bk').onclick=function(){view='tenants';openId=null;render();};
+
+  /* 契約 */
+  if($('save'))$('save').onclick=function(){
+    var v=function(id){var e=$(id);return e?e.value.trim():'';};
+    say('sm','保存中…',true);
+    API.call('PUT','/admin/tenants/'+openId+'/contract',{
+      plan:v('c_plan'),status:v('c_status'),started_on:v('c_started'),
+      monthly_yen:v('c_monthly')===''?'':+v('c_monthly'),
+      seat_included:v('c_inc')===''?'':+v('c_inc'),
+      seat_unit_yen:v('c_unit')===''?'':+v('c_unit'),
+      campaign_months:+v('c_cm'),campaign_rate:+v('c_cr'),min_months:+v('c_mm'),
+      note:v('c_note')
+    }).then(function(){render();}).catch(function(e){say('sm',e.message);});
+  };
+  if($('cnt'))$('cnt').onclick=function(){
+    say('cm','記録中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/seats',{})
+      .then(function(j){render();}).catch(function(e){say('cm',e.message);});
+  };
+
+  /* 書類 */
+  if($('dadd'))$('dadd').onclick=function(){
+    var t=$('d_title').value.trim();
+    if(!t){say('dm','表題を入れてください');return;}
+    say('dm','登録中…',true);
+    API.call('POST','/admin/documents',{
+      tenantId:openId,kind:$('d_kind').value,title:t,
+      url:$('d_url').value.trim()||null,signedOn:$('d_signed').value||null
+    }).then(function(){render();}).catch(function(e){say('dm',e.message);});
+  };
+  document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この書類の登録を削除します。よろしいですか？（リンク先のファイルは消えません）'))return;
+    API.call('DELETE','/admin/documents/'+b.getAttribute('data-del'))
+      .then(function(){render();}).catch(function(e){alert(e.message);});
+  };});
+
+  /* 保護者アカウント */
+  if($('padd'))$('padd').onclick=function(){
+    var em=$('p_em').value.trim(),pw=$('p_pw').value,cid=$('p_cid').value.trim();
+    if(!em||!pw||!cid){say('pm','3つとも入れてください');return;}
+    say('pm','発行中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/parents',{email:em,password:pw,childId:+cid})
+      .then(function(){say('pm','発行しました',true);
+        $('p_em').value='';$('p_pw').value='';$('p_cid').value='';})
+      .catch(function(e){say('pm',e.message);});
+  };
+
+  /* 設定 */
+  if($('s_save'))$('s_save').onclick=function(){API.setBase($('s_api').value.trim());render();};
+  if($('pw_go'))$('pw_go').onclick=function(){
+    say('pw_m','変更中…',true);
+    API.call('POST','/admin/password',{current:$('o_pw').value,next:$('n_pw').value})
+      .then(function(){say('pw_m','変更しました',true);$('o_pw').value='';$('n_pw').value='';})
+      .catch(function(e){say('pw_m',e.message);});
+  };
+}
+
+/* ── 起動 ───────────────────────────── */
+if(API.base()&&API.token()){
+  Promise.all([
+    API.call('GET','/admin/plans').then(function(j){PLANS=j.plans;}).catch(function(){}),
+    API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){})
+  ]).then(render);
+}else{
+  render();
+}
+</script>
+</body>
+</html>
