@@ -1313,8 +1313,35 @@ wireNav();
 navGroups();
 
 var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+/* その画面が、いまのプランで使えるかどうか。
+   EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
+   どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
+function egPlanOfPage(p){
+  if(!p)return true;
+  try{
+    if(typeof EG_NAV==='undefined')return true;
+    for(var i=0;i<EG_NAV.length;i++){
+      var g=EG_NAV[i], items=g.items||[];
+      for(var j=0;j<items.length;j++){
+        var it=items[j], hit=(it.p===p);
+        if(!hit&&it.sub){
+          for(var k=0;k<it.sub.length;k++){ if(it.sub[k].p===p){hit=true;break;} }
+        }
+        if(hit) return planAllows(g.plan)&&planAllows(it.plan);
+      }
+    }
+  }catch(e){}
+  return true;
+}
 function go(page){
-  if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
+  if(typeof currentStaff==='function'&&currentStaff()&&!canView(page)){
+    alert('この画面は、いまのアカウントでは開けません。園の管理者にご確認ください。');
+    page='dashboard';
+  }
+  else if(!egPlanOfPage(page)){
+    alert('この機能は、ご契約のプランには含まれていません。');
+    page='home';
+  }
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
@@ -1367,7 +1394,13 @@ function buildNav(){
    つないでいないときは設定で選んだものを使う（試作を見せるため）。 */
 var PLAN_RANK={connect:1,standard:2,pro:3,business:3};
 function myPlan(){
-  var p=stGet('plan','pro');
+  /* 契約しているプランは、まずログインのときにサーバから受け取ったものを見る。
+     ここを localStorage の cocoas_plan だけにすると、
+     同期の口から書き換えて、自分でプランの制限を外せてしまう。
+     サーバにつないでいないとき（試作・デモ）だけ、端末の設定を使う。 */
+  var t=null;
+  try{ t=(typeof API!=='undefined'&&API.tenant)?API.tenant():null; }catch(e){ t=null; }
+  var p=(t&&t.plan)||stGet('plan','pro');
   return PLAN_RANK[p]?p:'pro';
 }
 function planAllows(need){
@@ -6581,16 +6614,22 @@ var ACCESS_PAGES=[
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
-  {p:'tasks',label:'年間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'}
+  {p:'tasks',label:'年間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
+  /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
+     管理者がマネージャーへ渡すことができない。 */
+  {p:'aiplan',label:'AI保育計画'},{p:'leads',label:'顧客リスト'},{p:'sales',label:'営業分析'},
+  {p:'creator',label:'未来WA 投稿'}
 ];
 var DEFAULT_PERMS={
   '管理者':ACCESS_PAGES.map(function(x){return x.p;}),
   'マネージャー':ACCESS_PAGES.map(function(x){return x.p;}),
   /* 一般スタッフ：配信はデイリーメールのみ編集可、個別メールは在園児のみ送信可。
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
-  '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','shift','contacts','curriculum']
+  /* シフト表は園長・マネージャーのものなので、既定では渡さない
+     （必要なら管理者が権限管理から個別に渡せる）。 */
+  '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','contacts','curriculum']
 };
-var PERMS_VERSION=8;
+var PERMS_VERSION=9;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
    平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
@@ -6709,6 +6748,12 @@ function applyPerms(){
   var s=currentStaff();if(!s)return;
   var nav=document.getElementById('nav');
   document.querySelectorAll('#nav a[data-go]').forEach(function(a){a.style.display=canView(a.getAttribute('data-go'))?'':'none';});
+  /* 上の帯にも移動のボタンがある。ここを出したままにすると、
+     権限のない人が押して、理由もわからないままホームへ戻される。 */
+  document.querySelectorAll('.topbar [data-go]').forEach(function(a){
+    var p=a.getAttribute('data-go');
+    a.style.display=(canView(p)&&egPlanOfPage(p))?'':'none';
+  });
   var kids=[].slice.call(nav.children);
   kids.forEach(function(node,i){if(node.classList&&node.classList.contains('nav-label')){var anyVis=false;for(var j=i+1;j<kids.length;j++){if(kids[j].classList&&kids[j].classList.contains('nav-label'))break;if(kids[j].tagName==='A'&&kids[j].style.display!=='none')anyVis=true;}node.style.display=anyVis?'':'none';}});
   var dmb=document.getElementById('navDM');

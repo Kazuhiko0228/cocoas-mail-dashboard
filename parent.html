@@ -673,6 +673,15 @@ function klassLabel(c){
   var a=ageClass(c.dob);
   return esc(c.klass)+'クラス'+(a?'　'+a:'');
 }
+/* この端末の連絡先が、まだ手つかずのテスト用のままかどうか。
+   園が実際のご家庭を入れた端末では、テスト用の案内やパスワードを一切出さない。 */
+function isDemoContacts(){
+  var en=(stGet('contacts',null)||[]).filter(function(c){return c.kind==='enrolled';});
+  if(!en.length)return false;
+  return en.every(function(c){
+    return DEMO_PWH[c.id] && /@example\.(com|org|net)$/i.test(String(c.email||''));
+  });
+}
 function enrolled(){return (stGet('contacts',null)||[]).filter(function(c){return c.kind==='enrolled';});}
 
 /* 旧版との互換のために残しています。いまはここから端末へ保存することはありません。 */
@@ -799,11 +808,17 @@ function seedAll(){
   var acc=stGet('parentAccounts',null)||{};
   en.forEach(function(c){
     var cur=acc[c.email];
-    if(DEMO_PWH[c.id]){
-      /* 初期のままのテスト用アカウントだけ入れ直します。
-         ご自身で変更されたパスワードは、そのまま残します。 */
+    /* テスト用の初期パスワードは、メールアドレスも example 系のままの
+       手つかずの行にだけ入れます。園が実際のご家庭に書き換えた行には、
+       たとえ番号が11〜15であっても、決してパスワードを作りません
+       （公開されている初期パスワードで、実在のご家庭に入られてしまうため）。 */
+    if(DEMO_PWH[c.id] && /@example\.(com|org|net)$/i.test(String(c.email||''))){
       if(!cur||(!cur.pwh&&!cur.pw)||cur.seed)acc[c.email]={childId:c.id,pwh:DEMO_PWH[c.id],seed:true};
       else cur.childId=c.id;
+    }else if(cur&&cur.seed){
+      /* もともとテスト用だった行が、実在のご家庭に書き換えられた場合。
+         公開されているパスワードを、そのまま残してはいけない。 */
+      acc[c.email]={childId:c.id};
     }else if(!cur){
       acc[c.email]={childId:c.id};   /* パスワードなし＝ログインできません */
     }
@@ -875,7 +890,24 @@ function login(email,pw,cb){
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
 function logout(){
   try{WAPI.setToken('');}catch(e){}
-  sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');render();}
+  sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');
+  /* 共用のタブレットで、次のご家庭に前の内容が見えないようにします。
+
+     サーバにつないでいるとき（＝保護者専用の端末）は、
+     ログインのときと同じように、この端末のものをすべて消します。
+     つないでいないとき（＝園のパソコンで試している場合）は、
+     園の連絡先台帳や設定まで消してしまわないよう、
+     保護者側で書いたものだけを消します。 */
+  try{
+    var server=(typeof WAPI!=='undefined')&&WAPI.enabled();
+    Object.keys(localStorage).forEach(function(k){
+      if(k.indexOf('cocoas_')!==0)return;
+      if(k==='cocoas_wa_apiBase'||k==='cocoas_wa_apiTenant')return;
+      if(server||/^cocoas_(wa_|posts_seen_)/.test(k)) localStorage.removeItem(k);
+    });
+    if(server)seedAll();
+  }catch(e){}
+  render();}
 function resetDemo(){
   ['parentAccounts','absence_log'].forEach(function(k){localStorage.removeItem('cocoas_'+k);});
   Object.keys(localStorage).filter(function(k){return k.indexOf('cocoas_posts_seen_')===0;}).forEach(function(k){localStorage.removeItem(k);});
@@ -1301,7 +1333,8 @@ function waFaceHTML(c,size){
 function loginHTML(){
   if(authView==='reset') return resetHTML();
   if(authView==='newpw') return newpwHTML();
-  var en=enrolled();
+  var demo=isDemoContacts();
+  var en=demo?enrolled():[];
   return '<div class="login-wrap">'
     +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div><div class="sub" style="margin-top:8px;">COCOAS KIDS 大宮与野校</div></div>'
     +'<div class="err" id="loginErr"></div>'
@@ -1313,10 +1346,14 @@ function loginHTML(){
     +'<div class="divider">園とつながっていない方</div>'
     +'<button class="btn sec" id="li_guest">まずは教材だけ見てみる</button>'
     +'<div class="muted" style="text-align:center;margin-top:8px;font-size:11.5px;">あとからスクールコードでつながれます</div>'
-    +'<div class="divider">テスト用アカウント（タップで自動入力）</div>'
-    /* パスワードは画面に出しません（この一覧は誰でも開ける画面のためです）。 */
-    +'<div class="sample-fam">'+en.map(function(c){return '<button class="fam-btn" data-fill="'+esc(c.email)+'"><div class="av">'+esc(childName(c).slice(0,1))+'</div><div style="flex:1;min-width:0;"><div class="nm">'+esc(c.child)+'（'+esc(c.klass)+'）</div><div class="em">'+esc(c.email)+'</div></div><span style="font-size:11px;color:var(--teal);font-weight:600;white-space:nowrap;">メールを入力→</span></button>';}).join('')+'</div>'
-    +'<div class="muted" style="text-align:center;margin-top:14px;line-height:1.7;">上のご家庭をタップすると、メールアドレスだけが入ります。<br>お試し用のパスワードは、お子さまのお名前のローマ字です（例：心春ちゃん → kokoro）。<br>実際のご家庭の情報をお入れになる前に、必ずパスワードを変更してください。<br><button class="link" id="li_reset" style="margin-top:6px;">テスト用アカウントを作り直す</button></div>'
+    /* テスト用アカウントの一覧は、連絡先がまだ手つかずのときだけ出します。
+       園が実際のご家庭を入れた端末では、ログインの前に
+       園児のお名前・クラス・保護者のメールアドレスを一切表示しません。 */
+    +(demo
+      ? '<div class="divider">テスト用アカウント（タップで自動入力）</div>'
+        +'<div class="sample-fam">'+en.map(function(c){return '<button class="fam-btn" data-fill="'+esc(c.email)+'"><div class="av">'+esc(childName(c).slice(0,1))+'</div><div style="flex:1;min-width:0;"><div class="nm">'+esc(c.child)+'（'+esc(c.klass)+'）</div><div class="em">'+esc(c.email)+'</div></div><span style="font-size:11px;color:var(--teal);font-weight:600;white-space:nowrap;">メールを入力→</span></button>';}).join('')+'</div>'
+        +'<div class="muted" style="text-align:center;margin-top:14px;line-height:1.7;">上のご家庭をタップすると、メールアドレスだけが入ります。<br>実際のご家庭の情報をお入れになると、この案内は自動で消えます。<br><button class="link" id="li_reset" style="margin-top:6px;">テスト用アカウントを作り直す</button></div>'
+      : '')
     +'</div>';
 }
 function resetHTML(){
@@ -3705,7 +3742,8 @@ function waTrackNotice(){
     +'どの記事が読まれているか、どの教材が選ばれているかを集計し、'
     +'園と未来WAのサービス改善に使わせていただきます。'
     +'<b>お名前・メールアドレスは記録していません。</b>'
-    +'園がどのご家庭かを特定することもできません。</div>'
+    +'ただし、園が保護者アカウントとつなげて見ることはできる形で保存されます。'
+    +'記録に残らないようにしたい場合は、マイページからいつでも止められます。</div>'
     +'<button class="btn sec" id="trackOk" style="margin-top:11px;">わかりました</button></div>';
 }
 
@@ -3718,7 +3756,24 @@ function waTrackNotice(){
    何が読めて何が書けるかは、サーバ側の一覧で決まる。画面側では決めない。 */
 var WAPI={
   base:function(){return String(stGet('wa_apiBase','')||'').replace(/\/$/,'');},
-  setBase:function(v){stSet('wa_apiBase',String(v||'').replace(/\/$/,''));},
+  /* 接続先として認めるのは、当社のサーバと、開発中の自分のパソコンだけ。
+     これを入れないと、URLに ?api=… を付けるだけで
+     メールアドレスとパスワードを知らないサーバへ送らせることができてしまう。 */
+  allowBase:function(v){
+    var u; try{ u=new URL(String(v||'')); }catch(e){ return false; }
+    if(u.hostname==='localhost'||u.hostname==='127.0.0.1')return true;
+    if(u.protocol!=='https:')return false;
+    return /(^|\.)bimjapan\.jp$/i.test(u.hostname)
+        || /(^|\.)up\.railway\.app$/i.test(u.hostname);
+  },
+  setBase:function(v){
+    v=String(v||'').replace(/\/$/,'');
+    if(v&&!WAPI.allowBase(v)){
+      try{console.warn('接続先として認められていないため、無視しました:',v);}catch(e){}
+      return false;
+    }
+    stSet('wa_apiBase',v); return true;
+  },
   tenant:function(){return stGet('wa_apiTenant','')||'';},
   setTenant:function(v){stSet('wa_apiTenant',String(v||''));},
   /* トークンはこのタブの中だけに置く。端末に残さない。 */
@@ -3829,7 +3884,13 @@ function waServerLogin(email,pw,cb){
     var q=new URLSearchParams(location.search);
     var a=q.get('api'), t=q.get('tenant');
     if(a!==null||t!==null){
-      if(a!==null)WAPI.setBase(a);
+      /* URLで接続先を変えるのは、開発と検証のための道です。
+         黙って切り替わらないよう、どこにつなぐのかを必ずお見せして確認します。 */
+      if(a!==null){
+        if(!WAPI.allowBase(a)){ alert('この接続先は使えません。\n'+a); }
+        else if(WAPI.base()===a.replace(/\/$/,'')){ /* すでに同じなら何も聞かない */ }
+        else if(confirm('データの接続先を、次のサーバに変更します。\n\n'+a+'\n\nよろしいですか？')){ WAPI.setBase(a); }
+      }
       if(t!==null)WAPI.setTenant(t);
       q.delete('api');q.delete('tenant');
       var u=location.pathname+(q.toString()?'?'+q.toString():'');
