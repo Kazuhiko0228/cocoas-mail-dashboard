@@ -332,6 +332,8 @@
       <section data-page="shift" hidden></section>
       <section data-page="expense" hidden></section>
       <section data-page="docgen" hidden></section>
+      <section data-page="leads" hidden></section>
+      <section data-page="sales" hidden></section>
       <section data-page="aiplan" hidden></section>
       <section data-page="guide" hidden></section>
       <section data-page="reqnav" hidden></section>
@@ -1310,17 +1312,18 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
+  if(page!=='leads')CONTACT_SCOPE='member';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
   if(typeof navRevealActive==='function')navRevealActive();   /* 閉じた組の中なら開く */
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
   (page==='creator') ? (function(){window.open('creator.html','_blank','noopener');page='home';})() :
-  ({home:renderHome,aiplan:renderAIPlan,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -1422,7 +1425,7 @@ var EG_NAV=[
    {k:'docs',    l:'書類格納', i:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'}
  ]},
  {cat:'新規顧客管理',boss:true,plan:'standard',items:[
-   {k:'leads',   l:'顧客リスト',     i:'👤', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
+   {k:'leads',   l:'顧客リスト',     i:'👤', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
    {k:'trial',   l:'体験結果報告',   i:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
    {k:'mailg',   l:'個別メール',     i:'send', c:'#123E6B', bg:'#E6F1FB', sub:[
      {p:'compose',   l:'個別メールを送る'},
@@ -1491,6 +1494,133 @@ function egIcon(i){
    ══════════════════════════════════════════════════ */
 
 /* 日時の文字列。EduGrow には共通のものが無いので、ここで用意する。 */
+
+/* ══ 営業分析（Proプラン）══════════════════════
+   リードの状態から数字を出す。数字のもとは連絡先の「ステータス」。
+   出しているのは集計であって、予測ではない。 */
+var SALES_GROUP={
+  '体験前':['体験前 日程調整中','体験前 日程調整済','オンライン前 日程調整中',
+            'オンライン後 体験日程調整中','オンライン後 体験日程調整済'],
+  '体験後':['体験後 検討中','🔥入園見込み','長期見込み'],
+  '入園':['入園 確定'],
+  '離脱':['連絡不通','NG']
+};
+function salesStats(){
+  var leads=DB.contacts.filter(function(c){return c.kind==='lead';});
+  var g={'体験前':0,'体験後':0,'入園':0,'離脱':0,'その他':0}, byStatus={};
+  leads.forEach(function(c){
+    var st=c.status||'';
+    byStatus[st]=(byStatus[st]||0)+1;
+    var hit=null;
+    Object.keys(SALES_GROUP).forEach(function(k){ if(SALES_GROUP[k].indexOf(st)>-1)hit=k; });
+    g[hit||'その他']++;
+  });
+  var total=leads.length;
+  var trial=g['体験後']+g['入園'];          /* 体験まで進んだ数 */
+  var rate=function(a,b){ return b?Math.round(a/b*1000)/10:null; };
+  /* 月ごとの動き（受付日から） */
+  var by={}; leads.forEach(function(c){
+    var m=String(c.date||'').slice(0,7); if(!m)return;
+    by[m]=by[m]||{n:0,win:0,lost:0};
+    by[m].n++;
+    if(SALES_GROUP['入園'].indexOf(c.status)>-1)by[m].win++;
+    if(SALES_GROUP['離脱'].indexOf(c.status)>-1)by[m].lost++;
+  });
+  /* 離脱の理由。メモから拾う */
+  var reasons={};
+  leads.filter(function(c){return SALES_GROUP['離脱'].indexOf(c.status)>-1;}).forEach(function(c){
+    var t=(c.note||c.memo||'').trim();
+    var key=t?t.slice(0,18):'理由の記録なし';
+    reasons[key]=(reasons[key]||0)+1;
+  });
+  return {
+    total:total, g:g, byStatus:byStatus, months:by, reasons:reasons,
+    trialRate:rate(trial,total), winRate:rate(g['入園'],total),
+    lostRate:rate(g['離脱'],total),
+    winOfTrial:rate(g['入園'],trial)
+  };
+}
+/* 数字を見て気づいたことを言う。当てずっぽうは言わない。 */
+function salesFindings(x){
+  var out=[];
+  if(!x.total){ return [{lv:'warn',t:'リードがまだ登録されていません。連絡先に「リード」として登録すると、ここに数字が出ます。'}]; }
+  if(x.trialRate!=null&&x.trialRate<40)
+    out.push({lv:'warn',t:'体験まで進んだのが '+x.trialRate+'% です。問い合わせのあと、体験の日程を決めるところで止まっている可能性があります。'});
+  if(x.winOfTrial!=null&&x.winOfTrial>=50)
+    out.push({lv:'ok',t:'体験まで来た方の '+x.winOfTrial+'% が入園に至っています。体験そのものは効いています。'});
+  if(x.winOfTrial!=null&&x.winOfTrial<30&&x.g['体験後'])
+    out.push({lv:'warn',t:'体験のあとの決定が '+x.winOfTrial+'% にとどまっています。体験後のフォローを見直す余地があります。'});
+  if(x.lostRate!=null&&x.lostRate>=30)
+    out.push({lv:'warn',t:'離脱が '+x.lostRate+'% です。連絡不通が多い場合は、初回連絡までの日数を短くすると変わることがあります。'});
+  var noReason=x.reasons['理由の記録なし']||0;
+  if(noReason>0)
+    out.push({lv:'warn',t:'離脱のうち '+noReason+'件は理由が記録されていません。理由が残ると、次の打ち手が決められます。'});
+  if(!out.length)out.push({lv:'ok',t:'いまのところ、目立った偏りは見つかりませんでした。'});
+  return out;
+}
+function renderSales(){
+  var s=$('section[data-page="sales"]'), x=salesStats(), f=salesFindings(x);
+  var tile=function(k,v,u,n){
+    return '<div class="card" style="margin:0;"><div style="font-size:11px;color:var(--tx3);font-weight:700;">'+esc(k)+'</div>'
+      +'<div style="font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:3px;">'
+      +esc(v==null?'—':v)+(u?'<span style="font-size:12px;color:var(--tx3);margin-left:3px;">'+u+'</span>':'')+'</div>'
+      +(n?'<div style="font-size:11.5px;color:var(--tx3);margin-top:4px;">'+esc(n)+'</div>':'')+'</div>';
+  };
+  var html='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">'
+    +tile('リード',x.total,'件','連絡先に登録されている数')
+    +tile('体験まで進んだ',x.trialRate,'%','体験後・入園を合わせた割合')
+    +tile('入園の決定',x.winRate,'%','リード全体に対して')
+    +tile('離脱',x.lostRate,'%','連絡不通・NG')
+    +'</div>';
+
+  html+='<div class="card"><h3 style="margin-top:0;">いまの段階</h3>'
+    +'<table style="width:100%;font-size:13px;"><tbody>'
+    +['体験前','体験後','入園','離脱','その他'].map(function(k){
+      var n=x.g[k]||0, w=x.total?Math.round(n/x.total*100):0;
+      return '<tr><td style="padding:8px 0;width:82px;font-weight:700;">'+esc(k)+'</td>'
+        +'<td style="padding:8px 8px;"><div style="background:var(--line2,#F0EEEA);border-radius:6px;height:9px;">'
+        +'<div style="background:var(--teal);height:9px;border-radius:6px;width:'+w+'%;"></div></div></td>'
+        +'<td style="padding:8px 0;width:64px;text-align:right;font-variant-numeric:tabular-nums;">'+n+'件</td></tr>';
+    }).join('')+'</tbody></table></div>';
+
+  html+='<div class="card"><h3 style="margin-top:0;">AIが気づいたこと</h3>'
+    +f.map(function(c){
+      return '<div style="font-size:13px;line-height:1.85;padding:9px 12px;border-radius:8px;margin-bottom:7px;'
+        +(c.lv==='ok'?'background:#EAF3DE;color:#27500A;':'background:#FBF2E2;color:#A8701A;')+'">'+esc(c.t)+'</div>';
+    }).join('')
+    +'<div class="muted" style="font-size:11.5px;margin-top:8px;line-height:1.75;">'
+    +'ここに出ているのは、登録されている数字から読み取れることだけです。'
+    +'記録が増えるほど確かになります。</div></div>';
+
+  var ms=Object.keys(x.months).sort().slice(-6);
+  html+='<div class="card"><h3 style="margin-top:0;">月ごとの動き</h3>'
+    +(ms.length?'<table style="width:100%;font-size:12.5px;"><thead><tr>'
+      +'<th style="text-align:left;padding:6px 0;color:var(--tx3);">月</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">問い合わせ</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">入園</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">離脱</th></tr></thead><tbody>'
+      +ms.map(function(m){var v=x.months[m];
+        return '<tr><td style="padding:7px 0;">'+esc(m)+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;">'+v.n+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;">'+v.win+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;">'+v.lost+'</td></tr>';}).join('')
+      +'</tbody></table>':'<div class="muted" style="text-align:center;padding:20px 0;">受付日の記録がまだありません</div>')
+    +'</div>';
+
+  var rk=Object.keys(x.reasons);
+  html+='<div class="card"><h3 style="margin-top:0;">離脱の理由</h3>'
+    +(rk.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
+      +rk.sort(function(a,b){return x.reasons[b]-x.reasons[a];}).map(function(k){
+        return '<tr><td style="padding:7px 0;">'+esc(k)+'</td>'
+          +'<td style="padding:7px 0;text-align:right;width:56px;font-variant-numeric:tabular-nums;">'+x.reasons[k]+'件</td></tr>';
+      }).join('')+'</tbody></table>'
+      :'<div class="muted" style="text-align:center;padding:20px 0;">離脱の記録はまだありません</div>')
+    +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.75;">'
+    +'連絡先のメモに書かれた内容から拾っています。理由を書き残すほど、ここが役に立ちます。</div></div>';
+
+  s.innerHTML=html;
+}
+
 /* 短い知らせ。EduGrow には共通のものが無いので、ここで用意する。 */
 function aiToast(m){
   var t=document.getElementById('aiTst');
@@ -3117,7 +3247,8 @@ function renderDash(){
   document.addEventListener('click',function hide(ev){var b=$('#clsBubble');if(b&&!ev.target.getAttribute('data-clsg')){b.style.display='none';}},{once:true});
   var pf=$('#perFY');if(pf)pf.onchange=function(e){dashFY=+e.target.value;renderDash();};
   var pm=$('#perMonth');if(pm)pm.onchange=function(e){dashMonth=e.target.value;renderDash();};
-  $('#navContacts').textContent=cs.length;
+  /* サイドバーの件数バッジ。組み立て直しで無いこともあるので、あれば入れる。 */
+  var _nb=$('#navContacts'); if(_nb)_nb.textContent=cs.length;
 }
 
 function routeTo(p){
@@ -3170,14 +3301,26 @@ function contactAuditPrint(kind){
     +(left.map(function(c){return '<tr><td>'+esc(childName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmt(c.withdrawDate)+'</td><td>'+esc(c.note||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')+'</tbody></table>';
   printDoc('入退園一覧（'+fy+'年度）',body4);
 }
+/* 「連絡先」と「顧客リスト」を分ける。
+   連絡先 … 在園児の保護者・既存のお客さま
+   顧客リスト … 問い合わせ・体験の段階のお客さま（リード）
+   画面は同じものを使い、出す範囲だけを変える。 */
+var CONTACT_SCOPE='member';
+function renderLeads(){ CONTACT_SCOPE='lead'; contactFilter='リード'; renderContacts(); }
 function renderContacts(){
   /* 一般スタッフにはリード（営業・経営情報）を表示しない */
   var noLeads=(typeof currentRole==='function'&&currentRole()==='一般');
-  var cs=DB.contacts.filter(function(c){return noLeads?c.kind!=='lead':true;});
-  var s=$('section[data-page="contacts"]');
-  var filters=noLeads?['在園児','退園児']:['すべて','リード','在園児','退園児'];
-  if(noLeads&&filters.indexOf(contactFilter)<0)contactFilter='在園児';
+  var lead=(CONTACT_SCOPE==='lead');
+  if(lead&&noLeads){ CONTACT_SCOPE='member'; lead=false; }
+  var cs=DB.contacts.filter(function(c){
+    if(lead)return c.kind==='lead';
+    return c.kind!=='lead';          /* 連絡先からはリードを外す */
+  });
+  var s=$('section[data-page="'+(lead?'leads':'contacts')+'"]');
+  var filters=lead?['リード']:(noLeads?['在園児','退園児']:['すべて','在園児','退園児']);
+  if(filters.indexOf(contactFilter)<0)contactFilter=filters[lead?0:(noLeads?0:0)];
   function match(c){
+    if(contactFilter==='リード')return c.kind==='lead';
     if(contactFilter==='すべて')return true;
     if(contactFilter==='在園児')return c.kind==='enrolled';
     if(contactFilter==='退園児')return c.kind==='withdrawn';
@@ -3231,7 +3374,8 @@ function renderContacts(){
   $('#addContact').addEventListener('click',function(){contactModal();});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){contactModal(+b.getAttribute('data-edit'));});});
   s.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',function(){if(confirm('この連絡先を削除しますか？')){DB.contacts=DB.contacts.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderContacts();}});});
-  $('#navContacts').textContent=cs.length;
+  /* サイドバーの件数バッジ。組み立て直しで無いこともあるので、あれば入れる。 */
+  var _nb=$('#navContacts'); if(_nb)_nb.textContent=cs.length;
 }
 function contactModal(id){
   var cs=DB.contacts,c=id?cs.filter(function(x){return x.id===id;})[0]:{kind:'lead',name:'',child:'',email:'',phone:'',status:'体験前 日程調整中',date:'',receivedDate:todayISO(),source:'HPフォーム',wishKlass:'Pre',format:'オフライン',trialBy:'',trialTime:'',nextAction:'',concerns:'',invoiceStatus:'未作成',klass:'Pre',feeAmount:52000,withdrawDay:27,withdrawDate:'',note:''};
@@ -3321,7 +3465,10 @@ function renderCompose(){
   /* 一般スタッフは在園児にのみ送信可（リード＝営業情報は非表示） */
   var onlyEnrolled=(typeof currentRole==='function'&&currentRole()==='一般');
   if(onlyEnrolled)composeFilter='在園児';
-  var cs=DB.contacts.filter(function(c){return onlyEnrolled?c.kind==='enrolled':true;}),s=$('section[data-page="compose"]');
+  /* 在園児あての一斉配信は「連絡・配信」に移したので、ここはリードだけにする。
+     一般スタッフはリードを扱わないため、これまでどおり在園児を出す。 */
+  var cs=DB.contacts.filter(function(c){return onlyEnrolled?c.kind==='enrolled':c.kind==='lead';});
+  var s=$('section[data-page="compose"]');
   if(onlyEnrolled&&!(TEMPLATES[composeTpl]||{}).enrolledOnly){var ek=Object.keys(TEMPLATES).filter(function(k){return TEMPLATES[k].enrolledOnly;});if(ek.length)composeTpl=ek[0];}
   s.innerHTML=
     '<div class="grid" style="grid-template-columns:1fr 1.15fr;align-items:start;">'+
