@@ -1157,6 +1157,146 @@ function wireConsent(){
   if($('cOut'))$('cOut').onclick=function(){ logout(); };
 }
 
+
+/* ══ 健康に関する情報の同意 ═══════════════════
+   利用規約 第7条6項・第23条3項のとおり、要配慮個人情報は
+   登録時の一括同意に含めない。取り扱う前に、
+   利用目的・情報の項目・提供先・利用方法をお見せして、個別に同意をいただく。
+   同意をいただくまで、健康に関する園連携情報はお見せしない。 */
+var WA_HEALTH_VER='2026-08-15.1';
+var WA_HEALTH={
+  purpose:[
+    'お子さまの体調の変化に、園が早く気づけるようにするため',
+    'アレルギーや持病に配慮した保育・給食を行うため',
+    'けがや体調不良のときに、適切な手当てと連絡を行うため',
+    '健康診断・身体測定の結果を、ご家庭と園で共有するため'
+  ],
+  items:[
+    'アレルギー（食物・薬・その他）','既往症・持病','服薬の内容',
+    '体温・体調の記録','けが・ヒヤリハットの記録','身体測定の結果','かかりつけ医'
+  ],
+  to:[
+    ['園（担任・園長・看護担当）','日々の保育と、緊急時の対応のため'],
+    ['救急隊・医療機関','緊急のときに限り、必要な範囲で'],
+    ['株式会社BIM JAPAN','システムの提供・保守のため。園から委託を受けて取り扱います']
+  ],
+  how:'園の業務に必要な範囲でのみ取り扱います。広告には使いません。'
+    +'園との連携が終わったあとは、園との契約と法令に従って、削除・返却・利用の停止を行います。'
+};
+function healthConsent(){ return (stGet('wa_health_consent',{})||{})[consentKey()]||null; }
+function healthOk(){ var r=healthConsent(); return !!(r&&r.ver===WA_HEALTH_VER); }
+function healthSave(on){
+  var a=stGet('wa_health_consent',{})||{};
+  if(on){
+    a[consentKey()]={at:new Date().toISOString().slice(0,19).replace('T',' '),
+      ver:WA_HEALTH_VER, dev:(typeof waDevice==='function')?waDevice():''};
+  }else{ delete a[consentKey()]; }
+  stSet('wa_health_consent',a);
+  try{ if(typeof waTrack==='function')waTrack(on?'健康情報の取扱いに同意':'健康情報の同意を撤回',{cid:WA_HEALTH_VER}); }catch(e){}
+}
+/* 園のタブの先頭に出す。同意をいただくまで、健康に関する情報は出さない。 */
+function healthGateHTML(){
+  if(healthOk())return '';
+  return '<div class="card" style="border-color:#E8C9C9;background:#FCEBEB;">'
+    +'<div style="font-weight:800;font-size:14px;color:#A32D2D;">'
+    +'健康に関する情報のお取り扱いについて</div>'
+    +'<div style="margin-top:8px;font-size:13px;line-height:1.9;">'
+    +'アレルギー・既往症・体温などの健康に関する情報は、法律上とくに配慮が必要なものです。'
+    +'そのため、<b>利用規約への同意とは別に、あらためてご同意をいただいています。</b>'
+    +'同意をいただくまで、健康に関する情報は表示しません。</div>'
+    +'<button class="btn" id="hcOpen" style="margin-top:12px;">内容を読んで同意する</button>'
+    +'</div>';
+}
+function healthPageHTML(){
+  var r=healthConsent();
+  return '<button class="pback" id="hcBack">‹ もどる</button>'
+    +'<div class="card"><h2 class="sec sec-c" style="margin-top:0;">健康に関する情報のお取り扱い</h2>'
+    +'<div class="muted" style="font-size:11.5px;">版 '+esc(WA_HEALTH_VER)+'</div>'
+    +'<div style="margin-top:10px;font-size:13px;line-height:1.9;">'
+    +'アレルギー・既往症・服薬・体温などは、法律上「要配慮個人情報」にあたります。'
+    +'取り扱う前に、何のために・どの項目を・どこへお渡しするのかをお示しします。</div></div>'
+    +hcBlock('何のために使うか',WA_HEALTH.purpose)
+    +hcBlock('お預かりする項目',WA_HEALTH.items)
+    +'<div class="card"><div style="font-weight:800;font-size:13.5px;margin-bottom:9px;">どこへお渡しするか</div>'
+    +WA_HEALTH.to.map(function(x){
+      return '<div style="padding:9px 0;border-bottom:1px solid var(--line);">'
+        +'<div style="font-weight:700;font-size:13px;">'+esc(x[0])+'</div>'
+        +'<div class="muted" style="font-size:12.5px;margin-top:3px;">'+esc(x[1])+'</div></div>';
+    }).join('')+'</div>'
+    +'<div class="card"><div style="font-weight:800;font-size:13.5px;margin-bottom:7px;">使いかた</div>'
+    +'<div style="font-size:13px;line-height:1.9;">'+esc(WA_HEALTH.how)+'</div></div>'
+    +(r
+      ? '<div class="card" style="border-color:#C7DFA6;background:#EAF3DE;">'
+        +'<div style="font-weight:800;font-size:13.5px;color:#27500A;">同意済みです</div>'
+        +'<div class="muted" style="margin-top:6px;font-size:12.5px;line-height:1.8;">'
+        +esc(r.at)+'　'+esc(r.dev||'')+'</div>'
+        +'<button class="btn sec" id="hcOff" style="margin-top:11px;">同意を取り消す</button>'
+        +'<div class="muted" style="margin-top:9px;font-size:11.5px;line-height:1.75;">'
+        +'取り消すと、健康に関する情報は表示されなくなります。'
+        +'園がすでにお預かりしている情報の取扱いは、園にお問い合わせください。</div></div>'
+      : '<div class="card">'
+        +cChk('hcChk','上記の目的・項目・提供先を確認しました。'
+          +'お子さまの健康に関する情報を、記載された範囲で取り扱うことに同意します。')
+        +'<button class="btn" id="hcGo" disabled style="margin-top:12px;opacity:.45;">同意する</button>'
+        +'<div class="muted" style="margin-top:10px;font-size:11.5px;line-height:1.75;">'
+        +'同意しなくても、お知らせ・ショップ・イベントなど、ほかの機能はお使いいただけます。</div></div>');
+}
+function hcBlock(t,arr){
+  return '<div class="card"><div style="font-weight:800;font-size:13.5px;margin-bottom:7px;">'+esc(t)+'</div>'
+    +'<ul style="margin:0;padding-left:1.2em;font-size:13px;line-height:1.95;">'
+    +arr.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
+}
+function healthWire(){
+  var o=document.getElementById('hcOpen');
+  if(o)o.onclick=function(){ waHealthView=true; render(); };
+  var b=document.getElementById('hcBack');
+  if(b)b.onclick=function(){ waHealthView=false; render(); };
+  var c=document.getElementById('hcChk');
+  if(c)c.onchange=function(){
+    var g=document.getElementById('hcGo'); if(!g)return;
+    g.disabled=!this.checked; g.style.opacity=this.checked?'1':'.45';
+  };
+  var g=document.getElementById('hcGo');
+  if(g)g.onclick=function(){
+    var e=document.getElementById('hcChk');
+    if(!e||!e.checked)return;
+    healthSave(true); waHealthView=false; render(); toast('ありがとうございます');
+  };
+  var off=document.getElementById('hcOff');
+  if(off)off.onclick=function(){
+    if(!confirm('健康に関する情報の同意を取り消します。以後、健康に関する情報は表示されません。よろしいですか？'))return;
+    healthSave(false); render(); toast('同意を取り消しました');
+  };
+}
+var waHealthView=false;
+
+/* ── 顔写真と ○歳児（スプレッドシート 修正依頼46行）───── */
+function waPhotoOf(c){
+  if(!c)return '';
+  var st=stGet('contactPhotos',{})||{};
+  return st[c.id]||'';
+}
+function waAgeLabel(c){
+  if(!c||!c.dob)return '';
+  var d=String(c.dob).slice(0,10).split('-'); if(d.length<3)return '';
+  var t=todayISO().split('-');
+  var y=+t[0]-+d[0];
+  if((+t[1])<(+d[1])||((+t[1])===(+d[1])&&(+t[2])<(+d[2])))y--;
+  return (y<0?0:y)+'歳児';
+}
+/* 名前の隣に出す丸。写真があれば写真、無ければ頭文字。 */
+function waFaceHTML(c,size){
+  size=size||34;
+  var p=waPhotoOf(c);
+  var base='width:'+size+'px;height:'+size+'px;border-radius:50%;flex:none;'
+    +'object-fit:cover;background:#F0EEEA;';
+  if(p&&/^data:image\//.test(p))
+    return '<img src="'+esc(p)+'" alt="" style="'+base+'">';
+  var nm=(c&&(c.child||c.name)||'　').replace(/(ちゃん|くん|君|さん)$/,'');
+  return '<span style="'+base+'display:inline-flex;align-items:center;justify-content:center;'
+    +'font-size:'+Math.round(size*0.42)+'px;font-weight:800;color:#8A7F72;">'+esc(nm.slice(0,1))+'</span>';
+}
+
 /* ---------- LOGIN / PW flow ---------- */
 function loginHTML(){
   if(authView==='reset') return resetHTML();
@@ -2332,6 +2472,7 @@ function meHTML(c){
       +'<div class="muted" style="margin:8px 2px 0;">記入して出す用紙は '+nf+' 種類。印刷してご提出いただけます。</div>';
   }
   h2+=consentCardHTML();
+  h2+=healthCardHTML();
   h2+=waTrackCardHTML();
   h2+=waSyncCardHTML();
   return h2;
@@ -2785,8 +2926,12 @@ function portalHTML(c){
   return '<div class="topbar">'
     +'<button class="bloom" id="bloomBtn" aria-label="'+(linked?'スクールへ':'マイページへ')+'">'+bloomSVG(tab)+'</button>'
     +'<button class="who whobtn" id="meBtn" aria-label="マイページをひらく">'
-      +(linked?'<div class="p">'+esc(c.klass)+'クラス</div><div class="n">'+esc(c.child)+' <span class="whoarrow">›</span></div>'
-              :'<div class="p">未来WA</div><div class="n">園とつながっていません <span class="whoarrow">›</span></div>')+'</button>'
+      +(linked
+         ? '<div style="display:flex;align-items:center;gap:9px;">'+waFaceHTML(c,34)
+           +'<div style="min-width:0;text-align:left;">'
+           +'<div class="p">'+esc(c.klass)+'クラス'+(waAgeLabel(c)?'　'+esc(waAgeLabel(c)):'')+'</div>'
+           +'<div class="n">'+esc(c.child)+' <span class="whoarrow">›</span></div></div></div>'
+         : '<div class="p">未来WA</div><div class="n">園とつながっていません <span class="whoarrow">›</span></div>')+'</button>'
     +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
     +'<button class="out" id="logout">'+(linked?'ログアウト':'ログイン')+'</button>'
     +'</div>'
@@ -2871,11 +3016,15 @@ function wirePortal(c){
     sc.innerHTML=op?productPageHTML(op,c):storeHTML(c);
   }
   else if(tab==='connect') sc.innerHTML=waEventOpen?eventPageHTML(waEventOpen,c):connectHTML(c);
+  if(waHealthView)sc.innerHTML=healthPageHTML();
   else if(tab==='me') sc.innerHTML=meHTML(c);
   /* どの画面を開いたかを1件残す（詳細ページを開いているときは数えない） */
   try{ if(!waEventOpen&&!waProdOpen&&!waPostOpen&&!waSellerOpen&&!waPersonOpen&&!waGuideOpen)
     waTrack('画面をひらいた',{cid:tab}); }catch(e){}
   wireCommon(c);
+  /* 健康に関する情報の同意画面を出しているあいだは、
+     もとの画面のボタンは無くなっているので、その配線はしない */
+  if(waHealthView) return;
   if(tab==='school'){wireAtt(c);wireDM(c);}
   if(tab==='play') waPostOpen?wirePostActs('play'):wireFeed('play');
   if(tab==='learn') waPostOpen?wirePostActs('learn'):wireFeed('learn');
@@ -2975,6 +3124,7 @@ function snsHTML(){
     +'</div>'+(newSns?'<div class="muted" style="margin-top:10px;">📷 Instagramに新しい投稿があります。</div>':'')+'</div>';
 }
 function wireCommon(c){
+  try{healthWire();}catch(e){}
   try{waSyncWire();}catch(e){}
   var lb=document.getElementById('lawBtn');
   if(lb)lb.onclick=function(){waLawOpen();};
@@ -3218,7 +3368,7 @@ function dmSend(c,tx){
 function newsHTML(c){
   var posts=allPosts();var seen=seenPosts();
   setTimeout(function(){markSeen(posts.map(function(p){return p.id;}));},1200);
-  return waTrackNotice()+promoHTML()+'<div class="card"><h2 class="sec sec-p">📢 園からのおたより・お知らせ</h2>'
+  return healthGateHTML()+waTrackNotice()+promoHTML()+'<div class="card"><h2 class="sec sec-p">📢 園からのおたより・お知らせ</h2>'
     +(posts.length?posts.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):bloomEmpty('まだおたよりはありません'))+'</div>'
     + snsHTML();
 }
@@ -3760,6 +3910,18 @@ function waLawOpen(){
   if(x)x.onclick=function(){ov.remove();};
 }
 
+function healthCardHTML(){
+  var r=healthConsent();
+  return '<div class="card" style="margin-top:14px;">'
+    +'<div style="font-weight:800;font-size:13.5px;">健康に関する情報</div>'
+    +'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
+    +'アレルギー・既往症・体温などは、法律上とくに配慮が必要な情報です。'
+    +'利用規約とは別に、個別のご同意をいただいています。</div>'
+    +(r?'<div class="muted" style="margin-top:7px;font-size:12px;">'+esc(r.at)+' に同意（版 '+esc(r.ver)+'）</div>'
+       :'<div style="margin-top:7px;font-size:12px;color:#A32D2D;">まだ同意をいただいていません</div>')
+    +'<button class="btn sec" id="hcOpen" style="margin-top:11px;width:100%;font-size:12.5px;">'
+    +(r?'内容を確認する・同意を取り消す':'内容を読んで同意する')+'</button></div>';
+}
 function waTrackCardHTML(){
   var off=stGet('wa_track_off',false);
   return '<div class="card" style="margin-top:14px;">'

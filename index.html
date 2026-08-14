@@ -1621,6 +1621,292 @@ function renderSales(){
   s.innerHTML=html;
 }
 
+
+/* ══════════════════════════════════════════════════
+   Bluetooth体温計との連携（A&D UT-201BLE を想定）
+
+   共通の決まり（Health Thermometer Service）に従う体温計なら、
+   メーカーのアプリを通さずに、この画面から直接読める。
+
+   つながらない端末（iPad の Safari など）では、同じ流れのまま
+   手入力に切り替わる。画面の作りは変えない。
+   ══════════════════════════════════════════════════ */
+var THERMO={
+  SERVICE:0x1809,          /* Health Thermometer Service */
+  MEASURE:0x2A1C,          /* Temperature Measurement */
+  INTERM :0x2A1E,          /* Intermediate Temperature（測定中の値） */
+  dev:null, ch:null, chI:null, cb:null, last:null,
+
+  /* この端末で使えるか。iPad・iPhone の Safari は使えない。 */
+  supported:function(){ return !!(navigator&&navigator.bluetooth); },
+  why:function(){
+    if(THERMO.supported())return '';
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua))
+      return 'iPhone・iPad では、ブラウザから体温計につなぐことができません（Apple の仕様）。'
+        +'Android のタブレットかパソコンをお使いいただくか、このまま手で入力してください。';
+    if(/Firefox/.test(ua))
+      return 'Firefox は体温計との接続に対応していません。Chrome か Edge をお使いください。';
+    return 'このブラウザは体温計との接続に対応していません。Chrome か Edge をお使いください。';
+  },
+  connected:function(){ return !!(THERMO.dev&&THERMO.dev.gatt&&THERMO.dev.gatt.connected); },
+
+  /* つなぐ。ブラウザの決まりで、職員が押した直後にしか呼べない。
+     朝に1回つなげば、その日はつながったまま使える。 */
+  connect:function(done){
+    done=done||function(){};
+    if(!THERMO.supported()){done(false,THERMO.why());return;}
+    navigator.bluetooth.requestDevice({
+      filters:[{services:[THERMO.SERVICE]}],
+      optionalServices:[THERMO.SERVICE]
+    }).then(function(d){
+      THERMO.dev=d;
+      d.addEventListener('gattserverdisconnected',function(){
+        THERMO.ch=null;THERMO.chI=null;
+        try{aiToast('体温計との接続が切れました');}catch(e){}
+        try{thFlowRender();}catch(e){}
+      });
+      return d.gatt.connect();
+    }).then(function(g){ return g.getPrimaryService(THERMO.SERVICE); })
+      .then(function(sv){
+        /* 測定完了の値。機種によっては測定中の値も流れてくる。 */
+        return sv.getCharacteristic(THERMO.MEASURE).then(function(c){
+          THERMO.ch=c;
+          c.addEventListener('characteristicvaluechanged',function(e){
+            THERMO.handle(e.target.value,true);
+          });
+          return c.startNotifications();
+        }).then(function(){
+          return sv.getCharacteristic(THERMO.INTERM).then(function(c2){
+            THERMO.chI=c2;
+            c2.addEventListener('characteristicvaluechanged',function(e){
+              THERMO.handle(e.target.value,false);
+            });
+            return c2.startNotifications();
+          }).catch(function(){ /* 測定中の値を出さない機種もある。無くてよい */ });
+        });
+      })
+      .then(function(){ done(true,''); })
+      .catch(function(e){
+        var m=String(e&&e.message||e);
+        if(/cancell?ed|User cancelled/i.test(m))done(false,'');
+        else done(false,'つながりませんでした：'+m);
+      });
+  },
+  disconnect:function(){
+    try{ if(THERMO.dev&&THERMO.dev.gatt&&THERMO.dev.gatt.connected)THERMO.dev.gatt.disconnect(); }catch(e){}
+    THERMO.dev=null;THERMO.ch=null;THERMO.chI=null;
+  },
+
+  /* 受け取った値をほどく。
+     体温計は IEEE-11073 という、ふつうの小数とは違う形で数値を送ってくる。
+     先頭1バイトが目印で、続く4バイトが値。目印の一番下のビットが
+     立っていたら華氏なので、摂氏に直す。 */
+  handle:function(dv,final){
+    var v=THERMO.parse(dv);
+    if(v==null)return;
+    THERMO.last={c:v,at:new Date(),final:!!final};
+    if(THERMO.cb)THERMO.cb(v,!!final);
+  },
+  parse:function(dv){
+    try{
+      if(!dv||dv.byteLength<5)return null;
+      var flags=dv.getUint8(0);
+      var raw=dv.getUint32(1,true);
+      var mant=raw&0x00FFFFFF;
+      /* 使えない値を表す決まった並び。取り違えないよう先に弾く。 */
+      if(mant===0x007FFFFF||mant===0x00800000||mant===0x007FFFFE||mant===0x00800002)return null;
+      if(mant>=0x800000)mant-=0x1000000;
+      var exp=raw>>24;
+      if(exp>=0x80)exp-=0x100;
+      var val=mant*Math.pow(10,exp);
+      if(flags&0x01)val=(val-32)*5/9;         /* 華氏で来たら摂氏へ */
+      if(!isFinite(val)||val<25||val>45)return null;   /* 体温としてありえない値は捨てる */
+      return Math.round(val*10)/10;
+    }catch(e){ return null; }
+  }
+};
+
+/* ══ 測定の流れ ════════════════════════════════ */
+var THF={open:false, child:null, state:'wait', temp:null, left:0, timer:null, undo:0, undoTimer:null};
+var TH_WAIT=60;   /* 測定待ちの秒数 */
+var TH_UNDO=6;    /* 取消・再測定を出しておく秒数 */
+
+function thFlowStart(child){
+  THF.open=true; THF.child=child; THF.state='wait'; THF.temp=null; THF.left=TH_WAIT;
+  clearInterval(THF.timer); clearTimeout(THF.undoTimer);
+  THERMO.cb=function(v,final){
+    if(!THF.open||THF.state!=='wait')return;
+    if(!final){ THF.temp=v; thFlowRender(); return; }   /* 測定中は表示だけ */
+    thFlowGot(v);
+  };
+  THF.timer=setInterval(function(){
+    THF.left--;
+    if(THF.left<=0){ clearInterval(THF.timer); THF.state='timeout'; }
+    thFlowRender();
+  },1000);
+  thFlowRender();
+}
+function thFlowGot(v){
+  clearInterval(THF.timer);
+  THF.temp=v; THF.state='got';
+  thFlowSave(v);                       /* 受け取ったらすぐ保存する */
+  THF.undo=TH_UNDO;
+  clearInterval(THF.undoTimer);
+  THF.undoTimer=setInterval(function(){
+    THF.undo--;
+    if(THF.undo<=0){ clearInterval(THF.undoTimer); thFlowClose(); }
+    else thFlowRender();
+  },1000);
+  thFlowRender();
+}
+function thFlowSave(v){
+  try{
+    var K='rec_登園シート', data=stGet(K,{}), day=(typeof recDate!=='undefined'&&recDate)?recDate:todayISO();
+    var d=data[day]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
+    var r=d.rows[THF.child.id]||{att:'',temp:'',opts:{}};
+    r.temp=String(v);
+    d.rows[THF.child.id]=r; data[day]=d; stSet(K,data);
+    try{ if(typeof renderTouen==='function')renderTouen(); }catch(e){}
+  }catch(e){ console.error('[体温の保存]',e.message); }
+}
+function thFlowUndo(){
+  try{
+    var K='rec_登園シート', data=stGet(K,{}), day=(typeof recDate!=='undefined'&&recDate)?recDate:todayISO();
+    var d=data[day]; if(d&&d.rows[THF.child.id]){ d.rows[THF.child.id].temp=''; stSet(K,data); }
+    try{ if(typeof renderTouen==='function')renderTouen(); }catch(e){}
+  }catch(e){}
+  clearInterval(THF.undoTimer);
+  THF.state='wait'; THF.temp=null; THF.left=TH_WAIT;
+  clearInterval(THF.timer);
+  THF.timer=setInterval(function(){
+    THF.left--; if(THF.left<=0){clearInterval(THF.timer);THF.state='timeout';} thFlowRender();
+  },1000);
+  thFlowRender();
+}
+function thFlowClose(){
+  THF.open=false; THERMO.cb=null;
+  clearInterval(THF.timer); clearInterval(THF.undoTimer);
+  var el=document.getElementById('thFlow'); if(el)el.remove();
+}
+
+function thFlowRender(){
+  if(!THF.open)return;
+  var el=document.getElementById('thFlow');
+  if(!el){ el=document.createElement('div'); el.id='thFlow';
+    el.style.cssText='position:fixed;inset:0;z-index:4000;background:rgba(12,18,26,.55);'
+      +'display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(el);
+  }
+  var c=THF.child, nm=esc(childFullName?childFullName(c):(c.child||c.name||''));
+  var box=function(inner){
+    return '<div style="background:#fff;border-radius:16px;max-width:460px;width:100%;'
+      +'padding:26px 24px;box-shadow:0 18px 50px rgba(0,0,0,.3);text-align:center;">'+inner+'</div>';
+  };
+  var conn=THERMO.connected();
+  var html='';
+
+  if(THF.state==='wait'){
+    html=box(
+      '<div style="font-size:12px;color:#6C7686;font-weight:700;letter-spacing:.04em;">検温</div>'
+      +'<div style="font-size:22px;font-weight:800;margin:8px 0 4px;">'+nm+' さんの体温を測ってください</div>'
+      +'<div style="font-size:13px;color:#6C7686;line-height:1.85;">'
+      +(conn?'体温計で測ると、この画面に自動で入ります。'
+            :'体温計につないでいないため、下に手で入力してください。')+'</div>'
+      +'<div style="font-size:46px;font-weight:800;letter-spacing:-.03em;margin:18px 0 4px;color:'
+      +(THF.temp?'#0B5F8F':'#C9CDD3')+';">'+(THF.temp?THF.temp.toFixed(1)+'<span style="font-size:22px;">℃</span>':'—.—')+'</div>'
+      +(THF.temp?'<div style="font-size:12px;color:#A26A12;">測定中の値です。確定するまでお待ちください</div>':'')
+      +'<div style="margin-top:14px;height:6px;background:#EEF0F3;border-radius:6px;overflow:hidden;">'
+      +'<div style="height:6px;background:#0B5F8F;width:'+Math.round(THF.left/TH_WAIT*100)+'%;transition:width .9s linear;"></div></div>'
+      +'<div style="font-size:12px;color:#6C7686;margin-top:6px;">測定待ち　残り '+THF.left+' 秒</div>'
+      +(conn?'':'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">'
+        +'<input id="thMan" type="number" step="0.1" placeholder="36.5" '
+        +'style="width:120px;padding:10px;border:1px solid #E2E5EA;border-radius:9px;font-size:17px;text-align:center;">'
+        +'<button class="btn" id="thManOK">入力する</button></div>')
+      +'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'
+      +(conn?'':'<button class="btn btn-sm" id="thConn">体温計につなぐ</button>')
+      +'<button class="btn btn-sm" id="thSkip">あとで測る</button></div>'
+    );
+  } else if(THF.state==='timeout'){
+    html=box(
+      '<div style="font-size:20px;font-weight:800;margin-bottom:6px;">'+nm+' さん</div>'
+      +'<div style="font-size:13.5px;color:#A26A12;line-height:1.85;">'
+      +'時間内に測定できませんでした。もう一度測るか、手で入力してください。</div>'
+      +'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">'
+      +'<input id="thMan" type="number" step="0.1" placeholder="36.5" '
+      +'style="width:120px;padding:10px;border:1px solid #E2E5EA;border-radius:9px;font-size:17px;text-align:center;">'
+      +'<button class="btn" id="thManOK">入力する</button></div>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:center;">'
+      +'<button class="btn btn-sm" id="thAgain">もう一度測る</button>'
+      +'<button class="btn btn-sm" id="thSkip">あとで測る</button></div>'
+    );
+  } else {
+    var hot=THF.temp>=37.5;
+    html=box(
+      '<div style="font-size:12px;color:#1D7A56;font-weight:700;">保存しました</div>'
+      +'<div style="font-size:22px;font-weight:800;margin:8px 0 2px;">'+nm+' さん</div>'
+      +'<div style="font-size:52px;font-weight:800;letter-spacing:-.03em;margin:10px 0 2px;color:'
+      +(hot?'#A3302F':'#1D7A56')+';">'+THF.temp.toFixed(1)+'<span style="font-size:24px;">℃</span></div>'
+      +(hot?'<div style="font-size:13px;color:#A3302F;font-weight:700;margin-top:4px;">'
+        +'37.5℃以上です。園の決まりに沿って対応してください。</div>':'')
+      +'<div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'
+      +'<button class="btn btn-sm" id="thUndo">取消・再測定（'+THF.undo+'）</button>'
+      +'<button class="btn btn-primary btn-sm" id="thDone">つぎへ</button></div>'
+    );
+  }
+  el.innerHTML=html;
+
+  var $$=function(id){return document.getElementById(id);};
+  if($$('thSkip'))$$('thSkip').onclick=thFlowClose;
+  if($$('thDone'))$$('thDone').onclick=thFlowClose;
+  if($$('thUndo'))$$('thUndo').onclick=thFlowUndo;
+  if($$('thAgain'))$$('thAgain').onclick=function(){ thFlowStart(THF.child); };
+  if($$('thConn'))$$('thConn').onclick=function(){
+    THERMO.connect(function(ok,msg){
+      if(ok)aiToast('体温計につながりました');
+      else if(msg)alert(msg);
+      thFlowRender();
+    });
+  };
+  if($$('thManOK'))$$('thManOK').onclick=function(){
+    var v=parseFloat($$('thMan').value);
+    if(!(v>=25&&v<=45)){ alert('体温を 25〜45 の範囲で入力してください。'); return; }
+    thFlowGot(Math.round(v*10)/10);
+  };
+  if($$('thMan'))$$('thMan').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&$$('thManOK'))$$('thManOK').click();
+  });
+}
+
+/* 検温の入り口を、登園シートの上に置く */
+function thermoBarHTML(){
+  var on=THERMO.connected(), sup=THERMO.supported();
+  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;'
+    +'background:'+(on?'#E5F3ED':'#F4F6F8')+';border:1px solid '+(on?'#9FD9C1':'#E2E5EA')+';'
+    +'border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:12.5px;">'
+    +'<b style="font-size:13px;">Bluetooth体温計</b>'
+    +'<span style="color:'+(on?'#1D7A56':'#6C7686')+';">'
+    +(on?'つながっています。園児の「登園」を押すと、検温がはじまります。'
+        :(sup?'つないでおくと、登園を押したときに自動で体温が入ります。'
+             :'この端末ではつなげません。登園を押すと、手で入力する画面が出ます。'))+'</span>'
+    +'<span style="margin-left:auto;display:flex;gap:6px;">'
+    +(sup?(on?'<button class="btn btn-sm" id="thBarOff">切る</button>'
+              :'<button class="btn btn-primary btn-sm" id="thBarOn">体温計につなぐ</button>'):'')
+    +'</span></div>';
+}
+function thermoBarWire(){
+  var a=document.getElementById('thBarOn');
+  if(a)a.onclick=function(){
+    THERMO.connect(function(ok,msg){
+      if(ok){aiToast('体温計につながりました');}
+      else if(msg)alert(msg);
+      try{renderTouen();}catch(e){}
+    });
+  };
+  var b=document.getElementById('thBarOff');
+  if(b)b.onclick=function(){ THERMO.disconnect(); try{renderTouen();}catch(e){}; };
+}
+
 /* 短い知らせ。EduGrow には共通のものが無いので、ここで用意する。 */
 function aiToast(m){
   var t=document.getElementById('aiTst');
@@ -4822,6 +5108,7 @@ function edTouen(){
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+esc((d.weather||''))+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+esc((d.temp||''))+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+esc((d.hum||''))+'"></div></div>'+
     '<div style="display:flex;gap:10px;align-items:flex-start;background:#E3F1F9;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0B5F8F;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0B5F8F;line-height:1.6;">'+noteHtml+'</div></div>'+
+    thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td><button class="btn btn-sm" data-ta="'+esc(c.id)+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
@@ -4850,7 +5137,14 @@ function edTouen(){
     });
     save();edTouen();
   };
-  document.querySelectorAll('[data-ta]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-ta');})[0];var r=rowOf(c);var order=['','●','早','遅','休'];r.att=order[(order.indexOf(r.att)+1)%order.length];save();edTouen();};});
+  document.querySelectorAll('[data-ta]').forEach(function(b){b.onclick=function(){
+    var c=kids.filter(function(k){return k.id===+b.getAttribute('data-ta');})[0];
+    var r=rowOf(c);var order=['','●','早','遅','休'];
+    r.att=order[(order.indexOf(r.att)+1)%order.length];save();edTouen();
+    /* 登園（●）にしたときだけ、まだ体温が入っていなければ検温をはじめる */
+    if(r.att==='●'&&!r.temp){ try{thFlowStart(c);}catch(e){console.error('[検温]',e.message);} }
+  };});
+  try{thermoBarWire();}catch(e){}
   document.querySelectorAll('[data-tt]').forEach(function(inp){inp.onchange=function(){var c=kids.filter(function(k){return k.id===+inp.getAttribute('data-tt');})[0];rowOf(c).temp=inp.value;save();};});
   document.querySelectorAll('[data-to]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-to');})[0];var op=opts[+b.getAttribute('data-oi')];var r=rowOf(c);r.opts[op]=!r.opts[op];save();b.style.cssText=r.opts[op]?'background:#E6F1FB;border-color:#378ADD;color:#123E6B;font-weight:600;':'';b.textContent=r.opts[op]?'●':'—';};});
   $('#tsPrint').onclick=function(){
