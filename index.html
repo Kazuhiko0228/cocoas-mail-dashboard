@@ -296,37 +296,6 @@
     </div>
     <nav class="nav" id="nav">
       <a data-go="home" class="active">{ic:grid}ホーム</a>
-      <a data-go="dashboard">{ic:home}ダッシュボード</a>
-      <div class="nav-label">配信</div>
-      <a data-go="compose">{ic:send}個別メール送信</a>
-      <a data-go="broadcast">{ic:cast}全体配信（お知らせ）</a>
-      <a data-go="dm">{ic:mail}保護者DM<span class="badge" id="navDM" style="background:#E24B4A;"></span></a>
-      <a data-go="trial">{ic:clipboard}体験結果報告</a>
-      <a data-go="deliveries">{ic:cal}配信カレンダー</a>
-      <a data-go="wastore">{ic:yen}未来WA ストア管理</a>
-      <div class="nav-label">記録・書類</div>
-      <a data-go="records">{ic:activity}日常チェック（毎日）</a>
-      <a data-go="carerec">{ic:report}保育記録</a>
-      <a data-go="curriculum">{ic:book}月間カリキュラム</a>
-      <a data-go="drill">{ic:shield}避難訓練</a>
-      <a data-go="bouka">{ic:alert}防火管理台帳・消火訓練</a>
-      <a data-go="shift">{ic:tableg}シフト表</a>
-      <a data-go="expense">{ic:yen}経費管理</a>
-      <a data-go="docgen">{ic:fileplus}書類作成</a>
-      <a data-go="reqnav">{ic:clipboard}提出書類ナビ</a>
-      <a data-go="docs">{ic:folder}書類格納</a>
-      <div class="nav-label">管理</div>
-      <a data-go="facility">{ic:gear}施設管理</a>
-      <a data-go="contacts">{ic:users}連絡先<span class="badge" id="navContacts"></span></a>
-      <a data-go="roster">{ic:idcard}生徒台帳</a>
-      <a data-go="enroll">{ic:yen}生徒情報（契約・オプション）</a>
-      <a data-go="billing">{ic:yen}請求管理</a>
-      <a data-go="templates">{ic:doc}メールテンプレート</a>
-      <a data-go="staff">{ic:staff}職員管理</a>
-      <a data-go="tasks">{ic:clipboard}年間スケジュール</a>
-      <a data-go="audit">{ic:audit}監査対応</a>
-      <div class="nav-label">その他</div>
-      <a data-go="settings">{ic:gear}設定</a>
     </nav>
     <div class="side-foot">送信元：omiya@cocoas-kids.com<br>BCC：本部共有 自動付与</div>
   </aside>
@@ -1329,7 +1298,15 @@ function navRevealActive(){
 }
 expandIcons($('#nav'));
 expandIcons(document.querySelector('.topbar'));
-document.querySelectorAll('[data-go]').forEach(function(a){a.addEventListener('click',function(){go(a.getAttribute('data-go'));});});
+/* サイドバーは組み立て直すことがあるので、配線を関数にしておく */
+function wireNav(){
+  document.querySelectorAll('[data-go]').forEach(function(a){
+    if(a.getAttribute('data-wired'))return;
+    a.setAttribute('data-wired','1');
+    a.addEventListener('click',function(){go(a.getAttribute('data-go'));});
+  });
+}
+wireNav();
 navGroups();
 
 var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
@@ -1343,6 +1320,157 @@ function go(page){
   try{renderHelpButton(page);}catch(e){}
   (page==='creator') ? (function(){window.open('creator.html','_blank','noopener');page='home';})() :
   ({home:renderHome,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+}
+
+
+/* サイドバーを、ホームと同じ構成で組み立てる。
+   ここが2か所に分かれていると、必ず食い違うので1つのもとから作る。 */
+function buildNav(){
+  var nav=document.getElementById('nav');
+  if(!nav)return;
+  var keep=nav.querySelector('a[data-go="home"]');
+  nav.innerHTML='';
+  if(keep)nav.appendChild(keep);
+  egNav().forEach(function(g){
+    var lb=document.createElement('div');
+    lb.className='nav-label';lb.textContent=g.cat;
+    var any=[];
+    g.items.forEach(function(x){
+      var pages=x.sub?x.sub:[{p:x.p,l:x.l}];
+      /* 同じ画面へのリンクが重ならないようにする */
+      var seen={};
+      pages.forEach(function(y){
+        if(!y.p||seen[y.p])return;seen[y.p]=1;
+        if(typeof canView==='function'&&!canView(y.p))return;
+        var a=document.createElement('a');
+        a.setAttribute('data-go',y.p);
+        a.innerHTML=egIcon(x.sub?'':x.i)+esc(x.sub?y.l:x.l);
+        any.push(a);
+      });
+    });
+    if(!any.length)return;
+    nav.appendChild(lb);
+    any.forEach(function(a){nav.appendChild(a);});
+  });
+  nav.removeAttribute('data-grouped');
+  try{navGroups();}catch(e){}
+  try{wireNav();}catch(e){}
+}
+
+/* ══ プランと役職による出し分け ════════════════
+   料金表のプランに合わせて、見せるものを切り替える。
+   サーバにつないでいるときは契約のプランを使い、
+   つないでいないときは設定で選んだものを使う（試作を見せるため）。 */
+var PLAN_RANK={connect:1,standard:2,pro:3,business:3};
+function myPlan(){
+  var p=stGet('plan','pro');
+  return PLAN_RANK[p]?p:'pro';
+}
+function planAllows(need){
+  if(!need)return true;
+  return PLAN_RANK[myPlan()]>=PLAN_RANK[need];
+}
+/* 園長・管理者だけに見せるもの。一般（先生）には出さない。 */
+function isBoss(){
+  try{ return typeof currentRole==='function' ? currentRole()!=='一般' : true; }catch(e){ return true; }
+}
+
+/* ══ ホームとサイドバーの構成 ══════════════════
+   スプレッドシート「EduGrow システム概要」の表のとおり。
+     cat  … カテゴリ（①〜⑦）
+     items… ホームに出すマス
+     sub  … そのマスの中に入れる機能
+     plan … このプラン以上で見せる（省略＝全プラン）
+     boss … true なら園長・管理者だけ
+
+   マークは Remi さんが作成中。決まったら i: を差し替える。 */
+var EG_NAV=[
+ {cat:'よく使う',items:[
+   {k:'kiroku', l:'保育記録',   i:'👧', c:'#0B5F8F', bg:'#E3F1F9', sub:[
+     {p:'records', l:'日常チェック'},
+     {p:'roster',  l:'生徒台帳'}]},
+   {k:'renraku', l:'連絡・配信', i:'mail', c:'#A32D2D', bg:'#FCEBEB', sub:[
+     {p:'dm',        l:'保護者DM'},
+     {p:'broadcast', l:'全体配信'}]},
+   {k:'wa',      l:'未来WA',    i:'🌸', c:'#C43478', bg:'#FDECF4', sub:[
+     {p:'wastore', l:'ストア出品'},
+     {p:'creator', l:'コンテンツ投稿'}]}
+ ]},
+ {cat:'カリキュラム・スケジュール',items:[
+   {k:'tasks',      l:'年間スケジュール', i:'clipboard', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
+   {k:'curriculum', l:'月間カリキュラム', i:'book',      c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
+   {k:'katsudo',    l:'活動記録',        i:'🏃', c:'#854F0B', bg:'#FAEEDA', sub:[
+     {p:'carerec', l:'身体測定記録'},
+     {p:'drill',   l:'避難訓練'},
+     {p:'carerec', l:'生徒個人発達記録'},
+     {p:'carerec', l:'ヒヤリハット・怪我'}]}
+ ]},
+ {cat:'顧客情報・料金管理',boss:true,items:[
+   {k:'contacts', l:'連絡先',   i:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
+   {k:'enroll',   l:'生徒情報', i:'👶', c:'#3C3489', bg:'#EEEDFE', p:'enroll'},
+   {k:'billing',  l:'請求管理', i:'💰', c:'#27500A', bg:'#EAF3DE', p:'billing'}
+ ]},
+ {cat:'職員情報・運営関連',boss:true,items:[
+   {k:'staffg',  l:'職員管理', i:'staff', c:'#0B5F8F', bg:'#E3F1F9', sub:[
+     {p:'staff', l:'職員管理'},
+     {p:'shift', l:'シフト表'},
+     {p:'bouka', l:'職員研修（防火・消火訓練）'},
+     {p:'bouka', l:'保育研修'}]},
+   {k:'expense', l:'経費精算', i:'💵', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
+   {k:'docs',    l:'書類格納', i:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'}
+ ]},
+ {cat:'新規顧客管理',boss:true,plan:'standard',items:[
+   {k:'leads',   l:'顧客リスト',     i:'👤', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
+   {k:'trial',   l:'体験結果報告',   i:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
+   {k:'mailg',   l:'個別メール',     i:'send', c:'#123E6B', bg:'#E6F1FB', sub:[
+     {p:'compose',   l:'個別メールを送る'},
+     {p:'templates', l:'メールテンプレート'}]},
+   {k:'sales',   l:'営業分析',       i:'📊', c:'#3C3489', bg:'#EEEDFE', plan:'pro', p:'sales'}
+ ]},
+ {cat:'監査対応・書類作成',boss:true,plan:'standard',items:[
+   {k:'audit',  l:'監査対応',   i:'audit', c:'#A32D2D', bg:'#FCEBEB', p:'audit'},
+   {k:'docgen', l:'書類作成',   i:'fileplus', c:'#3C3489', bg:'#EEEDFE', sub:[
+     {p:'docgen', l:'運営に必要な書類'},
+     {p:'reqnav', l:'市町村指定の書類'}]}
+ ]},
+ {cat:'設定・その他',items:[
+   {k:'guide',    l:'スクールガイド', i:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide'},
+   {k:'facility', l:'施設管理',      i:'🏫', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
+   {k:'settings', l:'設定',          i:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true}
+ ]}
+];
+
+/* いま見せてよいカテゴリ・マスだけを返す */
+/* まだ作っていない画面は出さない。押しても何も起きないマスを作らないため。 */
+function egHasPage(p){
+  if(!p)return false;
+  try{ return !!document.querySelector('section[data-page="'+p+'"]'); }catch(e){ return false; }
+}
+function egNav(){
+  var out=[];
+  EG_NAV.forEach(function(g){
+    if(g.boss&&!isBoss())return;
+    if(!planAllows(g.plan))return;
+    var items=g.items.filter(function(x){
+      if(x.boss&&!isBoss())return false;
+      if(!planAllows(x.plan))return false;
+      if(x.sub){
+        x=Object.assign({},x,{sub:x.sub.filter(function(y){return egHasPage(y.p);})});
+        return x.sub.length>0;
+      }
+      return egHasPage(x.p);
+    }).map(function(x){
+      return x.sub?Object.assign({},x,{sub:x.sub.filter(function(y){return egHasPage(y.p);})}):x;
+    });
+    if(items.length)out.push({cat:g.cat,items:items});
+  });
+  return out;
+}
+/* マークは、絵文字ならそのまま、そうでなければ用意した図形を使う */
+function egIcon(i){
+  if(!i)return '';
+  return /^[a-z]+$/.test(i) ? ic(i)
+       : '<span style="font-size:19px;line-height:1;">'+esc(i)+'</span>';
 }
 
 /* ---------- ホーム（アプリ一覧） ----------
@@ -1415,6 +1543,7 @@ function homeBadge(page){
   }catch(e){}
   return {n:0,s:''};
 }
+var egOpen=null;   /* ホームで、いまひらいているマス */
 function renderHome(){
   var s=$('section[data-page="home"]'),en=enrolled();
   var att=stGet('rec_登園シート',{})[todayISO()],done=0;
@@ -1425,21 +1554,47 @@ function renderHome(){
     +'<p>'+esc(fmt(todayISO()))+'　きょうは'+esc(wd)+'曜日です。使いたい機能を選んでください。</p></div>'
     +'<div class="hstat"><b>在園児 '+en.length+'名</b><b>本日の記録 '+done+'/5</b>'
     +(unread?'<b style="background:rgba(255,255,255,.32)">保護者からの連絡 '+unread+'件</b>':'')+'</div></div>';
-  HOME_GROUPS.forEach(function(g){
-    var items=g.items.filter(function(x){return typeof canView!=='function'||canView(x.p);});
+  /* マスの中に複数の機能があるものは、押すとその場でひらく（画面を移らない）。
+     マスの数を減らしつつ、たどり着くまでの手数は増やさないため。 */
+  egNav().forEach(function(g){
+    var items=g.items.filter(function(x){
+      if(x.p&&typeof canView==='function'&&!canView(x.p))return false;
+      if(x.sub)return x.sub.some(function(y){return typeof canView!=='function'||canView(y.p);});
+      return true;
+    });
     if(!items.length)return;
-    html+='<div class="hgroup"><h3>'+esc(g.t)+'</h3><div class="tiles">'
+    html+='<div class="hgroup"><h3>'+esc(g.cat)+'</h3><div class="tiles">'
       +items.map(function(x){
-        var b=homeBadge(x.p);
-        return '<button class="tile'+(b.attn?' attn':'')+'" data-tile="'+esc(x.p)+'">'
+        var b=x.p?homeBadge(x.p):{n:0,s:''};
+        var open=(egOpen===x.k);
+        return '<button class="tile'+(b.attn?' attn':'')+(open?' attn':'')+'" data-eg="'+esc(x.k)+'">'
           +(b.n?'<span class="tb'+(b.ok?' ok':'')+'">'+b.n+'</span>':'')
-          +'<span class="ti" style="background:'+x.bg+';color:'+x.c+'">'+ic(x.i)+'</span>'
+          +'<span class="ti" style="background:'+x.bg+';color:'+x.c+'">'+egIcon(x.i)+'</span>'
           +'<span class="tl">'+esc(x.l)+'</span>'
-          +(b.s?'<span class="ts">'+esc(b.s)+'</span>':'')
+          +(x.sub?'<span class="ts">'+x.sub.length+'つの機能</span>'
+                 :(b.s?'<span class="ts">'+esc(b.s)+'</span>':''))
           +'</button>';}).join('')
-      +'</div></div>';
+      +'</div>'
+      +items.filter(function(x){return x.sub&&egOpen===x.k;}).map(function(x){
+        return '<div class="card" style="margin-top:10px;">'
+          +'<div style="font-weight:800;font-size:13.5px;margin-bottom:9px;">'+esc(x.l)+'</div>'
+          +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+          +x.sub.filter(function(y){return typeof canView!=='function'||canView(y.p);})
+             .map(function(y){
+               return '<button class="btn btn-sm" data-tile="'+esc(y.p)+'">'+esc(y.l)+'</button>';
+             }).join('')
+          +'</div></div>';
+      }).join('')
+      +'</div>';
   });
   s.innerHTML=html;
+  s.querySelectorAll('[data-eg]').forEach(function(b){b.onclick=function(){
+    var k=b.getAttribute('data-eg'),it=null;
+    egNav().forEach(function(g){g.items.forEach(function(x){if(x.k===k)it=x;});});
+    if(!it)return;
+    if(it.sub){ egOpen=(egOpen===k?null:k); renderHome(); return; }
+    go(it.p);
+  };});
   s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-tile'));};});
 }
 
@@ -5168,6 +5323,9 @@ function localPasswordModal(){
 
 function staffLogout(){sessionStorage.removeItem('cocoas_staffSession');sessionStorage.removeItem('cocoas_serverUser');if(typeof API!=='undefined'&&API.enabled())API.setToken('');location.reload();}
 function applyPerms(){
+  /* 役職やプランで見せるものが変わるので、まずサイドバーを組み立て直す。
+     ログインの前でも組み立てる（試作をそのまま見せられるように）。 */
+  try{buildNav();}catch(e){console.error('[buildNav]',e.message);}
   var s=currentStaff();if(!s)return;
   var nav=document.getElementById('nav');
   document.querySelectorAll('#nav a[data-go]').forEach(function(a){a.style.display=canView(a.getAttribute('data-go'))?'':'none';});
@@ -7749,8 +7907,21 @@ function aiOpenSection(id){AI_OPEN=false;$('#aiPanel').classList.remove('open');
 
 
 /* ---------- start ---------- */
-$('#navContacts').textContent=DB.contacts.length;
+/* サイドバーは組み立て直すので、目印が無いこともある。止まらないようにする。 */
+var _nc=$('#navContacts'); if(_nc)_nc.textContent=DB.contacts.length;
 staffBoot();
+/* サイドバーは、画面がすべて読み込まれてから組み立てる
+   （どの画面が存在するかを見て決めているため） */
+/* 起動の途中で他の処理がサイドバーを触ることがあるので、
+   読み込み完了後にもう一度組み立て直す。 */
+function egRefresh(){
+  try{applyPerms();}catch(e){console.error('[applyPerms]',e.message);}
+  /* ログインしたら、まずホームを出す（スプレッドシートの依頼） */
+  try{ if(!window.__egHomeShown){window.__egHomeShown=true;go('home');} }catch(e){}
+}
+egRefresh();
+window.addEventListener('load',egRefresh);
+setTimeout(egRefresh,300);
 </script>
 </body>
 </html>
