@@ -332,6 +332,7 @@
       <section data-page="shift" hidden></section>
       <section data-page="expense" hidden></section>
       <section data-page="docgen" hidden></section>
+      <section data-page="aiplan" hidden></section>
       <section data-page="guide" hidden></section>
       <section data-page="reqnav" hidden></section>
       <section data-page="docs" hidden></section>
@@ -1309,7 +1310,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画']};
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page))page='dashboard';
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
@@ -1319,7 +1320,7 @@ function go(page){
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
   (page==='creator') ? (function(){window.open('creator.html','_blank','noopener');page='home';})() :
-  ({home:renderHome,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,aiplan:renderAIPlan,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -1399,6 +1400,7 @@ var EG_NAV=[
  {cat:'カリキュラム・スケジュール',items:[
    {k:'tasks',      l:'年間スケジュール', i:'clipboard', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
    {k:'curriculum', l:'月間カリキュラム', i:'book',      c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
+   {k:'aiplan',     l:'AI保育計画',      i:'🤖', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'pro'},
    {k:'katsudo',    l:'活動記録',        i:'🏃', c:'#854F0B', bg:'#FAEEDA', sub:[
      {p:'carerec', l:'身体測定記録'},
      {p:'drill',   l:'避難訓練'},
@@ -1471,6 +1473,943 @@ function egIcon(i){
   if(!i)return '';
   return /^[a-z]+$/.test(i) ? ic(i)
        : '<span style="font-size:19px;line-height:1;">'+esc(i)+'</span>';
+}
+
+
+/* ══════════════════════════════════════════════════
+   AI保育計画支援（Proプラン）
+
+   園に入っている記録を読んで、クラスに合った計画とアイディアを作る。
+   いまは決まった手順で組み立てている。外部のAIはまだ呼んでいない。
+   読み取りと組み立てはこの1か所にまとめてあるので、
+   本物のAIに差し替えるときも、画面側には手を入れずに済む。
+
+   守っていること
+     ・作ったものは必ず「下書き」。職員が承認するまで正式にしない
+     ・子どもの力を決めつけない。記録が足りないときは、足りないと書く
+     ・AIが読み取ったことと、記録にある事実を分けて見せる
+   ══════════════════════════════════════════════════ */
+
+/* 日時の文字列。EduGrow には共通のものが無いので、ここで用意する。 */
+/* 短い知らせ。EduGrow には共通のものが無いので、ここで用意する。 */
+function aiToast(m){
+  var t=document.getElementById('aiTst');
+  if(!t){ t=document.createElement('div'); t.id='aiTst';
+    t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:3000;'
+      +'background:#131A22;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;'
+      +'box-shadow:0 4px 18px rgba(0,0,0,.28);opacity:0;transition:opacity .18s;';
+    document.body.appendChild(t); }
+  t.textContent=m; t.style.opacity='1';
+  clearTimeout(t._h); t._h=setTimeout(function(){t.style.opacity='0';},1900);
+}
+function aiNow(){
+  var d=new Date();
+  function z(n){return (n<10?'0':'')+n;}
+  return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())
+    +' '+z(d.getHours())+':'+z(d.getMinutes());
+}
+
+/* ── 保存する場所 ───────────────────────── */
+function aiSetup(){ return stGet('ai_setup',{philosophy:''}); }
+function aiSetupSave(o){ stSet('ai_setup',Object.assign(aiSetup(),o)); }
+function aiClassAll(){ return stGet('ai_class',{}); }
+function aiClassOf(k){
+  var a=aiClassAll();
+  return a[k]||{policy:'',staff:2,hearing:null,profile:null,profileAt:'',approved:false};
+}
+function aiClassSave(k,o){
+  var a=aiClassAll(); a[k]=Object.assign(aiClassOf(k),o); stSet('ai_class',a);
+}
+function aiPlans(){ return stGet('ai_plans',[])||[]; }
+function aiPlanAdd(p){
+  var a=aiPlans();
+  p.id=p.id||('p'+Date.now()+Math.floor(Math.random()*900));
+  p.createdAt=aiNow(); p.status=p.status||'下書き';
+  a.push(p); stSet('ai_plans',a.slice(-300)); return p;
+}
+function aiPlanUpd(id,o){
+  var a=aiPlans(); a.forEach(function(x){ if(x.id===id)Object.assign(x,o); }); stSet('ai_plans',a);
+}
+/* 何をしたかの記録。あとから「いつ誰が承認したか」を示せるように残す。 */
+function aiLog(act,detail){
+  var a=stGet('ai_log',[])||[];
+  var st=(typeof currentStaff==='function')?currentStaff():null;
+  a.push({at:aiNow(),who:(st&&st.name)||'—',act:act,detail:detail||''});
+  stSet('ai_log',a.slice(-200));
+}
+
+/* ── クラスの一覧 ───────────────────────── */
+function aiKlasses(){
+  var m={};
+  enrolled().forEach(function(c){ if(c.klass)m[c.klass]=1; });
+  var l=Object.keys(m);
+  return l.length?l:['Pre'];
+}
+
+/* ── 記録から事実を集める ─────────────────────
+   ここで集めたものだけを根拠にする。推測はこのあとの段で行い、
+   画面では「記録から」と「AIが読み取った」を分けて出す。 */
+function aiAgeOf(dob){
+  if(!dob)return null;
+  var d=String(dob).slice(0,10).split('-'); if(d.length<3)return null;
+  var t=todayISO().split('-');
+  var y=+t[0]-+d[0];
+  if((+t[1])<(+d[1])||((+t[1])===(+d[1])&&(+t[2])<(+d[2])))y--;
+  return y<0?0:y;
+}
+function aiFacts(klass){
+  var kids=enrolled().filter(function(c){return c.klass===klass;});
+  var ages={},minA=null,maxA=null;
+  kids.forEach(function(c){
+    var a=aiAgeOf(c.dob);
+    if(a==null)return;
+    ages[a]=(ages[a]||0)+1;
+    if(minA==null||a<minA)minA=a;
+    if(maxA==null||a>maxA)maxA=a;
+  });
+  /* 発達記録・ヒヤリハット・身体測定の件数と、直近の日付 */
+  function scan(key){
+    var v=stGet(key,{})||{},n=0,last='',ids={};
+    Object.keys(v).forEach(function(period){
+      var rows=v[period]&&v[period].rows?v[period].rows:v[period];
+      if(!rows||typeof rows!=='object')return;
+      Object.keys(rows).forEach(function(id){
+        n++; ids[id]=rows[id];
+      });
+      if(period>last)last=period;
+    });
+    return {n:n,last:last,ids:ids};
+  }
+  var hattatsu=scan('rec_発達'), hiyari=scan('rec_hiyari'), shintai=scan('rec_身体測定');
+  var cls=aiClassOf(klass);
+  return {
+    klass:klass, kids:kids, count:kids.length,
+    ages:ages, minAge:minA, maxAge:maxA,
+    ageSpread:(minA!=null&&maxA!=null)?(maxA-minA):0,
+    staff:cls.staff||2,
+    perStaff:cls.staff?Math.ceil(kids.length/cls.staff):kids.length,
+    hattatsu:hattatsu, hiyari:hiyari, shintai:shintai,
+    hasRecords:(hattatsu.n+hiyari.n+shintai.n)>0
+  };
+}
+
+/* ── 道具の使いかたを、子どもごとに分ける ─────────
+   クラスまるごと「使える・使えない」で決めない。
+   発達記録に書いてあればそれを使い、無ければ年齢から見立てたうえで
+   「記録が足りない」とはっきり書く。 */
+var AI_SCISSOR=[
+  {k:'self',  l:'自分で使う',              hint:'はさみを自分で扱える'},
+  {k:'watch', l:'保育者が見守りながら使う', hint:'見守りがあれば扱える'},
+  {k:'with',  l:'保育者と一緒に使う',       hint:'手を添えれば扱える'},
+  {k:'tear',  l:'紙を手でちぎる',           hint:'はさみは使わない'},
+  {k:'pick',  l:'切ってある素材から選ぶ',   hint:'はさみは使わない'},
+];
+function aiToolLevel(child,facts){
+  /* 発達記録に「はさみ」の記述があれば、それを最優先で読む */
+  var rec=facts.hattatsu.ids[child.id];
+  var txt=rec?JSON.stringify(rec):'';
+  if(/はさみ|ハサミ/.test(txt)){
+    if(/一人で|自分で|ひとりで/.test(txt))return {k:'self',src:'記録から'};
+    if(/見守|そばで/.test(txt))          return {k:'watch',src:'記録から'};
+    if(/一緒|手を添え|介助/.test(txt))    return {k:'with',src:'記録から'};
+    if(/まだ|難し|使わない/.test(txt))    return {k:'tear',src:'記録から'};
+  }
+  var a=aiAgeOf(child.dob);
+  var k = a==null?'with' : (a>=4?'self' : a===3?'watch' : a===2?'with' : 'tear');
+  return {k:k,src:'年齢からの見立て',need:true};
+}
+function aiToolGroups(klass){
+  var f=aiFacts(klass),g={},need=0;
+  f.kids.forEach(function(c){
+    var t=aiToolLevel(c,f);
+    (g[t.k]=g[t.k]||[]).push({name:c.child||c.name,src:t.src});
+    if(t.need)need++;
+  });
+  return {groups:g,needCheck:need,facts:f};
+}
+
+/* ── クラス像（AIが読み取ったもの）──────────────
+   記録から分かることと、ヒアリングで教えていただいたことを合わせる。 */
+function aiProfile(klass){
+  var f=aiFacts(klass), c=aiClassOf(klass), h=c.hearing||{};
+  var lines=[];
+  if(f.count) lines.push('在籍 '+f.count+'名。'+(f.minAge!=null?f.minAge+'歳〜'+f.maxAge+'歳':'年齢の記録が不足'));
+  if(f.ageSpread>=2) lines.push('クラスの中で発達の幅が大きいため、同じ活動でも参加のしかたを分ける必要があります。');
+  if(f.staff) lines.push('先生 '+f.staff+'名。1人あたり およそ '+f.perStaff+'名を見ることになります。');
+  if(f.hattatsu.n) lines.push('発達記録が '+f.hattatsu.n+'件（直近 '+(f.hattatsu.last||'—')+'）。');
+  else lines.push('発達記録がまだありません。記録が増えるほど、提案が実態に近づきます。');
+  if(f.hiyari.n) lines.push('ヒヤリハット・怪我の記録が '+f.hiyari.n+'件。安全上の配慮に反映します。');
+  var mood=(h.mood||[]).join('、'), grow=(h.growth||[]).join('、'), sup=(h.support||[]).join('、');
+  if(mood) lines.push('雰囲気：'+mood);
+  if(grow) lines.push('最近の成長：'+grow);
+  if(sup)  lines.push('援助したいこと：'+sup);
+  if(c.policy) lines.push('クラス方針：'+c.policy);
+  var ph=aiSetup().philosophy;
+  if(ph) lines.push('スクール理念：'+ph);
+  return {lines:lines, facts:f, hearing:h, hasHearing:!!(h&&(h.mood||h.growth||h.support))};
+}
+
+/* ── 年間発達マップ ────────────────────── */
+var AI_MONTHS=['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+var AI_SEASON={'4月':'進級・新しい環境','5月':'新緑・こいのぼり','6月':'梅雨・雨','7月':'水遊び・夏',
+  '8月':'夏・暑さ','9月':'秋のはじまり','10月':'運動会・実り','11月':'落ち葉・木の実',
+  '12月':'冬・年末の行事','1月':'お正月・雪','2月':'節分・寒さ','3月':'進級・卒園'};
+var AI_AIM={
+ 0:{健康:'安心して眠り、食べ、機嫌よく過ごす',人間関係:'決まった保育者との間に安心をつくる',
+    環境:'見る・触れる・音を聞くことを楽しむ',言葉:'表情や声に応えてもらう心地よさを知る',表現:'音や手ざわりに反応して体を動かす'},
+ 1:{健康:'自分で歩き、食べようとする',人間関係:'保育者に気持ちを向けて関わろうとする',
+    環境:'身近なものに手を伸ばし、試す',言葉:'ことばで伝えようとする',表現:'音や絵の具に触れて楽しむ'},
+ 2:{健康:'身の回りのことを自分でしようとする',人間関係:'友達に興味を持ち、そばで遊ぶ',
+    環境:'季節のものに気づき、集める・並べる',言葉:'二語文・三語文で気持ちを伝える',表現:'見立てて遊ぶ、色を選ぶ'},
+ 3:{健康:'食事・排泄・着脱を自分で進める',人間関係:'友達と同じ遊びを一緒に楽しむ',
+    環境:'不思議に気づき、繰り返し試す',言葉:'したこと・見たことを話す',表現:'つくったものを見せて伝える'},
+ 4:{健康:'体を大きく動かし、力を調整する',人間関係:'相手の気持ちに気づき、順番を意識する',
+    環境:'比べる・数える・分けることを楽しむ',言葉:'相手に分かるように話す',表現:'思ったことを絵や動きで表す'},
+ 5:{健康:'見通しを持って生活を進める',人間関係:'役割を分けて、力を合わせる',
+    環境:'考えを出し合い、工夫する',言葉:'相手の話を聞き、自分の考えを言う',表現:'友達と一緒につくり上げる'}
+};
+function aiAimFor(age){ return AI_AIM[age==null?2:(age>5?5:age)]||AI_AIM[2]; }
+
+function aiYearMap(klass){
+  var p=aiProfile(klass), f=p.facts;
+  var base=(f.minAge!=null?f.minAge:2);
+  var out=AI_MONTHS.map(function(m,i){
+    var aim=aiAimFor(base);
+    var prev=i>0?AI_MONTHS[i-1]:null, next=i<11?AI_MONTHS[i+1]:null;
+    return {
+      month:m, season:AI_SEASON[m],
+      outlook:(i<3?'新しい生活の流れに慣れ、安心して過ごせるようにする時期。'
+              :i<6?'できることが増え、自分でやってみようとする姿が出てくる時期。'
+              :i<9?'友達との関わりが増え、一緒に楽しむ経験を重ねる時期。'
+                  :'一年の育ちを確かめ、次の学年へつなぐ時期。')
+             +(f.ageSpread>=2?'クラスの中で発達の幅があるため、同じ活動でも参加のしかたを分けます。':''),
+      aim:AI_SEASON[m]+'に触れながら、'+aim.健康.replace(/。$/,'')+'。',
+      five:aim,
+      help:(f.perStaff>8?'先生1人あたり '+f.perStaff+'名と多いため、少人数に分けて進めます。'
+                        :'一人ひとりの様子を見ながら、必要なときに手を添えます。'),
+      env:AI_SEASON[m]+'に関するものを、子どもが自分で手に取れる高さに置きます。',
+      home:'今月の育ちの姿を、未来WA のお知らせでご家庭に伝えます。',
+      safe:(f.hiyari.n?'これまでのヒヤリハット '+f.hiyari.n+'件をふまえ、動線と道具の置き場所を事前に確認します。'
+                      :'活動前に、動線と道具の置き場所を確認します。'),
+      link:(prev?prev+'の育ちを受けて':'年度のはじまりとして')+'、'+(next?next+'へつなぎます。':'一年をまとめます。')
+    };
+  });
+  return {klass:klass, months:out, profile:p};
+}
+
+/* ── 制作物アイディア ───────────────────── */
+var AI_CRAFT={
+ '4月':{n:'手がたのこいのぼり',mat:['画用紙','絵の具','のり','たこ糸'],
+        aim:'自分の手のかたちが作品になる面白さを味わう'},
+ '5月':{n:'新緑のちぎり絵',mat:['色画用紙','のり','台紙'],aim:'ちぎる・貼るを繰り返し、指先を使う'},
+ '6月':{n:'あめつぶのモビール',mat:['透明フィルム','ビニールテープ','たこ糸'],aim:'雨の日の景色に目を向ける'},
+ '7月':{n:'すずしいうちわ',mat:['うちわの骨','和紙','絵の具'],aim:'夏の涼しさを、色と風で感じる'},
+ '8月':{n:'ひんやり氷のお絵かき',mat:['色水を凍らせたもの','画用紙'],aim:'冷たさと色の変化を楽しむ'},
+ '9月':{n:'お月見のうさぎ',mat:['白い紙','綿','クレヨン'],aim:'季節の行事に親しむ'},
+ '10月':{n:'どんぐりマラカス',mat:['どんぐり','空き容器','シール'],aim:'音の違いに気づき、リズムを楽しむ'},
+ '11月':{n:'落ち葉で作る秋のどうぶつ',mat:['落ち葉','台紙','のり','クレヨン'],
+         aim:'落ち葉の色・形の違いに気づき、見立てて表す'},
+ '12月':{n:'ゆきだるまのリース',mat:['紙皿','綿','毛糸'],aim:'冬の景色を思い浮かべて表す'},
+ '1月':{n:'たこあげのたこ',mat:['ポリ袋','たこ糸','油性ペン'],aim:'外で体を動かす楽しさにつなげる'},
+ '2月':{n:'おにのおめん',mat:['紙皿','毛糸','クレヨン'],aim:'行事の由来に親しみ、表情を表す'},
+ '3月':{n:'おもいで写真たて',mat:['厚紙','折り紙','写真'],aim:'一年をふり返り、次への期待を持つ'}
+};
+function aiCraft(klass,opt){
+  opt=opt||{};
+  var m=opt.month||(String(+todayISO().slice(5,7))+'月');
+  var base=AI_CRAFT[m]||AI_CRAFT['11月'];
+  var tg=aiToolGroups(klass), f=tg.facts;
+  var mins=opt.minutes||20;
+  /* 参加のしかたを、子どもごとに分ける */
+  var joins=AI_SCISSOR.filter(function(x){return tg.groups[x.k];}).map(function(x){
+    var l=tg.groups[x.k];
+    return {level:x.l, hint:x.hint, n:l.length,
+            names:l.map(function(y){return y.name;}),
+            fromRecord:l.filter(function(y){return y.src==='記録から';}).length};
+  });
+  /* 先生の配置 */
+  var staffPlan=[];
+  if(f.staff>=2){
+    var cut=joins.filter(function(j){return /使う/.test(j.level);}).reduce(function(a,b){return a+b.n;},0);
+    staffPlan.push('先生1名 … はさみを使うお子さま（'+cut+'名）につきます。');
+    staffPlan.push('先生'+(f.staff>2?'2〜'+f.staff:'2')+'名 … 素材選びと貼る工程を援助します。');
+  }else{
+    staffPlan.push('先生1名のため、はさみを使う工程は順番に行います。'
+      +'待っているあいだは、素材を選ぶ・並べる工程を進めてもらいます。');
+  }
+  return {
+    klass:klass, month:m, name:base.n, aim:base.aim, minutes:mins,
+    count:f.count,
+    materials:base.mat.map(function(x){return x+'（'+f.count+'名分）';}),
+    prep:['材料を人数分に分けておく','切り込みを入れた台紙を、必要な人数分だけ用意する',
+          '机を'+(f.staff>=2?'2〜3':'1')+'グループに分けて配置する'],
+    steps:['好きな素材を自分で選ぶ','大きさや色の違いを見比べる',
+           '台紙に置いて、形を思い浮かべる','のりで貼る','クレヨンで描き足す'],
+    joins:joins, needCheck:tg.needCheck,
+    staffPlan:staffPlan,
+    help:['「どれにする？」と選ぶ時間をとります','できた形を言葉にして返します',
+          'うまくいかないときは、手を添えるより先に、やり方を一緒に見ます'],
+    safe:['はさみは使うときだけ配り、使い終わったらすぐ回収します',
+          'のりを口に入れないよう、そばで見守ります',
+          (f.hiyari.n?'これまでのヒヤリハット '+f.hiyari.n+'件をふまえ、机のまわりの動線を確認します':'机のまわりの動線を確認します')],
+    display:'廊下の掲示板に、名前を伏せて並べます。持ち帰りは月末にまとめて行います。',
+    letter:'今月は'+AI_SEASON[m]+'を題材に「'+base.n+'」に取り組みました。'
+      +'お子さまが自分で素材を選び、'+base.aim+'ことをねらいとしています。'
+      +'一人ひとりの育ちに合わせて、参加のしかたを変えています。'
+  };
+}
+
+
+/* ── 月案・週案・日案 ───────────────────── */
+var AI_WD=['月','火','水','木','金'];
+function aiPlanGen(klass,kind,period){
+  var p=aiProfile(klass), f=p.facts;
+  var m=period||(String(+todayISO().slice(5,7))+'月');
+  var aim=aiAimFor(f.minAge!=null?f.minAge:2);
+  var season=AI_SEASON[m]||'';
+  var base={
+    klass:klass, kind:kind, period:m, season:season,
+    aim:season+'に触れながら、'+aim.環境.replace(/。$/,'')+'。',
+    expect:['自分で選ぼうとする姿','友達のしていることに目を向ける姿',
+            (f.ageSpread>=2?'できることの差が出やすいため、待つ・見る時間も大切にする':'繰り返し試そうとする姿')],
+    env:season+'に関するものを、子どもが自分で手に取れる高さに置きます。',
+    prep:['季節の素材','画用紙・のり・クレヨン','ぞうきん・バケツ'],
+    help:['「どれにする？」と選ぶ時間をとります','できたことを言葉にして返します'],
+    staff:(f.staff>=2
+      ?['先生1名 … 活動の中心につきます','先生'+(f.staff>2?'2〜'+f.staff:'2')+'名 … 個別の援助と安全を見ます']
+      :['先生1名のため、少人数ずつ順番に進めます']),
+    join:AI_SCISSOR.filter(function(x){return aiToolGroups(klass).groups[x.k];}).map(function(x){
+      return x.l+'（'+aiToolGroups(klass).groups[x.k].length+'名）';}),
+    care:(f.hiyari.n?'ヒヤリハット '+f.hiyari.n+'件をふまえた配慮を入れています。':'個別の配慮は発達記録から確認します。'),
+    safe:['活動前に動線を確認します','道具は使うときだけ配ります','水分をとる時間をとります'],
+    review:['ねらいに近づけたか','参加しにくかった子はいたか','次に変えることは何か']
+  };
+  if(kind==='week'){
+    base.days=AI_WD.map(function(d,i){
+      var c=aiCraft(klass,{month:m});
+      return {d:d, main:(i===0?'季節のものを集める':i===1?c.name+'（前半）':i===2?c.name+'（後半）'
+                        :i===3?'つくったものを見せ合う':'外あそび・ふり返り'),
+              env:base.env, help:base.help[0]};
+    });
+    base.rain='雨のときは、室内でリズムあそび・新聞紙あそびに替えます。';
+  }
+  if(kind==='day'){
+    base.times=[
+      {t:'9:00',  a:'登園・視診・自由あそび', e:'受け入れ時に体調を見ます'},
+      {t:'9:45',  a:'朝の会・季節の歌',       e:'今日の流れを絵で示します'},
+      {t:'10:00', a:'主活動　'+aiCraft(klass,{month:m}).name, e:base.env},
+      {t:'10:40', a:'片づけ・手洗い',         e:'自分でできる工程を残します'},
+      {t:'11:15', a:'昼食',                   e:'アレルギーの確認を先に行います'},
+      {t:'12:30', a:'午睡',                   e:'呼吸チェックを行います'},
+      {t:'15:00', a:'おやつ・自由あそび',     e:'午前の作品を見返します'},
+      {t:'16:00', a:'降園',                   e:'今日の様子を保護者へ伝えます'}
+    ];
+  }
+  return base;
+}
+
+/* ── 上と下の計画がつながっているか確かめる ────────
+   年案・月案・週案・日案がばらばらにならないよう、
+   ねらいに共通する言葉があるかを見る。無ければ画面で知らせる。 */
+function aiConsistency(klass){
+  var ps=aiPlans().filter(function(x){return x.klass===klass;});
+  var year=ps.filter(function(x){return x.kind==='year';}).slice(-1)[0];
+  var mon =ps.filter(function(x){return x.kind==='month';}).slice(-1)[0];
+  var week=ps.filter(function(x){return x.kind==='week';}).slice(-1)[0];
+  var out=[];
+  if(!year)out.push({lv:'warn',t:'年間発達マップがまだありません。月案のもとになるものです。'});
+  if(year&&mon){
+    var ym=(year.data.months||[]).filter(function(x){return x.month===mon.data.period;})[0];
+    if(ym){
+      var key=(ym.aim||'').replace(/[。、]/g,'').slice(0,4);
+      if(key&&mon.data.aim.indexOf(key)<0)
+        out.push({lv:'warn',t:mon.data.period+'の月案が、年間発達マップのねらいとつながっていない可能性があります。'});
+      else out.push({lv:'ok',t:'年間発達マップと月案のねらいはつながっています。'});
+    }
+  }
+  if(mon&&week&&mon.data.period!==week.data.period)
+    out.push({lv:'warn',t:'月案と週案の対象月が違います（'+mon.data.period+' と '+week.data.period+'）。'});
+  if(!out.length)out.push({lv:'ok',t:'いまのところ、食い違いは見つかりませんでした。'});
+  return out;
+}
+
+/* ── EduGrow AI（相談）──────────────────
+   自由な文章から、どの生成を呼ぶかを決める。
+   分からないときは、分からないと答える（それらしい作り話をしない）。 */
+function aiPlanAsk(klass,q){
+  var t=String(q||'');
+  if(/制作|工作|つくる|作品/.test(t))
+    return {kind:'craft', data:aiCraft(klass,{month:(t.match(/(\d+)月/)||[])[0]}), say:'制作物のアイディアを作りました。'};
+  if(/年間|年案|一年|見通し/.test(t))
+    return {kind:'year', data:aiYearMap(klass), say:'年間発達マップを作りました。'};
+  if(/週案|来週|今週/.test(t))
+    return {kind:'week', data:aiPlanGen(klass,'week',(t.match(/(\d+)月/)||[])[0]), say:'週案の下書きを作りました。'};
+  if(/日案|明日|今日/.test(t))
+    return {kind:'day', data:aiPlanGen(klass,'day',(t.match(/(\d+)月/)||[])[0]), say:'日案の下書きを作りました。'};
+  if(/月案|今月|来月/.test(t))
+    return {kind:'month', data:aiPlanGen(klass,'month',(t.match(/(\d+)月/)||[])[0]), say:'月案の下書きを作りました。'};
+  if(/つながり|整合|確認|見直/.test(t))
+    return {kind:'check', data:aiConsistency(klass), say:'計画のつながりを確かめました。'};
+  if(/雨|室内/.test(t))
+    return {kind:'text', data:'雨のときは、室内でリズムあそび・新聞紙あそび・ふれあいあそびに替えます。'
+      +'体を動かす時間が減るぶん、午後にもう一度動く時間をとります。', say:''};
+  if(/グループ|分け|配置/.test(t)){
+    var f=aiFacts(klass);
+    return {kind:'text', data:'先生 '+f.staff+'名、在籍 '+f.count+'名なので、'
+      +'1グループ '+f.perStaff+'名ほどに分けると目が届きます。'
+      +'はさみを使う工程は、使う子だけを1グループにまとめると安全です。', say:''};
+  }
+  return {kind:'none', say:'', data:'その内容は、いまのAIサポートでは作れません。'
+    +'「制作」「年間」「月案」「週案」「日案」「つながりの確認」「雨のとき」「グループ分け」'
+    +'のいずれかを含めてお書きください。'};
+}
+
+
+/* ══ AI保育計画の画面 ══════════════════════ */
+var AIP={tab:'idea', sub:'craft', klass:null, res:null, chat:[], hq:0, hans:{}};
+
+function aiK(){ if(!AIP.klass||aiKlasses().indexOf(AIP.klass)<0)AIP.klass=aiKlasses()[0]; return AIP.klass; }
+
+function renderAIPlan(){
+  var s=$('section[data-page="aiplan"]'), k=aiK();
+  var tabs=[['idea','アイディア自動生成'],['chat','EduGrow AI'],['memo','AI記録管理']];
+  var html='<div class="card" style="margin-bottom:14px;">'
+    +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">'
+    +'<div><label style="font-size:11.5px;color:var(--tx3);font-weight:700;">クラス</label>'
+    +'<select id="aipK" style="margin-left:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;">'
+    +aiKlasses().map(function(x){return '<option'+(x===k?' selected':'')+'>'+esc(x)+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="muted" style="font-size:12px;">'+aiFacts(k).count+'名 ／ 先生 '+aiFacts(k).staff+'名</div>'
+    +'</div></div>'
+    +'<div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto;">'
+    +tabs.map(function(t){
+      return '<button data-aitab="'+t[0]+'" style="background:none;border:none;padding:10px 16px;cursor:pointer;'
+        +'font-size:13.5px;font-weight:700;white-space:nowrap;border-bottom:2px solid '
+        +(AIP.tab===t[0]?'var(--teal);color:var(--teal)':'transparent;color:var(--tx3)')+';">'+t[1]+'</button>';
+    }).join('')+'</div>';
+
+  var c=aiClassOf(k);
+  if(AIP.tab==='idea'){
+    if(!c.approved){ html+=aipHearingHTML(k); }
+    else html+=aipIdeaHTML(k);
+  }
+  else if(AIP.tab==='chat') html+=aipChatHTML(k);
+  else html+=aipMemoHTML(k);
+
+  s.innerHTML=html;
+  aipWire(k);
+}
+
+/* ── はじめのヒアリング ───────────────────── */
+var AI_HQ=[
+ {k:'mood', q:'普段のクラスの雰囲気に近いものを選んでください。',
+  o:['活発で、身体を動かすことを楽しんでいる','落ち着いて、一つの遊びにじっくり取り組むことが多い',
+     '新しい遊びや活動に興味を持ちやすい','慣れた遊びや決まった流れを好む',
+     '子ども同士の関わりが活発','一人ひとりが自分の遊びを楽しむことが多い',
+     '先生との関わりを求めることが多い','集団で同じ活動を楽しめる',
+     '少人数に分かれた方が活動しやすい','活動の切り替えに時間が必要',
+     '時間帯や活動によって大きく異なる','まだクラスの特徴を判断しにくい']},
+ {k:'growth', q:'最近、クラス全体で特に成長を感じていることは何ですか？',
+  o:['自分の気持ちや希望を表現するようになった','言葉でのやり取りが増えた',
+     '友達に興味を持つようになった','友達と一緒に遊ぶ姿が増えた',
+     '順番や簡単なルールを意識するようになった','自分で身の回りのことをしようとするようになった',
+     '集団活動に参加できる時間が長くなった','一つの遊びに集中できる時間が長くなった',
+     '身体を使った動きが増えた','手や指を使った細かい活動が増えた',
+     '想像したことを遊びや制作で表現するようになった','自然や身近な環境への興味が広がった',
+     '特定の成長に限定せず、一人ひとり異なる','まだ判断しにくい']},
+ {k:'support', q:'現在、クラス全体として特に援助したいこと、難しさを感じていることはありますか？',
+  o:['自分の気持ちを表現する','言葉で相手に伝える','友達の気持ちに気付く','友達と一緒に遊ぶ',
+     '玩具や場所を共有する','順番を待つ','簡単なルールを理解する','活動を始める',
+     '活動に集中する','活動を終えて次へ切り替える','集団活動に参加する',
+     '身の回りのことを自分で行う','食事・排泄・着脱などの生活習慣','道具を安全に使用する',
+     '身体を十分に動かす','感情が大きく動いたときに落ち着く','新しい活動に安心して参加する',
+     '特になし','子どもによって異なる']}
+];
+function aipHearingHTML(k){
+  var p=aiProfile(k), st=AIP.hq;
+  if(st===0){
+    return '<div class="card"><h3 style="margin-top:0;">このクラスについて教えてください</h3>'
+      +'<div style="font-size:13.5px;line-height:1.95;">'
+      +'EduGrow に記録されている生徒情報や発達記録をもとに、'
+      +'AIがこのクラスの特徴を仮にまとめました。クラスに合った活動や計画を提案するため、'
+      +'記録からは分からないことをいくつか教えてください。回答時間の目安は5〜10分です。</div>'
+      +'<div class="card" style="margin-top:14px;background:var(--bg2,#F6F7F5);">'
+      +'<div style="font-weight:800;font-size:13px;margin-bottom:8px;">AIが記録から読み取ったこと</div>'
+      +'<ul style="margin:0;padding-left:1.2em;font-size:13px;line-height:1.9;">'
+      +p.lines.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>'
+      +'<div class="muted" style="margin-top:9px;font-size:11.5px;">'
+      +'これはAIが読み取ったもので、記録にある事実そのものではありません。'
+      +'違っていれば、次の質問で直せます。</div></div>'
+      +'<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">'
+      +'<button class="btn btn-primary" data-hq="1">ヒアリングを始める</button>'
+      +'<button class="btn" data-hq="skip">後で行う（そのまま使う）</button></div></div>';
+  }
+  if(st>=1&&st<=AI_HQ.length){
+    var q=AI_HQ[st-1], sel=AIP.hans[q.k]||[];
+    return '<div class="card"><div class="muted" style="font-size:11.5px;">質問 '+st+' / '+AI_HQ.length+'</div>'
+      +'<h3 style="margin:6px 0 12px;">'+esc(q.q)+'</h3>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:10px;">複数選べます。</div>'
+      +'<div style="display:flex;flex-direction:column;gap:7px;">'
+      +q.o.map(function(o,i){
+        return '<label style="display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid '
+          +(sel.indexOf(o)>-1?'var(--teal)':'var(--line)')+';border-radius:9px;cursor:pointer;font-size:13px;">'
+          +'<input type="checkbox" data-ho="'+i+'"'+(sel.indexOf(o)>-1?' checked':'')+' style="margin-top:2px;">'
+          +'<span>'+esc(o)+'</span></label>';}).join('')
+      +'</div>'
+      +'<div class="field" style="margin-top:11px;"><label>そのほか（自由入力）</label>'
+      +'<textarea id="hfree" rows="2">'+esc(AIP.hans[q.k+'_free']||'')+'</textarea></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
+      +(st>1?'<button class="btn" data-hq="'+(st-1)+'">← 前の質問</button>':'')
+      +'<button class="btn btn-primary" data-hq="'+(st+1)+'">'+(st===AI_HQ.length?'クラス像をつくる':'次へ')+'</button>'
+      +'<button class="btn" data-hq="'+(st+1)+'" data-skip="1">わからない・特になし</button>'
+      +'</div></div>';
+  }
+  /* 確認して承認 */
+  return '<div class="card"><h3 style="margin-top:0;">AIがまとめたクラス像</h3>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:10px;">'
+    +'内容を確かめて、直すところがあれば書き換えてください。承認すると、計画づくりに使われます。</div>'
+    +'<div class="field"><textarea id="profTxt" rows="9">'+esc(p.lines.join('\n'))+'</textarea></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    +'<button class="btn btn-primary" id="profOK">確認して承認する</button>'
+    +'<button class="btn" data-hq="1">質問をやり直す</button></div>'
+    +'<div class="muted" style="margin-top:10px;font-size:11.5px;line-height:1.75;">'
+    +'承認した内容は、あとから「AI記録管理」でいつでも直せます。</div></div>';
+}
+
+/* ── アイディア自動生成 ───────────────────── */
+function aipIdeaHTML(k){
+  var subs=[['craft','制作物アイディア'],['year','年間発達マップ'],['plan','活動計画']];
+  var h='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">'
+    +subs.map(function(t){
+      return '<button class="btn'+(AIP.sub===t[0]?' btn-primary':'')+' btn-sm" data-aisub="'+t[0]+'">'+t[1]+'</button>';
+    }).join('')+'</div>';
+  if(AIP.sub==='craft')h+=aipCraftHTML(k);
+  if(AIP.sub==='year') h+=aipYearHTML(k);
+  if(AIP.sub==='plan') h+=aipPlanHTML(k);
+  return h;
+}
+
+function aipCraftHTML(k){
+  var m=(AIP.res&&AIP.res.kind==='craft')?AIP.res.data:null;
+  var h='<div class="card"><h3 style="margin-top:0;">制作物アイディアをつくる</h3>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;">'
+    +'<div class="field"><label>対象の月</label><select id="cM">'
+    +AI_MONTHS.map(function(x){return '<option'+(x===(String(+todayISO().slice(5,7))+'月')?' selected':'')+'>'+x+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="field"><label>所要時間（分）</label><input id="cMin" value="20" inputmode="numeric"></div>'
+    +'<div class="field"><label style="visibility:hidden;">.</label>'
+    +'<button class="btn btn-primary" id="cGo" style="width:100%;">つくる</button></div>'
+    +'</div></div>';
+  if(!m)return h+'<div class="card"><div style="text-align:center;color:var(--tx3);padding:30px 10px;">'
+    +'月と時間を選んで「つくる」を押してください。<br>'
+    +'<span style="font-size:12px;">クラスの在籍・年齢・発達記録・ヒヤリハットを読んで組み立てます。</span></div></div>';
+  h+='<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+    +'<span class="badge" style="background:#FAEEDA;color:#854F0B;">下書き</span>'
+    +'<h3 style="margin:0;">'+esc(m.name)+'</h3>'
+    +'<span class="muted" style="margin-left:auto;font-size:12px;">'+esc(m.month)+' ／ '+m.minutes+'分 ／ '+m.count+'名</span></div>'
+    +'<div style="margin-top:10px;font-size:13.5px;line-height:1.9;"><b>ねらい</b>　'+esc(m.aim)+'</div>'
+    +aipList('材料',m.materials)+aipList('事前の準備',m.prep)+aipList('すすめかた',m.steps)
+    +'<div style="margin-top:16px;"><div style="font-weight:800;font-size:13.5px;margin-bottom:8px;">'
+    +'発達に合わせた参加のしかた</div>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:9px;">'
+    +'クラスをまとめて「できる・できない」で分けていません。お子さまごとに分けています。</div>'
+    +m.joins.map(function(j){
+      return '<div style="border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-bottom:8px;">'
+        +'<div style="font-weight:700;font-size:13px;">'+esc(j.level)+'　<span class="muted">'+j.n+'名</span></div>'
+        +'<div class="muted" style="font-size:12px;margin-top:4px;">'+esc(j.names.join('、'))+'</div>'
+        +'<div style="font-size:11.5px;margin-top:5px;color:'+(j.fromRecord?'#1F7A5A':'#A8701A')+';">'
+        +(j.fromRecord?'発達記録から '+j.fromRecord+'名':'年齢からの見立て（記録で確かめてください）')+'</div></div>';
+    }).join('')
+    +(m.needCheck?'<div class="note" style="background:#FBF2E2;border-left:3px solid #A8701A;color:#A8701A;'
+      +'padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.8;">'
+      +'<b>'+m.needCheck+'名は、発達記録が足りないため年齢から見立てています。</b>'
+      +'実際の様子と合っているか、先生に確かめていただいたうえでお使いください。</div>':'')
+    +'</div>'
+    +aipList('先生の配置',m.staffPlan)+aipList('保育者の援助',m.help)+aipList('安全上の注意',m.safe)
+    +'<div style="margin-top:14px;font-size:13.5px;line-height:1.9;"><b>展示・持ち帰り</b>　'+esc(m.display)+'</div>'
+    +'<div style="margin-top:12px;padding:12px 14px;background:var(--bg2,#F6F7F5);border-radius:9px;">'
+    +'<div style="font-weight:700;font-size:12.5px;margin-bottom:5px;">保護者向けの紹介文</div>'
+    +'<div style="font-size:13px;line-height:1.9;">'+esc(m.letter)+'</div></div>'
+    +'<div style="display:flex;gap:8px;margin-top:15px;flex-wrap:wrap;">'
+    +'<button class="btn btn-primary btn-sm" id="cSave">下書きとして保存</button>'
+    +'<button class="btn btn-sm" id="cAgain">別の案をつくる</button>'
+    +'<button class="btn btn-sm" id="cPrint">印刷する</button></div>'
+    +'</div>';
+  return h;
+}
+function aipList(t,arr){
+  if(!arr||!arr.length)return '';
+  return '<div style="margin-top:14px;"><div style="font-weight:800;font-size:13px;margin-bottom:5px;">'+esc(t)+'</div>'
+    +'<ul style="margin:0;padding-left:1.2em;font-size:13px;line-height:1.9;">'
+    +arr.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
+}
+
+function aipYearHTML(k){
+  var y=(AIP.res&&AIP.res.kind==='year')?AIP.res.data:null;
+  var h='<div class="card"><h3 style="margin-top:0;">年間発達マップ</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.85;">'
+    +'4月から翌年3月まで、発達の見通しと援助の方針をつくります。'
+    +'クラスの年齢と、発達の幅を見て組み立てます。</div>'
+    +'<button class="btn btn-primary" id="yGo" style="margin-top:12px;">12か月ぶんをつくる</button></div>';
+  if(!y)return h;
+  h+='<div class="card"><div style="display:flex;align-items:center;gap:10px;">'
+    +'<span class="badge" style="background:#FAEEDA;color:#854F0B;">下書き</span>'
+    +'<h3 style="margin:0;">'+esc(k)+' の年間発達マップ</h3>'
+    +'<div style="margin-left:auto;display:flex;gap:8px;">'
+    +'<button class="btn btn-primary btn-sm" id="ySave">下書きとして保存</button>'
+    +'<button class="btn btn-sm" id="yPrint">印刷する</button></div></div></div>';
+  y.months.forEach(function(m){
+    h+='<div class="card"><div style="display:flex;align-items:baseline;gap:10px;">'
+      +'<h3 style="margin:0;">'+esc(m.month)+'</h3>'
+      +'<span class="muted" style="font-size:12px;">'+esc(m.season)+'</span></div>'
+      +'<div style="margin-top:8px;font-size:13px;line-height:1.9;"><b>発達の見通し</b>　'+esc(m.outlook)+'</div>'
+      +'<div style="margin-top:6px;font-size:13px;line-height:1.9;"><b>月のねらい</b>　'+esc(m.aim)+'</div>'
+      +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:0 16px;margin-top:10px;">'
+      +Object.keys(m.five).map(function(f){
+        return '<div style="font-size:12.5px;line-height:1.85;padding:4px 0;border-bottom:1px solid var(--line2,#F0EEEA);">'
+          +'<b>'+esc(f)+'</b>　'+esc(m.five[f])+'</div>';}).join('')
+      +'</div>'
+      +'<div style="margin-top:10px;font-size:12.5px;line-height:1.85;">'
+      +'<div><b>保育者の援助</b>　'+esc(m.help)+'</div>'
+      +'<div><b>環境構成</b>　'+esc(m.env)+'</div>'
+      +'<div><b>家庭との連携</b>　'+esc(m.home)+'</div>'
+      +'<div><b>安全上の配慮</b>　'+esc(m.safe)+'</div>'
+      +'<div class="muted" style="margin-top:5px;">'+esc(m.link)+'</div>'
+      +'</div></div>';
+  });
+  return h;
+}
+
+function aipPlanHTML(k){
+  var d=(AIP.res&&/^(month|week|day)$/.test(AIP.res.kind))?AIP.res.data:null;
+  var h='<div class="card"><h3 style="margin-top:0;">活動計画をつくる</h3>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    +[['month','月案'],['week','週案'],['day','日案']].map(function(x){
+      return '<button class="btn btn-sm" data-aikind="'+x[0]+'">'+x[1]+'をつくる</button>';}).join('')
+    +'</div></div>';
+  var chk=aiConsistency(k);
+  h+='<div class="card"><div style="font-weight:800;font-size:13px;margin-bottom:7px;">計画のつながり</div>'
+    +chk.map(function(c){
+      return '<div style="font-size:12.5px;line-height:1.8;padding:7px 11px;border-radius:8px;margin-bottom:6px;'
+        +(c.lv==='ok'?'background:#E6F3ED;color:#1F7A5A;':'background:#FBF2E2;color:#A8701A;')+'">'+esc(c.t)+'</div>';
+    }).join('')+'</div>';
+  if(!d)return h;
+  var nm={month:'月案',week:'週案',day:'日案'}[AIP.res.kind];
+  h+='<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+    +'<span class="badge" style="background:#FAEEDA;color:#854F0B;">下書き</span>'
+    +'<h3 style="margin:0;">'+esc(k)+' '+esc(d.period)+' の'+nm+'</h3>'
+    +'<div style="margin-left:auto;display:flex;gap:8px;">'
+    +'<button class="btn btn-primary btn-sm" id="pSave">下書きとして保存</button>'
+    +'<button class="btn btn-sm" id="pPrint">印刷する</button></div></div>'
+    +'<div style="margin-top:10px;font-size:13.5px;line-height:1.9;"><b>ねらい</b>　'+esc(d.aim)+'</div>'
+    +aipList('予想される子どもの姿',d.expect)
+    +(d.times?'<div style="margin-top:14px;"><div style="font-weight:800;font-size:13px;margin-bottom:6px;">一日の流れ</div>'
+      +'<table style="width:100%;font-size:12.5px;"><tbody>'
+      +d.times.map(function(t){
+        return '<tr><td style="width:56px;font-weight:700;padding:6px 0;">'+esc(t.t)+'</td>'
+          +'<td style="padding:6px 8px;">'+esc(t.a)+'</td>'
+          +'<td class="muted" style="padding:6px 0;">'+esc(t.e)+'</td></tr>';}).join('')
+      +'</tbody></table></div>':'')
+    +(d.days?'<div style="margin-top:14px;"><div style="font-weight:800;font-size:13px;margin-bottom:6px;">週の流れ</div>'
+      +'<table style="width:100%;font-size:12.5px;"><tbody>'
+      +d.days.map(function(x){
+        return '<tr><td style="width:34px;font-weight:700;padding:6px 0;">'+esc(x.d)+'</td>'
+          +'<td style="padding:6px 8px;">'+esc(x.main)+'</td></tr>';}).join('')
+      +'</tbody></table>'
+      +'<div class="muted" style="font-size:12.5px;margin-top:7px;">'+esc(d.rain||'')+'</div></div>':'')
+    +'<div style="margin-top:12px;font-size:13px;line-height:1.9;"><b>環境構成</b>　'+esc(d.env)+'</div>'
+    +aipList('準備物',d.prep)+aipList('保育者の援助',d.help)+aipList('先生の配置',d.staff)
+    +aipList('発達に合わせた参加のしかた',d.join)
+    +'<div style="margin-top:12px;font-size:13px;line-height:1.9;"><b>個別の配慮</b>　'+esc(d.care)+'</div>'
+    +aipList('安全上の注意',d.safe)+aipList('ふり返りの視点',d.review)
+    +'</div>';
+  return h;
+}
+
+/* ── EduGrow AI ────────────────────────── */
+var AI_PRESET=['来週の週案をつくって','今月の月案をつくって','明日の日案をつくって',
+  '11月の制作を提案して','計画のつながりを確認して','雨のときの代わりの活動は？','グループ分けを考えて'];
+function aipChatHTML(k){
+  return '<div class="card"><h3 style="margin-top:0;">EduGrow AI に相談する</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.85;">'
+    +'ふだんの言葉でお書きください。'+esc(k)+' の記録をもとに下書きを作ります。</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;">'
+    +AI_PRESET.map(function(x){return '<button class="btn btn-sm" data-aipre="'+esc(x)+'">'+esc(x)+'</button>';}).join('')
+    +'</div>'
+    +'<div class="field"><textarea id="aiQ" rows="2" placeholder="例：2歳児クラスの来週の週案を作ってください。最近は友達と一緒に遊ぶ姿が増えています。"></textarea></div>'
+    +'<button class="btn btn-primary" id="aiSend">相談する</button></div>'
+    +(AIP.chat.length?AIP.chat.slice().reverse().map(function(m){
+      return '<div class="card">'
+        +'<div class="muted" style="font-size:11.5px;">'+esc(m.at)+'</div>'
+        +'<div style="font-weight:700;font-size:13px;margin:5px 0 8px;">'+esc(m.q)+'</div>'
+        +'<div style="font-size:13px;line-height:1.9;white-space:pre-wrap;">'+esc(m.a)+'</div>'
+        +(m.kind&&m.kind!=='none'&&m.kind!=='text'
+          ?'<button class="btn btn-sm" data-aiopen="'+esc(m.kind)+'" style="margin-top:10px;">結果をひらく</button>':'')
+        +'</div>';}).join(''):'')
+    +'<div class="card"><div class="muted" style="font-size:11.5px;line-height:1.8;">'
+    +'AIサポートの回答は下書きです。医療・保育の専門的な判断や、緊急時の対応に代わるものではありません。'
+    +'必要のないお子さまの情報は入力しないでください。</div></div>';
+}
+
+/* ── AI記録管理 ────────────────────────── */
+function aipMemoHTML(k){
+  var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=stGet('ai_log',[])||[];
+  var ps=aiPlans().filter(function(x){return x.klass===k;});
+  return '<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
+    +'<div class="field"><label>スクール理念</label>'
+    +'<textarea id="mPh" rows="2">'+esc(aiSetup().philosophy)+'</textarea></div>'
+    +'<div class="grid" style="grid-template-columns:2fr 1fr;gap:12px;">'
+    +'<div class="field"><label>クラス方針（'+esc(k)+'）</label>'
+    +'<input id="mPo" value="'+esc(c.policy)+'" placeholder="自分で選び、試す経験を大切にする"></div>'
+    +'<div class="field"><label>先生の人数</label>'
+    +'<input id="mSt" value="'+esc(c.staff)+'" inputmode="numeric"></div></div>'
+    +'<button class="btn btn-primary btn-sm" id="mSave">保存する</button></div>'
+
+    +'<div class="card"><h3 style="margin-top:0;">AIが読み取ったクラス像</h3>'
+    +'<div style="font-size:13px;line-height:1.95;white-space:pre-wrap;">'
+    +esc((c.profile||p.lines.join('\n')))+'</div>'
+    +'<div class="muted" style="margin-top:9px;font-size:11.5px;">'
+    +(c.approved?'承認済み（'+esc(c.profileAt||'')+'）':'まだ承認されていません')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:11px;flex-wrap:wrap;">'
+    +'<button class="btn btn-sm" id="mRe">ヒアリングをやり直す</button>'
+    +'<button class="btn btn-sm" id="mUpd">最新の記録で作り直す</button></div></div>'
+
+    +'<div class="card"><h3 style="margin-top:0;">AIが参照した記録</h3>'
+    +'<table style="width:100%;font-size:12.5px;"><tbody>'
+    +[['在籍している園児',f.count+'名'],
+      ['年齢',(f.minAge!=null?f.minAge+'歳〜'+f.maxAge+'歳':'記録が不足')],
+      ['生徒個人発達記録',f.hattatsu.n+'件'+(f.hattatsu.last?'（直近 '+f.hattatsu.last+'）':'')],
+      ['ヒヤリハット・怪我',f.hiyari.n+'件'],
+      ['身体測定',f.shintai.n+'件'],
+      ['先生の人数',f.staff+'名']].map(function(r){
+      return '<tr><td style="padding:7px 0;color:var(--tx3);width:44%;">'+esc(r[0])+'</td>'
+        +'<td style="padding:7px 0;font-weight:700;">'+esc(r[1])+'</td></tr>';}).join('')
+    +'</tbody></table>'
+    +'<div class="muted" style="margin-top:9px;font-size:11.5px;line-height:1.75;">'
+    +'ここに出ているのは、EduGrow に記録されている事実です。'
+    +'上の「クラス像」は、これをもとにAIが読み取ったものです。分けて見てください。</div></div>'
+
+    +'<div class="card"><h3 style="margin-top:0;">つくった計画（'+ps.length+'件）</h3>'
+    +(ps.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
+      +ps.slice().reverse().map(function(x){
+        return '<tr><td style="padding:8px 0;">'+esc({year:'年間発達マップ',month:'月案',week:'週案',day:'日案',craft:'制作物'}[x.kind]||x.kind)
+          +'　<span class="muted">'+esc(x.title||'')+'</span></td>'
+          +'<td style="padding:8px 0;width:88px;"><span class="badge" style="background:'
+          +(x.status==='承認済み'?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'+esc(x.status)+'</span></td>'
+          +'<td style="padding:8px 0;width:96px;text-align:right;">'
+          +(x.status==='承認済み'?'':'<button class="btn btn-sm" data-apv="'+esc(x.id)+'">承認する</button>')+'</td></tr>';
+      }).join('')+'</tbody></table>'
+      :'<div class="muted" style="text-align:center;padding:22px 0;">まだありません</div>')+'</div>'
+
+    +'<div class="card"><h3 style="margin-top:0;">あしあと</h3>'
+    +(lg.length?'<table style="width:100%;font-size:12px;"><tbody>'
+      +lg.slice(-15).reverse().map(function(x){
+        return '<tr><td class="muted" style="padding:6px 0;white-space:nowrap;">'+esc(x.at)+'</td>'
+          +'<td style="padding:6px 8px;">'+esc(x.act)+'</td>'
+          +'<td class="muted" style="padding:6px 0;">'+esc(x.who)+'</td></tr>';}).join('')
+      +'</tbody></table>':'<div class="muted" style="text-align:center;padding:18px 0;">まだありません</div>')
+    +'</div>';
+}
+
+
+/* ── 画面の配線 ─────────────────────────── */
+function aipWire(k){
+  var s=$('section[data-page="aiplan"]');
+  var $$=function(sel){return s.querySelector(sel);};
+
+  var ks=$$('#aipK'); if(ks)ks.onchange=function(){AIP.klass=ks.value;AIP.res=null;AIP.hq=0;renderAIPlan();};
+  s.querySelectorAll('[data-aitab]').forEach(function(b){b.onclick=function(){
+    AIP.tab=b.getAttribute('data-aitab');renderAIPlan();};});
+  s.querySelectorAll('[data-aisub]').forEach(function(b){b.onclick=function(){
+    AIP.sub=b.getAttribute('data-aisub');AIP.res=null;renderAIPlan();};});
+
+  /* ヒアリング */
+  s.querySelectorAll('[data-hq]').forEach(function(b){b.onclick=function(){
+    var v=b.getAttribute('data-hq');
+    if(v==='skip'){ aiClassSave(k,{approved:true,profile:aiProfile(k).lines.join('\n'),profileAt:aiNow()});
+      aiLog('ヒアリングを省略してクラス像を承認',k); AIP.hq=0; renderAIPlan(); return; }
+    /* いまの回答を残してから移動する */
+    var cur=AIP.hq;
+    if(cur>=1&&cur<=AI_HQ.length&&!b.getAttribute('data-skip')){
+      var q=AI_HQ[cur-1],sel=[];
+      s.querySelectorAll('[data-ho]').forEach(function(c){ if(c.checked)sel.push(q.o[+c.getAttribute('data-ho')]); });
+      AIP.hans[q.k]=sel;
+      var fr=$$('#hfree'); if(fr)AIP.hans[q.k+'_free']=fr.value.trim();
+    }
+    AIP.hq=+v;
+    if(AIP.hq>AI_HQ.length){
+      aiClassSave(k,{hearing:{mood:AIP.hans.mood||[],growth:AIP.hans.growth||[],support:AIP.hans.support||[],
+        free:[AIP.hans.mood_free,AIP.hans.growth_free,AIP.hans.support_free].filter(Boolean).join(' / ')}});
+      aiLog('ヒアリングに回答',k);
+    }
+    renderAIPlan();
+  };});
+  var po=$$('#profOK');
+  if(po)po.onclick=function(){
+    var t=$$('#profTxt');
+    aiClassSave(k,{approved:true,profile:t?t.value:'',profileAt:aiNow()});
+    aiLog('クラス像を承認',k); AIP.hq=0; AIP.tab='idea'; renderAIPlan();
+    aiToast('クラス像を承認しました。計画づくりに使われます');
+  };
+
+  /* 制作物 */
+  var cg=$$('#cGo');
+  if(cg)cg.onclick=function(){
+    var m=$$('#cM').value, mins=+($$('#cMin').value||20);
+    AIP.res={kind:'craft',data:aiCraft(k,{month:m,minutes:mins})};
+    aiLog('制作物アイディアをつくった',k+' '+m); renderAIPlan();
+  };
+  var ca=$$('#cAgain'); if(ca)ca.onclick=function(){ if(cg)cg.onclick(); };
+  var cs=$$('#cSave');
+  if(cs)cs.onclick=function(){
+    var d=AIP.res.data;
+    aiPlanAdd({kind:'craft',klass:k,title:d.month+'　'+d.name,data:d});
+    aiLog('制作物を下書き保存',d.name); renderAIPlan(); aiToast('下書きとして保存しました');
+  };
+  var cp=$$('#cPrint'); if(cp)cp.onclick=function(){ aipPrint('craft',AIP.res.data,k); };
+
+  /* 年間発達マップ */
+  var yg=$$('#yGo');
+  if(yg)yg.onclick=function(){ AIP.res={kind:'year',data:aiYearMap(k)};
+    aiLog('年間発達マップをつくった',k); renderAIPlan(); };
+  var ys=$$('#ySave');
+  if(ys)ys.onclick=function(){
+    aiPlanAdd({kind:'year',klass:k,title:'4月〜3月',data:AIP.res.data});
+    aiLog('年間発達マップを下書き保存',k); renderAIPlan(); aiToast('下書きとして保存しました');
+  };
+  var yp=$$('#yPrint'); if(yp)yp.onclick=function(){ aipPrint('year',AIP.res.data,k); };
+
+  /* 活動計画 */
+  s.querySelectorAll('[data-aikind]').forEach(function(b){b.onclick=function(){
+    var kind=b.getAttribute('data-aikind');
+    AIP.res={kind:kind,data:aiPlanGen(k,kind)};
+    aiLog({month:'月案',week:'週案',day:'日案'}[kind]+'をつくった',k); renderAIPlan();
+  };});
+  var ps2=$$('#pSave');
+  if(ps2)ps2.onclick=function(){
+    var d=AIP.res.data;
+    aiPlanAdd({kind:AIP.res.kind,klass:k,title:d.period,data:d});
+    aiLog('計画を下書き保存',k+' '+d.period); renderAIPlan(); aiToast('下書きとして保存しました');
+  };
+  var pp=$$('#pPrint'); if(pp)pp.onclick=function(){ aipPrint(AIP.res.kind,AIP.res.data,k); };
+
+  /* 相談 */
+  s.querySelectorAll('[data-aipre]').forEach(function(b){b.onclick=function(){
+    var q=$$('#aiQ'); if(q){q.value=b.getAttribute('data-aipre');}
+  };});
+  var snd=$$('#aiSend');
+  if(snd)snd.onclick=function(){
+    var q=$$('#aiQ'), t=(q&&q.value||'').trim();
+    if(!t){aiToast('相談したいことを書いてください');return;}
+    var r=aiPlanAsk(k,t);
+    var a=(typeof r.data==='string')?r.data:(r.say||'下書きを作りました。');
+    AIP.chat.push({at:aiNow(),q:t,a:a,kind:r.kind});
+    if(r.kind&&r.kind!=='none'&&r.kind!=='text'&&r.kind!=='check'){
+      AIP.res={kind:r.kind,data:r.data};
+      AIP.sub=(r.kind==='craft'?'craft':r.kind==='year'?'year':'plan');
+    }
+    aiLog('AIサポートに相談',t.slice(0,40));
+    if(q)q.value=''; renderAIPlan();
+  };
+  s.querySelectorAll('[data-aiopen]').forEach(function(b){b.onclick=function(){
+    var kd=b.getAttribute('data-aiopen');
+    AIP.tab='idea'; AIP.sub=(kd==='craft'?'craft':kd==='year'?'year':'plan'); renderAIPlan();
+  };});
+
+  /* 記録管理 */
+  var ms=$$('#mSave');
+  if(ms)ms.onclick=function(){
+    aiSetupSave({philosophy:$$('#mPh').value.trim()});
+    aiClassSave(k,{policy:$$('#mPo').value.trim(),staff:+($$('#mSt').value||2)});
+    aiLog('設定を保存',k); renderAIPlan(); aiToast('保存しました');
+  };
+  var mr=$$('#mRe'); if(mr)mr.onclick=function(){
+    aiClassSave(k,{approved:false}); AIP.hq=1; AIP.tab='idea'; renderAIPlan(); };
+  var mu=$$('#mUpd'); if(mu)mu.onclick=function(){
+    aiClassSave(k,{profile:aiProfile(k).lines.join('\n'),profileAt:aiNow()});
+    aiLog('最新の記録でクラス像を作り直した',k); renderAIPlan(); aiToast('作り直しました'); };
+  s.querySelectorAll('[data-apv]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この計画を承認します。承認すると正式なものとして扱われます。よろしいですか？'))return;
+    var st=(typeof currentStaff==='function')?currentStaff():null;
+    aiPlanUpd(b.getAttribute('data-apv'),{status:'承認済み',approvedBy:(st&&st.name)||'—',approvedAt:aiNow()});
+    aiLog('計画を承認',b.getAttribute('data-apv')); renderAIPlan(); aiToast('承認しました');
+  };});
+}
+
+/* ── 印刷 ────────────────────────────────
+   日案はA4縦、週案はA4横。名前は出さず、クラス全体の計画として出す。 */
+function aipPrint(kind,d,k){
+  var land=(kind==='week'||kind==='year');
+  var st=(typeof currentStaff==='function')?currentStaff():null;
+  var head='<div style="display:flex;align-items:baseline;border-bottom:2px solid #000;padding-bottom:6px;">'
+    +'<div style="font-size:16px;font-weight:800;">'+esc(SET.school||'')+'</div>'
+    +'<div style="margin-left:14px;font-size:13px;">'+esc(k)+'　'
+    +esc({craft:'制作活動案',year:'年間発達マップ',month:'月案',week:'週案',day:'日案'}[kind]||'')+'</div>'
+    +'<div style="margin-left:auto;font-size:11px;">'+esc(d.period||d.month||'')+'</div></div>'
+    +'<div style="font-size:10px;color:#555;margin-top:4px;">作成 '+esc(aiNow())
+    +'　作成者 '+esc((st&&st.name)||'—')+'　確認者 ______　承認者 ______　'
+    +'<b>この計画は下書きです。承認欄に記入のうえお使いください。</b></div>';
+  var body='';
+  if(kind==='craft'){
+    body='<h2 style="font-size:15px;margin:12px 0 6px;">'+esc(d.name)+'</h2>'
+      +'<p style="font-size:12px;"><b>ねらい</b>　'+esc(d.aim)+'（'+d.minutes+'分・'+d.count+'名）</p>'
+      +pr('材料',d.materials)+pr('事前の準備',d.prep)+pr('すすめかた',d.steps)
+      +'<div style="font-size:12px;margin-top:8px;"><b>発達に合わせた参加のしかた</b></div>'
+      +'<table style="width:100%;font-size:11px;border-collapse:collapse;">'
+      +d.joins.map(function(j){
+        return '<tr><td style="border:1px solid #999;padding:4px 6px;width:38%;">'+esc(j.level)+'</td>'
+          +'<td style="border:1px solid #999;padding:4px 6px;">'+j.n+'名</td></tr>';}).join('')
+      +'</table>'
+      +pr('先生の配置',d.staffPlan)+pr('保育者の援助',d.help)+pr('安全上の注意',d.safe)
+      +'<p style="font-size:12px;"><b>展示・持ち帰り</b>　'+esc(d.display)+'</p>'
+      +'<div style="margin-top:14px;border:1px solid #999;padding:8px;min-height:60px;font-size:11px;">ふり返り</div>';
+  } else if(kind==='year'){
+    body='<table style="width:100%;font-size:9.5px;border-collapse:collapse;margin-top:8px;">'
+      +'<tr><th style="border:1px solid #999;padding:3px;">月</th>'
+      +'<th style="border:1px solid #999;padding:3px;">発達の見通し</th>'
+      +'<th style="border:1px solid #999;padding:3px;">月のねらい</th>'
+      +'<th style="border:1px solid #999;padding:3px;">保育者の援助</th>'
+      +'<th style="border:1px solid #999;padding:3px;">安全上の配慮</th></tr>'
+      +d.months.map(function(m){
+        return '<tr><td style="border:1px solid #999;padding:3px;white-space:nowrap;">'+esc(m.month)+'</td>'
+          +'<td style="border:1px solid #999;padding:3px;">'+esc(m.outlook)+'</td>'
+          +'<td style="border:1px solid #999;padding:3px;">'+esc(m.aim)+'</td>'
+          +'<td style="border:1px solid #999;padding:3px;">'+esc(m.help)+'</td>'
+          +'<td style="border:1px solid #999;padding:3px;">'+esc(m.safe)+'</td></tr>';}).join('')
+      +'</table>';
+  } else {
+    body='<p style="font-size:12px;"><b>ねらい</b>　'+esc(d.aim)+'</p>'
+      +(d.times?'<table style="width:100%;font-size:11px;border-collapse:collapse;">'
+        +'<tr><th style="border:1px solid #999;padding:4px;width:52px;">時刻</th>'
+        +'<th style="border:1px solid #999;padding:4px;">活動</th>'
+        +'<th style="border:1px solid #999;padding:4px;">環境構成・保育者の動き</th></tr>'
+        +d.times.map(function(t){
+          return '<tr><td style="border:1px solid #999;padding:4px;">'+esc(t.t)+'</td>'
+            +'<td style="border:1px solid #999;padding:4px;">'+esc(t.a)+'</td>'
+            +'<td style="border:1px solid #999;padding:4px;">'+esc(t.e)+'</td></tr>';}).join('')
+        +'</table>':'')
+      +(d.days?'<table style="width:100%;font-size:11px;border-collapse:collapse;">'
+        +'<tr>'+d.days.map(function(x){return '<th style="border:1px solid #999;padding:4px;">'+esc(x.d)+'</th>';}).join('')+'</tr>'
+        +'<tr>'+d.days.map(function(x){return '<td style="border:1px solid #999;padding:6px;vertical-align:top;height:120px;">'+esc(x.main)+'</td>';}).join('')+'</tr>'
+        +'</table><p style="font-size:11px;">'+esc(d.rain||'')+'</p>':'')
+      +pr('準備物',d.prep)+pr('保育者の援助',d.help)+pr('先生の配置',d.staff)+pr('安全上の注意',d.safe)
+      +'<div style="margin-top:12px;border:1px solid #999;padding:8px;min-height:70px;font-size:11px;">ふり返り</div>';
+  }
+  function pr(t,a){
+    if(!a||!a.length)return '';
+    return '<div style="font-size:12px;margin-top:7px;"><b>'+esc(t)+'</b>　'+a.map(esc).join('／')+'</div>';
+  }
+  var w=window.open('','_blank');
+  if(!w){alert('印刷用の画面をひらけませんでした。ブラウザの設定をご確認ください。');return;}
+  w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8">'
+    +'<title>'+esc(k)+'</title><style>'
+    +'@page{size:A4 '+(land?'landscape':'portrait')+';margin:12mm;}'
+    +'body{font-family:"Hiragino Sans","Yu Gothic",sans-serif;color:#000;margin:0;}'
+    +'p{margin:5px 0;} h2{margin:10px 0 4px;}'
+    +'</style></head><body>'+head+body+'</body></html>');
+  w.document.close();
+  setTimeout(function(){try{w.print();}catch(e){}},350);
+  aiLog('印刷した',kind+' '+k);
 }
 
 /* ---------- ホーム（アプリ一覧） ----------
