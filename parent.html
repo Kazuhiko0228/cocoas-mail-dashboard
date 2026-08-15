@@ -3188,7 +3188,50 @@ function snsHTML(){
     +'<a class="sns-btn yt" href="'+escUrl(s.youtube)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.youtube+'</span><span class="l">YouTube</span></a>'
     +'</div>'+(newSns?'<div class="muted" style="margin-top:10px;">📷 Instagramに新しい投稿があります。</div>':'')+'</div>';
 }
+
+/* ══ 説明文を、文の区切りで行分けする ═══════════════
+   ひとつの文の途中で行が変わると、2行目が左端から始まるため、
+   別の文がはじまったように見えてしまう。
+   「。」で行を分けて、1行が1文になるようにする。
+   規約・ポリシーの本文は番号つきの箇条書き（ol/li）なので、ここでは触らない。 */
+function tidyNotes(root){
+  var scope=root||document;
+  try{
+    var els=scope.querySelectorAll('.muted, .note');
+    [].forEach.call(els,function(el){
+      if(el.getAttribute('data-tidy'))return;
+      if(el.closest('ol,ul,table'))return;
+      if(el.querySelector('input,select,textarea,button,a'))return;
+      var t=el.textContent||'';
+      if(t.length<40)return;
+      if((t.match(/。/g)||[]).length<2)return;
+      el.setAttribute('data-tidy','1');
+      splitAtPeriod(el);
+    });
+  }catch(e){}
+}
+function splitAtPeriod(el){
+  var walk=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null,false);
+  var nodes=[],n;
+  while((n=walk.nextNode()))nodes.push(n);
+  nodes.forEach(function(node){
+    var v=node.nodeValue;
+    if(v.indexOf('。')<0)return;
+    var parts=v.split('。'); var tail=parts.pop();
+    if(!parts.length)return;
+    var frag=document.createDocumentFragment();
+    parts.forEach(function(p,i){
+      frag.appendChild(document.createTextNode(p+'。'));
+      if((i<parts.length-1)||tail.trim().length>0)frag.appendChild(document.createElement('br'));
+    });
+    if(tail)frag.appendChild(document.createTextNode(tail));
+    node.parentNode.replaceChild(frag,node);
+  });
+}
+
 function wireCommon(c){
+  /* 説明文の行分けは、中身を入れ替えたあとに行う */
+  try{tidyNotes(document.getElementById('scroll'));}catch(e){}
   try{healthWire();}catch(e){}
   try{waSyncWire();}catch(e){}
   var lb=document.getElementById('lawBtn');

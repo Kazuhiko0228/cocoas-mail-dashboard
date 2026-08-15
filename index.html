@@ -1343,6 +1343,55 @@ function goRec(page,rec,tab){
   if(tab&&page==='bouka'&&typeof boukaTab!=='undefined')boukaTab=tab;
   go(page);
 }
+
+/* ══ 説明文を、文の区切りで行分けする ═══════════════
+   ひとつの文の途中で行が変わると、2行目が左端から始まるため、
+   別の文がはじまったように見えてしまう（Remiさんのご指摘）。
+   「。」で行を分けて、1行が1文になるようにする。
+
+   説明文は画面ごとに60か所以上あるので、1か所ずつ直すのではなく、
+   画面を描いたあとにまとめて整える。 */
+function tidyNotes(root){
+  var scope=root||document;
+  try{
+    var els=scope.querySelectorAll('.muted, .note, [data-note]');
+    [].forEach.call(els,function(el){
+      if(el.getAttribute('data-tidy'))return;          /* 二度はやらない */
+      if(el.closest('table'))return;                   /* 表の中は行が詰まるので触らない */
+      if(el.closest('[data-legal]'))return;            /* 規約の本文はそのまま */
+      if(el.querySelector('input,select,textarea,button,a'))return;  /* 操作を含むものは触らない */
+      var t=el.textContent||'';
+      if(t.length<40)return;                           /* 短い注記はそのままでよい */
+      if((t.match(/。/g)||[]).length<2)return;          /* 1文なら分ける必要がない */
+      el.setAttribute('data-tidy','1');
+      splitAtPeriod(el);
+    });
+  }catch(e){ /* 見た目の調整なので、失敗しても画面は止めない */ }
+}
+/* 中の文字だけを見て、「。」のうしろで改行を入れる。
+   太字などの飾りはそのまま残す。 */
+function splitAtPeriod(el){
+  var walk=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null,false);
+  var nodes=[],n;
+  while((n=walk.nextNode()))nodes.push(n);
+  nodes.forEach(function(node){
+    var v=node.nodeValue;
+    if(v.indexOf('。')<0)return;
+    /* 「。」のうしろで切る。最後の「。」のあとに文字が無いときは、改行を足さない。 */
+    var parts=v.split('。');
+    var tail=parts.pop();
+    if(!parts.length)return;
+    var frag=document.createDocumentFragment();
+    parts.forEach(function(p,i){
+      frag.appendChild(document.createTextNode(p+'。'));
+      var nextHasText=(i<parts.length-1)||tail.trim().length>0;
+      if(nextHasText)frag.appendChild(document.createElement('br'));
+    });
+    if(tail)frag.appendChild(document.createTextNode(tail));
+    node.parentNode.replaceChild(frag,node);
+  });
+}
+
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page)){
     alert('この画面は、いまのアカウントでは開けません。園の管理者にご確認ください。');
@@ -1359,6 +1408,8 @@ function go(page){
   if(typeof navRevealActive==='function')navRevealActive();   /* 閉じた組の中なら開く */
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
+  /* 説明文の行分けは、画面の中身を入れ替えたあとに行う */
+  setTimeout(function(){try{tidyNotes(document.querySelector('section[data-page="'+page+'"]'));}catch(e){}},0);
   (page==='creator') ? (function(){window.open('creator.html','_blank','noopener');page='home';})() :
   ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
@@ -5179,7 +5230,7 @@ function edTouen(){
   /* --- 案内文ここまで --- */
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+esc((d.weather||''))+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+esc((d.temp||''))+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+esc((d.hum||''))+'"></div></div>'+
-    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E3F1F9;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0B5F8F;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div style="font-size:12.5px;color:#0B5F8F;line-height:1.6;">'+noteHtml+'</div></div>'+
+    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E3F1F9;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0B5F8F;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div class="note" style="flex:1;min-width:0;font-size:12.5px;color:#0B5F8F;line-height:1.6;">'+noteHtml+'</div></div>'+
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
@@ -5230,6 +5281,7 @@ function edTouen(){
   };
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
   attachRecPaperCard();
+  try{tidyNotes(document.querySelector('#recBody'));}catch(e){}
 }
 function edSafety(){
   var K='rec_安全点検',data=stGet(K,{}),d=data[recDate]||{items:{},memo:'',by:''};
