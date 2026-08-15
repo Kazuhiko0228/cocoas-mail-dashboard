@@ -282,6 +282,8 @@
   #staffLogin input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:8px;font-family:inherit;box-sizing:border-box;}
   #staffLogin button.sl-go{width:100%;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;}
   #staffLogin .sl-err{color:#B00;font-size:12px;margin-bottom:8px;display:none;}
+  /* AIが下書きを書いているあいだの、進んでいるように見せる帯 */
+  @keyframes aiBar{0%{margin-left:-40%;}100%{margin-left:100%;}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
@@ -2291,6 +2293,91 @@ function aiCraft(klass,opt){
 }
 
 
+
+/* ══ AIにつなぐ ════════════════════════════
+   文章はサーバごしに Gemini が書き、
+   人数・はさみの段階・ヒヤリハットの件数といった「記録から出る数字」は
+   これまでどおり画面が入れる。AIに数字を作らせない。
+
+   APIキーはサーバの中だけにある。この画面には持たせない
+   （このファイルは公開しているので、置くと誰でも読めてしまう）。 */
+var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作'};
+var AI_NET={busy:false, last:null, note:''};
+
+function aiCanServer(){
+  try{ return typeof API!=='undefined' && API.online(); }catch(e){ return false; }
+}
+
+/* クラスの様子を、送ってよい形の短い文にまとめる。
+   氏名は入れない（サーバ側でも落とすが、ここでも入れない）。 */
+function aiFactsText(klass){
+  try{
+    var p=aiProfile(klass), f=p.facts, tg=aiToolGroups(klass);
+    var out=[];
+    if(f.minAge!=null)out.push('年齢の幅は'+f.minAge+'〜'+f.maxAge+'歳。');
+    var g=[];
+    AI_SCISSOR.forEach(function(x){
+      var l=tg.groups[x.k]; if(l&&l.length)g.push(x.l+'が'+l.length+'名');
+    });
+    if(g.length)out.push('はさみの段階は '+g.join('、')+'。');
+    if(f.hiyari&&f.hiyari.n)out.push('この学期のヒヤリハットは'+f.hiyari.n+'件。');
+    if(p.note)out.push(String(p.note).slice(0,300));
+    return out.join('');
+  }catch(e){ return ''; }
+}
+
+/* サーバに文章を書いてもらう。
+   返ってくるのは決まった項目だけなので、そのまま下書きに重ねられる。 */
+function aiAskServer(kind,klass,period,extra){
+  var jp=AI_KINDS[kind];
+  if(!jp||!aiCanServer())return Promise.resolve(null);
+  var m=period||(String(+todayISO().slice(5,7))+'月');
+  var body={
+    kind:jp, klass:klass, period:m,
+    ageLabel:(function(){try{var f=aiProfile(klass).facts;
+      return (f.minAge!=null)?(f.minAge+'歳児'):'';}catch(e){return '';}})(),
+    season:AI_SEASON[m]||'',
+    facts:aiFactsText(klass)
+  };
+  if(extra&&extra.aim)body.aim=extra.aim;
+  if(extra&&extra.note)body.note=extra.note;
+  return API.call('POST','/ai/plan',body)
+    .then(function(j){ return (j&&j.data)?j.data:null; })
+    .catch(function(e){ AI_NET.note=e.message||''; return null; });
+}
+
+/* AIが書いた文章を、いまの下書きに重ねる。
+   base に無い項目は入れない（画面が知らない項目を増やさないため）。 */
+function aiMerge(base,got,only){
+  if(!got)return base;
+  only.forEach(function(k){
+    var v=got[k];
+    if(v===undefined||v===null)return;
+    if(Array.isArray(v)){
+      if(!v.length)return;
+      /* 中身が「一日の流れ」「週の流れ」のような組のときは、そのまま入れる。
+         ここで文字列にしてしまうと、曜日や時刻が消えてしまう。 */
+      base[k]=v.map(function(x){
+        return (x&&typeof x==='object')?x:String(x);
+      });
+    }
+    else if(typeof v==='string'){ if(v.trim())base[k]=v.trim(); }
+    else base[k]=v;
+  });
+  return base;
+}
+
+/* 生成中のあいだ、画面に出しておくもの */
+function aiBusyHTML(what){
+  return '<div class="card" style="text-align:center;padding:34px 16px;">'
+    +'<div style="font-size:13.5px;font-weight:700;">'+esc(what)+'をつくっています</div>'
+    +'<div class="muted" style="font-size:12.5px;margin-top:8px;line-height:1.9;">'
+    +'クラスの記録をもとに、AIが下書きを書いています。5〜15秒ほどかかります。</div>'
+    +'<div style="margin-top:14px;height:6px;background:#EEF0F3;border-radius:6px;overflow:hidden;">'
+    +'<div style="height:6px;width:40%;background:#3C3489;border-radius:6px;'
+    +'animation:aiBar 1.1s ease-in-out infinite;"></div></div></div>';
+}
+
 /* ── 月案・週案・日案 ───────────────────── */
 var AI_WD=['月','火','水','木','金'];
 function aiPlanGen(klass,kind,period){
@@ -2422,6 +2509,7 @@ function renderAIPlan(){
   var c=aiClassOf(k);
   if(AIP.tab==='idea'){
     if(!c.approved){ html+=aipHearingHTML(k); }
+    else if(AI_NET.busy){ html+=aiBusyHTML(AI_NET.what||'下書き'); }
     else html+=aipIdeaHTML(k);
   }
   else if(AIP.tab==='chat') html+=aipChatHTML(k);
@@ -2628,6 +2716,10 @@ function aipPlanHTML(k){
   var nm={month:'月案',week:'週案',day:'日案'}[AIP.res.kind];
   h+='<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
     +'<span class="badge" style="background:#FAEEDA;color:#854F0B;">下書き</span>'
+    +(AIP.res.byAI
+      ? '<span class="badge" style="background:#EEEDFE;color:#3C3489;">AIが作成</span>'
+      : '<span class="badge" style="background:#F1EFE8;color:#5B6875;" '
+        +'title="AIにつながっていないため、園の記録から組み立てた下書きです">記録から作成</span>')
     +'<h3 style="margin:0;">'+esc(k)+' '+esc(d.period)+' の'+nm+'</h3>'
     +'<div style="margin-left:auto;display:flex;gap:8px;">'
     +'<button class="btn btn-primary btn-sm" id="pSave">下書きとして保存</button>'
@@ -2787,8 +2879,25 @@ function aipWire(k){
   var cg=$$('#cGo');
   if(cg)cg.onclick=function(){
     var m=$$('#cM').value, mins=+($$('#cMin').value||20);
-    AIP.res={kind:'craft',data:aiCraft(k,{month:m,minutes:mins})};
-    aiLog('制作物アイディアをつくった',k+' '+m); renderAIPlan();
+    var base=aiCraft(k,{month:m,minutes:mins});
+    if(!aiCanServer()){
+      AIP.res={kind:'craft',data:base}; AI_NET.note='';
+      aiLog('制作物アイディアをつくった',k+' '+m); renderAIPlan(); return;
+    }
+    AI_NET.busy=true; AI_NET.what='制作物アイディア'; AI_NET.note='';
+    renderAIPlan();
+    aiAskServer('craft',k,m).then(function(got){
+      AI_NET.busy=false;
+      /* 参加のしかた（はさみの段階と人数）・先生の配置・必要な確認は
+         記録から出しているので、AIの文章では上書きしない。 */
+      var d=aiMerge(base,got,['name','aim','prep','steps','help','safe','display','letter']);
+      /* 材料だけは、人数ぶんの表記をこちらで足す */
+      if(got&&got.materials&&got.materials.length){
+        d.materials=got.materials.map(function(x){return String(x)+'（'+base.count+'名分）';});
+      }
+      AIP.res={kind:'craft',data:d,byAI:!!got};
+      aiLog('制作物アイディアをつくった'+(got?'（AI）':'（下書き）'),k+' '+m); renderAIPlan();
+    });
   };
   var ca=$$('#cAgain'); if(ca)ca.onclick=function(){ if(cg)cg.onclick(); };
   var cs=$$('#cSave');
@@ -2813,8 +2922,25 @@ function aipWire(k){
   /* 活動計画 */
   s.querySelectorAll('[data-aikind]').forEach(function(b){b.onclick=function(){
     var kind=b.getAttribute('data-aikind');
-    AIP.res={kind:kind,data:aiPlanGen(k,kind)};
-    aiLog({month:'月案',week:'週案',day:'日案'}[kind]+'をつくった',k); renderAIPlan();
+    var nm={month:'月案',week:'週案',day:'日案'}[kind];
+    /* まず記録から下書きを組み立てる。AIが使えないときは、これがそのまま出る。 */
+    var base=aiPlanGen(k,kind);
+    if(!aiCanServer()){
+      AIP.res={kind:kind,data:base}; AI_NET.note='';
+      aiLog(nm+'をつくった',k); renderAIPlan(); return;
+    }
+    AI_NET.busy=true; AI_NET.what=nm; AI_NET.note='';
+    renderAIPlan();
+    aiAskServer(kind,k).then(function(got){
+      AI_NET.busy=false;
+      /* AIが書くのは文章だけ。先生の配置・参加のしかた・個別の配慮は
+         記録から出しているので、重ねずにそのまま残す。 */
+      var keys=['aim','expect','env','prep','help','safe','review'];
+      if(kind==='week')keys=keys.concat(['days','rain']);
+      if(kind==='day') keys=keys.concat(['times']);
+      AIP.res={kind:kind,data:aiMerge(base,got,keys),byAI:!!got};
+      aiLog(nm+'をつくった'+(got?'（AI）':'（下書き）'),k); renderAIPlan();
+    });
   };});
   var ps2=$$('#pSave');
   if(ps2)ps2.onclick=function(){
