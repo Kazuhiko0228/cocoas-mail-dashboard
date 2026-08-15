@@ -1309,12 +1309,10 @@ function waPhotoOf(c){
   return st[c.id]||'';
 }
 function waAgeLabel(c){
-  if(!c||!c.dob)return '';
-  var d=String(c.dob).slice(0,10).split('-'); if(d.length<3)return '';
-  var t=todayISO().split('-');
-  var y=+t[0]-+d[0];
-  if((+t[1])<(+d[1])||((+t[1])===(+d[1])&&(+t[2])<(+d[2])))y--;
-  return (y<0?0:y)+'歳児';
+  /* 保育の「○歳児」は、その年度の4月1日時点の年齢で決まる。
+     今日時点の満年齢で出すと、誕生日を過ぎた子だけ1つ上にずれ、
+     マイページ（klassLabel）と食い違ってしまう。数え方は ageClass に一本化する。 */
+  return (c&&c.dob)?ageClass(c.dob):'';
 }
 /* 名前の隣に出す丸。写真があれば写真、無ければ頭文字。 */
 function waFaceHTML(c,size){
@@ -2091,7 +2089,22 @@ function feedHTML(kind){
       +'</div>';
   }
   var nNew=items.filter(isNewPost).length;
-  var counts={all:items.length,seen:feedSeenList().length,fav:feedFavs().length,save:feedSaves().length};
+  /* バッジの数は、その一覧を開いたときに実際に並ぶ件数と合わせる。
+     以前は「あそぶ」と「まなぶ」を合算し、しぼり込みも無視して数えていたため、
+     『お気に入り 1』と出ているのに開くと空、ということが起きていた。 */
+  var counts=(function(){
+    var base=items.filter(function(x){
+      if(f.cat&&x.cat!==f.cat)return false;
+      if(f.age&&x.ages.indexOf(f.age)<0)return false;
+      if(f.q){var q=f.q.toLowerCase();
+        if((x.t+x.d+x.cat).toLowerCase().indexOf(q)<0)return false;}
+      return true;
+    });
+    var sn=feedSeenList(), fv=feedFavs(), sv=feedSaves();
+    var has=function(a){return function(x){return a.indexOf(x.id)>-1;};};
+    return {all:base.length, seen:base.filter(has(sn)).length,
+            fav:base.filter(has(fv)).length, save:base.filter(has(sv)).length};
+  })();
   var empty={seen:'まだ見た記事はありません',fav:'まだお気に入りはありません',save:'まだ保存したものはありません',
              all:'条件に合うものが見つかりませんでした'}[view];
   return '<h2 class="sec sec-'+col+'">'+ttl+'</h2>'
@@ -2467,7 +2480,7 @@ function meHTML(c){
       /* 保育料のご請求は、配属スクールより上に置く */
       +billHTML(c)
       +schoolInfoHTML()
-      +growthHTML(c);
+      +(healthOk()?growthHTML(c):healthLockHTML());
   }else{
     h2+='<div class="card petal-c"><div style="font-weight:700;font-size:15px;">園とつながっていません</div>'
       +'<div class="muted" style="margin-top:5px;">スクールコードを入れると、園からの連絡や先生が選んだ教材が使えます。</div>'
@@ -3798,7 +3811,9 @@ var WAPI={
 
 /* 送るのは、保護者ご自身が書いたものだけ。
    サーバ側でも同じ一覧で弾いているので、二重に守っている。 */
-var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref)$/;
+/* wa_health_consent … 健康に関する情報の同意。
+   規約では取得の記録を残す必要があるため、端末の中だけでなく園にも送る。 */
+var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref)$/;
 
 var WSYNC={q:{},timer:null,busy:false,msg:'',
   mark:function(key){
@@ -3971,6 +3986,17 @@ function waLawOpen(){
   if(x)x.onclick=function(){ov.remove();};
 }
 
+/* 同意をいただく前に、身体記録の場所に出すもの。
+   ただ隠すと壊れているように見えるため、理由と入口をきちんと出す。 */
+function healthLockHTML(){
+  return '<div class="card" style="border-color:#E8C9C9;background:#FCEBEB;">'
+    +'<h2 class="sec sec-c" style="margin-top:0;">📈 身体記録</h2>'
+    +'<div style="font-size:13px;line-height:1.9;">'
+    +'身長・体重・体温などは、法律上とくに配慮が必要な「健康に関する情報」です。'
+    +'そのため、<b>ご同意をいただくまで表示しません。</b></div>'
+    +'<button class="btn" id="hcOpen" style="margin-top:12px;">内容を読んで同意する</button>'
+    +'</div>';
+}
 function healthCardHTML(){
   var r=healthConsent();
   return '<div class="card" style="margin-top:14px;">'

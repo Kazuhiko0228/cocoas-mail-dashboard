@@ -1306,7 +1306,7 @@ function wireNav(){
   document.querySelectorAll('[data-go]').forEach(function(a){
     if(a.getAttribute('data-wired'))return;
     a.setAttribute('data-wired','1');
-    a.addEventListener('click',function(){go(a.getAttribute('data-go'));});
+    a.addEventListener('click',function(){goRec(a.getAttribute('data-go'),a.getAttribute('data-rec'));});
   });
 }
 wireNav();
@@ -1332,6 +1332,13 @@ function egPlanOfPage(p){
     }
   }catch(e){}
   return true;
+}
+/* メニューから「どの記録か」まで指定して開く。
+   提出書類ナビが前からやっているやり方（recType を決めてから go する）を、
+   活動記録のメニューでも使えるようにしたもの。 */
+function goRec(page,rec){
+  if(rec&&typeof recType!=='undefined')recType=rec;
+  go(page);
 }
 function go(page){
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page)){
@@ -1369,12 +1376,17 @@ function buildNav(){
     g.items.forEach(function(x){
       var pages=x.sub?x.sub:[{p:x.p,l:x.l}];
       /* 同じ画面へのリンクが重ならないようにする */
+      /* 同じ画面でも、開く記録がちがえば別の行として出す。
+         画面の名前だけで重なりを見ていたため、
+         「生徒個人発達記録」と「ヒヤリハット・怪我」が消えていた。 */
       var seen={};
       pages.forEach(function(y){
-        if(!y.p||seen[y.p])return;seen[y.p]=1;
+        var key=y.p+'|'+(y.rec||'')+'|'+(y.l||'');
+        if(!y.p||seen[key])return;seen[key]=1;
         if(typeof canView==='function'&&!canView(y.p))return;
         var a=document.createElement('a');
         a.setAttribute('data-go',y.p);
+        if(y.rec)a.setAttribute('data-rec',y.rec);
         a.innerHTML=egIcon(x.sub?'':x.i)+esc(x.sub?y.l:x.l);
         any.push(a);
       });
@@ -1437,11 +1449,13 @@ var EG_NAV=[
    {k:'tasks',      l:'年間スケジュール', i:'clipboard', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
    {k:'curriculum', l:'月間カリキュラム', i:'book',      c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
    {k:'aiplan',     l:'AI保育計画',      i:'🤖', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'pro'},
+   /* rec は、その画面のどの記録を開くか。
+      同じ carerec でも、押した項目の記録が選ばれた状態で開くようにする。 */
    {k:'katsudo',    l:'活動記録',        i:'🏃', c:'#854F0B', bg:'#FAEEDA', sub:[
-     {p:'carerec', l:'身体測定記録'},
+     {p:'carerec', l:'身体測定記録',      rec:'身体測定'},
      {p:'drill',   l:'避難訓練'},
-     {p:'carerec', l:'生徒個人発達記録'},
-     {p:'carerec', l:'ヒヤリハット・怪我'}]}
+     {p:'carerec', l:'生徒個人発達記録',  rec:'生徒個人発達記録'},
+     {p:'carerec', l:'ヒヤリハット・怪我', rec:'ヒヤリハット・怪我'}]}
  ]},
  {cat:'顧客情報・料金管理',boss:true,items:[
    {k:'contacts', l:'連絡先',   i:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
@@ -1760,6 +1774,19 @@ var THERMO={
   }
 };
 
+/* 登園シートを描き直す。
+   体温を保存したあと、これを呼ばないと画面に出ないだけでなく、
+   edTouen が抱えている古い記録があとから保存されて体温が消えてしまう。
+   登園シートを開いていないときは、何もしない。 */
+function thRedraw(){
+  try{
+    if(typeof edTouen!=='function')return;
+    if(typeof recType!=='undefined'&&recType!=='登園（出席）')return;
+    if(!document.querySelector('[data-ta]'))return;
+    edTouen();
+  }catch(e){ console.error('[登園シートの描き直し]',e.message); }
+}
+
 /* ══ 測定の流れ ════════════════════════════════ */
 var THF={open:false, child:null, state:'wait', temp:null, left:0, timer:null, undo:0, undoTimer:null};
 var TH_WAIT=60;   /* 測定待ちの秒数 */
@@ -1800,14 +1827,14 @@ function thFlowSave(v){
     var r=d.rows[THF.child.id]||{att:'',temp:'',opts:{}};
     r.temp=String(v);
     d.rows[THF.child.id]=r; data[day]=d; stSet(K,data);
-    try{ if(typeof renderTouen==='function')renderTouen(); }catch(e){}
+    thRedraw();
   }catch(e){ console.error('[体温の保存]',e.message); }
 }
 function thFlowUndo(){
   try{
     var K='rec_登園シート', data=stGet(K,{}), day=(typeof recDate!=='undefined'&&recDate)?recDate:todayISO();
     var d=data[day]; if(d&&d.rows[THF.child.id]){ d.rows[THF.child.id].temp=''; stSet(K,data); }
-    try{ if(typeof renderTouen==='function')renderTouen(); }catch(e){}
+    thRedraw();
   }catch(e){}
   clearInterval(THF.undoTimer);
   THF.state='wait'; THF.temp=null; THF.left=TH_WAIT;
@@ -1933,11 +1960,11 @@ function thermoBarWire(){
     THERMO.connect(function(ok,msg){
       if(ok){aiToast('体温計につながりました');}
       else if(msg)alert(msg);
-      try{renderTouen();}catch(e){}
+      thRedraw();
     });
   };
   var b=document.getElementById('thBarOff');
-  if(b)b.onclick=function(){ THERMO.disconnect(); try{renderTouen();}catch(e){}; };
+  if(b)b.onclick=function(){ THERMO.disconnect(); thRedraw(); };
 }
 
 /* 短い知らせ。EduGrow には共通のものが無いので、ここで用意する。 */
@@ -2969,7 +2996,8 @@ function renderHome(){
           +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
           +x.sub.filter(function(y){return typeof canView!=='function'||canView(y.p);})
              .map(function(y){
-               return '<button class="btn btn-sm" data-tile="'+esc(y.p)+'">'+esc(y.l)+'</button>';
+               return '<button class="btn btn-sm" data-tile="'+esc(y.p)+'"'
+                 +(y.rec?' data-rec="'+esc(y.rec)+'"':'')+'>'+esc(y.l)+'</button>';
              }).join('')
           +'</div></div>';
       }).join('')
@@ -2983,7 +3011,8 @@ function renderHome(){
     if(it.sub){ egOpen=(egOpen===k?null:k); renderHome(); return; }
     go(it.p);
   };});
-  s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-tile'));};});
+  s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){
+    goRec(b.getAttribute('data-tile'),b.getAttribute('data-rec'));};});
 }
 
 /* ---------- 未来WA ストア管理 ----------
@@ -3686,11 +3715,16 @@ function renderContacts(){
           '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+esc(c.id)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(c.id)+'">'+ic('trash')+'</button></td></tr>';
       }).join(''):'<tr><td colspan="5" class="empty">該当する連絡先がありません</td></tr>')+
     '</tbody></table></div>';
-  $('#cSearch').addEventListener('input',function(e){contactSearch=e.target.value;renderContacts();$('#cSearch').focus();});
+  /* いま描いている画面（s）の中だけを探す。全体から探すと、隠れているもう一方の
+     画面（連絡先／顧客リスト）の同じidを掴んでしまい、ボタンが効かなくなる。 */
+  var cse=s.querySelector('#cSearch');
+  if(cse)cse.addEventListener('input',function(e){contactSearch=e.target.value;renderContacts();
+    var q=s.querySelector('#cSearch'); if(q)q.focus();});
   s.querySelectorAll('[data-cf]').forEach(function(b){b.addEventListener('click',function(){contactFilter=b.getAttribute('data-cf');renderContacts();});});
-  var cso=$('#cSort');if(cso)cso.onchange=function(e){contactSort=e.target.value;renderContacts();};
-  var cpb=$('#cPrint');if(cpb)cpb.onclick=contactAuditPrintModal;
-  $('#addContact').addEventListener('click',function(){contactModal();});
+  var cso=s.querySelector('#cSort');if(cso)cso.onchange=function(e){contactSort=e.target.value;renderContacts();};
+  var cpb=s.querySelector('#cPrint');if(cpb)cpb.onclick=contactAuditPrintModal;
+  var cab=s.querySelector('#addContact');
+  if(cab)cab.addEventListener('click',function(){contactModal();});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){contactModal(+b.getAttribute('data-edit'));});});
   s.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',function(){if(confirm('この連絡先を削除しますか？')){DB.contacts=DB.contacts.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderContacts();}});});
   /* サイドバーの件数バッジ。組み立て直しで無いこともあるので、あれば入れる。 */
