@@ -1306,7 +1306,8 @@ function wireNav(){
   document.querySelectorAll('[data-go]').forEach(function(a){
     if(a.getAttribute('data-wired'))return;
     a.setAttribute('data-wired','1');
-    a.addEventListener('click',function(){goRec(a.getAttribute('data-go'),a.getAttribute('data-rec'));});
+    a.addEventListener('click',function(){goRec(a.getAttribute('data-go'),
+      a.getAttribute('data-rec'),a.getAttribute('data-tab2'));});
   });
 }
 wireNav();
@@ -1336,8 +1337,10 @@ function egPlanOfPage(p){
 /* メニューから「どの記録か」まで指定して開く。
    提出書類ナビが前からやっているやり方（recType を決めてから go する）を、
    活動記録のメニューでも使えるようにしたもの。 */
-function goRec(page,rec){
+function goRec(page,rec,tab){
   if(rec&&typeof recType!=='undefined')recType=rec;
+  /* 防火・消火／保育研修のように、同じ画面の中でタブが分かれているもの */
+  if(tab&&page==='bouka'&&typeof boukaTab!=='undefined')boukaTab=tab;
   go(page);
 }
 function go(page){
@@ -1387,6 +1390,7 @@ function buildNav(){
         var a=document.createElement('a');
         a.setAttribute('data-go',y.p);
         if(y.rec)a.setAttribute('data-rec',y.rec);
+        if(y.tab)a.setAttribute('data-tab2',y.tab);
         a.innerHTML=egIcon(x.sub?'':x.i)+esc(x.sub?y.l:x.l);
         any.push(a);
       });
@@ -1466,8 +1470,8 @@ var EG_NAV=[
    {k:'staffg',  l:'職員管理', i:'staff', c:'#0B5F8F', bg:'#E3F1F9', sub:[
      {p:'staff', l:'職員管理'},
      {p:'shift', l:'シフト表'},
-     {p:'bouka', l:'職員研修（防火・消火訓練）'},
-     {p:'bouka', l:'保育研修'}]},
+     {p:'bouka', l:'職員研修（防火・消火訓練）', tab:'daichou'},
+     {p:'bouka', l:'保育研修', tab:'hoiku'}]},
    {k:'expense', l:'経費精算', i:'💵', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
    {k:'docs',    l:'書類格納', i:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'}
  ]},
@@ -2997,7 +3001,8 @@ function renderHome(){
           +x.sub.filter(function(y){return typeof canView!=='function'||canView(y.p);})
              .map(function(y){
                return '<button class="btn btn-sm" data-tile="'+esc(y.p)+'"'
-                 +(y.rec?' data-rec="'+esc(y.rec)+'"':'')+'>'+esc(y.l)+'</button>';
+                 +(y.rec?' data-rec="'+esc(y.rec)+'"':'')
+                 +(y.tab?' data-tab2="'+esc(y.tab)+'"':'')+'>'+esc(y.l)+'</button>';
              }).join('')
           +'</div></div>';
       }).join('')
@@ -3012,7 +3017,7 @@ function renderHome(){
     go(it.p);
   };});
   s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){
-    goRec(b.getAttribute('data-tile'),b.getAttribute('data-rec'));};});
+    goRec(b.getAttribute('data-tile'),b.getAttribute('data-rec'),b.getAttribute('data-tab2'));};});
 }
 
 /* ---------- 未来WA ストア管理 ----------
@@ -8098,6 +8103,12 @@ var BOUKA_MONTHS=[4,5,6,7,8,9,10,11,12,1,2,3];
 var BOUKA_CHECK_LABELS=['①消火器のチェック…配置や残量、動作の確認','②救急箱のチェック…中身の確認','③AED・自動火災報知設備のチェック…配置や電池の消耗残量、動作の確認','④防火扉のチェック…防火扉のまえに物がないかどうか、開閉できるかどうか','⑤避難グッズのチェック…配置、中身の確認'];
 var BOUKA_CONTENT_CYCLE=['消火器の使い方を全体共有・デモンストレーション。','救急箱の中身の補充と使い方チェック。','AED使用方法の共有・デモンストレーション。'];
 var boukaYear=null,boukaTab='daichou';
+/* 保育研修の記録。年度ごとに、行を足していく形で持つ。
+   防火・消火は毎月1回と決まっているが、保育研修は回数が決まっていないため。 */
+function kenshuAll(){return stGet('hoiku_kenshu',{});}
+function kenshuGet(fy){var a=kenshuAll();return (a[fy]&&a[fy].rows)?a[fy]:{rows:[]};}
+function kenshuSet(fy,d){var a=kenshuAll();a[fy]=d;stSet('hoiku_kenshu',a);}
+function kenshuNewRow(){return {id:Date.now(),date:'',title:'',teacher:'',members:'',content:'',note:''};}
 function boukaFY(){if(boukaYear==null)boukaYear=curFY();return boukaYear;}
 function boukaAll(){return stGet('bouka',{});}
 function boukaGet(fy){
@@ -8116,10 +8127,11 @@ function renderBouka(){
   function save(){boukaSet(fy,d);}
   var fys=[curFY()-1,curFY(),curFY()+1];
   var doneN=BOUKA_MONTHS.filter(function(mo){return d.rows[mo].date;}).length;
-  var head='<div class="card" style="margin-bottom:14px;">'+recHead('防火管理台帳・消火訓練 記録（毎月1回実施）',
+  var head='<div class="card" style="margin-bottom:14px;">'+recHead(
+      boukaTab==='hoiku'?'保育研修の記録':'防火管理台帳・消火訓練 記録（毎月1回実施）',
       '<select id="bkYear" style="width:140px;">'+fys.map(function(y){return '<option value="'+esc(y)+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>'
       +'<span class="tag" style="background:#EAF3DE;color:#27500A;">実施済 '+doneN+' / 12</span>')
-    +'<div class="chips" style="margin:0;">'+[['daichou','防火管理台帳'],['kunren','消火訓練 手順・記録']].map(function(t){return '<span class="chip'+(t[0]===boukaTab?' on':'')+'" data-bktab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
+    +'<div class="chips" style="margin:0;">'+[['daichou','防火管理台帳'],['kunren','消火訓練 手順・記録'],['hoiku','保育研修']].map(function(t){return '<span class="chip'+(t[0]===boukaTab?' on':'')+'" data-bktab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
   var body;
   if(boukaTab==='daichou'){
     body='<div class="card">'+recHead('防火管理台帳','<button class="btn btn-sm btn-primary" id="bkPrintD">'+ic('printer')+'台帳を出力</button>')
@@ -8145,7 +8157,70 @@ function renderBouka(){
           +'<td><textarea class="autogrow" rows="2" data-bk="'+mo+'|summary" placeholder="実施した様子や気づいたことを記入します">\n'+esc(r.summary||'')+'</textarea></td></tr>';}).join('')
       +'</tbody></table></div></div>';
   }
+  if(boukaTab==='hoiku'){
+    var kd=kenshuGet(fy);
+    body='<div class="card">'+recHead('保育研修の記録',
+        '<button class="btn btn-sm" id="ksAdd">'+ic('plus')+'研修を追加</button>'
+        +'<button class="btn btn-sm btn-primary" id="ksPrint">'+ic('printer')+'記録を出力</button>')
+      +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">'
+      +'園内でおこなった保育の研修を記録します。監査では、職員がどのような研修を受けたかを見られます。'
+      +'外部の研修に参加した場合も、ここに書いておくとまとめて出せます。<br>'
+      +'※ 記入した内容はその場で保存されます。</div>'
+      +'<div class="tablewrap"><table><thead><tr>'
+      +'<th style="width:120px;">実施日</th><th style="width:170px;">研修名</th>'
+      +'<th style="width:120px;">講師・主催</th><th style="width:150px;">参加した職員</th>'
+      +'<th>内容</th><th style="width:150px;">備考</th><th style="width:44px;"></th>'
+      +'</tr></thead><tbody>'
+      +(kd.rows.length?kd.rows.map(function(r,i){
+        return '<tr>'
+          +'<td style="vertical-align:top;"><input type="date" data-ks="'+i+'|date" value="'+esc(r.date||'')+'"></td>'
+          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|title" placeholder="例：食物アレルギー対応">\n'+esc(r.title||'')+'</textarea></td>'
+          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|teacher" placeholder="例：園長">\n'+esc(r.teacher||'')+'</textarea></td>'
+          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|members" placeholder="例：全職員">\n'+esc(r.members||'')+'</textarea></td>'
+          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|content" placeholder="研修でおこなった内容を記入します">\n'+esc(r.content||'')+'</textarea></td>'
+          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|note">\n'+esc(r.note||'')+'</textarea></td>'
+          +'<td style="vertical-align:top;text-align:right;"><button class="btn btn-sm btn-ghost" data-ksdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
+        }).join('')
+        :'<tr><td colspan="7" class="empty">まだ記録がありません。「研修を追加」から書きはじめてください。</td></tr>')
+      +'</tbody></table></div></div>';
+  }
+
   s.innerHTML=head+body;
+  /* 上の見出しも、開いているタブに合わせる（同じ画面に別の記録が入っているため） */
+  try{ var _pt=$('#pageTitle');
+    if(_pt)_pt.textContent=(boukaTab==='hoiku')?'保育研修':'防火管理台帳・消火訓練'; }catch(e){}
+  if(boukaTab==='hoiku'){
+    var kd2=kenshuGet(fy);
+    var ksave=function(){kenshuSet(fy,kd2);};
+    if($('#ksAdd'))$('#ksAdd').onclick=function(){kd2.rows.push(kenshuNewRow());ksave();renderBouka();};
+    s.querySelectorAll('[data-ks]').forEach(function(el3){
+      var fn=function(){var p=el3.getAttribute('data-ks').split('|');kd2.rows[+p[0]][p[1]]=el3.value;ksave();};
+      el3.onchange=fn;
+      if(el3.tagName==='TEXTAREA')el3.oninput=fn;
+    });
+    s.querySelectorAll('[data-ksdel]').forEach(function(b2){b2.onclick=function(){
+      if(!confirm('この研修の記録を消しますか？'))return;
+      kd2.rows.splice(+b2.getAttribute('data-ksdel'),1);ksave();renderBouka();};});
+    if($('#ksPrint'))$('#ksPrint').onclick=function(){
+      var b4='<p style="text-align:center;font-size:20px;font-weight:700;">保育研修の記録</p>'
+        +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
+        +'<table><thead><tr><th style="width:76px;">実施日</th><th style="width:130px;">研修名</th>'
+        +'<th style="width:90px;">講師・主催</th><th style="width:110px;">参加した職員</th>'
+        +'<th>内容</th><th style="width:110px;">備考</th></tr></thead><tbody>'
+        +(kd2.rows.length?kd2.rows.map(function(r){
+          return '<tr><td style="vertical-align:top;">'+esc(r.date||'')+'</td>'
+            +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.title||'')+'</td>'
+            +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.teacher||'')+'</td>'
+            +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.members||'')+'</td>'
+            +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.content||'')+'</td>'
+            +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.note||'')+'</td></tr>';
+          }).join('')
+          :'<tr><td colspan="6">記録がありません</td></tr>')
+        +'</tbody></table>';
+      printDoc('保育研修の記録（'+fy+'年度）',b4);
+    };
+    autoGrowAll(s);
+  }
   $('#bkYear').onchange=function(e){boukaYear=+e.target.value;renderBouka();};
   s.querySelectorAll('[data-bktab]').forEach(function(b){b.onclick=function(){boukaTab=b.getAttribute('data-bktab');renderBouka();};});
   s.querySelectorAll('[data-bk]').forEach(function(el2){
