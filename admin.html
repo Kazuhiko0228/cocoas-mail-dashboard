@@ -177,7 +177,7 @@ var API={
     history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:''));}
 }catch(e){}})();
 
-var view='home', openId=null, DATA={}, PLANS={};
+var view='home', openId=null, DATA={}, PLANS={}, OPTS={}, UPGRADE={};
 
 /* ── 見た目の部品 ────────────────────── */
 function statusPill(s){
@@ -213,7 +213,7 @@ function wireLogin(){
         API.setToken(j.token);DATA.me=j.admin;view='home';
         /* 料金表を先に読む。読めなくても画面は出す。 */
         return API.call('GET','/admin/plans')
-          .then(function(p){PLANS=p.plans;},function(){})
+          .then(function(p){PLANS=p.plans;OPTS=p.options||{};UPGRADE=p.upgrade||{};},function(){})
           .then(function(){render();});
       })
       .catch(function(x){b.disabled=false;b.textContent='ログイン';
@@ -546,10 +546,21 @@ function meHTML(){
     +'<div style="margin-top:14px;padding-top:13px;border-top:1px solid var(--line);">'
     +'<div style="font-weight:800;font-size:13px;margin-bottom:7px;">単発オプション</div>'
     +'<div class="lines" style="margin-top:0;">'
-    +'<div><span class="l">監査対応（1年・単発）</span><span class="y num">'+yen(77000)+'</span></div>'
-    +'<div><span class="l">Connect 1年 ＋ 単発オプション</span><span class="y num">'+yen(119760+77000)+'</span></div>'
-    +'<div><span class="l">Standard 1年</span><span class="y num">'+yen(177600)+'</span></div>'
-    +'<div class="tot"><span class="l">Standard のほうが安い額</span><span class="y num">'+yen(19160)+'</span></div>'
+    /* 金額はサーバ（src/admin.js）から受け取ったものを出す。
+       ここに直書きすると、料金を変えたときに画面だけ古いまま残る。 */
+    +(function(){
+      var u=UPGRADE||{}, o=(OPTS&&OPTS.audit_year)||{};
+      if(u.standardYear==null)return '<div class="empty" style="padding:12px 0;">'
+        +'料金の情報を読み込めませんでした</div>';
+      return '<div><span class="l">'+esc(o.name||'監査対応（1年・単発）')+'</span>'
+          +'<span class="y num">'+yen(u.auditOption)+'</span></div>'
+        +'<div><span class="l">Connect 1年 ＋ 単発オプション</span>'
+          +'<span class="y num">'+yen(u.connectPlusOption)+'</span></div>'
+        +'<div><span class="l">Standard 1年</span>'
+          +'<span class="y num">'+yen(u.standardYear)+'</span></div>'
+        +'<div class="tot"><span class="l">Standard のほうが安い額</span>'
+          +'<span class="y num">'+yen(u.diff)+'</span></div>';
+    })()
     +'</div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.75;">'
     +'Connect の園が監査対応だけ単発で買うより、Standard で契約したほうが年間で安くなります。'

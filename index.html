@@ -319,6 +319,7 @@
       <section data-page="facility" hidden></section>
       <section data-page="contacts" hidden></section>
       <section data-page="roster" hidden></section>
+      <section data-page="kidsview" hidden></section>
       <section data-page="enroll" hidden></section>
       <section data-page="billing" hidden></section>
       <section data-page="templates" hidden></section>
@@ -1315,7 +1316,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -1413,7 +1414,7 @@ function go(page){
   /* 説明文の行分けは、画面の中身を入れ替えたあとに行う */
   setTimeout(function(){try{tidyNotes(document.querySelector('section[data-page="'+page+'"]'));}catch(e){}},0);
   (page==='creator') ? (function(){window.open('creator.html','_blank','noopener');page='home';})() :
-  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,kidsview:renderKidsView,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -1493,8 +1494,10 @@ function isBoss(){
 var EG_NAV=[
  {cat:'よく使う',items:[
    {k:'kiroku', l:'保育記録',   i:'👧', c:'#0B5F8F', bg:'#E3F1F9', sub:[
-     {p:'records', l:'日常チェック'},
-     {p:'roster',  l:'生徒台帳'}]},
+     {p:'records',  l:'日常チェック'},
+     /* 先生用。生徒台帳は触ってほしくないので、見るだけの画面を分けた（依頼F7） */
+     {p:'kidsview', l:'生徒情報'},
+     {p:'roster',   l:'生徒台帳'}]},
    {k:'renraku', l:'連絡・配信', i:'mail', c:'#A32D2D', bg:'#FCEBEB', sub:[
      {p:'dm',        l:'保護者DM'},
      {p:'broadcast', l:'全体配信'}]},
@@ -3497,7 +3500,6 @@ function renderWaStore(){
   var s=$('section[data-page="wastore"]'),rate=waRate(),mk=waMonth();
   var os=waOrd().filter(function(o){return String(o.at||'').slice(0,7)===mk;});
   var gmv=0,kb=0;os.forEach(function(o){gmv+=(+o.amount||0);kb+=(+o.kickback||0);});
-  var fee=8800;
   s.innerHTML='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
     +'<div class="chips" style="margin:0;flex:1;">'
       +'<span class="chip'+(waTab2==='items'?' on':'')+'" data-wt="items">商品の管理</span>'
@@ -3517,15 +3519,20 @@ function renderWaStore(){
   if(waTab2==='pick'){ renderWaPick(s); wireWaTabs(); return; }
   if(waTab2==='amz'){ renderWaAmz(s); wireWaTabs(); return; }
   if(waTab2==='sales'){
-    var net=fee-kb;
     s.innerHTML+='<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">'
       +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">未来WAの流通額（'+esc(mk)+'）</div>'
         +'<div style="font-size:26px;font-weight:800;margin-top:4px;">'+yen(gmv)+'</div><div class="muted" style="font-size:12px;">'+os.length+'件</div></div>'
       +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">園への還元（'+Math.round(rate*100)+'%）</div>'
-        +'<div style="font-size:26px;font-weight:800;margin-top:4px;color:#27500A;">'+yen(kb)+'</div><div class="muted" style="font-size:12px;">EduGrow利用料 '+yen(fee)+'</div></div>'
-      +'<div class="card" style="margin:0;border-color:'+(net<=0?'#639922':'var(--line)')+';"><div class="muted" style="font-size:12px;font-weight:700;">園の実質負担</div>'
-        +'<div style="font-size:26px;font-weight:800;margin-top:4px;color:'+(net<=0?'#27500A':'#A32D2D')+';">'+(net<=0?'＋'+yen(-net):yen(net))+'</div>'
-        +'<div class="muted" style="font-size:12px;">'+(net<=0?'還元が利用料を上回っています':'あと '+yen(net)+' で相殺')+'</div></div></div>'
+        +'<div style="font-size:26px;font-weight:800;margin-top:4px;color:#27500A;">'+yen(kb)+'</div>'
+        +'<div class="muted" style="font-size:12px;">'+os.length+'件ぶん</div></div>'
+      /* 「EduGrow利用料」と「園の実質負担」は、いったん出さない。
+         ここに出していた 8,800円 は料金表のどのプランにも無い数字で、
+         園がこれを見て契約すると食い違うため。
+         正式な金額が決まったら、サーバの料金表（src/admin.js）から取って出す。 */
+      +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">1件あたりの還元</div>'
+        +'<div style="font-size:26px;font-weight:800;margin-top:4px;">'
+        +(os.length?yen(Math.round(kb/os.length)):'—')+'</div>'
+        +'<div class="muted" style="font-size:12px;">今月の平均</div></div></div>'
       +'<div class="card"><h3>'+ic('yen')+'注文の明細（'+esc(mk)+'）</h3><div class="scrollx"><table><thead><tr>'
         +'<th>日時</th><th>園児</th><th>商品</th><th style="text-align:right;">金額</th><th style="text-align:right;">還元</th></tr></thead><tbody>'
       +(os.length?os.slice().reverse().map(function(o){
@@ -3786,6 +3793,9 @@ function renderDash(){
   s.querySelectorAll('[data-dashlead]').forEach(function(b){b.onclick=function(e){e.stopPropagation();contactModal(+b.getAttribute('data-dashlead'));};});
   s.querySelectorAll('[data-clsg]').forEach(function(ch){ch.onclick=function(e){e.stopPropagation();var k=ch.getAttribute('data-clsg');var g=classGender(k);var tot=g.b+g.g+g.u;var pct=function(n){return tot?Math.round(n/tot*100):0;};var bub=$('#clsBubble');bub.innerHTML='<b>'+k+'</b>（'+tot+'名）　👦 男児 '+g.b+'（'+pct(g.b)+'%）　👧 女児 '+g.g+'（'+pct(g.g)+'%）'+(g.u?'　不明 '+g.u:'');bub.style.display='block';bub.style.left=(ch.offsetLeft)+'px';};});
   document.addEventListener('click',function hide(ev){var b=$('#clsBubble');if(b&&!ev.target.getAttribute('data-clsg')){b.style.display='none';}},{once:true});
+  /* 「全期間／年度／月」の切り替え。配線が無く、押しても何も起きなかった。 */
+  s.querySelectorAll('[data-per]').forEach(function(b){b.onclick=function(){
+    dashPeriod=b.getAttribute('data-per'); renderDash();};});
   var pf=$('#perFY');if(pf)pf.onchange=function(e){dashFY=+e.target.value;renderDash();};
   var pm=$('#perMonth');if(pm)pm.onchange=function(e){dashMonth=e.target.value;renderDash();};
   /* サイドバーの件数バッジ。組み立て直しで無いこともあるので、あれば入れる。 */
@@ -6856,7 +6866,8 @@ var ACCESS_PAGES=[
   {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'wastore',label:'未来WA ストア管理'},{p:'guide',label:'スクールガイド'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
-  {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
+  {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},
+  {p:'kidsview',label:'生徒情報（先生用・閲覧のみ）'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'年間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
@@ -6871,9 +6882,9 @@ var DEFAULT_PERMS={
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
   /* シフト表は園長・マネージャーのものなので、既定では渡さない
      （必要なら管理者が権限管理から個別に渡せる）。 */
-  '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','contacts','curriculum']
+  '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','contacts','curriculum','kidsview']
 };
-var PERMS_VERSION=9;
+var PERMS_VERSION=10;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
    平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
@@ -7550,6 +7561,151 @@ function spDefaults(c){var nm=(c.name||'').split(/[\s　]+/);return {klass:c.kla
 function spGet(id){var c=DB.contacts.filter(function(x){return x.id===id;})[0]||{};return Object.assign({},spDefaults(c),spStore()[id]||{});}
 function spSet(id,obj){var s=spStore();s[id]=obj;stSet('studentProfiles',s);}
 function spAge(dob){if(!dob)return '';var d=new Date(dob),n=new Date();var a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a>=0?a+'歳':'';}
+
+
+/* ══ 生徒情報（先生用・閲覧のみ）════════════════
+   Remiさんの依頼（修正依頼シート F7）。
+
+   「生徒台帳は、先生にいじって欲しい部分じゃないんだよね」
+   というご指摘を受けて、先生が見るだけの画面を分けた。
+   ここには編集できるところを一切置かない。
+
+   出すもの
+   ・生徒情報から … 園児名／生年月日／クラス／通園曜日／コースプラン／ランチ／ロングステイ
+   ・生徒台帳から … 緊急連絡先／健康情報 */
+var kidsKlass='すべて', kidsQ='';
+
+function kidsHealthText(p){
+  if(!p)return '';
+  var a=[];
+  if(p.allergy&&p.allergy!=='なし')a.push('アレルギー：'+p.allergy);
+  if(p.history==='有')a.push('既往症あり');
+  if(p.febrile==='有')a.push('熱性けいれんの既往');
+  if(p.respiratory==='有')a.push('呼吸器の既往');
+  if(p.otherDx)a.push(p.otherDx);
+  if(p.normalTemp)a.push('平熱 '+p.normalTemp+'℃');
+  if(p.doctor&&p.doctor!=='なし')a.push('かかりつけ：'+p.doctor);
+  return a.join(' ／ ');
+}
+function kidsEmgList(p){
+  if(!p)return [];
+  var a=[];
+  if(p.emg1)a.push({rel:p.emg1rel||'第1',tel:p.emg1});
+  if(p.emg2)a.push({rel:p.emg2rel||'第2',tel:p.emg2});
+  if(p.telHome)a.push({rel:'自宅',tel:p.telHome});
+  return a;
+}
+function kidsRows(){
+  var sp=spStore();
+  return enrolled().filter(function(c){
+    if(kidsKlass!=='すべて'&&c.klass!==kidsKlass)return false;
+    if(kidsQ){
+      var q=kidsQ.toLowerCase();
+      var hay=(childFullName(c)+' '+(c.klass||'')+' '+kidsHealthText(sp[c.id])).toLowerCase();
+      if(hay.indexOf(q)<0)return false;
+    }
+    return true;
+  }).sort(function(a,b){
+    return String(a.klass||'').localeCompare(String(b.klass||''),'ja')
+      || String(a.dob||'').localeCompare(String(b.dob||''));
+  });
+}
+
+function renderKidsView(){
+  var s=$('section[data-page="kidsview"]');
+  var sp=spStore(), rows=kidsRows();
+  var klasses=['すべて'].concat(CLASSES);
+
+  var head='<div class="card" style="margin-bottom:14px;">'
+    +recHead('生徒情報（閲覧のみ）',
+      '<span class="tag" style="background:#EAF3DE;color:#27500A;border-color:#C7DFA6;">編集できません</span>')
+    +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">'
+    +'<div class="field" style="margin:0;"><label>クラス</label>'
+      +'<select id="kvK" style="width:130px;">'
+      +klasses.map(function(k){return '<option'+(k===kidsKlass?' selected':'')+'>'+esc(k)+'</option>';}).join('')
+      +'</select></div>'
+    +'<div class="field" style="margin:0;flex:1;min-width:200px;"><label>さがす</label>'
+      +'<input id="kvQ" value="'+esc(kidsQ)+'" placeholder="お名前・アレルギーなど"></div>'
+    +'<button class="btn btn-sm" id="kvPrint">'+ic('printer')+'印刷する</button>'
+    +'</div>'
+    +'<div class="muted" style="font-size:12px;margin-top:10px;line-height:1.9;">'
+    +'保育に必要な情報だけを、見るための画面です。内容を直すときは、'
+    +'園長・管理者に「生徒台帳」または「生徒情報（契約・オプション）」からお願いしてください。'
+    +'</div></div>';
+
+  if(!rows.length){
+    s.innerHTML=head+'<div class="card"><div class="empty">該当する園児がいません</div></div>';
+    wireKidsView(); return;
+  }
+
+  s.innerHTML=head
+    +'<div class="card"><div class="scrollx"><table><thead><tr>'
+    +'<th>園児</th><th>歳児</th><th>クラス</th><th>通園曜日</th><th>コース</th>'
+    +'<th>ランチ</th><th>ロングステイ</th><th>緊急連絡先</th><th>健康に関すること</th>'
+    +'</tr></thead><tbody>'
+    +rows.map(function(c){
+      var p=sp[c.id]||{}, o=enrOf(c), dop=dayOptsOf(c);
+      var lunchDays=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].lunch;});
+      var longDays =WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].long;});
+      var al=ageClassOf(c), ac=ageColor(al);
+      var hl=kidsHealthText(p);
+      var emg=kidsEmgList(c.id?p:null);
+      return '<tr>'
+        +'<td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))
+          +'<div class="row-sub">'+esc(c.dob||'')+'</div></td>'
+        +'<td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'
+        +'<td>'+esc(c.klass||'')+'</td>'
+        +'<td class="row-sub" style="white-space:nowrap;">'+esc(c.days||'—')+'</td>'
+        +'<td>'+esc(o.plan||'—')+'</td>'
+        +'<td class="row-sub">'+(o.lunchOn?(lunchDays.length?lunchDays.join('・'):'あり'):'—')+'</td>'
+        +'<td class="row-sub">'+(o.extOn?(longDays.length?longDays.join('・'):'あり'):'—')+'</td>'
+        +'<td class="row-sub" style="white-space:nowrap;">'
+          +(emg.length?emg.map(function(e){
+            return esc(e.rel)+'　'+esc(e.tel);}).join('<br>'):'<span style="color:#A32D2D;">未登録</span>')+'</td>'
+        +'<td class="row-sub">'+(hl
+            ? (/アレルギー/.test(hl)
+                ? '<span style="color:#A32D2D;font-weight:600;">'+esc(hl)+'</span>'
+                : esc(hl))
+            : '—')+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.8;">'
+    +'アレルギーは赤で出しています。緊急連絡先が「未登録」の園児は、'
+    +'園長・管理者に生徒台帳への登録をお願いしてください。</div></div>';
+  wireKidsView();
+}
+
+function wireKidsView(){
+  var k=$('#kvK'); if(k)k.onchange=function(){kidsKlass=k.value;renderKidsView();};
+  var q=$('#kvQ');
+  if(q)q.oninput=function(){kidsQ=q.value;renderKidsView();
+    var n=$('#kvQ'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}};
+  var pr=$('#kvPrint');
+  if(pr)pr.onclick=function(){
+    var sp=spStore(), rows=kidsRows();
+    var body='<p>'+esc(SET.school||'')+'　'+esc(kidsKlass)+'　'+fmt(todayISO())+'</p>'
+      +'<table><thead><tr><th>園児</th><th>生年月日</th><th>歳児</th><th>クラス</th><th>通園曜日</th>'
+      +'<th>コース</th><th>ランチ</th><th>ロングステイ</th><th>緊急連絡先</th><th>健康に関すること</th>'
+      +'</tr></thead><tbody>'
+      +rows.map(function(c){
+        var p=sp[c.id]||{}, o=enrOf(c), dop=dayOptsOf(c);
+        var lunchDays=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].lunch;});
+        var longDays =WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].long;});
+        return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.dob||'')+'</td>'
+          +'<td>'+esc(ageClassOf(c))+'</td><td>'+esc(c.klass||'')+'</td>'
+          +'<td>'+esc(c.days||'')+'</td><td>'+esc(o.plan||'')+'</td>'
+          +'<td>'+(o.lunchOn?(lunchDays.join('・')||'あり'):'')+'</td>'
+          +'<td>'+(o.extOn?(longDays.join('・')||'あり'):'')+'</td>'
+          +'<td>'+esc(kidsEmgList(p).map(function(e){return e.rel+' '+e.tel;}).join(' ／ '))+'</td>'
+          +'<td>'+esc(kidsHealthText(p))+'</td></tr>';
+      }).join('')
+      +'</tbody></table>'
+      +'<p style="font-size:11px;color:#888;">この用紙には園児の健康に関する情報が含まれます。'
+      +'園外に持ち出さず、使い終わったら裁断して破棄してください。</p>';
+    printDoc('生徒情報（'+kidsKlass+'）',body);
+  };
+}
 
 function renderRoster(){
   spSeed();
