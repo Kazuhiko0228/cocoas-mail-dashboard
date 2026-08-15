@@ -1528,7 +1528,9 @@ var EG_NAV=[
    {k:'expense', l:'経費精算', i:'💵', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
    {k:'docs',    l:'書類格納', i:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'}
  ]},
- {cat:'新規顧客管理',boss:true,plan:'standard',items:[
+ /* システム概要シート（対象プラン＝Proのみ）と料金表（Pro＝standard＋営業顧客管理）に合わせる。
+    standard にしていたため、1つ下のプランの園にも見えてしまっていた。 */
+ {cat:'新規顧客管理',boss:true,plan:'pro',items:[
    {k:'leads',   l:'顧客リスト',     i:'👤', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
    {k:'trial',   l:'体験結果報告',   i:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
    {k:'mailg',   l:'個別メール',     i:'send', c:'#123E6B', bg:'#E6F1FB', sub:[
@@ -3503,8 +3505,17 @@ function renderWaStore(){
       +'<span class="chip'+(waTab2==='amz'?' on':'')+'" data-wt="amz">外部教材のリンク</span>'
       +'<span class="chip'+(waTab2==='sales'?' on':'')+'" data-wt="sales">売上と還元</span></div>'
     +'<span class="muted" style="font-size:12px;">ここで登録すると、保護者アプリ「未来WA」にすぐ表示されます</span></div>';
-  if(waTab2==='pick'){ renderWaPick(s); return; }
-  if(waTab2==='amz'){ renderWaAmz(s); return; }
+  /* タブの配線は、ここで先に済ませる。
+     下の「保護者に見せる」「外部教材のリンク」は途中で return するうえ、
+     中で innerHTML を足して作り直すため、関数の最後で配線していると
+     一度それらを開いたあとタブが押せなくなる（Remiさんのご指摘）。 */
+  var wireWaTabs=function(){
+    s.querySelectorAll('[data-wt]').forEach(function(b){
+      b.onclick=function(){ waTab2=b.getAttribute('data-wt'); renderWaStore(); };});
+  };
+  wireWaTabs();
+  if(waTab2==='pick'){ renderWaPick(s); wireWaTabs(); return; }
+  if(waTab2==='amz'){ renderWaAmz(s); wireWaTabs(); return; }
   if(waTab2==='sales'){
     var net=fee-kb;
     s.innerHTML+='<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">'
@@ -3589,7 +3600,7 @@ function renderWaStore(){
         emoji:$('#wnEmoji').value||'📦',cat:$('#wnCat').value,sub:$('#wnSub').checked,aim:'',rec:false});
       save(ps2);renderWaStore();};
   }
-  s.querySelectorAll('[data-wt]').forEach(function(b){b.onclick=function(){waTab2=b.getAttribute('data-wt');renderWaStore();};});
+  wireWaTabs();
 }
 
 /* ---------- dashboard ---------- */
