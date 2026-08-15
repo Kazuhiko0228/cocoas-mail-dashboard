@@ -225,7 +225,7 @@ function wireLogin(){
 
 /* ── 全体の骨組み ───────────────────── */
 function shell(inner){
-  var tabs=[['home','ホーム'],['tenants','園の一覧'],['docs','書類'],['me','設定']];
+  var tabs=[['home','ホーム'],['tenants','園の一覧'],['bill','請求'],['docs','書類'],['me','設定']];
   return '<div class="top"><div><div class="lg">運営管理</div>'
     +'<div class="sub">未来WA ／ EduGrow</div></div>'
     +'<div class="sp"></div><button id="out">ログアウト</button></div>'
@@ -233,6 +233,108 @@ function shell(inner){
       return '<button data-v="'+t[0]+'" class="'+(view===t[0]?'on':'')+'">'+t[1]+'</button>';
     }).join('')+'</div>'
     +'<div class="wrap">'+inner+'</div>';
+}
+
+/* ── 請求 ─────────────────────────────
+   毎月の請求を、運営が月を選んで手で流す。
+   元栓が閉じているあいだは、金額を出して記録するだけで決済は頼まない。 */
+var billMonth=(function(){var d=new Date(Date.now()+9*3600*1000);
+  return d.toISOString().slice(0,7);})();
+var billRun=null;
+
+function billStatusCard(){
+  var b=DATA.bstat;
+  if(!b)return '';
+  var on=b.charging;
+  return '<div class="card" style="border-color:'+(on?'#E0B4B4':'#C7DFA6')+';background:'+(on?'#FBEBEB':'#EEF5E6')+';">'
+    +'<div style="font-weight:800;font-size:14px;color:'+(on?'#9C3535':'#2F6B33')+';">'
+    +(on?'⚠ 実際に決済します':'いまは決済しません（練習用）')+'</div>'
+    +'<div style="font-size:12.5px;color:var(--mute);margin-top:8px;line-height:1.9;">'
+    +'鍵：'+(b.keyReady?'設定ずみ（'+esc(b.mode)+'）':'未設定')
+    +'　／　通知の合言葉：'+(b.webhookReady?'設定ずみ':'未設定')
+    +'<br>元栓 BILLING_ENABLED：'+(b.enabled?'開いている':'閉じている')
+    +'　／　練習用 BILLING_DRY_RUN：'+(b.dryRun?'はい':'いいえ')
+    +'<br>'+(on
+      ? 'この状態で「請求を作る」を押すと、実際にカードへ請求が行きます。'
+      : '「請求を作る」を押しても、金額を出して記録するだけです。カードには請求されません。')
+    +'</div></div>';
+}
+
+function billHTML(){
+  var d=DATA.binv||{}, rows=d.invoices||[];
+  var h=billStatusCard()
+    +'<div class="card"><h2>請求</h2><div class="lead">月を選んで、その月の請求を作ります</div>'
+    +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;">'
+    +'<label style="display:block;"><span style="font-size:11.5px;color:var(--mute);display:block;margin-bottom:4px;">対象の月</span>'
+    +'<input type="month" id="bm" value="'+esc(billMonth)+'"></label>'
+    +'<button id="bRun" class="btn">この月の請求を作る</button>'
+    +'<button id="bRedo" class="btn sec sm">作り直す（未送信のみ）</button>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mute);margin-top:10px;line-height:1.9;">'
+    +'同じ月を二度押しても、請求が二重になることはありません。'
+    +'「作り直す」は、まだ送っていないものだけを最新の人数で計算し直します。'
+    +'</div></div>';
+
+  if(billRun){
+    var r=billRun;
+    h+='<div class="card"><h2>'+esc(r.month)+' の結果</h2>'
+      +'<div style="font-size:13px;margin-top:8px;line-height:1.9;">'
+      +'作った '+r['作った件数']+'件　／　とばした '+r['とばした件数']+'件'
+      +'　／　合計の決済額 <b>'+yen(r['合計の決済額'])+'</b></div>'
+      +(r['とばしたもの']&&r['とばしたもの'].length
+        ? '<div style="margin-top:10px;font-size:12px;color:var(--mute);line-height:1.9;">'
+          +r['とばしたもの'].map(function(x){
+            return '園 '+esc(x.tenant_id)+'：'+esc(x.skipped);}).join('<br>')+'</div>'
+        : '')
+      +'</div>';
+  }
+
+  h+='<div class="card"><h2>'+esc(d.month||billMonth)+' の請求一覧'
+    +'<span style="float:right;font-weight:400;font-size:12.5px;color:var(--mute);">'
+    +(d['件数']||0)+'件　合計 '+yen(d['合計の決済額'])+'</span></h2>'
+    +(rows.length
+      ? '<div class="tw"><table><thead><tr>'
+        +'<th>園</th><th>種類</th><th class="r">在籍</th><th class="r">超過</th>'
+        +'<th class="r">税別</th><th class="r">消費税</th><th class="r">決済額</th>'
+        +'<th>状態</th><th></th></tr></thead><tbody>'
+        +rows.map(function(x){
+          return '<tr>'
+            +'<td><b>'+esc(x.tenant_name)+'</b>'
+              +'<div style="font-size:11px;color:var(--mute);">'+esc(x.tenant_code)+'</div></td>'
+            +'<td>'+billKind(x.kind)+'</td>'
+            +'<td class="r num">'+(x.seats||0)+'</td>'
+            +'<td class="r num">'+(x.billable||0)+'</td>'
+            +'<td class="r num">'+yen(x.net_yen)+'</td>'
+            +'<td class="r num">'+yen(x.tax_yen)+'</td>'
+            +'<td class="r num"><b>'+yen(x.gross_yen)+'</b></td>'
+            +'<td>'+billState(x.status)+'</td>'
+            +'<td class="r">'+(x.status==='planned'
+              ? '<button data-bx="'+esc(x.id)+'" class="btn sm warn">取り消す</button>' : '')+'</td>'
+            +'</tr>'
+            +'<tr><td colspan="9" style="padding-top:0;border-top:0;">'
+            +'<div style="font-size:11.5px;color:var(--mute);line-height:1.8;">'
+            +(x.lines||[]).map(function(l){
+              return esc(l.label)+'　'+yen(l.yen);}).join('　／　')
+            +'</div></td></tr>';
+        }).join('')+'</tbody></table></div>'
+      : '<div class="empty">この月の請求はまだありません</div>')
+    +'</div>';
+  return h;
+}
+
+function billKind(k){
+  var m={initial:['初回（日割り）','#EEEDFE','#3C3489'],
+         monthly:['毎月','#E6F1FB','#123E6B'],
+         cancel:['解約の残債','#FBEBEB','#9C3535']}[k]||[k,'#EEF1F3','#4E5C66'];
+  return '<span class="pill" style="background:'+m[1]+';color:'+m[2]+';">'+esc(m[0])+'</span>';
+}
+function billState(st){
+  var m={planned:['作成ずみ','#FBF1DE','#96600A'],
+         sent:['送信ずみ','#E6F1FB','#123E6B'],
+         paid:['入金ずみ','#E9F2E7','#2F6B33'],
+         failed:['決済失敗','#FBEBEB','#9C3535'],
+         canceled:['取り消し','#EEF1F3','#4E5C66']}[st]||[st,'#EEF1F3','#4E5C66'];
+  return '<span class="pill" style="background:'+m[1]+';color:'+m[2]+';">'+esc(m[0])+'</span>';
 }
 
 /* ── ホーム ─────────────────────────── */
@@ -460,13 +562,18 @@ function load(){
   if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
   if(view==='one')   return API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;});
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
+  if(view==='bill')  return Promise.all([
+      API.call('GET','/admin/billing/status').then(function(j){DATA.bstat=j;}),
+      API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(billMonth))
+        .then(function(j){DATA.binv=j;})
+    ]);
   return Promise.resolve();
 }
 
 function render(){
   var r=$('root');
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
-  var inner={home:homeHTML,tenants:tenantsHTML,one:tenantHTML,docs:docsHTML,me:meHTML}[view];
+  var inner={home:homeHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,docs:docsHTML,me:meHTML}[view];
   r.innerHTML=shell(inner());
   wire();
   load().then(function(){
@@ -482,6 +589,31 @@ function render(){
 function say(id,t,ok){var e=$(id);if(!e)return;e.textContent=t;e.className='msg '+(ok?'ok':'ng');}
 
 function wire(){
+  /* 請求のタブ */
+  var bm=$('bm');
+  if(bm)bm.onchange=function(){ billMonth=bm.value; billRun=null; render(); };
+  var doRun=function(force){
+    if(!billMonth){alert('月を選んでください');return;}
+    var msg=(DATA.bstat&&DATA.bstat.charging)
+      ? billMonth+' の請求を作り、実際にカードへ請求します。よろしいですか？'
+      : billMonth+' の請求を作ります。金額を出して記録するだけで、カードには請求されません。';
+    if(!confirm(msg))return;
+    API.call('POST','/admin/billing/run',{month:billMonth,force:!!force})
+      .then(function(j){ billRun=j; render(); })
+      .catch(function(e){ alert(e.message); });
+  };
+  var br=$('bRun');  if(br)br.onclick=function(){ doRun(false); };
+  var bd=$('bRedo'); if(bd)bd.onclick=function(){
+    if(!confirm('まだ送っていない請求を、いまの人数で計算し直します。よろしいですか？'))return;
+    doRun(true);
+  };
+  document.querySelectorAll('[data-bx]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この請求を取り消しますか？'))return;
+    API.call('POST','/admin/billing/invoices/'+b.getAttribute('data-bx')+'/cancel',{})
+      .then(function(){ render(); })
+      .catch(function(e){ alert(e.message); });
+  };});
+
   document.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){
     view=b.getAttribute('data-v');openId=null;render();};});
   if($('out'))$('out').onclick=function(){API.setToken('');render();};
