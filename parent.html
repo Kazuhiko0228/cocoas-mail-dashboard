@@ -208,6 +208,12 @@
     background:rgba(35,38,46,.78);color:#fff;padding:3px 8px;border-radius:7px;}
   .ptile .pbadge.need{background:var(--o);}
   .ptile .pbadge.use{background:var(--g);}
+  /* 1枚のタイルに印が2つ出ることがある（例「要ご用意」と「貸し出し」）。
+     以前は入れ子で1つしか出せず、借りるものの印が消えていたので、縦に並べる箱を用意した。 */
+  .ptile .pbadges{position:absolute;left:7px;top:7px;display:flex;flex-direction:column;
+    align-items:flex-start;gap:4px;}
+  .ptile .pbadge{position:static;}
+  .ptile .pbadge.rent{background:var(--p);}
   .ptile .pbody{display:block;padding:9px 10px 11px;}
   .ptile .pname{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
     font-size:12.5px;font-weight:700;line-height:1.45;min-height:36px;}
@@ -246,8 +252,8 @@
   /* NEW と、記事のお気に入り・保存 */
   .newbadge{display:inline-block;background:var(--o);color:#fff;font-size:9.5px;font-weight:800;
     letter-spacing:.06em;padding:2px 6px;border-radius:5px;margin-right:6px;vertical-align:2px;}
-  .postacts{display:flex;gap:8px;margin-top:11px;}
-  .pact{flex:1;font:inherit;font-size:12px;font-weight:700;padding:7px 10px;border-radius:999px;
+  .postacts{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap;}
+  .pact{flex:1 1 42%;white-space:nowrap;font:inherit;font-size:12px;font-weight:700;padding:7px 10px;border-radius:999px;
     border:1px solid var(--line);background:var(--card);color:var(--tx2);cursor:pointer;}
   .pact:hover{background:var(--line2);}
   .pact.on{border-color:var(--o);color:var(--o);background:#FFF6EE;}
@@ -1358,7 +1364,7 @@ function loginHTML(){
     +'<div style="text-align:center;margin-top:10px;"><a href="creator.html" style="font-size:11.5px;color:var(--tx3);">教育者・教育事業者の方はこちら</a></div>'
     +'<div class="divider">園とつながっていない方</div>'
     +'<button class="btn sec" id="li_guest">まずは教材だけ見てみる</button>'
-    +'<div class="muted" style="text-align:center;margin-top:8px;font-size:11.5px;">あとからスクールコードでつながれます</div>'
+    +'<div class="muted" style="text-align:center;margin-top:8px;font-size:11.5px;">アカウントは園がお作りします</div>'
     /* テスト用アカウントの一覧は、連絡先がまだ手つかずのときだけ出します。
        園が実際のご家庭を入れた端末では、ログインの前に
        園児のお名前・クラス・保護者のメールアドレスを一切表示しません。 */
@@ -1632,6 +1638,13 @@ function sellerRank(id){
   return out;
 }
 function prodIsAmazon(p){return p.src==='amazon';}
+/* ボタンの文言。買うものと借りるものは別なので、1か所で決めて全部で同じものを使う。
+   （以前は押したあとに戻す文言が「購入する」で固定で、借りるものでも購入と出ていた） */
+function waBuyLabel(p){
+  if(p&&p.sub)return 'この教材を毎月うけとる';
+  if(p&&p.rental)return '借りる';
+  return '購入する';
+}
 /* 運営が発行したリンクだけを開く。申請中・未承認のものは押せない。 */
 function amzUrl(p){
   var a=p.amz;
@@ -1734,14 +1747,17 @@ function prodTileHTML(x){
   var amz=prodIsAmazon(x);
   return '<button class="ptile" data-open="'+esc(x.id)+'">'
     +'<span class="pimg">'+(im?'<img src="'+im+'" alt="">':'<span class="pem">'+esc(x.emoji||'📦')+'</span>')
-      +(x.need?'<span class="pbadge need">'+esc(x.need.length>8?'要ご用意':x.need)+'</span>'
-        :(x.use?'<span class="pbadge use">園で使用中</span>'
-        :(x.rental?'<span class="pbadge">レンタル</span>':'')))+'</span>'
+      /* 「要ご用意」「園で使用中」「貸し出し」は意味がちがうので、重ねて出す */
+      +'<span class="pbadges">'
+      +(x.need?'<span class="pbadge need">'+esc(x.need.length>8?'要ご用意':x.need)+'</span>':'')
+      +(x.use?'<span class="pbadge use">園で使用中</span>':'')
+      +(x.rental?'<span class="pbadge rent">貸し出し</span>':'')
+      +'</span></span>'
     +'<span class="pbody">'
       +'<span class="pname">'+esc(x.name)+'</span>'
       +'<span class="prate">'+(n?'<b>'+r.toFixed(1)+'</b><i>'+waStars(r)+'</i><em>('+n+')</em>':'<em>口コミはまだありません</em>')+'</span>'
       +'<span class="pprice">'+(amz?'<span class="pamz">Amazonで見る</span>'
-        :yen(x.price)+(x.sub?'<em>／月</em>':''))+'</span>'
+        :yen(x.price)+(x.sub?'<em>／月</em>':(x.rental?'<em>／貸し出し</em>':'')))+'</span>'
     +'</span></button>';
 }
 /* 一覧を2列のタイルで並べる */
@@ -1953,12 +1969,20 @@ function wireStore(c){
     var rate=waKickRate(),kb=c?Math.round(p.price*rate):0;
     var a=waOrders();
     /* 買ったあとの様子はマイページの「購入履歴・配送状況」で見てもらう */
-    a.push({id:Date.now(),at:nowStr(),childId:c?c.id:null,pid:p.id,name:p.name,
-      amount:p.price,kickback:kb,by:p.by||'school',status:'paid',eta:addDaysISO(todayISO(),4)});
+    /* addDaysISO は「今日から何日後か」だけを受け取る。以前は日付も渡していて、
+       到着予定日が出せていなかった。 */
+    var o={id:Date.now(),at:nowStr(),childId:c?c.id:null,pid:p.id,name:p.name,
+      amount:p.price,kickback:kb,by:p.by||'school',status:'paid',eta:addDaysISO(4)};
+    /* 借りるものは、お返しの期限を控えておく（マイページに出す） */
+    if(p.rental){o.rental=true;o.due=addDaysISO(30);}
+    a.push(o);
     stSet('wa_orders',a);
     waTrack('購入',{cid:p.id,cat:p.cat||'',by:waSourceOf(p.by)});
-    toast('ご購入ありがとうございます。配送状況はマイページで見られます。');
-    setTimeout(function(){b.disabled=false;b.textContent='購入する';},1500);
+    toast(p.rental?'お申し込みありがとうございます。お返しの期限はマイページで見られます。'
+                  :'ご購入ありがとうございます。配送状況はマイページで見られます。');
+    /* 押す前と同じ文言に戻す。ここが「購入する」で固定だったため、
+       借りるものを押すと文言が入れ替わってしまっていた。 */
+    setTimeout(function(){b.disabled=false;b.textContent=waBuyLabel(p);},1500);
   };});
 }
 /* 出品者のアカウント名を押したら、その出品者のページへ */
@@ -2030,9 +2054,43 @@ var waFeed={play:{cat:'',age:'',q:'',view:'all'},learn:{cat:'',age:'',q:'',view:
 /* 記事の投稿日。ago は「何日前の投稿か」。1週間以内のものを NEW として上に出す。 */
 function feedAt(x){return addDaysISO(-(x.ago||0));}
 function isNewPost(x){return (x.ago||99)<=7;}
-function feedItems(kind){return kind==='play'?WA_PLAY_ITEMS:WA_LEARN_ITEMS;}
+/* まなぶの絵文字。クリエイターが出した読みものには絵文字が付いてこないので、テーマから決める */
+var WA_LEARN_EMOJI={'英語':'🔤','知育':'🧩','発達':'📈','食育':'🍽️','子育て':'💛',
+  '教育コラム':'✍️','健康':'🌡️','睡眠':'😴','防災':'🎒','小学校準備':'📚'};
+/* 「何日前か」を日付から出す。もとからある記事は ago（日数）を持っているが、
+   クリエイター側は at（日付）で持っているので、ここで形をそろえる。 */
+function waDaysAgo(iso){
+  if(!iso)return 0;
+  var d=new Date(String(iso).slice(0,10)+'T00:00:00');
+  if(isNaN(d.getTime()))return 0;
+  var n=Math.floor((new Date().getTime()-d.getTime())/86400000);
+  return n<0?0:n;
+}
+/* クリエイター（園を含む出品者）が出した投稿を、一覧で使う形に直す。
+   creator.html は {id,kind,cat,ages,t,d,at,by,stats}、
+   もとからある一覧は {id,ago,e,cat,ages,t,d} なので、ago と絵文字をここで足す。 */
+function waFeedFromPost(x){
+  var e=(x.kind==='play')?(WA_PLAY_EMOJI[x.cat]||'🎨'):(WA_LEARN_EMOJI[x.cat]||'🌱');
+  return {id:x.id,ago:waDaysAgo(x.at),e:e,cat:x.cat||'',ages:x.ages||[],
+    t:x.t||'',d:x.d||'',by:x.by||'school',kind:x.kind||'play'};
+}
+/* あそぶ／まなぶの一覧。もとからある記事と、クリエイターが公開した投稿を1本にまとめる。
+   下書き（status が public 以外）は保護者には出さない。 */
+function waFeedItems(kind){
+  var base=(kind==='play'?WA_PLAY_ITEMS:WA_LEARN_ITEMS);
+  var add=[];
+  (stGet('wa_posts',[])||[]).forEach(function(x){
+    if(!x||x.status!=='public')return;
+    if((x.kind||'play')!==kind)return;
+    add.push(waFeedFromPost(x));
+  });
+  /* 同じ id があれば、クリエイターが出したほうを残す */
+  var have={};add.forEach(function(x){have[String(x.id)]=1;});
+  return add.concat(base.filter(function(x){return !have[String(x.id)];}));
+}
 function feedFind(id){
-  return WA_PLAY_ITEMS.concat(WA_LEARN_ITEMS).filter(function(x){return x.id===id;})[0];
+  return waFeedItems('play').concat(waFeedItems('learn'))
+    .filter(function(x){return String(x.id)===String(id);})[0];
 }
 /* 閲覧履歴・お気に入り・保存済み。この端末におぼえておく。 */
 function feedSeenList(){return stGet('wa_feed_seen',[])||[];}
@@ -2048,10 +2106,60 @@ function feedToggle(key,id){
   if(i>-1)a.splice(i,1);else a.unshift(id);
   stSet(k,a);return i<0;
 }
+/* 記事へのコメント。{投稿id:[{id,by,text,at}]} の形でこの端末におぼえる。
+   保護者ご自身が書いたものなので、園にも送る（WA_SEND に足してある）。 */
+function feedComments(id){
+  var all=stGet('wa_feed_comment',{})||{};
+  return all[id]||[];
+}
+function feedAddComment(id,text){
+  var all=stGet('wa_feed_comment',{})||{};
+  (all[id]=all[id]||[]).push({id:Date.now(),by:'あなた',text:String(text).slice(0,600),at:todayISO()});
+  stSet('wa_feed_comment',all);
+}
+/* 記事のページに出すコメント欄 */
+function feedCommentHTML(id){
+  var cs=feedComments(id);
+  return '<div class="card">'
+    +'<div style="display:flex;align-items:center;gap:10px;">'
+      +'<div style="font-weight:700;font-size:14px;">コメント</div>'
+      +'<div class="muted" style="margin-left:auto;">'+(cs.length?cs.length+'件':'まだありません')+'</div></div>'
+    +(cs.length?'<div style="margin-top:12px;">'+cs.map(function(x){
+      return '<div style="border-top:1px solid var(--line);padding:11px 0 2px;">'
+        +'<div style="display:flex;align-items:center;gap:8px;">'+personAvatar(x.by,24)
+          +'<span style="font-weight:700;font-size:12.5px;">'+esc(x.by)+'</span>'
+          +'<span class="muted" style="margin-left:auto;font-size:11px;">'+esc(x.at)+'</span></div>'
+        +'<div style="margin-top:7px;font-size:13.5px;line-height:1.75;">'+esc(x.text)+'</div></div>';
+      }).join('')+'</div>':'')
+    +'<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">'
+      +'<div class="flabel" style="margin:0 0 7px;">やってみた感想を書けます</div>'
+      +'<textarea id="fcTxt" rows="3" placeholder="おうちでどうでしたか？　ほかの方の参考になります。"></textarea>'
+      +'<button class="btn sec" id="fcSend" data-cid="'+esc(id)+'" style="margin-top:9px;">コメントを送る</button></div>'
+    +'</div>';
+}
+/* リンクを写す。新しい仕組みが使えない端末でも動くよう、両方ためす。 */
+function waCopyText(t){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t)['catch'](function(){});
+      return true;
+    }
+  }catch(e){}
+  try{
+    var ta=document.createElement('textarea');
+    ta.value=t;ta.setAttribute('readonly','');
+    ta.style.position='fixed';ta.style.left='-9999px';
+    document.body.appendChild(ta);ta.select();
+    var ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  }catch(e){return false;}
+}
 var WA_FEED_VIEWS=[['all','すべて'],['seen','閲覧履歴'],['fav','お気に入り'],['save','保存済み']];
 /* 記事1件のカード */
 function feedCard(x,col,isPlay){
   var fav=feedFavs().indexOf(x.id)>-1,sav=feedSaves().indexOf(x.id)>-1;
+  var nc=feedComments(x.id).length;
   return '<div class="card petal-'+col+'">'
     +'<div data-post="'+esc(x.id)+'" style="display:flex;gap:13px;align-items:flex-start;cursor:pointer;">'
       +'<div style="font-size:27px;flex-shrink:0;line-height:1.2;">'+esc((isPlay&&WA_PLAY_EMOJI[x.cat])||x.e)+'</div>'
@@ -2066,12 +2174,15 @@ function feedCard(x,col,isPlay){
     +'<div class="postacts">'
       +'<button class="pact'+(fav?' on':'')+'" data-fav="'+esc(x.id)+'">'+(fav?'♥':'♡')+' お気に入り</button>'
       +'<button class="pact'+(sav?' on':'')+'" data-save="'+esc(x.id)+'">'+(sav?'★':'☆')+' 保存</button>'
+      /* コメントは記事のページで読み書きしてもらう。ここは件数だけ見せて入口にする。 */
+      +'<button class="pact" data-cmt="'+esc(x.id)+'">💬 コメント'+(nc?' '+nc:'')+'</button>'
+      +'<button class="pact" data-share="'+esc(x.id)+'">↗ 知らせる</button>'
     +'</div></div>';
 }
 function feedHTML(kind){
   var f=waFeed[kind],isPlay=(kind==='play');
   var cats=isPlay?WA_PLAY_CATS:WA_LEARN_CATS;
-  var items=feedItems(kind);
+  var items=waFeedItems(kind);
   var col=isPlay?'o':'g', ttl=isPlay?'🎨 あそぶ':'🌱 まなぶ';
   var sub=isPlay?'おうちでできる遊びを、カテゴリと年齢から探す。':'子育てと保育の読みものを、テーマと年齢から探す。';
   var view=f.view||'all';
@@ -2143,9 +2254,11 @@ var waPostOpen=null;
 function feedPageHTML(id,kind){
   var x=feedFind(id);
   if(!x)return bloomEmpty('記事が見つかりません');
-  var isPlay=String(id).slice(0,3)==='pla',col=isPlay?'o':'g';
+  /* どちらのタブから開いたかで決める。クリエイターの投稿は id が 'pla…' で始まらないので、
+     id の頭文字で見分けると、あそぶの投稿まで「まなぶ」の色で出てしまっていた。 */
+  var isPlay=(kind?kind==='play':String(id).slice(0,3)==='pla'),col=isPlay?'o':'g';
   var fav=feedFavs().indexOf(id)>-1,sav=feedSaves().indexOf(id)>-1;
-  var same=feedItems(isPlay?'play':'learn').filter(function(y){
+  var same=waFeedItems(isPlay?'play':'learn').filter(function(y){
     return y.cat===x.cat&&y.id!==x.id;}).slice(0,3);
   return '<button class="pback" id="postBack">‹ 一覧にもどる</button>'
     +'<div class="phero"><span>'+esc((isPlay&&WA_PLAY_EMOJI[x.cat])||x.e)+'</span></div>'
@@ -2160,8 +2273,10 @@ function feedPageHTML(id,kind){
       +'<div class="postacts" style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px;">'
         +'<button class="pact'+(fav?' on':'')+'" data-fav="'+esc(x.id)+'">'+(fav?'♥':'♡')+' お気に入り</button>'
         +'<button class="pact'+(sav?' on':'')+'" data-save="'+esc(x.id)+'">'+(sav?'★':'☆')+' 保存</button>'
+        +'<button class="pact" data-share="'+esc(x.id)+'">↗ 知らせる</button>'
       +'</div>'
     +'</div>'
+    +feedCommentHTML(x.id)
     +(same.length?'<div class="flabel" style="margin:16px 2px 8px;">'+esc(x.cat)+'のほかの記事</div>'
       +same.map(function(y){return feedCard(y,col,isPlay);}).join(''):'');
 }
@@ -2203,6 +2318,30 @@ function wirePostActs(kind){
     var id=b.getAttribute('data-save'),p=feedFind(id),on=feedToggle('save',id);
     if(on)waTrack('保存',{cid:id,cat:(p&&p.cat)||'',by:waSourceOf(p&&p.by)});
     toast(on?'保存しました':'保存をやめました');render();};});
+  /* コメントを押したら記事のページを開いて、そこで読み書きしてもらう */
+  document.querySelectorAll('[data-cmt]').forEach(function(b){b.onclick=function(e){
+    e.stopPropagation();
+    var id=b.getAttribute('data-cmt');
+    feedSee(id);waPostOpen=id;render();};});
+  /* 知らせる：端末に共有の仕組みがあればそれを使い、無ければリンクを写す */
+  document.querySelectorAll('[data-share]').forEach(function(b){b.onclick=function(e){
+    e.stopPropagation();
+    var id=b.getAttribute('data-share'),p=feedFind(id);
+    var url=location.href.split('#')[0]+'#post-'+id;
+    var ttl=(p&&p.t)||'COCOAS';
+    if(navigator.share){
+      try{navigator.share({title:ttl,text:ttl,url:url})['catch'](function(){});return;}catch(err){}
+    }
+    toast(waCopyText(url)?'リンクをコピーしました':'コピーできませんでした');
+  };});
+  var fs=document.getElementById('fcSend');
+  if(fs)fs.onclick=function(){
+    var t=document.getElementById('fcTxt'),v=(t.value||'').trim();
+    if(!v){toast('コメントを書いてから送ってください');return;}
+    feedAddComment(fs.getAttribute('data-cid'),v);
+    toast('コメントを送りました。ありがとうございます。');
+    render();
+  };
   var pb=document.getElementById('postBack');
   if(pb)pb.onclick=function(){waPostOpen=null;render();};
 }
@@ -2210,7 +2349,7 @@ function wirePostActs(kind){
 /* 園とつながっていない家庭に見せる画面。ここが接続への入口になる */
 function linkHTML(){
   return '<h2 class="sec sec-b">🏫 園とつながる</h2>'
-    +'<div class="card petal-b"><div style="font-weight:700;font-size:15px;">園からのスクールコードを入れてください</div>'
+    +'<div class="card petal-b"><div style="font-weight:700;font-size:15px;">園からアカウントをお受け取りください</div>'
     +'<div class="muted" style="margin-top:6px;line-height:1.7;">つながると、こんなことができます。</div>'
     +'<div style="margin-top:12px;display:flex;flex-direction:column;gap:9px;">'
     +[['📮','園からの毎日の連絡が届く'],['📅','欠席・遅刻をアプリから連絡できる'],['🌱','身長・体重の記録が見られる'],
@@ -2218,21 +2357,18 @@ function linkHTML(){
       .map(function(x){return '<div style="display:flex;gap:10px;align-items:center;font-size:13.5px;">'
         +'<span style="font-size:19px;">'+x[0]+'</span>'+esc(x[1])+'</div>';}).join('')
     +'</div>'
-    +'<div class="field" style="margin-top:16px;"><label>スクールコード</label>'
-      +'<input id="scCode" placeholder="例：OMIYA-2026" autocapitalize="characters"></div>'
-    +'<div class="err" id="scErr"></div>'
-    +'<button class="btn" id="scGo">つながる</button>'
+    +'<div style="margin-top:16px;padding:13px 15px;background:var(--bg);border-radius:11px;line-height:1.8;font-size:13px;">'
+      +'<div style="font-weight:700;margin-bottom:5px;">ご利用の始めかた</div>'
+      +'アカウントは園がお作りします。園から、ログイン用のメールアドレスと'
+      +'はじめのパスワードをお受け取りください。'
+      +'<div class="muted" style="margin-top:8px;font-size:11.5px;">'
+      +'まだお受け取りでない場合は、園にお問い合わせください。'
+      +'はじめてログインしたときに、ご自身のパスワードに変えていただきます。</div>'
+    +'</div>'
     +'<div class="muted" style="margin-top:10px;font-size:11.5px;">デモ版では、ログイン画面からお子さまを選ぶとつながった状態になります。</div>'
     +'</div>';
 }
-function wireLink(){
-  var g=document.getElementById('scGo');
-  if(g)g.onclick=function(){
-    var e=document.getElementById('scErr');
-    e.style.display='block';
-    e.textContent='デモ版では、いったんログアウトしてお子さまを選んでください。';
-  };
-}
+function wireLink(){}
 /* 所属スクールの情報（住所・連絡先・HP・SNS） */
 function schoolInfoHTML(){
   var s=stGet('settings',{})||{}, sns=stGet('sns',{})||{};
@@ -2498,7 +2634,7 @@ function meHTML(c){
       +(healthOk()?growthHTML(c):healthLockHTML());
   }else{
     h2+='<div class="card petal-c"><div style="font-weight:700;font-size:15px;">園とつながっていません</div>'
-      +'<div class="muted" style="margin-top:5px;">スクールコードを入れると、園からの連絡や先生が選んだ教材が使えます。</div>'
+      +'<div class="muted" style="margin-top:5px;">園から受け取ったアカウントでログインすると、園からの連絡や先生が選んだ教材が使えます。</div>'
       +'<button class="btn sec" id="goLink" style="margin-top:11px;">園とつながる</button></div>';
   }
   h2+='<h2 class="sec sec-p">🧾 購入履歴・配送状況</h2>'
@@ -2507,7 +2643,9 @@ function meHTML(c){
       return '<div class="card" style="display:flex;gap:11px;align-items:center;">'
       +'<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:13.5px;">'+esc(o.name)+'</div>'
       +'<div class="muted">'+esc(o.at)
-        +(st==='shipping'&&o.eta?' ・ '+esc(fmtDate?fmtDate(o.eta):o.eta)+' ごろ到着予定':'')+'</div></div>'
+        +(st==='shipping'&&o.eta?' ・ '+esc(fmtDate?fmtDate(o.eta):o.eta)+' ごろ到着予定':'')
+        /* 借りたものは、いつまでにお返しするかをここに出す */
+        +(o.rental&&o.due?' ・ '+esc(fmtDate?fmtDate(o.due):o.due)+' までにお返しください':'')+'</div></div>'
       +'<div style="text-align:right;flex-shrink:0;">'
         +'<div class="chip" style="background:'+lb[1]+';color:#fff;border:none;padding:3px 10px;font-size:10.5px;">'+esc(lb[0])+'</div>'
         +'<div style="font-weight:800;font-size:13.5px;margin-top:5px;">'+yen(o.amount)+'</div></div></div>';}).join('')
@@ -2585,7 +2723,9 @@ function productPageHTML(p,c){
       +'<div class="ftags" style="margin:0 0 8px;"><span class="ftag">'+esc(p.cat||'')+'</span>'
         +(p.aim?'<span class="ftag">'+esc(p.aim)+'</span>':'')
         +(p.use?'<span class="ftag" style="background:var(--g);color:#fff;">園で使用中</span>':'')
-        +(p.need?'<span class="ftag" style="background:var(--o);color:#fff;">'+esc(p.need)+'</span>':'')+'</div>'
+        +(p.need?'<span class="ftag" style="background:var(--o);color:#fff;">'+esc(p.need)+'</span>':'')
+        /* 買うものか借りるものかは、いちばん先に分かるようにする */
+        +(p.rental?'<span class="ftag" style="background:var(--p);color:#fff;">貸し出し</span>':'')+'</div>'
       +'<div style="font-weight:800;font-size:18px;line-height:1.45;">'+esc(p.name)+'</div>'
       +(n?'<div style="display:flex;align-items:center;gap:7px;margin-top:8px;">'
           +'<span style="color:var(--o);font-size:14px;letter-spacing:-1px;">'+waStars(r)+'</span>'
@@ -2594,7 +2734,9 @@ function productPageHTML(p,c){
       +'<div style="display:flex;align-items:baseline;gap:8px;margin-top:10px;">'
         +(amz?'<div class="muted" style="font-size:13px;">価格はAmazonでご確認ください</div>'
           :'<div style="font-weight:800;font-size:24px;">'+yen(p.price)+'</div>'
-            +(p.sub?'<div class="muted">／月　毎月おとどけ</div>':'<div class="muted">（単品）</div>'))+'</div>'
+            +(p.sub?'<div class="muted">／月　毎月おとどけ</div>'
+              :(p.rental?'<div class="muted">お借りいただく料金（お返しの期限は30日後）</div>'
+              :'<div class="muted">（単品）</div>')))+'</div>'
       +'<div style="margin-top:14px;font-size:14px;line-height:1.8;">'+esc(p.desc||'')+'</div>'
       +sellerChip(p.by)
     +'</div>'
@@ -2607,7 +2749,7 @@ function productPageHTML(p,c){
           : '<div class="card"><div class="muted">この教材のリンクは、いま準備しています。'
             +'園にご確認いただくか、お手数ですが商品名でお探しください。</div></div>')
       : '<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
-        +(p.sub?'この教材を毎月うけとる':'購入する')+'</button></div>')
+        +waBuyLabel(p)+'</button></div>')
     +prodReviewHTML(p,rs,r,n)
     +prodLawHTML(p);
 }
@@ -2642,8 +2784,8 @@ function sellerPageHTML(id,c){
   var s=waSeller(id),ps=waProducts().filter(function(x){return (x.by||'school')===s.id;});
   if(!c)ps=ps.filter(function(x){return !x.schoolOnly;});
   var evs=[],coms=[];
-  try{evs=WA_EVENTS.filter(function(x){return (x.by||'')===s.id;});}catch(e){}
-  try{coms=WA_COMMUNITY.filter(function(x){return (x.by||'')===s.id;});}catch(e){}
+  try{evs=waEvents().filter(function(x){return (x.by||'')===s.id;});}catch(e){}
+  try{coms=waComms().filter(function(x){return x.seller&&(x.by||'')===s.id;});}catch(e){}
   return '<button class="pback" id="sBack">‹ もどる</button>'
     +'<div class="card petal-p">'
       +'<div class="shero">'+sellerAvatar(s,62)
@@ -2660,6 +2802,16 @@ function sellerPageHTML(id,c){
       :bloomEmpty('いま出品しているものはありません'))
     +(evs.length?'<div class="flabel" style="margin:16px 2px 8px;">開催しているイベント</div>'
       +evs.map(function(e){return eventCardHTML(e);}).join(''):'')
+    /* この出品者が立てているコミュニティ（つながる）も、ここから見えるようにする */
+    +(coms.length?'<div class="flabel" style="margin:16px 2px 8px;">立てているコミュニティ</div>'
+      +coms.map(function(m){
+        return '<div class="card petal-c"><div style="display:flex;gap:12px;align-items:flex-start;">'
+          +'<div style="font-size:24px;flex-shrink:0;">'+esc(m.e)+'</div>'
+          +'<div style="min-width:0;"><div style="font-weight:700;font-size:14.5px;">'+esc(m.t)+'</div>'
+          +'<div class="muted" style="margin-top:5px;">'+esc(m.d)+'</div>'
+          +'<div class="ftags"><span class="ftag">'+esc(m.cat)+'</span>'
+          +(m.members?'<span class="ftag age">👥 '+m.members+'</span>':'')
+          +'</div></div></div></div>';}).join(''):'')
     +'';
 }
 /* 旧：下から出るシート（いまは詳細ページを使う） */
@@ -2674,11 +2826,12 @@ function openProduct(p,c){
     +'<div style="margin-top:14px;font-size:14px;line-height:1.75;">'+esc(p.desc||'')+'</div>'
     +'<div style="display:flex;align-items:baseline;gap:8px;margin-top:16px;">'
       +'<div style="font-weight:800;font-size:22px;">'+yen(p.price)+'</div>'
-      +(p.sub?'<div class="muted">／月　毎月おとどけ</div>':'<div class="muted">（単品）</div>')+'</div>'
+      +(p.sub?'<div class="muted">／月　毎月おとどけ</div>'
+        :(p.rental?'<div class="muted">お借りいただく料金</div>':'<div class="muted">（単品）</div>'))+'</div>'
 
     +'<div style="display:flex;gap:10px;margin-top:16px;">'
       +'<button class="btn ghost" id="shClose" style="flex:0 0 auto;">とじる</button>'
-      +'<button class="btn" data-buy="'+esc(p.id)+'" style="flex:1;">'+(p.sub?'この教材を続ける':'購入する')+'</button></div></div>';
+      +'<button class="btn" data-buy="'+esc(p.id)+'" style="flex:1;">'+(p.sub?'この教材を続ける':waBuyLabel(p))+'</button></div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
   ov.querySelector('#shClose').onclick=function(){ov.remove();};
@@ -2698,18 +2851,43 @@ var WA_EV_KINDS=['体験会','マルシェ','講演会','交流会','オンラ�
 var WA_EV_THEMES=['英語','工作','食育','運動'];
 var WA_COM_CATS=['子育て','英語','食育','発達','地域','年齢別','趣味','保育アイディア'];
 var WA_EVENTS=[
- {id:'ev1',e:'🎪',k:'マルシェ',th:'工作',by:'morinotsukue',ages:['2歳児','3歳児','4歳児','5歳児'],t:'てづくりマルシェ 2026 夏',d:'保育者・保護者の手づくり作品が集まります。工作のワークショップも。',date:'2026-08-23',place:'さいたま新都心 けやきひろば',fee:'入場無料'},
- {id:'ev2',e:'🔤',k:'体験会',th:'英語',by:'otoeigo',ages:['2歳児','3歳児','4歳児'],t:'はじめての英語であそぼう',d:'歌とゲームだけの45分。英語がはじめてのお子さま向けです。',date:'2026-08-30',place:'COCOAS KIDS 大宮与野校',fee:'￥0（先着20名）'},
- {id:'ev3',e:'🥕',k:'講演会',th:'食育',by:'kodomoshoku',ages:['0歳児','1歳児','2歳児','3歳児'],t:'偏食とのつきあい方',d:'管理栄養士が、家庭でできる工夫をお話しします。質疑応答あり。',date:'2026-09-06',place:'オンライン（Zoom）',fee:'￥1,000'},
- {id:'ev4',e:'🏃',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'かけっこ教室（秋の運動会にむけて）',d:'走り方のコツを、遊びながら身につけます。',date:'2026-09-13',place:'与野公園 多目的広場',fee:'￥1,500'},
- {id:'ev5',e:'💬',k:'交流会',th:'',by:'school',ages:['0歳児','1歳児'],t:'0・1歳のママパパ交流会',d:'同じ月齢の保護者どうしで、ゆるやかに話せる場です。保育士も同席します。',date:'2026-09-20',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
- {id:'ev6',e:'💻',k:'オンライン',th:'工作',by:'steamkids',ages:['3歳児','4歳児','5歳児','小学生以上'],t:'おうちで工作ライブ',d:'材料は家にあるものだけ。画面ごしに一緒に作ります。',date:'2026-09-27',place:'オンライン',fee:'￥500'},
- {id:'ev7',e:'🍙',k:'マルシェ',th:'食育',by:'kodomoshoku',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'こども食堂マルシェ',d:'地域の農家さんの野菜と、こどもが作るおにぎりの会。',date:'2026-10-04',place:'与野本町 コミュニティセンター',fee:'￥300'},
- {id:'ev8',e:'🎓',k:'講演会',th:'',by:'hidamari',ages:['5歳児','小学生以上'],t:'小学校入学のまえに',d:'元小学校教諭が、入学前の1年で本当に必要なことをお話しします。',date:'2026-10-18',place:'オンライン（Zoom）',fee:'￥1,000'},
+ {id:'ev1',target:'親子イベント',e:'🎪',k:'マルシェ',th:'工作',by:'morinotsukue',ages:['2歳児','3歳児','4歳児','5歳児'],t:'てづくりマルシェ 2026 夏',d:'保育者・保護者の手づくり作品が集まります。工作のワークショップも。',date:'2026-08-23',place:'さいたま新都心 けやきひろば',fee:'入場無料'},
+ {id:'ev2',target:'子供向けイベント',e:'🔤',k:'体験会',th:'英語',by:'otoeigo',ages:['2歳児','3歳児','4歳児'],t:'はじめての英語であそぼう',d:'歌とゲームだけの45分。英語がはじめてのお子さま向けです。',date:'2026-08-30',place:'COCOAS KIDS 大宮与野校',fee:'￥0（先着20名）'},
+ {id:'ev3',target:'保護者向けイベント',e:'🥕',k:'講演会',th:'食育',by:'kodomoshoku',ages:['0歳児','1歳児','2歳児','3歳児'],t:'偏食とのつきあい方',d:'管理栄養士が、家庭でできる工夫をお話しします。質疑応答あり。',date:'2026-09-06',place:'オンライン（Zoom）',fee:'￥1,000'},
+ {id:'ev4',target:'子供向けイベント',e:'🏃',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'かけっこ教室（秋の運動会にむけて）',d:'走り方のコツを、遊びながら身につけます。',date:'2026-09-13',place:'与野公園 多目的広場',fee:'￥1,500'},
+ {id:'ev5',target:'保護者向けイベント',e:'💬',k:'交流会',th:'',by:'school',ages:['0歳児','1歳児'],t:'0・1歳のママパパ交流会',d:'同じ月齢の保護者どうしで、ゆるやかに話せる場です。保育士も同席します。',date:'2026-09-20',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
+ {id:'ev6',target:'親子イベント',e:'💻',k:'オンライン',th:'工作',by:'steamkids',ages:['3歳児','4歳児','5歳児','小学生以上'],t:'おうちで工作ライブ',d:'材料は家にあるものだけ。画面ごしに一緒に作ります。',date:'2026-09-27',place:'オンライン',fee:'￥500'},
+ {id:'ev7',target:'親子イベント',e:'🍙',k:'マルシェ',th:'食育',by:'kodomoshoku',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'こども食堂マルシェ',d:'地域の農家さんの野菜と、こどもが作るおにぎりの会。',date:'2026-10-04',place:'与野本町 コミュニティセンター',fee:'￥300'},
+ {id:'ev8',target:'保護者向けイベント',e:'🎓',k:'講演会',th:'',by:'hidamari',ages:['5歳児','小学生以上'],t:'小学校入学のまえに',d:'元小学校教諭が、入学前の1年で本当に必要なことをお話しします。',date:'2026-10-18',place:'オンライン（Zoom）',fee:'￥1,000'},
  /* 開催済み（募集中／開催済みの切りかえを見せるため） */
- {id:'ev9',e:'🎋',k:'交流会',th:'',by:'school',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'七夕まつり 2026',d:'たんざくに願いごとを書いて、笹に飾りました。',date:'2026-07-05',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
- {id:'ev10',e:'🌊',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'はじめての水あそび教室',d:'水がこわい子から参加できる、顔つけまでの3回コースでした。',date:'2026-06-21',place:'与野プール',fee:'￥2,000'}
+ {id:'ev9',target:'親子イベント',e:'🎋',k:'交流会',th:'',by:'school',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'七夕まつり 2026',d:'たんざくに願いごとを書いて、笹に飾りました。',date:'2026-07-05',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
+ {id:'ev10',target:'子供向けイベント',e:'🌊',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'はじめての水あそび教室',d:'水がこわい子から参加できる、顔つけまでの3回コースでした。',date:'2026-06-21',place:'与野プール',fee:'￥2,000'}
 ];
+/* 対象者。creator.html の EV_TARGETS と同じ並びにしてある。 */
+var WA_EV_TARGETS=['親子イベント','保護者向けイベント','子供向けイベント'];
+/* クリエイターが作ったイベントには絵文字が付いてこないので、テーマ・種別から決める */
+var WA_EV_TH_EMOJI={'英語':'🔤','工作':'✂️','食育':'🍙','運動':'🏃'};
+var WA_EV_K_EMOJI={'体験会':'🙌','マルシェ':'🎪','講演会':'🎓','交流会':'💬','オンライン':'💻'};
+/* クリエイター（園を含む出品者）が作ったイベントを、一覧で使う形に直す。
+   creator.html は theme / kind で持っているので、こちらの th / k に寄せる。 */
+function waEventFromCreator(x){
+  return {id:x.id,target:x.target||WA_EV_TARGETS[0],
+    e:WA_EV_TH_EMOJI[x.theme]||WA_EV_K_EMOJI[x.kind]||'🎪',
+    k:x.kind||'',th:x.theme||'',by:x.by||'school',ages:x.ages||[],
+    t:x.t||'',d:x.d||'',date:x.date||'',place:x.place||'',fee:x.fee||'',
+    cap:x.cap,applied:x.applied};
+}
+/* イベントの一覧。もとからあるものと、クリエイターが公開したものを1本にまとめる。
+   下書き（status が public 以外）は保護者には出さない。 */
+function waEvents(){
+  var add=[];
+  (stGet('wa_events_user',[])||[]).forEach(function(x){
+    if(!x||x.status!=='public')return;
+    add.push(waEventFromCreator(x));
+  });
+  var have={};add.forEach(function(x){have[String(x.id)]=1;});
+  return add.concat(WA_EVENTS.filter(function(x){return !have[String(x.id)];}));
+}
 /* イベントの口コミ・レビュー（デモの初期値。投稿するとこの端末に足される） */
 var WA_EV_REVIEWS={
  ev9:[{who:'ひなた母',star:5,at:'2026-07-06',txt:'先生方が一人ひとりに声をかけてくださって、人見知りの娘も最後まで楽しめました。'},
@@ -2738,7 +2916,22 @@ var WA_COMMUNITY=[
  {e:'💡',cat:'保育アイディア',t:'午睡がうまくいく声かけ',d:'寝かしつけに時間がかかる子への声かけ、みなさんどうしていますか。',by:'保育士M',n:29},
  {e:'🥦',cat:'食育',t:'園の給食の味つけを家でも再現したい',d:'園ではよく食べるのに家では食べません。レシピを共有しあいませんか。',by:'かえで母',n:15}
 ];
-var waConn={sub:'event',open:'live',kind:'',theme:'',age:'',cat:'',from:'',to:''};
+/* コミュニティの絵文字。クリエイターが作った場には絵文字が付いてこないので、カテゴリから決める */
+var WA_COM_EMOJI={'子育て':'💛','英語':'🔤','食育':'🥦','発達':'🧩','地域':'📍',
+  '年齢別':'👶','趣味':'🎨','保育アイディア':'💡'};
+/* クリエイター（園を含む出品者）が作ったコミュニティも、保護者の画面に出す。
+   保護者どうしの投稿と見分けがつくよう seller の印を付けて、出品者の名札を出す。 */
+function waComms(){
+  var add=[];
+  (stGet('wa_comms_user',[])||[]).forEach(function(x){
+    if(!x||x.status!=='public')return;
+    add.push({id:x.id,seller:true,e:WA_COM_EMOJI[x.cat]||'💬',cat:x.cat||'',
+      t:x.t||'',d:x.d||'',by:x.by||'school',
+      n:(x.stats&&x.stats.review)||0,members:x.members||0});
+  });
+  return add.concat(WA_COMMUNITY);
+}
+var waConn={sub:'event',open:'live',target:'',kind:'',theme:'',age:'',cat:'',from:'',to:''};
 /* コミュニティの投稿者は出品者ではないので、名前からアバターを作る */
 function personAvatar(name,px){px=px||26;var h=sellerHue(name);
   return '<span class="savatar" style="width:'+px+'px;height:'+px+'px;'
@@ -2760,8 +2953,10 @@ function eventCardHTML(x){
           +(open?'':' <span class="chip" style="padding:2px 8px;font-size:10.5px;">開催済み</span>')+'</div>'
         +'<div class="muted" style="margin-top:5px;">'+esc(x.d)+'</div>'
         +'<div class="evmeta"><span>📅 '+esc(fmtDate?fmtDate(x.date):x.date)+'</span><span>📍 '+esc(x.place)+'</span><span>🎫 '+esc(x.fee)+'</span></div>'
-        +'<div class="ftags"><span class="ftag">'+esc(x.k)+'</span>'+(x.th?'<span class="ftag">'+esc(x.th)+'</span>':'')
-          +x.ages.slice(0,2).map(function(a){return '<span class="ftag age">'+esc(a)+'</span>';}).join('')
+        /* どなたが参加する会かを、いちばん先に出す */
+        +'<div class="ftags">'+(x.target?'<span class="ftag" style="background:var(--c);color:#fff;">'+esc(x.target)+'</span>':'')
+          +(x.k?'<span class="ftag">'+esc(x.k)+'</span>':'')+(x.th?'<span class="ftag">'+esc(x.th)+'</span>':'')
+          +(x.ages||[]).slice(0,2).map(function(a){return '<span class="ftag age">'+esc(a)+'</span>';}).join('')
           +(rn?'<span class="ftag age">'+stars(av)+' '+av+'（'+rn+'）</span>':'')+'</div>'
       +'</div></div>'
     +'<div style="display:flex;gap:8px;margin-top:12px;">'
@@ -2782,9 +2977,12 @@ function connectHTML(c){
       +vals.map(function(v){return '<button class="chip'+(cur===v?' on':'')+'" data-cf="'+esc(name)+'" data-v="'+esc(v)+'">'+esc(v)+'</button>';}).join('')+'</div>';
   }
   if(isEv){
-    var list=WA_EVENTS.filter(function(x){
+    var evAll=waEvents();
+    var list=evAll.filter(function(x){
       if(s.open==='live'&&!evIsOpen(x))return false;
       if(s.open==='past'&&evIsOpen(x))return false;
+      /* 対象者（親子／保護者向け／子供向け）で先にしぼる */
+      if(s.target&&(x.target||'')!==s.target)return false;
       if(s.kind&&x.k!==s.kind)return false;
       if(s.theme&&x.th!==s.theme)return false;
       if(s.age&&x.ages.indexOf(s.age)<0)return false;
@@ -2793,7 +2991,7 @@ function connectHTML(c){
       return true;});
     list=list.slice().sort(function(a,b){
       return s.open==='past'?String(b.date).localeCompare(a.date):String(a.date).localeCompare(b.date);});
-    var nLive=WA_EVENTS.filter(evIsOpen).length,nPast=WA_EVENTS.length-nLive;
+    var nLive=evAll.filter(evIsOpen).length,nPast=evAll.length-nLive;
     return head
       +'</div>'
       /* 募集中か開催済みかを先に選ぶ。ふだんは募集中だけが見えていればいい。 */
@@ -2808,14 +3006,19 @@ function connectHTML(c){
         +'<span class="muted">〜</span>'
         +'<input type="date" id="evTo" value="'+esc(s.to)+'" style="flex:1;">'
         +(s.from||s.to?'<button class="chip" id="evDx">×</button>':'')+'</div>'
-      +'<div class="flabel">種別</div>'+chips('kind',WA_EV_KINDS,s.kind)
-      +'<div class="flabel">テーマ</div>'+chips('theme',WA_EV_THEMES,s.theme)
+      /* 対象者を先に選ぶ。クリエイター側は「保護者向け」だけ種別を使い、
+         それ以外はテーマを使う作りなので、こちらも同じように出し分ける。 */
+      +'<div class="flabel">対象者</div>'+chips('target',WA_EV_TARGETS,s.target)
+      +(s.target===''||s.target==='保護者向けイベント'
+        ?'<div class="flabel">種別</div>'+chips('kind',WA_EV_KINDS,s.kind):'')
+      +(s.target!=='保護者向けイベント'
+        ?'<div class="flabel">テーマ</div>'+chips('theme',WA_EV_THEMES,s.theme):'')
       +'<div class="flabel">年齢</div>'+chips('age',WA_AGES,s.age)
       +'</div><div class="fcount">'+list.length+'件</div>'
       +(list.length?list.map(eventCardHTML).join('')
         :bloomEmpty('条件に合うイベントはありません'));
   }
-  var cl=WA_COMMUNITY.filter(function(x){return !s.cat||x.cat===s.cat;});
+  var cl=waComms().filter(function(x){return !s.cat||x.cat===s.cat;});
   return head
     +'<div class="flabel">カテゴリ</div>'+chips('cat',WA_COM_CATS,s.cat)
     +'</div><div class="fcount">'+cl.length+'件</div>'
@@ -2826,21 +3029,25 @@ function connectHTML(c){
         +'<div style="min-width:0;"><div style="font-weight:700;font-size:14.5px;">'+esc(x.t)+'</div>'
         +'<div class="muted" style="margin-top:5px;">'+esc(x.d)+'</div>'
         +'<div class="ftags"><span class="ftag">'+esc(x.cat)+'</span>'
-          +'<span class="ftag age">💬 '+x.n+'</span></div></div></div>'
-        +personChip(x.by,'保護者')+'</div>';}).join('')
+          +'<span class="ftag age">💬 '+x.n+'</span>'
+          /* 出品者が立てた場は、参加している人数もいっしょに出す */
+          +(x.seller&&x.members?'<span class="ftag age">👥 '+x.members+'</span>':'')+'</div></div></div>'
+        +(x.seller?sellerChip(x.by):personChip(x.by,'保護者'))+'</div>';}).join('')
       :bloomEmpty('このカテゴリの投稿はまだありません'));
 }
 /* イベントの詳細ページ。ここに口コミ・レビューを出す。 */
 var waEventOpen=null,waPersonOpen=null;
 function eventPageHTML(id,c){
-  var x=WA_EVENTS.filter(function(y){return y.id===id;})[0];
+  var x=waEvents().filter(function(y){return y.id===id;})[0];
   if(!x)return bloomEmpty('イベントが見つかりません');
   var rs=evReviews(id),av=evAvgStar(id),open=evIsOpen(x),s=waSeller(x.by);
   var joined=(stGet('wa_ev_joins',[])||[]).indexOf(id)>-1;
   return '<button class="pback" id="evBack">‹ イベントにもどる</button>'
     +'<div class="phero"><span>'+esc(x.e)+'</span></div>'
     +'<div class="card petal-c" style="margin-top:-26px;position:relative;">'
-      +'<div class="ftags" style="margin:0 0 8px;"><span class="ftag">'+esc(x.k)+'</span>'
+      +'<div class="ftags" style="margin:0 0 8px;">'
+        +(x.target?'<span class="ftag" style="background:var(--c);color:#fff;">'+esc(x.target)+'</span>':'')
+        +(x.k?'<span class="ftag">'+esc(x.k)+'</span>':'')
         +(x.th?'<span class="ftag">'+esc(x.th)+'</span>':'')
         +(open?'<span class="ftag" style="background:var(--c);color:#fff;">募集中</span>'
               :'<span class="ftag">開催済み</span>')+'</div>'
@@ -2879,7 +3086,8 @@ function eventPageHTML(id,c){
 }
 /* コミュニティの投稿者のページ */
 function personPageHTML(name){
-  var mine=WA_COMMUNITY.filter(function(x){return x.by===name;});
+  /* 保護者ご本人のページなので、出品者が立てた場は数えない */
+  var mine=waComms().filter(function(x){return !x.seller&&x.by===name;});
   return '<button class="pback" id="evBack">‹ もどる</button>'
     +'<div class="card petal-c"><div class="shero">'+personAvatar(name,62)
       +'<div><div style="font-weight:800;font-size:17px;">'+esc(name)+'</div>'
@@ -2901,7 +3109,14 @@ function wireConnect(c){
   sc.querySelectorAll('[data-cs]').forEach(function(b){b.onclick=function(){
     waConn.sub=b.getAttribute('data-cs');sc.innerHTML=connectHTML(c);wireConnect(c);};});
   sc.querySelectorAll('[data-cf]').forEach(function(b){b.onclick=function(){
-    waConn[b.getAttribute('data-cf')]=b.getAttribute('data-v');sc.innerHTML=connectHTML(c);wireConnect(c);};});
+    var f=b.getAttribute('data-cf');
+    waConn[f]=b.getAttribute('data-v');
+    /* 対象者を変えると、画面から消えたほうのしぼり込みが効いたまま残ってしまうので消す */
+    if(f==='target'){
+      if(waConn.target==='保護者向けイベント')waConn.theme='';
+      else if(waConn.target)waConn.kind='';
+    }
+    sc.innerHTML=connectHTML(c);wireConnect(c);};});
   var f=document.getElementById('evFrom'),t=document.getElementById('evTo'),dx=document.getElementById('evDx');
   if(f)f.onchange=function(){waConn.from=f.value;sc.innerHTML=connectHTML(c);wireConnect(c);};
   if(t)t.onchange=function(){waConn.to=t.value;sc.innerHTML=connectHTML(c);wireConnect(c);};
@@ -2918,7 +3133,7 @@ function wireEvJoin(c){
   document.querySelectorAll('[data-evjoin]').forEach(function(b){b.onclick=function(e){
     e.stopPropagation();
     if(b.disabled)return;
-    var id=b.getAttribute('data-evjoin'),x=WA_EVENTS.filter(function(y){return y.id===id;})[0];
+    var id=b.getAttribute('data-evjoin'),x=waEvents().filter(function(y){return y.id===id;})[0];
     if(!x)return;
     var a=stGet('wa_ev_joins',[])||[];
     if(a.indexOf(id)<0){a.push(id);stSet('wa_ev_joins',a);}
@@ -3901,7 +4116,7 @@ var WAPI={
    サーバ側でも同じ一覧で弾いているので、二重に守っている。 */
 /* wa_health_consent … 健康に関する情報の同意。
    規約では取得の記録を残す必要があるため、端末の中だけでなく園にも送る。 */
-var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen)$/;
+var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_feed_comment|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen)$/;
 
 var WSYNC={q:{},timer:null,busy:false,msg:'',
   mark:function(key){
