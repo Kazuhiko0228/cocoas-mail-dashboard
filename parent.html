@@ -3394,14 +3394,39 @@ function billHTML(c){
 
 /* ---- DM（園とのメッセージ） ---- */
 function dmNow(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
-function dmThread(id){var t=stGet('dmThreads',{});return t[id]||{messages:[]};}
+/* 持ち方を分けている。
+     dmThreads … 園が書いた分（園のもの。サーバから届く）
+     dm_out    … ご自身が書いた分（保護者のもの。サーバへ送る）
+     dm_seen   … どこまで読んだか
+   分けておかないと、園からの受け取りが、ご自身の控えを消してしまう。
+   画面に出すときだけ、時刻順に1本へまとめる。 */
+function dmSeen(id){var s=(stGet('dm_seen',{})||{})[id];return Array.isArray(s)?s:[];}
+function dmOut(id){var s=(stGet('dm_out',{})||{})[id];return Array.isArray(s)?s:[];}
+function dmThread(id){
+  var t=(stGet('dmThreads',{})||{})[id]||{messages:[]};
+  var seen=dmSeen(id);
+  var msgs=(t.messages||[]).filter(function(m){return m&&m.from==='staff';})
+    .map(function(m){return {id:m.id,from:'staff',by:m.by,text:m.text,at:m.at,
+                             readByParent:seen.indexOf(m.id)>-1};})
+    .concat(dmOut(id).map(function(m){
+      return {id:m.id,from:'parent',by:m.by,text:m.text,at:m.at,readByParent:true};}));
+  msgs.sort(function(a,b){
+    var x=String(a.at||''),y=String(b.at||'');
+    return x<y?-1:x>y?1:(Number(a.id)-Number(b.id));});
+  return {messages:msgs};
+}
 function dmUnreadParent(id){return dmThread(id).messages.filter(function(m){return m.from==='staff'&&!m.readByParent;}).length;}
-function dmMarkReadParent(id){var t=stGet('dmThreads',{});if(!t[id])return;t[id].messages.forEach(function(m){if(m.from==='staff')m.readByParent=true;});stSet('dmThreads',t);}
-/* 依頼どおり、開いただけでは既読にしない。1件ずつ「既読」を押してもらう。 */
+function dmMarkReadParent(id){dmMarkOne(id,null);}
+/* 依頼どおり、開いただけでは既読にしない。1件ずつ「既読」を押してもらう。
+   （mid を渡さないときは、園からの分をまとめて既読にする） */
 function dmMarkOne(cid,mid){
-  var t=stGet('dmThreads',{});if(!t[cid])return;
-  t[cid].messages.forEach(function(m){if(String(m.id)===String(mid))m.readByParent=true;});
-  stSet('dmThreads',t);
+  var all=stGet('dm_seen',{})||{},cur=dmSeen(cid).slice();
+  dmThread(cid).messages.forEach(function(m){
+    if(m.from!=='staff')return;
+    if(mid!=null&&String(m.id)!==String(mid))return;
+    if(cur.indexOf(m.id)<0)cur.push(m.id);
+  });
+  all[cid]=cur;stSet('dm_seen',all);
 }
 /* 園への返信は「連絡の履歴」にも出す */
 function myReplies(c){
@@ -3446,7 +3471,7 @@ function wireDM(c){
     if(!tx){toast('返信を入力してください');return;}
     dmSend(c,tx);
     dmMarkOne(c.id,id);
-    toast('返信しました。内容は「連絡の履歴」にも残ります。');
+    toast((typeof WAPI!=='undefined'&&WAPI.online())?'返信しました。園の画面に表示されます。':'この端末に保存しました。つながったときに園へ送ります。');
     render();
   };});
   document.getElementById('pdmSend').onclick=function(){
@@ -3455,14 +3480,19 @@ function wireDM(c){
     dmSend(c,tx);
     document.getElementById('pdmText').value='';
     render();
-    var m=document.getElementById('pdmMsg');if(m)m.innerHTML='<span style="color:#0F6E56;font-weight:600;">送信しました。園に通知が届きます。</span>';
+    var m=document.getElementById('pdmMsg');
+    if(m)m.innerHTML=(typeof WAPI!=='undefined'&&WAPI.online())
+      ? '<span style="color:#0F6E56;font-weight:600;">送信しました。園の画面に表示されます。</span>'
+      : '<span style="color:#8A6D1F;font-weight:600;">この端末に保存しました。インターネットにつながったときに園へ送ります。</span>';
   };
 }
 /* 送信の中身は、下の欄からでも返信ボタンからでも同じ */
 function dmSend(c,tx){
-    var t=stGet('dmThreads',{});if(!t[c.id])t[c.id]={messages:[]};
-    t[c.id].messages.push({id:Date.now(),from:'parent',by:c.name,text:tx,at:dmNow(),readByStaff:false,readByParent:true});
-    stSet('dmThreads',t);
+    /* ご自身が書いた分は dm_out へ。stSet を通すので、そのまま園へ送られる。 */
+    var all=stGet('dm_out',{})||{};
+    if(!Array.isArray(all[c.id]))all[c.id]=[];
+    all[c.id].push({id:Date.now(),from:'parent',by:c.name,text:tx,at:dmNow()});
+    stSet('dm_out',all);
     /* 園へ通知メール（返信URL付き）— 実送信はバックエンド接続後 */
     var st=stGet('settings',{})||{},school=st.school||'COCOAS KIDS International School',sender=st.sender||'omiya@cocoas-kids.com';
     var hist=stGet('history',[])||[];
@@ -3871,7 +3901,7 @@ var WAPI={
    サーバ側でも同じ一覧で弾いているので、二重に守っている。 */
 /* wa_health_consent … 健康に関する情報の同意。
    規約では取得の記録を残す必要があるため、端末の中だけでなく園にも送る。 */
-var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref)$/;
+var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen)$/;
 
 var WSYNC={q:{},timer:null,busy:false,msg:'',
   mark:function(key){

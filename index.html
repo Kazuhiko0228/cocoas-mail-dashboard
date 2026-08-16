@@ -3155,6 +3155,24 @@ function renderHome(){
     +'<p>'+esc(fmt(todayISO()))+'　きょうは'+esc(wd)+'曜日です。使いたい機能を選んでください。</p></div>'
     +'<div class="hstat"><b>在園児 '+en.length+'名</b><b>本日の記録 '+done+'/5</b>'
     +(unread?'<b style="background:rgba(255,255,255,.32)">保護者からの連絡 '+unread+'件</b>':'')+'</div></div>';
+  /* 保護者から届いた欠席・遅刻の連絡。きょう以降の分だけ、日付の近い順に出す。 */
+  var abs=PSTATE.list('absence_log').filter(function(a){return a&&a.date&&a.date>=todayISO();})
+    .sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+  if(abs.length){
+    html+='<div class="card" style="border-left:4px solid #E2A03F;">'
+      +'<h3>'+ic('alert')+'保護者からの欠席・遅刻の連絡（'+abs.length+'件）</h3>'
+      +'<div class="muted" style="margin:-4px 0 10px;font-size:12px;">保護者の画面から届いたものです。登園シートには自動では入りません。</div>'
+      +abs.slice(0,12).map(function(a){
+        var c=DB.contacts.filter(function(x){return String(x.id)===String(a.childId);})[0];
+        return '<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);">'
+          +'<span style="font-weight:600;min-width:104px;">'+esc(fmt(a.date))+'</span>'
+          +'<span style="min-width:96px;">'+esc(c?childName(c):'（登録のない園児）')+'</span>'
+          +'<span class="tag">'+esc(a.kind||'欠席')+'</span>'
+          +'<span class="muted" style="flex:1;">'+esc(a.reason||'')+'</span></div>';
+      }).join('')
+      +(abs.length>12?'<div class="muted" style="margin-top:8px;font-size:12px;">ほか'+(abs.length-12)+'件</div>':'')
+      +'</div>';
+  }
   /* マスの中に複数の機能があるものは、押すとその場でひらく（画面を移らない）。
      マスの数を減らしつつ、たどり着くまでの手数は増やさないため。 */
   egNav().forEach(function(g){
@@ -3221,7 +3239,17 @@ function waProd(){
   ];
   stSet('wa_products',d);return d;
 }
-function waOrd(){return stGet('wa_orders',[]);}
+/* 園の端末で入れた分（wa_orders）と、保護者が買った分（保護者から届いた控え）を
+   1本にまとめる。同じ注文が二重に数えられないよう、注文の番号でそろえる。 */
+function waOrd(){
+  var mine=stGet('wa_orders',[])||[],seen={},out=[];
+  mine.concat(PSTATE.list('wa_orders')).forEach(function(o){
+    if(!o)return;
+    var k=String(o.id||'')+'|'+String(o.at||'')+'|'+String(o.childId||'');
+    if(seen[k])return;seen[k]=1;out.push(o);
+  });
+  return out;
+}
 function waRate(){var s=stGet('wa_settings',null);return (s&&s.rate!=null)?s.rate:0.20;}
 function waSetRate(r){var s=stGet('wa_settings',{})||{};s.rate=r;stSet('wa_settings',s);}
 function waMonth(){return todayISO().slice(0,7);}
@@ -4486,6 +4514,11 @@ function renderCurriculum(){
     (function(){var M=curMonthly(curClass);
       /* 月次項目は「アクティビティ内容」タブが編集の正。二重入力を防ぐため日別スケジュール側は表示のみにする */
       var head='<div class="card" style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">月次項目（デイリーメール用）<span class="pill" style="background:#E3F1F9;color:#0B5F8F;margin-left:8px;">'+curClass+'</span></div>';
+      /* 月次項目は管理者のみ編集（シート93行）。先生には見るだけで出す。 */
+      var mRO=(typeof currentRole==='function'&&currentRole()==='一般');
+      if(curTab!=='schedule'&&mRO)return head
+        +'<div class="muted" style="margin-bottom:10px;font-size:12px;">ここは表示のみです。月次項目の編集は管理者が行います。</div>'
+        +'<div class="grid" style="grid-template-columns:1fr 1fr;">'+ro('Monthly Theme',M.theme)+ro('Phonics Letter',M.phonicsLetter)+ro('Phonics Song',M.phonicsSong)+ro('Monthly Song（EN／JP）',M.songEN)+'</div></div>';
       if(curTab!=='schedule')return head+'<div class="muted" style="margin-bottom:8px;font-size:12px;">クラスごとに登録できます（Pre と Kinder で別々の内容）。</div><div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field" style="margin:0 0 8px;"><label>Monthly Theme</label><input id="curTheme" value="'+esc(v(M.theme))+'"></div><div class="field" style="margin:0 0 8px;"><label>Phonics Letter</label><input id="curPL" value="'+esc(v(M.phonicsLetter))+'"></div><div class="field" style="margin:0;"><label>Phonics Song</label><input id="curPS" value="'+esc(v(M.phonicsSong))+'"></div><div class="field" style="margin:0;"><label>Monthly Song（EN／JP）</label><input id="curSE" value="'+esc(v(M.songEN))+'" placeholder="English"></div></div></div>';
       function ro(lab,val){return '<div style="margin:0 0 10px;"><div class="muted" style="font-size:11.5px;margin-bottom:2px;">'+lab+'</div><div style="font-size:13px;line-height:1.6;word-break:break-all;">'+(val?esc(val):'<span class="muted">未設定</span>')+'</div></div>';}
       return head+'<div class="muted" style="margin-bottom:10px;font-size:12px;">ここは表示のみです。内容は「アクティビティ内容」で編集できます。</div>'
@@ -4813,7 +4846,10 @@ function renderSettings(){
   if(typeof renderOptionSettings==='function')renderOptionSettings(s);
   if(typeof renderServerSettings==='function')renderServerSettings(s);
   if(typeof renderScanArchiveSettings==='function')renderScanArchiveSettings(s);
-  if(typeof renderBackupSettings==='function')renderBackupSettings(s);
+  /* バックアップは全園児のデータを丸ごと持ち出せる。
+     シート41行のとおり管理者だけにする。 */
+  if(typeof renderBackupSettings==='function'
+     && (typeof currentRole!=='function'||currentRole()==='管理者'))renderBackupSettings(s);
 }
 
 /* ---------- staff ---------- */
@@ -6811,10 +6847,57 @@ var API={
   }
 };
 /* 同期キュー：保存のたびに変更キーを控え、まとめてサーバへ送る */
+/* 保護者から届いたものを受け取る。
+   保護者の画面が書いたものは、園の帳簿とは別の場所に貯まっている。
+   ここで取りに行って、園の画面で読める形にする。 */
+var PSTATE={keys:['absence_log','dm_out','wa_orders','wa_ev_joins'],busy:false,at:null,
+  pull:function(){
+    if(!API.online()||PSTATE.busy)return Promise.resolve();
+    PSTATE.busy=true;
+    var raw=window.__rawSet||localStorage.setItem.bind(localStorage);
+    return Promise.all(PSTATE.keys.map(function(k){
+      return API.call('GET','/parent-state?key='+encodeURIComponent(k))
+        .then(function(j){
+          /* 保護者ごとに1行で返ってくる。中身が配列なら1本につなぎ、
+             ご家庭ごとの入れ物なら1つにまとめる。 */
+          var rows=j.rows||[],arr=[],obj={},isArr=false;
+          rows.forEach(function(r){
+            var v=r.value;
+            if(Array.isArray(v)){isArr=true;v.forEach(function(x){arr.push(x);});}
+            else if(v&&typeof v==='object'){Object.keys(v).forEach(function(c){
+              if(!Array.isArray(obj[c]))obj[c]=[];
+              (Array.isArray(v[c])?v[c]:[]).forEach(function(x){obj[c].push(x);});
+            });}
+          });
+          raw('cocoas_pstate_'+k,JSON.stringify(isArr?arr:obj));
+        })
+        .catch(function(){/* 取れなくても園の画面は動かす */});
+    })).then(function(){PSTATE.at=new Date();PSTATE.busy=false;});
+  },
+  /* サーバにつないでいないとき（商談のデモなど）は、
+     同じ端末の保護者画面が書いたものをそのまま読む。
+     つないでいないのに何も出ないと、デモで話が止まってしまう。 */
+  local:function(k,d){return API.online()?d:stGet(k,d);},
+  /* 一覧で返ってくるもの（欠席の連絡・注文・イベント申込） */
+  list:function(k){
+    var v=stGet('pstate_'+k,[]);
+    if(!Array.isArray(v)||!v.length)v=PSTATE.local(k,[]);
+    return Array.isArray(v)?v:[];
+  },
+  /* ご家庭ごとに分かれて返ってくるもの（メッセージ） */
+  by:function(k,cid){
+    var v=stGet('pstate_'+k,{})||{};
+    var a=v[cid];
+    if(!Array.isArray(a)||!a.length){var l=PSTATE.local(k,{})||{};a=l[cid];}
+    return Array.isArray(a)?a:[];
+  }
+};
+
 var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
   mark:function(key){
     if(!API.online())return;
     if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(key))return;
+    if(/^cocoas_pstate_/.test(key))return;   /* 保護者から届いた控え。園の帳簿ではないので送り返さない */
     SYNC.queue[key.replace(/^cocoas_/,'')]=true;
     clearTimeout(SYNC.timer);
     SYNC.timer=setTimeout(SYNC.push,1200);
@@ -7096,9 +7179,16 @@ var DEFAULT_PERMS={
      配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
   /* シフト表は園長・マネージャーのものなので、既定では渡さない
      （必要なら管理者が権限管理から個別に渡せる）。 */
-  '一般':['home','dashboard','dm','trial','broadcast','records','carerec','drill','contacts','curriculum','kidsview']
+  /* シート「EduGrow システム概要」の役職別の表示範囲に合わせている。
+     ・連絡先（contacts）と体験結果報告（trial）は 園長・管理者（8〜10・16・45行）。
+       先生には、見るだけの「生徒情報」（kidsview）を用意してある。
+     ・未来WA（wastore・6行）、年間スケジュール（tasks・7行）、
+       AI保育計画（aiplan・15〜20行）は先生も使える。
+       aiplan はプランの制限（Pro）とは別で、ここは役職の話。 */
+  '一般':['home','dashboard','dm','broadcast','records','carerec','drill',
+         'curriculum','kidsview','tasks','wastore','aiplan']
 };
-var PERMS_VERSION=10;
+var PERMS_VERSION=11;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
    平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
@@ -7362,7 +7452,7 @@ function staffBoot(){
       else{hit.name=su.name;hit.role=su.role;stSet('staffAccounts',accs);}
       sessionStorage.setItem('cocoas_staffSession',hit.id);
     }
-    SYNC.pull().catch(function(){});
+    SYNC.pull().then(function(){return PSTATE.pull();}).catch(function(){});
   }
   if(!currentStaff()){showStaffLogin();return;}
   applyPerms();try{initSyncBar();}catch(e){}
@@ -7474,12 +7564,37 @@ function renderAccessSettings(s){
 var dmSel=null;
 function dmStore(){return stGet('dmThreads',{});}
 function dmSaveAll(t){stSet('dmThreads',t);}
-function dmThread(id){var t=dmStore();return t[id]||{messages:[]};}
+/* 園が書いた分（dmThreads）と、保護者から届いた分（dm_out）を、時刻順に1本にする。
+   既読の印は園の端末のもの（dm_seen_staff）に持つ。
+   届いた分は保護者のものなので、こちらから書き換えられないため。 */
+function dmSeenStaff(id){var v=(stGet('dm_seen_staff',{})||{})[id];return Array.isArray(v)?v:[];}
+function dmThread(id){
+  var t=dmStore()[id]||{messages:[]},seen=dmSeenStaff(id),have={},msgs=[];
+  (t.messages||[]).forEach(function(m){
+    if(!m)return;have[String(m.id)]=1;
+    msgs.push(m.from==='parent'
+      ? {id:m.id,from:'parent',by:m.by,text:m.text,at:m.at,readByStaff:m.readByStaff||seen.indexOf(m.id)>-1}
+      : m);
+  });
+  PSTATE.by('dm_out',id).forEach(function(m){
+    if(!m||have[String(m.id)])return;
+    msgs.push({id:m.id,from:'parent',by:m.by,text:m.text,at:m.at,readByStaff:seen.indexOf(m.id)>-1});
+  });
+  msgs.sort(function(a,b){
+    var x=String(a.at||''),y=String(b.at||'');
+    return x<y?-1:x>y?1:(Number(a.id)-Number(b.id));});
+  return {messages:msgs};
+}
 function dmBaseUrl(){var u=location.href.split('?')[0];return u.replace(/[^\/]*$/,'');}
 function dmNow(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
 function dmUnreadStaff(id){return dmThread(id).messages.filter(function(m){return m.from==='parent'&&!m.readByStaff;}).length;}
 function dmUnreadTotal(){var n=0;enrolled().forEach(function(c){n+=dmUnreadStaff(c.id);});return n;}
-function dmMarkReadStaff(id){var t=dmStore();if(!t[id])return;t[id].messages.forEach(function(m){if(m.from==='parent')m.readByStaff=true;});dmSaveAll(t);}
+function dmMarkReadStaff(id){
+  var all=stGet('dm_seen_staff',{})||{},cur=dmSeenStaff(id).slice();
+  dmThread(id).messages.forEach(function(m){
+    if(m.from==='parent'&&cur.indexOf(m.id)<0)cur.push(m.id);});
+  all[id]=cur;stSet('dm_seen_staff',all);
+}
 function dmPost(childId,from,by,text){
   var t=dmStore();if(!t[childId])t[childId]={messages:[]};
   t[childId].messages.push({id:Date.now()+Math.floor(Math.random()*1000),from:from,by:by,text:text,at:dmNow(),readByStaff:from==='staff',readByParent:from==='parent'});
@@ -7501,7 +7616,14 @@ function dmNotify(childId,msg){
   }
   DB.history=h;
 }
+var dmPulling=false;
 function renderDM(){
+  /* 開いたときに、保護者から届いた分をもう一度取りに行く。
+     取り終わったら1度だけ描き直す（そのまま呼ぶと止まらなくなる）。 */
+  if(API.online()&&!dmPulling){
+    dmPulling=true;
+    PSTATE.pull().then(function(){renderDM();}).then(function(){dmPulling=false;},function(){dmPulling=false;});
+  }
   var kids=enrolled();
   if(!dmSel||!kids.filter(function(c){return c.id===dmSel;}).length)dmSel=kids.length?kids[0].id:null;
   var s=$('section[data-page="dm"]');
@@ -9589,7 +9711,7 @@ var HELP_KB={
   tips:['1ファイル4MBまでです。原本が無くても、要点は保護者に表示されます。'],
   out:'記入して出す用紙（登園許可証・投薬依頼書など6種）は、保護者が印刷できます。'},
 
- wastore:{t:'未来WA ストア管理',kw:'ストア 未来WA 商品 出品 教材 おすすめ 還元 Amazon リンク 販売',role:['マネージャー','管理者'],
+ wastore:{t:'未来WA ストア管理',kw:'ストア 未来WA 商品 出品 教材 おすすめ 還元 Amazon リンク 販売',role:['一般','マネージャー','管理者'],
   can:'保護者に見せる商品を決めます。園が指定したものがストアの上に出ます。',
   steps:['「保護者に見せる」タブを開きます。','見せたい商品にチェックを入れ、表示順を数字で決めます。',
    '「ご用意のお願い」に文言を入れると、保護者側に札が付きます。','「この内容で保護者に見せる」を押します。'],
