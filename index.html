@@ -3896,6 +3896,8 @@ function renderContacts(){
       '<div style="position:relative;flex:1;min-width:200px;"><span style="position:absolute;left:11px;top:9px;color:#98A2AE;width:16px;height:16px;display:inline-block;">'+ic('search')+'</span><input id="cSearch" placeholder="名前・お子様・メールで検索" style="padding-left:34px;" value="'+esc(contactSearch)+'"></div>'+
       '<span class="muted" style="font-size:12px;">並べ替え</span><select id="cSort" style="width:190px;">'+SORTS.map(function(o){return '<option'+(o===contactSort?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
       '<button class="btn btn-sm" id="cPrint">'+ic('printer')+'監査用に出力</button>'+
+      (CONTACT_SCOPE==='member'&&typeof isBoss==='function'&&isBoss()
+        ? '<button class="btn btn-sm" id="cImport">'+ic('folder')+'名簿を取り込む</button>' : '')+
       '<button class="btn btn-primary" id="addContact">'+ic('plus')+'連絡先を追加</button>'+
     '</div>'+
     '<div class="chips">'+filters.map(function(f){return '<span class="chip'+(f===contactFilter?' on':'')+'" data-cf="'+esc(f)+'">'+f+'</span>';}).join('')+'</div>'+
@@ -3928,6 +3930,8 @@ function renderContacts(){
   s.querySelectorAll('[data-cf]').forEach(function(b){b.addEventListener('click',function(){contactFilter=b.getAttribute('data-cf');renderContacts();});});
   var cso=s.querySelector('#cSort');if(cso)cso.onchange=function(e){contactSort=e.target.value;renderContacts();};
   var cpb=s.querySelector('#cPrint');if(cpb)cpb.onclick=contactAuditPrintModal;
+  var cim=s.querySelector('#cImport');
+  if(cim)cim.onclick=function(){rosterImportModal();};
   var cab=s.querySelector('#addContact');
   if(cab)cab.addEventListener('click',function(){contactModal();});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){contactModal(+b.getAttribute('data-edit'));});});
@@ -3935,6 +3939,216 @@ function renderContacts(){
   /* サイドバーの件数バッジ。組み立て直しで無いこともあるので、あれば入れる。 */
   var _nb=$('#navContacts'); if(_nb)_nb.textContent=cs.length;
 }
+
+/* ══ 園児名簿の一括取り込み ═══════════════════
+   導入の初日に、60〜90名を1人ずつ手で入れるのは現実的でないため、
+   ExcelやGoogleスプレッドシートから貼り付けられるようにする。
+
+   実在の園児の名簿を扱うので、次の3つを守る。
+   ・いきなり登録せず、必ず「これから入る内容」を見せてから確認をもらう
+   ・すでにいる園児は上書きしない（飛ばして、理由を出す）
+   ・おかしい行は、何行目がどう おかしいかを出す
+
+   この端末の中にだけ保存される。サーバにつないでいる場合は、
+   ふだんの保存と同じ流れでサーバへ送られる。 */
+
+var ROSTER_COLS=[
+  {k:'name',   l:'保護者名',   need:true,  alt:['保護者','保護者氏名','氏名','親']},
+  {k:'child',  l:'お子様名',   need:true,  alt:['園児名','児童名','お子さま','子ども']},
+  {k:'klass',  l:'クラス',     need:false, alt:['組']},
+  {k:'dob',    l:'生年月日',   need:false, alt:['誕生日','生年月日(西暦)']},
+  {k:'email',  l:'メールアドレス', need:true, alt:['メール','Email','E-mail','mail']},
+  {k:'phone',  l:'電話番号',   need:false, alt:['電話','TEL','tel','携帯']},
+  {k:'days',   l:'通園曜日',   need:false, alt:['曜日','登園曜日']}
+];
+
+function rosterSplit(line){
+  /* タブ区切り（Excelからの貼り付け）と、カンマ区切りの両方を受ける。
+     「"あ,い",う」のように引用符でくくられていても壊さない。 */
+  if(line.indexOf('\t')>-1)return line.split('\t').map(function(x){return x.trim();});
+  var out=[],cur='',q=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line[i];
+    if(ch==='"'){ if(q&&line[i+1]==='"'){cur+='"';i++;} else q=!q; }
+    else if(ch===','&&!q){ out.push(cur.trim()); cur=''; }
+    else cur+=ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/** 1行目が見出しなら、その並びに合わせる。無ければ決まった並びとみなす。 */
+function rosterHeader(cells){
+  var map={}, hit=0;
+  cells.forEach(function(c,i){
+    var t=String(c).replace(/\s/g,'');
+    ROSTER_COLS.forEach(function(col){
+      if(map[col.k]!=null)return;
+      if(t===col.l.replace(/\s/g,'')||col.alt.indexOf(t)>-1){ map[col.k]=i; hit++; }
+    });
+  });
+  return hit>=2 ? map : null;
+}
+
+function rosterNormDate(v){
+  var t=String(v||'').trim();
+  if(!t)return '';
+  /* Excel や Google スプレッドシートは 2022/6/18 の形で出すことが多い。
+     半角スラッシュを入れ忘れると、ほとんどの行が弾かれてしまう。 */
+  t=t.replace(/[\/／．.]/g,'-').replace(/年|月/g,'-').replace(/日/g,'')
+     .replace(/-+$/,'').replace(/-+/g,'-');
+  var m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+  if(!m)return null;                       /* 読めない書き方 */
+  var y=+m[1],mo=+m[2],d=+m[3];
+  if(mo<1||mo>12||d<1||d>31)return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+
+function rosterNormDays(v){
+  var t=String(v||'').replace(/[\s,、]/g,'');
+  if(!t)return '';
+  var out=WEEK5.filter(function(d){return t.indexOf(d)>-1;});
+  if(!out.length&&/毎日|全部|週5/.test(t))return WEEK5.join('・');
+  return out.join('・');
+}
+
+/** 貼り付けた文字列を読んで、入れるもの・飛ばすものに分ける。 */
+function rosterParse(text){
+  var lines=String(text||'').split(/\r?\n/).filter(function(l){return l.trim();});
+  if(!lines.length)return {ok:[],ng:[],dup:[]};
+
+  var first=rosterSplit(lines[0]);
+  var map=rosterHeader(first);
+  var body=map?lines.slice(1):lines;
+  if(!map){ map={}; ROSTER_COLS.forEach(function(c,i){map[c.k]=i;}); }
+
+  var ok=[],ng=[],dup=[];
+  var have={}, haveName={};
+  DB.contacts.forEach(function(c){
+    if(c.email)have[String(c.email).toLowerCase()]=c;
+    haveName[(String(c.name||'')+'|'+String(c.child||'')).replace(/\s/g,'')]=c;
+  });
+  var seen={};
+
+  body.forEach(function(ln,i){
+    var no=(map?i+2:i+1);
+    var cell=rosterSplit(ln);
+    var get=function(k){ var idx=map[k]; return (idx==null||cell[idx]==null)?'':String(cell[idx]).trim(); };
+    var row={name:get('name'),child:get('child'),klass:get('klass'),
+             dob:get('dob'),email:get('email'),phone:get('phone'),days:get('days')};
+
+    if(!row.name&&!row.child&&!row.email)return;          /* 空行 */
+
+    var bad=[];
+    if(!row.name) bad.push('保護者名がありません');
+    if(!row.child)bad.push('お子様名がありません');
+    if(!row.email)bad.push('メールアドレスがありません（保護者アカウントの発行に必要です）');
+    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))bad.push('メールアドレスの形が違います');
+
+    if(row.dob){
+      var d=rosterNormDate(row.dob);
+      if(d===null)bad.push('生年月日を読み取れません（2022-06-18 の形でお願いします）');
+      else row.dob=d;
+    }
+    if(row.klass&&CLASSES.indexOf(row.klass)<0)
+      bad.push('「'+row.klass+'」というクラスがありません（'+CLASSES.join('・')+'）');
+    if(row.days)row.days=rosterNormDays(row.days);
+
+    if(bad.length){ ng.push({no:no,row:row,why:bad.join(' ／ ')}); return; }
+
+    var key=row.email.toLowerCase();
+    var nk=(row.name+'|'+row.child).replace(/\s/g,'');
+    if(have[key]){ dup.push({no:no,row:row,why:'このメールアドレスは、すでに登録されています'}); return; }
+    if(haveName[nk]){ dup.push({no:no,row:row,why:'同じ保護者・お子様の組み合わせが、すでに登録されています'}); return; }
+    if(seen[key]||seen[nk]){ dup.push({no:no,row:row,why:'貼り付けた中で重複しています'}); return; }
+    seen[key]=1; seen[nk]=1;
+    ok.push({no:no,row:row});
+  });
+  return {ok:ok,ng:ng,dup:dup,hadHeader:!!map};
+}
+
+function rosterImportModal(){
+  var m=el('div',{class:'modal-bg'});
+  $('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+
+  var cols=ROSTER_COLS.map(function(c){
+    return c.l+(c.need?'<span style="color:#A32D2D;">＊</span>':'');}).join('　／　');
+
+  m.innerHTML='<div class="modal" style="max-width:900px;">'
+    +'<h2>'+ic('folder')+'園児名簿を取り込む</h2>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.95;margin-bottom:12px;">'
+    +'Excel や Google スプレッドシートから、そのまま貼り付けてください。'
+    +'1行が1名です。<br>列の並び：'+cols+'<br>'
+    +'<b>＊は必ず必要です。</b>1行目が見出しなら、並びが違っていても合わせます。<br>'
+    +'メールアドレスは、あとで保護者アカウントを発行するときに使います。'
+    +'</div>'
+    +'<textarea id="riIn" style="width:100%;height:180px;font-family:monospace;font-size:12.5px;" '
+    +'placeholder="保護者名\tお子様名\tクラス\t生年月日\tメールアドレス\t電話番号\t通園曜日&#10;'
+    +'高橋 健\t心春\tPre\t2022-06-18\ttakahashi@example.com\t090-0000-0000\t月・火・水"></textarea>'
+    +'<div id="riResult" style="margin-top:12px;"></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">'
+    +'<button class="btn" id="riCancel">閉じる</button>'
+    +'<button class="btn" id="riCheck">内容を確かめる</button>'
+    +'<button class="btn btn-primary" id="riGo" style="display:none;">この内容で取り込む</button>'
+    +'</div></div>';
+
+  var parsed=null;
+
+  $('#riCancel').onclick=function(){m.remove();};
+
+  $('#riCheck').onclick=function(){
+    parsed=rosterParse($('#riIn').value);
+    var r=$('#riResult');
+    var n=parsed.ok.length;
+    var tbl=function(list,color,title){
+      if(!list.length)return '';
+      return '<div style="margin-top:10px;"><div style="font-weight:700;font-size:12.5px;color:'+color+';">'
+        +title+'（'+list.length+'名）</div>'
+        +'<div class="scrollx" style="max-height:210px;overflow-y:auto;margin-top:6px;">'
+        +'<table style="font-size:12px;"><thead><tr><th style="width:44px;">行</th><th>保護者</th>'
+        +'<th>お子様</th><th>クラス</th><th>生年月日</th><th>メール</th><th>通園曜日</th>'
+        +(list[0].why?'<th>理由</th>':'')+'</tr></thead><tbody>'
+        +list.map(function(x){
+          return '<tr><td class="row-sub">'+x.no+'</td><td>'+esc(x.row.name)+'</td>'
+            +'<td>'+esc(x.row.child)+'</td><td>'+esc(x.row.klass||'—')+'</td>'
+            +'<td class="row-sub">'+esc(x.row.dob||'—')+'</td>'
+            +'<td class="row-sub">'+esc(x.row.email||'—')+'</td>'
+            +'<td class="row-sub">'+esc(x.row.days||'—')+'</td>'
+            +(x.why?'<td style="color:'+color+';">'+esc(x.why)+'</td>':'')+'</tr>';
+        }).join('')+'</tbody></table></div></div>';
+    };
+    r.innerHTML=(parsed.hadHeader
+        ? '<div class="muted" style="font-size:12px;">1行目を見出しとして読みました。</div>' : '')
+      +tbl(parsed.ok,'#27500A','これから登録します')
+      +tbl(parsed.dup,'#854F0B','すでにいるので飛ばします')
+      +tbl(parsed.ng,'#A32D2D','入れられません')
+      +(n?'':'<div class="empty" style="margin-top:10px;">登録できる行がありません</div>');
+    $('#riGo').style.display=n?'':'none';
+  };
+
+  $('#riGo').onclick=function(){
+    if(!parsed||!parsed.ok.length)return;
+    var n=parsed.ok.length;
+    if(!confirm(n+'名を在園児として登録します。\n\n'
+      +'すでにいる園児は上書きしません。\nよろしいですか？'))return;
+    var arr=DB.contacts.slice(), base=Date.now();
+    parsed.ok.forEach(function(x,i){
+      var r=x.row;
+      arr.push({id:base+i, kind:'enrolled',
+        name:r.name, child:r.child, klass:r.klass||CLASSES[0],
+        dob:r.dob||'', email:r.email, phone:r.phone||'', days:r.days||'',
+        note:'', feeAmount:0, withdrawDay:27, admissionDate:todayISO()});
+    });
+    DB.contacts=arr;
+    m.remove();
+    renderContacts();
+    alert(n+'名を登録しました。\n\n'
+      +'クラス・通園曜日・料金は、必要に応じて「生徒情報」から直してください。\n'
+      +'保護者アカウントは、運営に発行を依頼してください。');
+  };
+}
+
 function contactModal(id){
   var cs=DB.contacts,c=id?cs.filter(function(x){return x.id===id;})[0]:{kind:'lead',name:'',child:'',email:'',phone:'',status:'体験前 日程調整中',date:'',receivedDate:todayISO(),source:'HPフォーム',wishKlass:'Pre',format:'オフライン',trialBy:'',trialTime:'',nextAction:'',concerns:'',invoiceStatus:'未作成',klass:'Pre',feeAmount:52000,withdrawDay:27,withdrawDate:'',note:''};
   var kind=c.kind||'lead';
