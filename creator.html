@@ -921,14 +921,55 @@ function shopHTML(){
         (x.cat||'')+' ・ '+yen(x.price)+(x.sub?'／月':'')+(x.rental?' ・ レンタル':''),'shop');
       }).join(''):'<div class="empty">出品しているものがありません</div>')+'</div>';
 }
+/* 保護者が申し込んだ記録を、サーバから受け取る。
+   wa_ev_joins は「そのご家庭が申し込んだイベント番号の一覧」なので、
+   これを全家庭ぶん数えれば、イベントごとの申込数になる。
+   名前は入っていない。名前が要る名簿は園の画面にある。 */
+var EVJOIN={n:null,busy:false,
+  load:function(cb){
+    if(EVJOIN.n||EVJOIN.busy||!API.online()){cb&&cb();return;}
+    EVJOIN.busy=true;
+    API.call('GET','/parent-state?key=wa_ev_joins')
+      .then(function(j){
+        var n={};
+        (j.rows||[]).forEach(function(r){
+          /* 同じご家庭が同じイベントに二重に入っていても、1件として数える */
+          var seen={};
+          (Array.isArray(r.value)?r.value:[]).forEach(function(id){
+            var k=String(id);
+            if(seen[k])return; seen[k]=1;
+            n[k]=(n[k]||0)+1;
+          });
+        });
+        EVJOIN.n=n;
+      })
+      .catch(function(){EVJOIN.n=null;})
+      .then(function(){EVJOIN.busy=false;cb&&cb();});
+  },
+  /* サーバから取れていればその数、取れていなければ見本の数字 */
+  of:function(x){
+    /* 受け取れているなら、載っていないイベントは「まだ0件」。
+       ここで見本の数字に戻すと、誰も申し込んでいないイベントが
+       「9名」などと出てしまう。 */
+    if(EVJOIN.n)return {n:EVJOIN.n[String(x.id)]||0,real:true};
+    return {n:x.applied||0,real:false};
+  }
+};
+
 function eventsHTML(){
   var list=filterSort('events',events());
   return listHead('events','🎪 イベント','イベントを作成','event')
     +'<div class="card">'+(list.length?list.map(function(x){
-      var rate=x.cap?Math.round(x.applied/x.cap*100):0;
+      var a=EVJOIN.of(x),rate=x.cap?Math.round(a.n/x.cap*100):0;
       return itemRow(x,'🎪',
-        x.target+' ・ '+(x.theme||x.kind||'')+' ・ '+fmtDate(x.date)+' ・ 申込 '+x.applied+'/'+x.cap+'（'+rate+'%）','events');
-      }).join(''):'<div class="empty">イベントがありません</div>')+'</div>';
+        x.target+' ・ '+(x.theme||x.kind||'')+' ・ '+fmtDate(x.date)
+        +' ・ 申込 '+a.n+'/'+x.cap+'（'+rate+'%）'+(a.real?'':'（見本の数字）'),'events');
+      }).join(''):'<div class="empty">イベントがありません</div>')+'</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:8px;line-height:1.7;">'
+    +(EVJOIN.n
+      ? 'お申し込みの数は、保護者の画面から届いたものです。どなたが申し込んだかは、園の画面（未来WA ストア管理）で見られます。'
+      : 'お申し込みの数は、まだ受け取れていません（サーバにつないでいないか、読み込みに失敗しています）。')
+    +'</div>';
 }
 function commsHTML(){
   var list=filterSort('comms',comms());
@@ -1230,7 +1271,9 @@ function render(){
   else if(page==='home') v.innerHTML=homeHTML();
   else if(page==='posts') v.innerHTML=postsHTML();
   else if(page==='shop') v.innerHTML=shopHTML();
-  else if(page==='events') v.innerHTML=eventsHTML();
+  else if(page==='events'){ v.innerHTML=eventsHTML();
+    /* 申込の数は、開いたときに一度だけ取りに行く。取れたら描き直す。 */
+    EVJOIN.load(function(){ if(page==='events'){v.innerHTML=eventsHTML();wire();} }); }
   else if(page==='comms') v.innerHTML=commsHTML();
   else if(page==='analytics') v.innerHTML=analyticsHTML();
   else if(page==='rank') v.innerHTML=rankHTML();

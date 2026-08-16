@@ -3504,6 +3504,49 @@ function renderWaPick(s){
 
 /* 外部の教材は、運営が発行したリンクでのみ保護者に出す。
    園が勝手にリンクを貼れる形にすると、どこへ飛ばされるか分からなくなるため。 */
+/* イベントの申込。保護者の画面から届いたものをそのまま並べる。
+   名前が入るので、この画面（管理者・マネージャー）だけに出す。
+   出品者の画面には数だけを出している。 */
+function renderWaJoins(s){
+  var rows=PSTATE.list('wa_ev_joindetail');
+  /* イベントごとにまとめる。イベント番号が同じものを1つの束にする。 */
+  var by={};
+  rows.forEach(function(j){
+    if(!j||!j.id)return;
+    var k=String(j.id);
+    if(!by[k])by[k]={id:k,title:j.title||'（名称なし）',date:j.date||'',place:j.place||'',fee:j.fee||'',list:[]};
+    by[k].list.push(j);
+  });
+  var evs=Object.keys(by).map(function(k){return by[k];})
+    .sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
+
+  s.innerHTML+='<div class="card"><h3>'+ic('cal')+'イベントの申込</h3>'
+    +'<div class="muted" style="margin:-4px 0 12px;font-size:12px;">'
+    +'保護者の画面からお申し込みのあったものです。'
+    +(PSTATE.at?'':'　※ まだサーバから受け取れていません（つないでいないか、読み込みに失敗しています）')
+    +'</div>'
+    +(evs.length?evs.map(function(e){
+      return '<div style="border-top:1px solid var(--line);padding:11px 0;">'
+        +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;">'
+          +'<b style="font-size:13.5px;">'+esc(e.title)+'</b>'
+          +'<span class="tag">'+esc(e.list.length)+'名</span>'
+          +'<span class="muted" style="font-size:12px;">'+esc(e.date?fmt(e.date):'')
+            +(e.place?'　'+esc(e.place):'')+(e.fee?'　'+esc(e.fee):'')+'</span></div>'
+        +'<div class="scrollx" style="margin-top:7px;"><table><thead><tr>'
+          +'<th>お申し込み</th><th>園児</th><th>保護者</th></tr></thead><tbody>'
+        +e.list.slice().sort(function(a,b){return String(a.at).localeCompare(String(b.at));})
+          .map(function(j){
+            var c=DB.contacts.filter(function(x){return String(x.id)===String(j.childId);})[0];
+            return '<tr><td class="row-sub">'+esc(j.at||'')+'</td>'
+              +'<td>'+esc(c?childFullName(c):'（園外・退園）')+'</td>'
+              +'<td class="row-sub">'+esc(c?(c.name||''):'')+'</td></tr>';
+          }).join('')
+        +'</tbody></table></div></div>';
+    }).join('')
+    :'<div class="empty">まだお申し込みはありません。保護者の画面から申し込まれると、ここに入ります。</div>')
+    +'</div>';
+}
+
 function renderWaAmz(s){
   var ps=waProd();
   var ext=ps.filter(function(x){return x.src==='amazon';});
@@ -3585,7 +3628,8 @@ function renderWaStore(){
       +'<span class="chip'+(waTab2==='items'?' on':'')+'" data-wt="items">商品の管理</span>'
       +'<span class="chip'+(waTab2==='pick'?' on':'')+'" data-wt="pick">保護者に見せる</span>'
       +'<span class="chip'+(waTab2==='amz'?' on':'')+'" data-wt="amz">外部教材のリンク</span>'
-      +'<span class="chip'+(waTab2==='sales'?' on':'')+'" data-wt="sales">売上と還元</span></div>'
+      +'<span class="chip'+(waTab2==='sales'?' on':'')+'" data-wt="sales">売上と還元</span>'
+      +'<span class="chip'+(waTab2==='joins'?' on':'')+'" data-wt="joins">イベントの申込</span></div>'
     +'<span class="muted" style="font-size:12px;">ここで登録すると、保護者アプリ「未来WA」にすぐ表示されます</span></div>';
   /* タブの配線は、ここで先に済ませる。
      下の「保護者に見せる」「外部教材のリンク」は途中で return するうえ、
@@ -3598,6 +3642,7 @@ function renderWaStore(){
   wireWaTabs();
   if(waTab2==='pick'){ renderWaPick(s); wireWaTabs(); return; }
   if(waTab2==='amz'){ renderWaAmz(s); wireWaTabs(); return; }
+  if(waTab2==='joins'){ renderWaJoins(s); wireWaTabs(); return; }
   if(waTab2==='sales'){
     s.innerHTML+='<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">'
       +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">未来WAの流通額（'+esc(mk)+'）</div>'
@@ -6923,7 +6968,7 @@ var API={
 /* 保護者から届いたものを受け取る。
    保護者の画面が書いたものは、園の帳簿とは別の場所に貯まっている。
    ここで取りに行って、園の画面で読める形にする。 */
-var PSTATE={keys:['absence_log','dm_out','wa_orders','wa_ev_joins'],busy:false,at:null,
+var PSTATE={keys:['absence_log','dm_out','wa_orders','wa_ev_joins','wa_ev_joindetail'],busy:false,at:null,
   pull:function(){
     if(!API.online()||PSTATE.busy)return Promise.resolve();
     PSTATE.busy=true;
