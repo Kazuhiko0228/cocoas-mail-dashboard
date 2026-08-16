@@ -2081,11 +2081,33 @@ function aiPlanUpd(id,o){
   var a=aiPlans(); a.forEach(function(x){ if(x.id===id)Object.assign(x,o); }); stSet('ai_plans',a);
 }
 /* 何をしたかの記録。あとから「いつ誰が承認したか」を示せるように残す。 */
-function aiLog(act,detail){
+function aiLog(act,detail,klass){
   var a=stGet('ai_log',[])||[];
   var st=(typeof currentStaff==='function')?currentStaff():null;
-  a.push({at:aiNow(),who:(st&&st.name)||'—',act:act,detail:detail||''});
+  /* 名前だけだと、同じ姓の職員がいるときに「自分の分」を選び分けられない。
+     アカウントの番号も残す。klass は、あとで「担当クラスまで」を
+     出せるようにするための控え（いまの3役職では使わない）。 */
+  a.push({at:aiNow(),who:(st&&st.name)||'—',uid:(st&&st.id)||null,
+          act:act,detail:detail||'',klass:klass||''});
   stSet('ai_log',a.slice(-200));
+}
+/* この人が見てよい範囲だけを返す。
+   シート26行：先生＝自分のみ／園長・管理者＝全体。 */
+function aiLogVisible(){
+  var a=stGet('ai_log',[])||[];
+  var st=(typeof currentStaff==='function')?currentStaff():null;
+  if(!st||st.role!=='一般')return a;
+  return a.filter(function(x){
+    /* 番号が残っているものは番号で、古いものは名前で照らし合わせる */
+    return (x.uid!=null&&String(x.uid)===String(st.id))
+        || (x.uid==null&&x.who===st.name);
+  });
+}
+/* 見えている範囲を、画面のことばで言う */
+function aiLogScope(){
+  var st=(typeof currentStaff==='function')?currentStaff():null;
+  return (st&&st.role==='一般')?'ご自身が行った分だけを表示しています'
+                               :'園全体の分を表示しています';
 }
 
 /* ── クラスの一覧 ───────────────────────── */
@@ -2494,7 +2516,7 @@ function aiPlanAsk(klass,q){
       +'1グループ '+f.perStaff+'名ほどに分けると目が届きます。'
       +'はさみを使う工程は、使う子だけを1グループにまとめると安全です。', say:''};
   }
-  return {kind:'none', say:'', data:'その内容は、いまのAIサポートでは作れません。'
+  return {kind:'none', say:'', data:'その書き方だと、どの書類を作ればよいか読み取れませんでした。'
     +'「制作」「年間」「月案」「週案」「日案」「つながりの確認」「雨のとき」「グループ分け」'
     +'のいずれかを含めてお書きください。'};
 }
@@ -2793,7 +2815,7 @@ function aipChatHTML(k){
 
 /* ── AI記録管理 ────────────────────────── */
 function aipMemoHTML(k){
-  var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=stGet('ai_log',[])||[];
+  var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=aiLogVisible();
   var ps=aiPlans().filter(function(x){return x.klass===k;});
   return '<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
     +'<div class="field"><label>スクール理念</label>'
@@ -2842,6 +2864,7 @@ function aipMemoHTML(k){
       :'<div class="muted" style="text-align:center;padding:22px 0;">まだありません</div>')+'</div>'
 
     +'<div class="card"><h3 style="margin-top:0;">あしあと</h3>'
+    +'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;">'+esc(aiLogScope())+'</div>'
     +(lg.length?'<table style="width:100%;font-size:12px;"><tbody>'
       +lg.slice(-15).reverse().map(function(x){
         return '<tr><td class="muted" style="padding:6px 0;white-space:nowrap;">'+esc(x.at)+'</td>'
@@ -3253,6 +3276,22 @@ function waProd(){
 }
 /* 園の端末で入れた分（wa_orders）と、保護者が買った分（保護者から届いた控え）を
    1本にまとめる。同じ注文が二重に数えられないよう、注文の番号でそろえる。 */
+/* 注文を1件ずつ見分ける印。保護者の端末で作られた注文なので、
+   園が勝手に番号を振り直せない。買った中身で組み立てる。 */
+function waOrdKey(o){
+  return String(o&&o.id||'')+'|'+String(o&&o.at||'')+'|'+String(o&&o.childId||'');
+}
+/* 園が「受け取りました」を押した記録。
+   保護者にもそのまま渡る（サーバの PARENT_READ に入れてある）。 */
+function waRecv(){var v=stGet('wa_order_recv',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+function waRecvMark(o,on){
+  var r=waRecv(),k=waOrdKey(o);
+  if(on){
+    var st=(typeof currentStaff==='function')?currentStaff():null;
+    r[k]={at:todayISO(),by:(st&&st.name)||''};
+  }else{ delete r[k]; }
+  stSet('wa_order_recv',r);
+}
 function waOrd(){
   var mine=stGet('wa_orders',[])||[],seen={},out=[];
   mine.concat(PSTATE.list('wa_orders')).forEach(function(o){
@@ -3574,19 +3613,40 @@ function renderWaStore(){
         +(os.length?yen(Math.round(kb/os.length)):'—')+'</div>'
         +'<div class="muted" style="font-size:12px;">今月の平均</div></div></div>'
       +'<div class="card"><h3>'+ic('yen')+'注文の明細（'+esc(mk)+'）</h3><div class="scrollx"><table><thead><tr>'
-        +'<th>日時</th><th>園児</th><th>商品</th><th style="text-align:right;">金額</th><th style="text-align:right;">還元</th></tr></thead><tbody>'
+        +'<th>日時</th><th>園児</th><th>商品</th><th style="text-align:right;">金額</th><th style="text-align:right;">還元</th><th>園に届いた</th></tr></thead><tbody>'
       +(os.length?os.slice().reverse().map(function(o){
           var c=DB.contacts.filter(function(x){return String(x.id)===String(o.childId);})[0];
+          var rv=waRecv()[waOrdKey(o)];
           return '<tr><td class="row-sub">'+esc(o.at||'')+'</td><td>'+esc(c?childFullName(c):'（園外）')+'</td>'
             +'<td>'+esc(o.name||'')+'</td><td style="text-align:right;">'+yen(o.amount)+'</td>'
-            +'<td style="text-align:right;color:#27500A;font-weight:700;">'+yen(o.kickback)+'</td></tr>';}).join('')
-        :'<tr><td colspan="5" class="empty">今月の注文はまだありません。未来WAのストアで購入されると、ここに入ります。</td></tr>')
+            +'<td style="text-align:right;color:#27500A;font-weight:700;">'+yen(o.kickback)+'</td>'
+            /* 押すと保護者の画面が「受け取り済み」に変わる。
+               押すまでは予定のまま出る（届いていないのに届いたと出さないため）。 */
+            +'<td>'+(rv
+              ? '<span class="muted" style="font-size:11.5px;">'+esc(fmt(rv.at))+' 受取'
+                +(rv.by?'<br>'+esc(rv.by):'')+'</span>'
+                +' <button class="btn btn-sm" data-unrecv="'+esc(waOrdKey(o))+'" style="margin-left:4px;">取り消す</button>'
+              : '<button class="btn btn-sm btn-primary" data-recv="'+esc(waOrdKey(o))+'">受け取りました</button>')
+            +'</td></tr>';}).join('')
+        :'<tr><td colspan="6" class="empty">今月の注文はまだありません。未来WAのストアで購入されると、ここに入ります。</td></tr>')
       +'</tbody></table></div>'
       +'<div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;">'
         +'<span style="font-size:13px;font-weight:600;">園への還元率</span>'
         +'<input id="waRate" type="number" min="0" max="50" step="1" value="'+esc(Math.round(rate*100))+'" style="width:90px;">'
         +'<span class="muted" style="font-size:12.5px;">%　商品の粗利から決めます。<b>この数字は保護者の画面には出ません。</b></span>'
-        +'<button class="btn btn-sm btn-primary" id="waRateSave">保存</button><span class="muted" id="waRateMsg"></span></div></div>';
+        +'<button class="btn btn-sm btn-primary" id="waRateSave">保存</button><span class="muted" id="waRateMsg"></span></div>'
+      +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.7;">'
+      +'「受け取りました」を押すと、保護者の画面の状態が「受け取り済み」に変わります。'
+      +'押すまでは「園に届く予定」のまま出ます。</div></div>';
+    /* 受け取りの記録。os から探し直すのは、印だけでは中身が分からないため。 */
+    s.querySelectorAll('[data-recv],[data-unrecv]').forEach(function(b){b.onclick=function(){
+      var on=b.hasAttribute('data-recv');
+      var key=b.getAttribute(on?'data-recv':'data-unrecv');
+      var o=os.filter(function(x){return waOrdKey(x)===key;})[0];
+      if(!o)return;
+      waRecvMark(o,on);
+      renderWaStore();
+    };});
     $('#waRateSave').onclick=function(){
       waSetRate((parseFloat($('#waRate').value)||0)/100);
       $('#waRateMsg').textContent='保存しました';renderWaStore();};
@@ -10002,7 +10062,7 @@ function initAI(){
   $('#aiChips').querySelectorAll('[data-aichip]').forEach(function(b){b.onclick=function(){if(!AI_OPEN){AI_OPEN=true;panel.classList.add('open');if(!aiStarted){aiStarted=true;aiGreet();}}aiAsk(b.getAttribute('data-aichip'));};});
 }
 function aiPush(role,html){var b=$('#aiBody');var d=el('div',{class:role==='me'?'ai-msg me':'ai-msg bot'},html);b.appendChild(d);b.scrollTop=b.scrollHeight;}
-function aiGreet(){aiPush('bot','保育の現場をサポートします🌿\n・けが／体調の急変など「今すぐの対処」\n・保護者への伝え方や連絡文\n・活動アイデア・配慮のヒント\n・今日やること／提出期限\n下のボタンか、気になる症状・相談をそのまま入力してください。');}
+function aiGreet(){aiPush('bot','保育の現場をサポートします🌿\n・けが／体調の急変など「今すぐの対処」\n・保護者への伝え方や連絡文\n・活動アイデア・配慮のヒント\n・今日やること／提出期限\n下のボタンか、気になる症状・相談をそのまま入力してください。\n\n※ ここでの答えは、園の危機管理マニュアルと、あらかじめ用意した文例から出しています。その場でAIが考えた文章ではありません。');}
 function aiSubmit(){var v=$('#aiInput').value.trim();if(!v)return;$('#aiInput').value='';aiAsk(v);}
 function aiAsk(q){
   aiPush('me',aiEsc(q));
@@ -10124,6 +10184,12 @@ function aiRender(r){
     if(sc.parentTalk)h+='<div class="ss" style="margin-top:6px;"><b>👪 保護者への伝え方</b><br>'+aiEsc(sc.parentTalk)+'</div>';
     var d=el('div',{class:'ai-sec'},h);d.style.borderLeft='4px solid '+uc;
     if(secs.length){var bt=el('button',{'data-aiopen':secs[0].id},'危機管理マニュアルで開く →');d.appendChild(bt);}
+    /* この手順は決まったものだと分かるようにする。
+       「AIが考えた文かもしれない」と思われると、確認済みの手順に従ってもらえなくなる。 */
+    var src=el('div',{class:'ss'},
+      '<span style="font-size:10.5px;opacity:.8;">この手順は、園の危機管理マニュアルに載っているものです。'
+      + 'AIが考えた文章ではありません。</span>');
+    src.style.marginTop='8px'; d.appendChild(src);
     var pb=el('button',{'data-aiask':'保護者への伝え方（'+sc.title+'）'},'保護者連絡文を作る');d.appendChild(pb);
     var rb=el('button',{'data-ainav':'records','data-airec':'ヒヤリハット・怪我'},'記録に残す');d.appendChild(rb);
     b.appendChild(d);

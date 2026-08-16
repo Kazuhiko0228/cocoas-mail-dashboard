@@ -1645,6 +1645,17 @@ function sellerRank(id){
 function prodIsAmazon(p){return p.src==='amazon';}
 /* ボタンの文言。買うものと借りるものは別なので、1か所で決めて全部で同じものを使う。
    （以前は押したあとに戻す文言が「購入する」で固定で、借りるものでも購入と出ていた） */
+/* ダウンロードでお渡しするもの。
+   いまはファイルを預かる仕組みが無いので、買えないようにしてある。
+   （預かり方・再ダウンロードの期限・手数料が決まったら外す） */
+function waIsDownload(p){ return !!p && String(p.cat||'')==='ダウンロード教材'; }
+function waDownloadNote(){
+  return '<div class="card" style="border-left:3px solid var(--o);">'
+    +'<div style="font-weight:700;font-size:13.5px;">いまはこのアプリでお渡しできません</div>'
+    +'<div class="muted" style="margin-top:5px;line-height:1.8;">'
+    +'ダウンロードでお渡しする教材は、ファイルをお届けする仕組みを準備しています。'
+    +'ご入り用の場合は、お手数ですが園にお問い合わせください。</div></div>';
+}
 function waBuyLabel(p){
   if(p&&p.sub)return 'この教材を毎月うけとる';
   if(p&&p.rental)return '借りる';
@@ -2393,12 +2404,24 @@ function schoolInfoHTML(){
     +'</div></div>';
 }
 /* マイページ：お子さま情報・所属スクール・購入履歴・請求 */
-/* 注文の状態。買った日と到着予定日から、いまどこにあるかを出す。 */
-var ORDER_STATES={paid:['購入済み','var(--p)'],shipping:['配送中','var(--c)'],received:['受け取り済み','var(--g)']};
+/* 注文の状態。
+   「受け取り済み」は、園が受け取りを押したときだけにする。
+   前は買った日から4日たつと自動でそう出していたが、
+   誰も確かめていない。届いていない品物が「受け取り済み」と出ると、
+   保護者はもう園に聞かなくなってしまう。 */
+var ORDER_STATES={paid:['購入済み','var(--p)'],shipping:['園に配送中','var(--c)'],received:['園で受け取り済み','var(--g)']};
+function waOrdKey(o){
+  return String(o&&o.id||'')+'|'+String(o&&o.at||'')+'|'+String(o&&o.childId||'');
+}
+/* 園が「受け取りました」を押した記録。園の画面から届く。 */
+function waRecvOf(o){
+  var v=stGet('wa_order_recv',{});
+  if(!v||typeof v!=='object'||Array.isArray(v))return null;
+  return v[waOrdKey(o)]||null;
+}
 function orderState(o){
-  if(o.status==='received')return 'received';
+  if(o.status==='received'||waRecvOf(o))return 'received';
   var t=todayISO(),bought=String(o.at||'').slice(0,10);
-  if(o.eta&&t>o.eta)return 'received';
   if(bought&&t>bought)return 'shipping';
   return o.status||'paid';
 }
@@ -2648,7 +2671,9 @@ function meHTML(c){
       return '<div class="card" style="display:flex;gap:11px;align-items:center;">'
       +'<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:13.5px;">'+esc(o.name)+'</div>'
       +'<div class="muted">'+esc(o.at)
-        +(st==='shipping'&&o.eta?' ・ '+esc(fmtDate?fmtDate(o.eta):o.eta)+' ごろ到着予定':'')
+        /* 予定は予定として書く。園が受け取りを押したら、その日を出す。 */
+        +(st==='received'&&waRecvOf(o)?' ・ '+esc(fmtDate?fmtDate(waRecvOf(o).at):waRecvOf(o).at)+' に園で受け取りました'
+          :(st==='shipping'&&o.eta?' ・ '+esc(fmtDate?fmtDate(o.eta):o.eta)+' ごろ園に届く予定です':''))
         /* 借りたものは、いつまでにお返しするかをここに出す */
         +(o.rental&&o.due?' ・ '+esc(fmtDate?fmtDate(o.due):o.due)+' までにお返しください':'')+'</div></div>'
       +'<div style="text-align:right;flex-shrink:0;">'
@@ -2753,8 +2778,9 @@ function productPageHTML(p,c){
             +'当サイトはAmazonアソシエイト・プログラムに参加しており、適格販売により収入を得ることがあります。</div>'
           : '<div class="card"><div class="muted">この教材のリンクは、いま準備しています。'
             +'園にご確認いただくか、お手数ですが商品名でお探しください。</div></div>')
-      : '<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
-        +waBuyLabel(p)+'</button></div>')
+      : (waIsDownload(p) ? waDownloadNote()
+        : '<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
+          +waBuyLabel(p)+'</button></div>'))
     +prodReviewHTML(p,rs,r,n)
     +prodLawHTML(p);
 }
@@ -2836,7 +2862,10 @@ function openProduct(p,c){
 
     +'<div style="display:flex;gap:10px;margin-top:16px;">'
       +'<button class="btn ghost" id="shClose" style="flex:0 0 auto;">とじる</button>'
-      +'<button class="btn" data-buy="'+esc(p.id)+'" style="flex:1;">'+(p.sub?'この教材を続ける':waBuyLabel(p))+'</button></div></div>';
+      +(waIsDownload(p)
+        ? '<div style="flex:1;" class="muted">ダウンロードでのお渡しは準備中です。園にお問い合わせください。</div>'
+        : '<button class="btn" data-buy="'+esc(p.id)+'" style="flex:1;">'
+          +(p.sub?'この教材を続ける':waBuyLabel(p))+'</button>')+'</div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
   ov.querySelector('#shClose').onclick=function(){ov.remove();};
