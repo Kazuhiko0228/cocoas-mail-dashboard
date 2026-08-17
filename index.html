@@ -885,7 +885,9 @@ function docLabel(name){var r=docRenames();return r[name]||name;}
 function docRename(name,label){var r=docRenames();if(label&&label!==name)r[name]=label;else delete r[name];stSet('docSlotRename',r);}
 function docSlotsAll(){return DOC_SLOTS.concat(docSlotsCustom());}
 var AUDIT_DOC_SLOT={keiyaku:'利用契約書',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表'};
-var REC_DAILY=['登園（出席）','安全点検','午睡チェック','健康チェック','業務日報・保育日誌'];
+/* 登園と午睡は1つの画面にまとめた（2026-08-17）。出す中身が同じで、紙も1枚。
+   保存先の鍵は分けたまま（これまでの記録・書き出し・監査の提出をずらさないため）。 */
+var REC_DAILY=['登園（出席）','安全点検','健康チェック','業務日報・保育日誌'];
 var REC_CARE=['身体測定','ヒヤリハット・怪我','生徒個人発達記録'];
 function recPageOf(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
 var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','ヒヤリハット・怪我':'rec_hiyari','生徒個人発達記録':'rec_発達','業務日報・保育日誌':'rec_日報'};
@@ -5760,7 +5762,11 @@ function renderRecGroup(page,list,note){
     +(note?'<div class="muted" style="margin:-8px 2px 12px;font-size:12px;">'+note+'</div>':'')+'<div id="recBody"></div>';
   s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecGroup(page,list,note);};});
   $('#recExportBtn').onclick=recExport;
-  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edNap,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
+  /* 午睡チェックは登園（出席）の中に入れた。
+     古い導線（提出書類ナビ・年間スケジュールなど）から来ても迷子にならないよう、
+     同じ画面へ寄せる。 */
+  if(recType==='午睡チェック')recType='登園（出席）';
+  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'ヒヤリハット・怪我':edHiyari,'生徒個人発達記録':edDev,'業務日報・保育日誌':edNippo})[recType]();
   attachRecPaperCard();
 }
 /* 記録の編集画面は #recBody を丸ごと描き直すため、そのたびに紙のカード（記入用紙の印刷・取り込み）を付け直す。
@@ -5809,7 +5815,7 @@ function edTouen(){
   noteLines.push('オプションの追加・名前の変更は「設定 → 登園記録のオプション」で園ごとに行えます。');
   var noteHtml=noteLines.map(function(t,i){return '<div style="'+(i?'margin-top:5px;':'')+(i===noteLines.length-1?'color:#085041;':'')+'">'+t+'</div>';}).join('');
   /* --- 案内文ここまで --- */
-  $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）シート（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+esc((d.weather||''))+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+esc((d.temp||''))+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+esc((d.hum||''))+'"></div></div>'+
     '<div style="display:flex;gap:10px;align-items:flex-start;background:#E3F1F9;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0B5F8F;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div class="note" style="flex:1;min-width:0;font-size:12.5px;color:#0B5F8F;line-height:1.6;">'+noteHtml+'</div></div>'+
     thermoBarHTML()+
@@ -5860,6 +5866,12 @@ function edTouen(){
       '<p>MEMO：'+(d.memo||'')+'</p>';
     printDoc('登園（出席）シート（'+fmt(recDate)+'・'+wd+'曜日・'+d.klass+'）',body);
   };
+  /* 午睡チェックを、同じ画面の下に出す（2026-08-17 決定）。
+     クラスは上で選んだものに合わせるので、選ぶ場所は1つで済む。 */
+  var nap=napBlock(d.klass);
+  $('#recBody').insertAdjacentHTML('beforeend',nap.html);
+  nap.wire(edTouen);
+
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
   attachRecPaperCard();
   try{tidyNotes(document.querySelector('#recBody'));}catch(e){}
@@ -5893,7 +5905,53 @@ function edSafety(){
   /* 良／要対応のタップやサイン記入で画面を描き直すので、紙のカードを付け直す */
   attachRecPaperCard();
 }
-function edNap(){
+/* 午睡の部分。登園（出席）の画面の中に差し込んで使う。
+   クラスは登園側で選んだものに合わせる（画面が1つなので、選ぶ場所も1つでよい）。 */
+function napBlock(klass){
+  var K='rec_午睡チェック',data=stGet(K,{});
+  var d=data[recDate]||{klass:klass,cells:{},charge:[]};
+  if(!d.charge)d.charge=[];
+  d.klass=klass;                       /* 登園側で選んだクラスに合わせる */
+  var slots=napSlots(),kids=classOf(klass);
+  function save(){data[recDate]=d;stSet(K,data);}
+  function chargeAt(t){var r='';d.charge.slice().sort(function(a,b){return a.from<b.from?-1:1;}).forEach(function(e){if(e.from<=t&&e.by)r=e.by;});return r;}
+  var chargeUI=d.charge.map(function(e,i){return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;"><select data-cf="'+esc(i)+'" style="width:90px;">'+slots.map(function(t){return '<option'+(t===e.from?' selected':'')+'>'+t+'</option>';}).join('')+'</select><span style="font-size:12px;color:var(--tx2);">〜 担当</span><input data-cb="'+esc(i)+'" value="'+(e.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="担当者名" style="width:130px;"><button class="btn btn-sm btn-ghost" data-cd="'+esc(i)+'">'+ic('trash')+'</button></div>';}).join('');
+  var html='<div class="card" style="margin-top:14px;">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+      +'<h3 style="margin:0;flex:1;">'+ic('clock')+'午睡チェック</h3>'
+      +'<button class="btn btn-sm" id="npPrint">'+ic('printer')+'午睡だけ出力</button></div>'
+    +'<div class="muted" style="margin-bottom:10px;">セルをタップで記録：仰向け → 横向き → うつ伏せ（要注意・赤） → 消去。※確認間隔は0歳児5分／1歳以上10分（現在10分間隔）。</div>'
+    +'<div style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:12px;"><div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">担当（時間帯で交代）</div>'+chargeUI+'<button class="btn btn-sm" id="npChargeAdd">'+ic('plus')+'担当を追加</button></div>'
+    +'<div class="scrollx"><table><thead><tr><th style="min-width:90px;">園児</th>'+slots.map(function(t){return '<th style="font-size:10px;padding:4px 2px;">'+t+'</th>';}).join('')+'</tr>'
+    +'<tr><th style="font-size:10px;color:var(--tx3);font-weight:400;">担当</th>'+slots.map(function(t){var ch=chargeAt(t);return '<th style="font-size:9px;color:var(--tx2);font-weight:400;padding:2px;">'+(ch||'—')+'</th>';}).join('')+'</tr></thead><tbody>'
+    +kids.map(function(c){return '<tr><td class="row-name" style="white-space:nowrap;">'+childName(c)+'</td>'+slots.map(function(t){var v=d.cells[c.id+'|'+t]||'';return '<td style="padding:2px;"><button class="napcell v'+v+'" data-nc="'+esc(c.id+'|'+t)+'">'+(v||'・')+'</button></td>';}).join('')+'</tr>';}).join('')
+    +'</tbody></table></div></div>';
+  /* 配線は、差し込んだあとに呼ぶ */
+  function wire(redraw){
+    var add=$('#npChargeAdd');
+    if(add)add.onclick=function(){d.charge.push({from:slots[0],by:''});save();redraw();};
+    document.querySelectorAll('[data-cf]').forEach(function(sl){sl.onchange=function(){d.charge[+sl.getAttribute('data-cf')].from=sl.value;save();redraw();};});
+    document.querySelectorAll('[data-cb]').forEach(function(inp){inp.onchange=function(){d.charge[+inp.getAttribute('data-cb')].by=inp.value;save();redraw();};});
+    document.querySelectorAll('[data-cd]').forEach(function(b){b.onclick=function(){d.charge.splice(+b.getAttribute('data-cd'),1);save();redraw();};});
+    document.querySelectorAll('[data-nc]').forEach(function(b){b.onclick=function(){
+      var k=b.getAttribute('data-nc'),order=['','仰','横','伏'],cur=d.cells[k]||'',nx=order[(order.indexOf(cur)+1)%4];
+      if(nx)d.cells[k]=nx;else delete d.cells[k];save();
+      b.className='napcell v'+(nx||'');b.textContent=nx||'・';
+    };});
+    var pr=$('#npPrint');
+    if(pr)pr.onclick=function(){
+      var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childName(c)+'</td>'+slots.map(function(t){return '<td>'+(d.cells[c.id+'|'+t]||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table><p>確認間隔：10分</p>';
+      printDoc('午睡チェック表（'+fmt(recDate)+'・'+klass+'）',body);
+    };
+  }
+  save();                              /* クラスの持ち替えをその場で残す */
+  return {html:html, wire:wire};
+}
+
+/* 古い呼び出しが残っていても落ちないよう、登園の画面へ寄せる */
+function edNap(){ return edTouen(); }
+
+function edNapOld(){
   var K='rec_午睡チェック',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',cells:{},charge:[]};
   if(!d.charge)d.charge=[];
   var slots=napSlots(),kids=classOf(d.klass);
