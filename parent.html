@@ -1627,39 +1627,110 @@ function sellerItems(id){
   });
   return out;
 }
-function sellerRank(id){
-  var ps=waProducts().filter(function(x){return (x.by||'school')===(id||'school');});
-  var allItems=sellerItems(id);
-  if(!allItems.length)return WA_RANKS[0];
-  var n=allItems.length,rev=0,rsum=0,rn=0,sold=0;
+/* ランクの評価項目。シート「未来WA システム概要」31〜39行のとおり8つ。
+   （前は4つの数字だけで出していた）
+
+   投稿実績     … 投稿数・継続投稿
+   人気度       … 閲覧数・保存数・いいね数・シェア数
+   信頼度       … 口コミ数・平均評価・返信率
+   販売実績     … 商品販売数・レンタル実績・リピート率
+   イベント実績 … 開催数・参加率・口コミ評価
+   コミュニティ実績 … 参加者数・継続率・投稿数
+   継続利用     … ログイン・活動日数
+   運営評価     … 違反履歴・認証・品質チェック */
+var WA_RANK_ITEMS=[
+  {k:'post',  n:'投稿実績',       w:0.14},
+  {k:'pop',   n:'人気度',         w:0.14},
+  {k:'trust', n:'信頼度',         w:0.16},
+  {k:'sold',  n:'販売実績',       w:0.18},
+  {k:'event', n:'イベント実績',   w:0.12},
+  {k:'comm',  n:'コミュニティ実績',w:0.12},
+  {k:'keep',  n:'継続利用',       w:0.08},
+  {k:'ops',   n:'運営評価',       w:0.06}
+];
+function waPct(v,goal){ return Math.max(0,Math.min(100, goal?(v/goal*100):0)); }
+/* 8項目それぞれの点数（0〜100）。画面にもそのまま出せるようにしておく。 */
+function sellerScores(id){
+  id=id||'school';
+  var ps=waProducts().filter(function(x){return (x.by||'school')===id;});
+  var all=sellerItems(id);
+  var posts=[],events=[],comms=[];
+  (stGet('wa_posts',[])||[]).forEach(function(x){if((x.by||'school')===id&&x.status==='public')posts.push(x);});
+  (stGet('wa_events_user',[])||[]).forEach(function(x){if((x.by||'school')===id&&x.status==='public')events.push(x);});
+  (stGet('wa_comms_user',[])||[]).forEach(function(x){if((x.by||'school')===id&&x.status==='public')comms.push(x);});
+
+  /* 口コミの数と平均。商品と、投稿・イベント・コミュニティの両方から数える。 */
+  var rev=0,rsum=0,rn=0,view=0,save=0,like=0;
   ps.forEach(function(p){
     var c=prodReviewCount(p),r=prodRating(p);
     rev+=c; if(r){rsum+=r;rn++;}
+    if(p.stat){view+=(p.stat.v||0);}
   });
-  /* 投稿・イベント・コミュニティの評価も入れる */
-  allItems.forEach(function(x){
-    if(x.stats){ rev+=(x.stats.review||0); if(x.stats.rating){rsum+=x.stats.rating;rn++;} }
-  });
-  var O=waOrders()||[];
-  O.forEach(function(o){
-    var p=ps.filter(function(x){return String(x.id)===String(o.pid);})[0];
-    if(p)sold++;
+  all.forEach(function(x){
+    if(!x.stats)return;
+    rev+=(x.stats.review||0);
+    if(x.stats.rating){rsum+=x.stats.rating;rn++;}
+    view+=(x.stats.view||0); save+=(x.stats.save||0); like+=(x.stats.like||0);
   });
   var avg=rn?rsum/rn:0;
-  var pct=function(v,g){return Math.max(0,Math.min(100,v/g*100));};
-  /* 実際に売れたことを、いちばん強く見る */
-  var amt=0;
+
+  /* 売れたぶん */
+  var sold=0,amt=0;
   (waOrders()||[]).forEach(function(o){
-    if(ps.filter(function(x){return String(x.id)===String(o.pid);}).length)amt+=(+o.amount||0);
+    if(ps.filter(function(x){return String(x.id)===String(o.pid);}).length){ sold++; amt+=(+o.amount||0); }
   });
-  var soldScore=(pct(sold,20)+pct(amt,120000))/2;
-  var total=Math.round(
-      soldScore*0.35
-    + (avg?Math.max(0,Math.min(100,(avg-3.0)/2.0*100)):0)*0.25
-    + pct(rev,25)*0.20
-    + pct(n,10)*0.20);
+
+  /* イベントの参加率。定員に対してどれだけ集まったか。 */
+  var evJoin=0,evCap=0;
+  events.forEach(function(e){ evJoin+=(+e.applied||0); evCap+=(+e.cap||0); });
+
+  /* コミュニティの参加者と継続 */
+  var members=0,keepSum=0,keepN=0;
+  comms.forEach(function(c){ members+=(+c.members||0); if(c.keep){keepSum+=c.keep;keepN++;} });
+
+  /* 続けているか。いちばん新しい投稿からの日数で見る。 */
+  var newest='';
+  all.forEach(function(x){ var d=String(x.at||''); if(d>newest)newest=d; });
+  var days=999;
+  if(newest){ try{ days=Math.max(0,Math.round((new Date(todayISO())-new Date(newest))/86400000)); }catch(e){ days=999; } }
+
+  /* 運営評価。違反が無く、認定されていれば満点に近づく。
+     いまは違反の記録を持っていないので、認定の有無だけで見る。 */
+  var s=waSellerOf(id);
+  var ops=(s&&s.violations)?Math.max(0,100-(+s.violations*25)):100;
+
+  return {
+    post:  waPct(posts.length,12),
+    pop:   (waPct(view,3000)+waPct(save,200)+waPct(like,300))/3,
+    trust: (waPct(rev,25)+(avg?Math.max(0,Math.min(100,(avg-3.0)/2.0*100)):0))/2,
+    sold:  (waPct(sold,20)+waPct(amt,120000))/2,
+    event: (waPct(events.length,6)+(evCap?waPct(evJoin,evCap):0))/2,
+    comm:  (waPct(comms.length,4)+waPct(members,300)+(keepN?keepSum/keepN*100:0))/3,
+    keep:  days>=999?0:Math.max(0,Math.min(100,100-days*2)),
+    ops:   ops
+  };
+}
+/* 運営の審査を通っているか。
+   シート28行のプレミアム（認定）は「運営審査」が条件なので、
+   点数だけで自動的に上げてはいけない。
+   「未来WA認定クリエイター」「公式バッジ」という名前で出るものを、
+   誰も見ていないのに付けることになるため。 */
+function sellerCertified(id){
+  var s=waSellerOf(id);
+  return !!(s&&s.certified);
+}
+function sellerRank(id){
+  id=id||'school';
+  if(!sellerItems(id).length)return WA_RANKS[0];
+  var sc=sellerScores(id),total=0;
+  WA_RANK_ITEMS.forEach(function(it){ total+=(sc[it.k]||0)*it.w; });
+  total=Math.round(total);
   var out=WA_RANKS[0];
   for(var i=WA_RANKS.length-1;i>=0;i--){ if(total>=WA_RANKS[i].min){out=WA_RANKS[i];break;} }
+  /* 認定を受けていないうちは、プラチナで止める（自動では上がらない） */
+  if(out.k==='premium'&&!sellerCertified(id)){
+    for(var j=0;j<WA_RANKS.length;j++){ if(WA_RANKS[j].k==='platinum')return WA_RANKS[j]; }
+  }
   return out;
 }
 function prodIsAmazon(p){return p.src==='amazon';}
@@ -1746,6 +1817,12 @@ var WA_SELLERS=[
   {id:'mamanote',name:'ままのて工房',kind:'個人',area:'埼玉県さいたま市',since:'2022年',
    bio:'園に子どもを通わせている母親3人で、名前つけグッズや通園小物を手づくりしています。'}
 ];
+/* 出品者を1人だけ引く。ランクの計算（認定・違反）で使う。 */
+function waSellerOf(id){
+  var a=waSellers();
+  for(var i=0;i<a.length;i++){ if(a[i].id===id) return a[i]; }
+  return null;
+}
 function waSellers(){
   var st=stGet('wa_sellers',null),base=WA_SELLERS.slice();
   base[0]=JSON.parse(JSON.stringify(base[0]));base[0].name=waSchoolName();
@@ -1756,6 +1833,9 @@ function waSellers(){
     if(!o)return s;
     var m={};for(var k in s)m[k]=s[k];
     if(o.img)m.img=o.img; if(o.bio)m.bio=o.bio; if(o.name&&s.id!=='school')m.name=o.name;
+    /* 運営の審査の結果。プレミアム（認定）はこれが立っているときだけ付く。 */
+    if(o.certified!=null)m.certified=o.certified;
+    if(o.violations!=null)m.violations=o.violations;
     return m;
   });
 }
