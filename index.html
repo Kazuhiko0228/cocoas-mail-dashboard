@@ -5442,12 +5442,27 @@ function bfKidCells(c,i,fs){
   var lb=ageClassOf(c);
   return '<td class="nm" style="'+f+'text-align:center;">'+(i+1)+'</td>'
     +'<td class="nm" style="'+f+'">'+esc(bfName(c))+'</td>'
-    +'<td style="'+f+'white-space:nowrap;text-align:center;">'+esc(c.dob||'')+'</td>'
+    +'<td style="'+f+'white-space:nowrap;text-align:center;">'+esc(bfDob(c.dob))+'</td>'
     +'<td style="'+f+'white-space:nowrap;text-align:center;'+bfAgeStyle(lb)+'">'+esc(lb)+'</td>';
+}
+/* 英語を併記するかどうか。
+   既定は日本語だけ。インターの園は 設定 →「英語を併記する」で足せる。
+   （2026-08-17 決定。これまで記入用紙は英語が前提だった） */
+function bilingual(){ return !!(SET && SET.bilingual); }
+/* 日本語の見出しに、必要なときだけ英語を小さく添える */
+function lb2(ja, en){
+  if(!en || !bilingual())return esc(ja);
+  return esc(ja)+'<br><span style="font-weight:400;font-size:7.5px;opacity:.7;">'+esc(en)+'</span>';
+}
+/* 生年月日は「2023/5/10」と日本語の並びで出す（2023-05-10 では読みにくい） */
+function bfDob(d){
+  var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(d||''));
+  return m?(m[1]+'/'+(+m[2])+'/'+(+m[3])):String(d||'');
 }
 function bfKidHead(fs){
   var f=fs?'font-size:'+fs+'px;':'';
-  return '<th class="nm" style="width:18px;'+f+'text-align:center;">No</th><th class="nm" style="width:104px;'+f+'">NAME（園児）</th>'
+  return '<th class="nm" style="width:18px;'+f+'text-align:center;">No</th>'
+    +'<th class="nm" style="width:104px;'+f+'">'+lb2('園児名','NAME')+'</th>'
     +'<th style="width:60px;'+f+'">生年月日</th><th style="width:40px;'+f+'">歳児</th>';
 }
 /* 午睡の時刻列（11:30〜13:30の10分刻み） */
@@ -5456,19 +5471,43 @@ function bfNapSlots(){
   var a=[],t;for(t=11*60+30;t<=13*60+30;t+=10)a.push(pad(Math.floor(t/60))+':'+pad(t%60));
   return a;
 }
-/* 午睡は10分ごとに誰が確認したかを残す必要がある。手書きだと読み取りに失敗しやすいので、
-   時刻×職員名のマス目にして「丸で囲む」形にする。 */
-function bfNapStaffTable(){
+/* 午睡は10分ごとに誰が確認したかを残す必要がある。
+   名前を手書きしてもらうと、あとで読み取るときに崩れて判別できない。
+   時刻 × 職員名のマス目に ◯ を印刷しておき、
+   確認した人が自分の ◯ を黒く塗りつぶす形にする。
+   塗りつぶしなら、機械でも人でも読み違えない。 */
+function bfStaffNames(){
   var names=[];
   try{names=(DB.staff||[]).map(function(s){return s.name;}).filter(Boolean).slice(0,8);}catch(e){}
   if(!names.length)names=['＿＿＿＿','＿＿＿＿','＿＿＿＿','＿＿＿＿'];
-  var slots=bfNapSlots();
-  return '<div style="font-size:10px;font-weight:700;margin:10px 0 3px;">午睡チェック 担当者（確認した時刻の行で、ご自分の名前を ◯ で囲んでください）</div>'
-    +'<table class="blankform"><thead><tr><th style="width:44px;font-size:8px;">時刻</th>'
-    +names.map(function(n){return '<th style="font-size:8px;">'+esc(n)+'</th>';}).join('')
+  return names;
+}
+function bfNapStaffTable(){
+  var names=bfStaffNames(),slots=bfNapSlots();
+  return '<div style="font-size:10.5px;font-weight:700;margin:2px 0 3px;">'
+      +'午睡チェック 担当者　'
+      +'<span style="font-weight:400;">確認した時刻の行で、ご自分の名前の ◯ を <b>●</b> に塗りつぶしてください</span></div>'
+    +'<table class="blankform" style="width:auto;min-width:340px;"><thead><tr><th style="width:44px;font-size:8.5px;">時刻</th>'
+    +names.map(function(n){return '<th style="width:78px;font-size:8.5px;">'+esc(n)+'</th>';}).join('')
     +'</tr></thead><tbody>'
-    +slots.map(function(t){return '<tr><td style="font-size:8.5px;">'+t+'</td>'
-      +names.map(function(n){return '<td style="font-size:8.5px;color:#555;">'+esc(n)+'</td>';}).join('')+'</tr>';}).join('')
+    +slots.map(function(t){return '<tr><td style="font-size:9px;font-weight:600;">'+t+'</td>'
+      +names.map(function(){
+        return '<td style="text-align:center;font-size:11px;color:#333;padding:1px;">◯</td>';}).join('')
+      +'</tr>';}).join('')
+    +'</tbody></table>';
+}
+/* 安全点検の点検者。こちらは日ごとに1人。同じく ◯ を塗る。 */
+function bfCheckerTable(days){
+  var names=bfStaffNames();
+  return '<div style="font-size:10.5px;font-weight:700;margin:10px 0 3px;">'
+      +'点検者　<span style="font-weight:400;">点検した日の行で、ご自分の名前の ◯ を <b>●</b> に塗りつぶしてください</span></div>'
+    +'<table class="blankform" style="width:auto;min-width:330px;"><thead><tr><th style="width:34px;font-size:8.5px;">日</th>'
+    +names.map(function(n){return '<th style="width:78px;font-size:8.5px;">'+esc(n)+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    +days.map(function(d){return '<tr><td style="font-size:9px;font-weight:600;">'+d+'</td>'
+      +names.map(function(){
+        return '<td style="text-align:center;font-size:11px;color:#333;padding:1px;">◯</td>';}).join('')
+      +'</tr>';}).join('')
     +'</tbody></table>';
 }
 var BF_NAP_LEGEND='<p style="font-size:10px;margin:4px 0 0;">寝る向きを矢印で記録します：仰向け <b>↑</b>／横向き <b>→</b>／うつ伏せ <b>↓</b>　※呼吸を確認したら記入</p>';
@@ -5519,7 +5558,7 @@ function blankFormBody(type,date,qr){
      QRは紙の取り込みに対応した記録だけに付ける。
      対応していない記録にQRを付けると、読み取っても取り込み画面が無く、何も起きない紙になってしまう */
   var head='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">'
-    +'<div style="font-size:12px;">'+esc(SET.school||'')+'　　'+esc(dlab)+(klass?'　　クラス：'+esc(klass):'')+'　　記録者：＿＿＿＿＿＿</div>'
+    +'<div style="font-size:12px;">'+esc(SET.school||'')+'　　'+esc(dlab)+(klass?'　　クラス：'+esc(klass):'')+'</div>'
     +((qr&&SCAN_TARGETS[type])?'<div style="text-align:center;font-size:9px;"><img src="'+qr+'" style="width:96px;height:96px;"><div>この用紙を撮影して<br>取り込めます</div></div>':'')
     +'</div>';
   var body='';
@@ -5528,11 +5567,14 @@ function blankFormBody(type,date,qr){
        園名・日付・クラス・曜日は上のヘッダに出しているので、ここでは重ねて印刷しない */
     var aslots=bfNapSlots();
     var ahead='<div style="font-size:12px;margin:6px 0 4px;">室温 ＿＿＿ ℃　　湿度 ＿＿＿ ％　　（天気：＿＿＿＿）</div>';
-    body=ahead+'<table class="blankform"><thead><tr>'+bfKidHead(9)
-      +'<th style="width:44px;font-size:8px;">Atten-<br>dance</th>'
-      +'<th style="width:42px;font-size:8px;">HOME<br>Lunch</th>'
-      +'<th style="width:48px;font-size:8px;">Long<br>9:00~18:00</th>'
-      +'<th style="width:42px;font-size:8px;">Temp.<br>体温</th>'
+    /* 午睡チェックの担当者は、園児の表より先に書いてもらう。
+       先生がまず自分の ◯ を塗り、そのあと園児の欄を見る流れになる。 */
+    body=ahead+bfNapStaffTable()+'<div style="height:6px;"></div>'
+      +'<table class="blankform"><thead><tr>'+bfKidHead(9)
+      +'<th style="width:44px;font-size:8px;">'+lb2('出欠','Attendance')+'</th>'
+      +'<th style="width:42px;font-size:8px;">'+lb2('給食','HOME Lunch')+'</th>'
+      +'<th style="width:52px;font-size:8px;">'+lb2('延長 9:00〜18:00','Long')+'</th>'
+      +'<th style="width:42px;font-size:8px;">'+lb2('体温','Temp.')+'</th>'
       +aslots.map(function(x){return '<th style="font-size:8px;padding:2px 1px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
       +kids.map(function(c,i){
         var dopt={};try{dopt=(dayOptsOf(c)||{})[wd]||{};}catch(e){dopt={};}
@@ -5543,8 +5585,8 @@ function blankFormBody(type,date,qr){
           +'<td></td>'
           +aslots.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('')
       +'</tbody></table>'
-      +'<p style="font-size:10px;margin:4px 0 0;">Attendance：● 出席／早 早退／遅 遅刻／休 欠席　　HOME Lunch・Long はこの曜日の予定を ● で印刷しています</p>'
-      +BF_NAP_LEGEND+bfNapStaffTable();
+      +'<p style="font-size:10px;margin:4px 0 0;">出欠：● 出席／早 早退／遅 遅刻／休 欠席　　給食・延長 はこの曜日の予定を ● で印刷しています</p>'
+      +BF_NAP_LEGEND;
   }else if(type==='安全点検'){
     /* 毎日印刷すると紙がかさばるので、1ヶ月分の月間表を1枚だけ印刷する */
     var mp=(isMonth?date:(date||'').slice(0,7)).split('-');
@@ -5557,35 +5599,35 @@ function blankFormBody(type,date,qr){
         return '<tr>'+(gi===0?'<td rowspan="'+g.items.length+'" style="font-size:9px;">'+esc(g.loc)+'</td>':'')
           +'<td style="font-size:9px;">'+esc(it)+'</td>'
           +mdays.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('');}).join('')
-      +'<tr><td colspan="2" style="font-size:9px;">点検者サイン</td>'+mdays.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>'
       +'</tbody></table>'
       +'<p style="font-size:10px;margin:4px 0 0;">記号：良 ✓／要対応 ✕　※要対応はメモ欄に対応を記入してください</p>'
+      /* 点検者は、名前を書くのではなく ◯ を塗る。手書きの署名は読み取りで崩れるため。 */
+      +bfCheckerTable(mdays)
       +'<p style="font-size:10px;">メモ：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</p>';
   }else if(type==='午睡チェック'){
-    var slots=bfNapSlots();
-    body='<table class="blankform"><thead><tr>'+bfKidHead(9)
-      +slots.map(function(x){return '<th style="font-size:8px;padding:2px 1px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'
-      +kids.map(function(c,i){return '<tr>'+bfKidCells(c,i,9)+slots.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('')
-      +'</tbody></table>'+BF_NAP_LEGEND+bfNapStaffTable();
+    /* 午睡チェックだけの用紙は作らない。
+       出す中身が登園（出席）とまったく同じなので、
+       1枚にまとめて、紙も手間も半分にする（2026-08-17 決定）。 */
+    return blankFormBody('登園（出席）',date,qr);
   }else if(type==='健康チェック'){
     /* 手書きの文章は読み取りに失敗しやすいので、選択肢を印字して丸をつけるマークシート形式にする */
     var SY=[
-      {h:'鼻水(Snot)',w:96,o:['透明（さら）','（ねば）','黄色','緑色']},
-      {h:'咳(Cough)',w:62,o:['空咳','痰からみ']},
-      {h:'目(Eyes)',w:62,o:['目ヤニ','充血','かゆみ']},
-      {h:'便(Poo)',w:66,o:['下痢','便秘','（　　）']},
-      {h:'肌(Skin)',w:70,o:['あせも','かぶれ','水いぼ']},
-      {h:'怪我(injury)',w:70,o:['すり傷','切り傷','（　　）']}
+      {h:'鼻水',en:'Snot',w:96,o:['透明（さら）','（ねば）','黄色','緑色']},
+      {h:'咳',  en:'Cough',w:62,o:['空咳','痰からみ']},
+      {h:'目',  en:'Eyes',w:62,o:['目ヤニ','充血','かゆみ']},
+      {h:'便',  en:'Poo',w:66,o:['下痢','便秘','（　　）']},
+      {h:'肌',  en:'Skin',w:70,o:['あせも','かぶれ','水いぼ']},
+      {h:'怪我',en:'Injury',w:70,o:['すり傷','切り傷','（　　）']}
     ];
     body='<table class="blankform"><thead><tr>'+bfKidHead(9)
-      +'<th style="width:50px;font-size:9px;">Attendance</th>'
-      +SY.map(function(s){return '<th style="width:'+s.w+'px;font-size:9px;">'+esc(s.h)+'</th>';}).join('')
+      +'<th style="width:50px;font-size:9px;">'+lb2('出欠','Attendance')+'</th>'
+      +SY.map(function(s){return '<th style="width:'+s.w+'px;font-size:9px;">'+lb2(s.h,s.en)+'</th>';}).join('')
       +'<th style="font-size:9px;">その他異常</th></tr></thead><tbody>'
       +kids.map(function(c,i){return '<tr>'+bfKidCells(c,i,9)+'<td></td>'
         +SY.map(function(s){return '<td style="font-size:8px;line-height:1.5;">'+s.o.map(function(x){return esc(x);}).join('・')+'</td>';}).join('')
         +'<td></td></tr>';}).join('')
       +'</tbody></table>'
-      +'<p style="font-size:10px;margin:4px 0 0;">あてはまる言葉を <b>◯</b> で囲んでください。何もなければ空欄のままで大丈夫です。Attendance：● 出席／休 欠席</p>';
+      +'<p style="font-size:10px;margin:4px 0 0;">あてはまる言葉を <b>◯</b> で囲んでください。何もなければ空欄のままで大丈夫です。出欠：● 出席／休 欠席</p>';
   }else if(type==='業務日報・保育日誌'){
     /* 実物は1週間まとめの様式。用紙を出す日を含む週の月〜金を印刷する */
     var wp=(date||'').split('-'),bd=(wp.length>=3)?new Date(+wp[0],+wp[1]-1,+wp[2]):new Date();
@@ -5595,7 +5637,7 @@ function blankFormBody(type,date,qr){
     function fmtD(d2){return d2.getFullYear()+'/'+pad(d2.getMonth()+1)+'/'+pad(d2.getDate());}
     body='<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">Weekly Plan　'+fmtD(wdays[0])+' 〜 '+fmtD(wdays[4])+'</div>'
       +'<table class="blankform"><thead><tr><th style="width:74px;font-size:9px;">（曜日）</th>'
-      +['Phonics','Morning Activity','Afternoon Activity','Story Book','保育日誌','業務日誌（連絡）'].map(function(l){return '<th style="font-size:9px;">'+esc(l)+'</th>';}).join('')
+      +[['フォニックス','Phonics'],['午前の活動','Morning Activity'],['午後の活動','Afternoon Activity'],['絵本','Story Book'],['クラスの様子・エピソード',''],['業務日誌（連絡）','']].map(function(l){return '<th style="font-size:9px;">'+esc(l)+'</th>';}).join('')
       +'</tr></thead><tbody>'
       +wdays.map(function(d2){return '<tr><td style="font-size:9px;">'+WD[d2.getDay()]+'曜日<div style="font-size:8px;">'+((d2.getMonth()+1)+'/'+d2.getDate())+'</div></td>'
         +'<td style="height:74px;"></td><td></td><td></td><td></td><td></td><td></td></tr>';}).join('')
@@ -6067,7 +6109,7 @@ function edNippo(){
   var actualVal=d.actual||currText;
   $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     '<div class="field"><label>活動実績（月間カリキュラムの'+(dkey?('その日（Week'+wnum+' '+dkey+'・Pre）'):'今週')+'から自動反映・修正可）<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから再取込</button></label><textarea id="npoActual" rows="4">'+esc(actualVal)+'</textarea></div>'+
-    '<div class="field"><label>保育日誌（その日の様子・エピソード）</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
+    '<div class="field"><label>クラスの様子・エピソード</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
       '<div class="field"><label>欠席</label><input id="npoAbsent" value="'+esc((d.absent||''))+'" placeholder="○○（発熱）"></div>'+
       '<div class="field"><label>早退</label><input id="npoEarly" value="'+esc((d.early||''))+'"></div></div>'+
@@ -6079,7 +6121,7 @@ function edNippo(){
   $('#npoCurr').onclick=function(){$('#npoActual').value=currText;d.actual=currText;save();};
   [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
   $('#npoPrint').onclick=function(){
-    var body='<h2>活動実績</h2><p>'+(d.actual||actualVal).replace(/\n/g,'<br>')+'</p><h2>保育日誌</h2><p>'+(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+(d.early||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+(d.by||'')+'</td></tr></tbody></table>';
+    var body='<h2>活動実績</h2><p>'+(d.actual||actualVal).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+(d.early||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+(d.by||'')+'</td></tr></tbody></table>';
     printDoc('業務日報・保育日誌（'+fmt(recDate)+'）',body);
   };
   attachRecPaperCard();
@@ -9438,6 +9480,25 @@ var OPT_DEFS=[
 function optSave(k,list){var s=DB.settings||{};s[k]=list;DB.settings=s;SET[k]=list;}
 function optCur(k,def){var s=DB.settings||{};return (s[k]&&s[k].length)?s[k].slice():def.slice();}
 function renderOptionSettings(s){
+  /* 表示のことば。既定は日本語だけ。
+     これまで記入用紙は英語が前提だったが、
+     入る園がすべてインターとはかぎらないため（2026-08-17 決定）。 */
+  s.insertAdjacentHTML('beforeend',
+    '<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('gear')+'表示のことば</h3>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">'
+    +'記入用紙や画面の項目名は、日本語で表示します。'
+    +'英語も並べて出したい園は、下をオンにしてください。</div>'
+    +'<label style="display:flex;gap:9px;align-items:center;cursor:pointer;font-size:13px;">'
+    +'<input type="checkbox" id="setBiling"'+(SET.bilingual?' checked':'')+'>'
+    +'英語を併記する（例：出欠 / Attendance）</label>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:7px;">'
+    +'インターナショナルスクールなど、保護者や職員に英語が必要な園向けの設定です。</div></div>');
+  var bl=s.querySelector('#setBiling');
+  if(bl)bl.onchange=function(){
+    var d=DB.settings||{}; d.bilingual=bl.checked; DB.settings=d; SET.bilingual=bl.checked;
+    toast(bl.checked?'英語を併記します':'日本語だけで表示します');
+  };
+
   var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('gear')+'選択肢の管理（クラス・問い合わせ方法・体験の方法）</h3>'
     +'<div class="muted" style="margin-bottom:10px;">園に合わせて項目を追加・変更できます。変更するとシステム全体の選択肢に反映されます。</div>'
     +OPT_DEFS.map(function(d){
