@@ -707,6 +707,9 @@ var PAGES=[
   {p:'shop',    i:'🛍️',l:'ショップ出品',    g:'つくる'},
   {p:'events',  i:'🎪',l:'イベント',        g:'つくる'},
   {p:'comms',   i:'🤝',l:'コミュニティ',    g:'つくる'},
+  /* 園どうしの貸し借り。ほかの画面と違い、ここだけは端末の中に控えを持たない。
+     相手の園があることなので、サーバにあるものだけが本当の状態になる。 */
+  {p:'rental',  i:'🔁',l:'園どうしの貸し借り',g:'つくる'},
   {p:'analytics',i:'📊',l:'分析',           g:'みる'},
   {p:'rank',    i:'🏅',l:'ランク制度',      g:'みる'},
   {p:'me',      i:'👤',l:'マイページ',      g:'みる'}
@@ -1193,6 +1196,8 @@ function editorHTML(){
           var cur=x.rental?'rental':(x.sub?'sub':'once');
           return '<button data-v="'+k[0]+'" class="'+(cur===k[0]?'on':'')+'">'+k[1]+'</button>';}).join('')
       +'</div></div>'
+      /* ダウンロード教材のときだけ、実際にお渡しするファイルの欄を出す */
+      +(x.cat==='ダウンロード教材'?dlCardHTML(x):'')
       +saveBar(x);
   }
   if(e.type==='events'){
@@ -1245,11 +1250,582 @@ function saveBar(x){
     +(x.id?'<button class="btn gh" id="edDel">削除</button>':'')+'</div>';
 }
 
+
+/* ============================================================
+   ダウンロード教材のファイル
+   ------------------------------------------------------------
+   実際にお渡しするPDFなどは、この端末にも、園の帳簿（wa_products）にも
+   持たない。サーバの専用の入口（/school/download-files）に預ける。
+   ・園の帳簿に入れると、園の画面が同期のたびに数MBを運ぶことになる。
+   ・保護者に配る入れ物に入れると、買っていないご家庭にも配られてしまう。
+   お渡しできるのは、園が注文の画面で「受け取りました」を押したご家庭だけ。
+   その判断はサーバがしていて、この画面はその結果を見せているだけ。
+   ============================================================ */
+
+/* 出品の番号。園の画面（index.html の azAdd）と同じ数え方にそろえてある。 */
+function nextProductId(){
+  var mx=100;
+  allProducts().forEach(function(p){
+    var n=parseInt(p.id,10);
+    if(String(p.id)===String(n)&&n>mx)mx=n;
+  });
+  return mx+1;
+}
+/* 大きさを読みやすく。先生が「4MBまで」と見比べられるように。 */
+function sizeText(n){
+  var v=(+n||0);
+  if(v<1024)return v+'バイト';
+  if(v<1024*1024)return Math.round(v/1024)+'KB';
+  return (Math.round(v/1024/1024*10)/10)+'MB';
+}
+
+/* 預かっているファイルの一覧。中身は返ってこない（名前と大きさだけ）。 */
+var DLF={map:null,tried:false,busy:false,err:'',
+  load:function(cb){
+    if(DLF.busy||DLF.tried||!API.online()){cb&&cb(false);return;}
+    DLF.busy=true;DLF.tried=true;
+    API.call('GET','/school/download-files')
+      .then(function(j){
+        var m={};
+        (j.files||[]).forEach(function(f){m[String(f.productId)]=f;});
+        DLF.map=m;DLF.err='';
+      })
+      .catch(function(e){DLF.map=null;DLF.err=e.message;})
+      .then(function(){DLF.busy=false;cb&&cb(true);});
+  },
+  refresh:function(cb){DLF.tried=false;DLF.load(cb);}
+};
+/* 選んだファイルの控え。画面を組み直しても消えないよう、外に置く。 */
+var DLPICK=null;   /* {pid,name,body,size} */
+
+function dlCardHTML(x){
+  var h='<div class="card"><div class="lbl">お渡しするファイル</div>';
+  if(!x.id)
+    return h+'<div class="mini" style="line-height:1.9;">'
+      +'先に「公開する」か「下書きに保存」を押してください。'
+      +'保存すると、ここにファイルの欄が出ます。</div></div>';
+  if(!/^[0-9]{1,18}$/.test(String(x.id)))
+    return h+'<div class="mini" style="line-height:1.9;">'
+      +'この商品は、ファイルを預けられない番号で作られています。'
+      +'お手数ですが、新しく出品し直してください。</div></div>';
+  if(!API.online())
+    return h+'<div class="mini" style="line-height:1.9;">'
+      +'サーバにつないでいないため、ファイルは預かれません。'
+      +'園の画面（未来WA）でログインしてから、この画面を開いてください。</div></div>';
+
+  var cur=DLF.map?DLF.map[String(x.id)]:null;
+  if(DLF.err)
+    h+='<div class="mini">預かっているファイルを確かめられませんでした：'+esc(DLF.err)+'</div>';
+  if(cur){
+    h+=kv('ファイル',esc(cur.name))
+      +kv('大きさ',esc(sizeText(cur.size)))
+      +kv('お渡しできる日数',esc(String(cur.days))+'日<br><span class="mini">園が「受け取りました」を押した日から数えます</span>')
+      +kv('受け取れる回数','1家庭 '+esc(String(cur.maxCount))+'回まで')
+      +kv('これまでに渡した数',num(cur.downloaded)+'回');
+  }else if(DLF.map){
+    h+='<div class="mini">まだファイルを預かっていません。</div>';
+  }
+
+  return h
+    +'<div class="field" style="margin-top:12px;"><label>'
+      +(cur?'差し替えるファイル':'お渡しするファイル')+'（PDF・PNG・JPEG／4MBまで）</label>'
+      +'<input id="dl_file" type="file" accept="application/pdf,image/png,image/jpeg"></div>'
+    +((DLPICK&&DLPICK.pid===String(x.id))
+      ?'<div class="mini">選んだファイル：'+esc(DLPICK.name)+'（'+esc(sizeText(DLPICK.size))+'）</div>':'')
+    +'<div class="grid g2">'
+      +'<div class="field"><label>お渡しできる日数</label>'
+        +'<input id="dl_days" type="number" min="1" max="3650" value="'+(cur?cur.days:90)+'"></div>'
+      +'<div class="field"><label>受け取れる回数（1家庭）</label>'
+        +'<input id="dl_count" type="number" min="1" max="999" value="'+(cur?cur.maxCount:10)+'"></div>'
+    +'</div>'
+    /* 日数と回数は、いちど出したら保護者へのお約束になる。短くできないことを先に書く。 */
+    +'<div class="hint">この日数と回数は、保護者の画面に「いつまで・あと何回」と出るお約束です。'
+      +'あとから短くはできません（長くするのは通ります）。</div>'
+    +'<div class="row" style="gap:8px;margin-top:10px;">'
+      +'<button class="btn" id="dl_save">'+(cur?'このファイルに差し替える':'このファイルを預ける')+'</button>'
+      +(cur?'<button class="btn gh" id="dl_del">お渡しをやめる</button>':'')
+    +'</div>'
+    +'<div class="mini" style="margin-top:11px;line-height:1.9;">'
+      +'預けたファイルを受け取れるのは、園が注文の画面で「受け取りました」を押したご家庭だけです。'
+      +'押していないご家庭には渡りません。<br>'
+      /* 保護者の画面（parent.html）の「購入履歴・配送状況」に「ダウンロードする」が出る。
+         出る場所まで書いておかないと、園に「どこにありますか」と聞かれる。 */
+      +'押したあとは、保護者の画面の「購入履歴・配送状況」に「ダウンロードする」が出ます。'
+    +'</div></div>';
+}
+
+/* ============================================================
+   園どうしの貸し借り
+   ------------------------------------------------------------
+   使わなくなった大きな遊具や、行事のときだけ要る物を、園どうしで貸し借りする。
+   ここは相手の園があることなので、端末の中には何も持たない。
+   つないでいないときは、見本も出さずにその旨だけを書く
+   （見本を出すと、誰にも見えていない出品を「出している」と思わせてしまう）。
+
+   送料・こわれたときの扱い・手数料は、まだ決まっていない。
+   決まっていない金額を画面に出すと、その額で話がついたと思われるので、
+   「運営と調整中」とそのまま書く。
+   ============================================================ */
+var RL_CATS=['遊具','行事の道具','楽器','机・いす','衣装','本・教材','その他'];
+var RL={
+  tab:stGet('rl_tab','items'),   /* items=よその園の出品 / mine=自分の出品 / reqs=申し込み */
+  info:null, infoTried:false,
+  items:null, mine:null, reqs:null,
+  open:null,        /* いま開いているもの {kind:'item'|'req'|'edit', id, item} */
+  detail:null, req:null, msgs:null,
+  q:'', busy:false, err:''
+};
+var RLPHOTO=null;   /* 選んだ写真の控え {name,body} */
+
+/* いま出している画面に足りないものだけを、順に取りに行く。 */
+RL.load=function(cb){
+  if(!API.online()||RL.busy){cb&&cb(false);return;}
+  var jobs=[],o=RL.open;
+  if(!RL.infoTried){
+    RL.infoTried=true;
+    jobs.push({p:'/rental/info',f:function(j){RL.info=j;}});
+  }
+  if(o&&o.kind==='edit'){
+    if(o.id&&!o.item)jobs.push({p:'/rental/items/'+encodeURIComponent(o.id),f:function(j){
+      var it=j.item||{};
+      /* 写真も受け取っておく。受け取らずに保存すると、いまの写真が消える
+         （サーバは送られてきた内容で全部を置き換えるため）。 */
+      RL.open.item={id:it.id,title:it.title,cat:it.cat,qty:it.qty,cond:it.cond,
+        photo:it.photo,pref:it.pref,city:it.city,note:it.note,status:it.status};
+    }});
+  }else if(o&&o.kind==='item'){
+    if(!RL.detail)jobs.push({p:'/rental/items/'+encodeURIComponent(o.id),f:function(j){RL.detail=j.item||null;}});
+  }else if(o&&o.kind==='req'){
+    if(!RL.req)jobs.push({p:'/rental/requests/'+encodeURIComponent(o.id),f:function(j){RL.req=j.request||null;}});
+    if(RL.msgs===null)jobs.push({p:'/rental/requests/'+encodeURIComponent(o.id)+'/messages',
+      f:function(j){RL.msgs=j.messages||[];}});
+  }else{
+    if(RL.tab==='items'&&RL.items===null)
+      jobs.push({p:'/rental/items'+(RL.q?'?q='+encodeURIComponent(RL.q):''),f:function(j){RL.items=j.items||[];}});
+    if(RL.tab==='mine'&&RL.mine===null)
+      jobs.push({p:'/rental/items/mine',f:function(j){RL.mine=j.items||[];}});
+    if(RL.tab==='reqs'&&RL.reqs===null)
+      jobs.push({p:'/rental/requests',f:function(j){RL.reqs=j.requests||[];}});
+  }
+  if(!jobs.length){cb&&cb(false);return;}
+  RL.busy=true;RL.err='';
+  var i=0;
+  function step(){
+    if(i>=jobs.length){RL.busy=false;cb&&cb(true);return;}
+    var j=jobs[i++];
+    API.call('GET',j.p)
+      .then(function(r){j.f(r);})
+      .catch(function(e){RL.err=e.message;})
+      .then(step);
+  }
+  step();
+};
+RL.reload=function(){
+  RL.err='';RL.info=null;RL.infoTried=false;
+  RL.items=null;RL.mine=null;RL.reqs=null;RL.detail=null;RL.req=null;RL.msgs=null;
+  if(RL.open&&RL.open.kind==='edit'&&RL.open.id)RL.open.item=null;
+};
+
+/* まだ取れていないときの出し方。取れていないのに「ありません」と出すと、
+   出しているはずのものが消えたように見えるので、必ず理由を書く。
+   読み込み直す押しボタンは、画面のいちばん上（rentalHTML）に1つだけ置く。 */
+function rlWait(){
+  return '<div class="card"><div class="empty">'
+    +(RL.err?'読み込めませんでした。上の「読み込み直す」をお試しください。':'読み込んでいます…')
+    +'</div></div>';
+}
+function rlSpan(q){
+  if(!q.wantFrom)return '期間は決めていません';
+  return fmtDate(q.wantFrom)+(q.wantTo?' 〜 '+fmtDate(q.wantTo):' 〜 （返す日は決めていません）');
+}
+function rlWhere(x){
+  return [x.owner,x.cat,(x.pref||'')+(x.city||''),(x.qty?x.qty+'点':''),x.cond]
+    .filter(function(t){return !!t;}).join(' ・ ');
+}
+
+/* 決まりごと。金額は運営が返したものだけを出し、決めていないものは決めていないと書く。 */
+function rlRuleHTML(){
+  var i=RL.info;
+  return '<div class="card"><div class="lbl">この仕組みの決まり</div>'
+    +(i
+      ? '<ul style="margin:0 0 4px;padding-left:19px;font-size:13px;line-height:1.9;">'
+        +(i.notes||[]).map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul>'
+        +kv('手数料',((+i.feeYen>0)?esc(yen(i.feeYen)):'いまはいただいていません')
+          +'<br><span class="mini">これから先どうするかは、運営と調整中です。</span>')
+      : '<div class="mini">決まりごとを、まだ受け取れていません。</div>')
+    +kv('送料','園どうしでお決めください<br><span class="mini">運営としての扱いは調整中です。</span>')
+    +kv('こわれたとき','園どうしでお決めください<br><span class="mini">運営としての扱いは調整中です。</span>')
+    +'</div>';
+}
+
+function rlItemRow(x){
+  return '<div class="item">'
+    +'<div class="ic">'+(x.hasPhoto?'🖼':'📦')+'</div>'
+    +'<div class="bd"><div class="ttl">'+esc(x.title)
+      +(x.mine?' <span class="tag">自分の園</span>':'')+'</div>'
+      +'<div class="mini">'+esc(rlWhere(x))+'</div></div>'
+    +'<div class="acts"><button class="btn gh sm" data-rlitem="'+esc(x.id)+'">くわしく見る</button></div></div>';
+}
+function rlListHTML(){
+  var h='<div class="card"><div class="lbl">さがす</div>'
+    +'<div class="row" style="gap:8px;">'
+      +'<input id="rl_q" value="'+esc(RL.q)+'" placeholder="品物の名前で さがす">'
+      +'<button class="btn sm" id="rl_find" style="flex-shrink:0;">さがす</button></div></div>';
+  if(RL.items===null)return h+rlWait();
+  return h+'<div class="card">'
+    +(RL.items.length?RL.items.map(rlItemRow).join('')
+      :'<div class="empty">いま貸し出せるものは出ていません</div>')+'</div>';
+}
+function rlMineHTML(){
+  var h='<div class="row" style="margin-bottom:12px;">'
+    +'<div class="mini">自分の園が出しているもの</div>'
+    +'<button class="btn sm" style="margin-left:auto;" id="rl_new">＋ 貸し出せるものを出す</button></div>';
+  if(RL.mine===null)return h+rlWait();
+  return h+'<div class="card">'+(RL.mine.length?RL.mine.map(function(x){
+    return '<div class="item"><div class="ic">'+(x.hasPhoto?'🖼':'📦')+'</div>'
+      +'<div class="bd"><div class="ttl">'+esc(x.title)
+        +' <span class="tag '+(x.status==='公開'?'pub">出しています':'draft">止めています')+'</span></div>'
+        +'<div class="mini">'+esc(rlWhere(x))+'</div></div>'
+      +'<div class="acts">'
+        +'<button class="btn gh sm" data-rledit="'+esc(x.id)+'">直す</button>'
+        +'<button class="btn gh sm" data-rldel="'+esc(x.id)+'">消す</button></div></div>';
+  }).join(''):'<div class="empty">まだ出していません</div>')+'</div>';
+}
+
+function rlEditHTML(it){
+  var h='<div class="row" style="margin-bottom:12px;">'
+    +'<button class="btn gh sm" id="rl_back">‹ もどる</button></div>';
+  if(!it)return h+rlWait();
+  return h+'<div class="card">'
+    +'<div class="lbl">'+(it.id?'出しているものを直す':'貸し出せるものを出す')+'</div>'
+    +'<div class="field"><label>品物の名前</label>'
+      +'<input id="rl_title" value="'+esc(it.title||'')+'" placeholder="例：大きなマット（2枚）"></div>'
+    +'<div class="field"><label>種類</label><div class="chips" id="rl_cat">'
+      +RL_CATS.map(function(c){
+        return '<button class="chip'+(it.cat===c?' on':'')+'" data-v="'+esc(c)+'">'+esc(c)+'</button>';}).join('')
+    +'</div></div>'
+    +'<div class="grid g2">'
+      +'<div class="field"><label>いくつ貸せますか</label>'
+        +'<input id="rl_qty" type="number" min="1" max="999" value="'+(it.qty||1)+'"></div>'
+      +'<div class="field"><label>いまの状態</label>'
+        +'<input id="rl_cond" value="'+esc(it.cond||'')+'" placeholder="例：きれいです／使った跡があります"></div>'
+    +'</div>'
+    +'<div class="grid g2">'
+      +'<div class="field"><label>都道府県</label>'
+        +'<input id="rl_pref" value="'+esc(it.pref||'')+'" placeholder="例：埼玉県"></div>'
+      +'<div class="field"><label>市区町村</label>'
+        +'<input id="rl_city" value="'+esc(it.city||'')+'" placeholder="例：さいたま市中央区"></div>'
+    +'</div>'
+    /* 番地を持たないのはサーバ側の決まり。ここでも書いておかないと、書いてしまう先生が出る。 */
+    +'<div class="hint">番地は入れないでください。よその園に見えるのは、園の名前と市区町村までです。</div>'
+    +'<div class="field"><label>ひとこと</label>'
+      +'<textarea id="rl_note" rows="3" placeholder="貸せる時期、運び方、気をつけることなど">'+esc(it.note||'')+'</textarea></div>'
+    +'<div class="field"><label>写真（1枚・PNG／JPEG・1MBまで）</label>'
+      +'<input id="rl_photo" type="file" accept="image/png,image/jpeg"></div>'
+    +(RLPHOTO?'<div class="mini">選んだ写真：'+esc(RLPHOTO.name)+'</div>'
+      :(it.photo?'<div class="mini">写真が1枚あります。選び直さなければ、そのまま残ります。</div>':''))
+    +'<div class="field"><label>いまの扱い</label><div class="seg" id="rl_status">'
+      +[['公開','よその園に見せる'],['停止','いまは止める']].map(function(k){
+        return '<button data-v="'+k[0]+'" class="'+((it.status||'公開')===k[0]?'on':'')+'">'+k[1]+'</button>';}).join('')
+    +'</div></div>'
+    +'<div class="row" style="gap:8px;margin-top:6px;">'
+      +'<button class="btn" id="rl_save" style="flex:1;">この内容で保存する</button>'
+    +'</div></div>';
+}
+
+function rlItemHTML(){
+  var x=RL.detail;
+  var h='<div class="row" style="margin-bottom:12px;">'
+    +'<button class="btn gh sm" id="rl_back">‹ もどる</button></div>';
+  if(!x)return h+rlWait();
+  h+='<div class="card">'
+    +'<div style="font-size:16px;font-weight:800;">'+esc(x.title)+'</div>'
+    +(x.photo?'<img src="'+esc(x.photo)+'" alt="" style="max-width:100%;border-radius:12px;margin-top:10px;">':'')
+    +kv('出している園',esc(x.owner||'—'))
+    +kv('場所',esc((x.pref||'')+(x.city||'')||'—'))
+    +kv('種類',esc(x.cat||'—'))
+    +kv('いくつ',esc(String(x.qty||1))+'点')
+    +kv('いまの状態',esc(x.cond||'—'))
+    +(x.note?'<div class="mini" style="margin-top:9px;white-space:pre-wrap;line-height:1.9;">'+esc(x.note)+'</div>':'')
+    +'</div>';
+  if(x.mine)return h+'<div class="card"><div class="mini">自分の園が出しているものです。申し込みはできません。</div></div>';
+  return h+'<div class="card"><div class="lbl">借りたい と伝える</div>'
+    +'<div class="grid g2">'
+      +'<div class="field"><label>いつから</label><input id="rq_from" type="date"></div>'
+      +'<div class="field"><label>いつまで（決めていなければ空のまま）</label><input id="rq_to" type="date"></div>'
+    +'</div>'
+    +'<div class="field"><label>送料は どちらが持ちますか</label>'
+      +'<input id="rq_ship" placeholder="例：行きも帰りも、借りる側が持ちます"></div>'
+    +'<div class="field"><label>こわれたとき・なくしたときは どうしますか</label>'
+      +'<input id="rq_dmg" placeholder="例：直せる範囲は、借りる側が直します"></div>'
+    +'<div class="field"><label>そのほか 決めたこと</label><textarea id="rq_note" rows="2"></textarea></div>'
+    /* 金額を出さない。決めていないものを、決まっているように見せないため。 */
+    +'<div class="hint">送料と、こわれたときの扱いは、運営では決めていません（調整中です）。'
+      +'園どうしでお決めください。空のままでも送れますが、あとで困らないよう、なるべく書いてください。</div>'
+    +'<button class="btn wide" id="rq_send" style="margin-top:11px;">この内容で申し込む</button>'
+    +'<div class="mini" style="margin-top:9px;line-height:1.9;">'
+      +'申し込んだだけでは、まだ借りられると決まっていません。'
+      +'相手の園が承認すると、やりとりができるようになります。</div>'
+    +'</div>';
+}
+
+function rlReqsHTML(){
+  if(RL.reqs===null)return rlWait();
+  return '<div class="card">'+(RL.reqs.length?RL.reqs.map(function(q){
+    return '<div class="item"><div class="ic">'+(q.side==='貸し手'?'📤':'📥')+'</div>'
+      +'<div class="bd"><div class="ttl">'+esc(q.title)+' <span class="tag">'+esc(q.status)+'</span></div>'
+      +'<div class="mini">'+esc(q.side+'として ・ '
+        +(q.side==='貸し手'?q.borrower:q.owner)+' ・ '+rlSpan(q))+'</div>'
+      +(q.termsMissing?'<div class="mini">送料と、こわれたときの扱いが、まだ決まっていません</div>':'')
+      +'</div>'
+      +'<div class="acts"><button class="btn gh sm" data-rlreq="'+esc(q.id)+'">開く</button></div></div>';
+  }).join(''):'<div class="empty">申し込みはまだありません</div>')+'</div>';
+}
+
+/* 誰が、どこからどこへ進められるか。サーバ（rental.js の RULE）を写している。
+   ここに無いものを出すと、押しても進まない押しボタンになる。 */
+function rlNext(q){
+  var out=[];
+  if(q.side==='貸し手'){
+    if(q.status==='申込'){out.push({s:'承認',l:'承認する'});out.push({s:'見送り',l:'見送る',g:1});}
+    else if(q.status==='承認')out.push({s:'貸出中',l:'お渡ししました'});
+    else if(q.status==='貸出中')out.push({s:'返却済',l:'返ってきました'});
+  }else{
+    if(q.status==='申込'||q.status==='承認')out.push({s:'取消',l:'取り消す',g:1});
+  }
+  return out;
+}
+function rlMsgHTML(){
+  if(RL.msgs===null)return '<div class="mini">読み込んでいます…</div>';
+  if(!RL.msgs.length)return '<div class="mini">まだやりとりはありません。</div>';
+  return RL.msgs.map(function(m){
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--line2);">'
+      +'<div class="mini">'+esc(m.from)+(m.mine?'（自分の園）':'')+' ・ '+esc(fmtDate(m.at))+'</div>'
+      +'<div style="font-size:13px;line-height:1.8;white-space:pre-wrap;">'+esc(m.text)+'</div></div>';
+  }).join('');
+}
+function rlReqHTML(){
+  var q=RL.req;
+  var h='<div class="row" style="margin-bottom:12px;">'
+    +'<button class="btn gh sm" id="rl_back">‹ もどる</button></div>';
+  if(!q)return h+rlWait();
+  var acts=rlNext(q);
+  h+='<div class="card">'
+    +'<div style="font-size:16px;font-weight:800;">'+esc(q.title)+'</div>'
+    +kv('いまの状態',esc(q.status))
+    +kv('自分の立場',esc(q.side))
+    +kv('貸す園',esc(q.owner||'—'))
+    +kv('借りる園',esc(q.borrower||'—'))
+    +kv('借りたい期間',esc(rlSpan(q)))
+    +'</div>';
+  /* 相手の電話番号は、承認より前はサーバが返さない。返っていないときに
+     「まだ出せません」と書くのは、実際にそのとおりだから。 */
+  h+='<div class="card"><div class="lbl">相手の園の連絡先</div>'
+    +(q.contact
+      ? kv('園',esc(q.contact.name||'—'))
+        +kv('電話番号',q.contact.tel?esc(q.contact.tel):'相手の園が電話番号を登録していません')
+      : '<div class="mini" style="line-height:1.9;">貸す園が承認すると、お互いの電話番号が出ます。'
+        +'それまでは、下のやりとりでご相談ください。</div>')
+    +'</div>';
+  h+='<div class="card"><div class="lbl">決めたこと</div>'
+    +'<div class="field"><label>送料</label><input id="tm_ship" value="'+esc(q.terms.shipping||'')+'"></div>'
+    +'<div class="field"><label>こわれたとき・なくしたとき</label>'
+      +'<input id="tm_dmg" value="'+esc(q.terms.damage||'')+'"></div>'
+    +'<div class="field"><label>そのほか</label>'
+      +'<textarea id="tm_note" rows="2">'+esc(q.terms.note||'')+'</textarea></div>'
+    +(q.termsMissing
+      ? '<div class="hint">送料と、こわれたときの扱いが空のままです。'
+        +'運営では決めていません（調整中です）。園どうしでお決めください。</div>':'')
+    /* 書いたことが残るのは「進める」を押したときだけ。そう書かないと、
+       書いただけで相手に伝わったと思われてしまう。 */
+    +'<div class="mini" style="margin-top:9px;line-height:1.9;">'
+      +(acts.length
+        ? 'ここに書いたことは、下の「進める」を押したときにいっしょに残ります。書いただけでは残りません。'
+        : 'いまは進める操作がないため、ここに書いても残りません。下のやりとりでお伝えください。')
+      +'</div>'
+    +'</div>';
+  h+='<div class="card"><div class="lbl">進める</div>'
+    +(acts.length
+      ? '<div class="row" style="gap:8px;flex-wrap:wrap;">'
+        +acts.map(function(a){
+          return '<button class="btn '+(a.g?'gh ':'')+'sm" data-rldecide="'+esc(a.s)+'">'+esc(a.l)+'</button>';
+        }).join('')+'</div>'
+      : '<div class="mini">いまは、あなたの側で進められることはありません。</div>')
+    +'</div>';
+  return h+'<div class="card"><div class="lbl">やりとり</div>'+rlMsgHTML()
+    +'<div class="field" style="margin-top:11px;">'
+      +'<textarea id="rl_msg" rows="2" placeholder="日にちの相談、受け渡しのしかたなど"></textarea></div>'
+    +'<button class="btn sm" id="rl_send">送る</button>'
+    /* 通知は出ない。出ないことを書いておかないと、返事を待って止まってしまう。 */
+    +'<div class="mini" style="margin-top:9px;line-height:1.9;">'
+      +'相手の園の職員が、この画面を開いたときに読めます。'
+      +'メールや電話でのお知らせは出ませんので、急ぐときはお電話ください。</div>'
+    +'</div>';
+}
+
+function rentalHTML(){
+  if(!API.online()){
+    return '<h2 class="sec">🔁 園どうしの貸し借り</h2>'
+      +'<div class="card"><div class="mini" style="line-height:1.9;">'
+      +'この仕組みは、サーバにつないだときだけ使えます。相手の園があることなので、'
+      +'この端末の中だけでは動きません。<br>'
+      +'園の画面（未来WA）でログインしてから、もういちどお開きください。'
+      +'</div></div>';
+  }
+  var h='<h2 class="sec">🔁 園どうしの貸し借り</h2>'
+    /* 決まりごとは一覧のときだけ。中を開いたときも出すと、スマホでは
+       決まりごとで画面が埋まって、肝心の中身が下に押し出される。 */
+    +(RL.open?'':rlRuleHTML());
+  if(RL.err)
+    h+='<div class="card"><div class="mini">うまく読み込めませんでした：'+esc(RL.err)+'</div>'
+      +'<button class="btn gh sm wide" id="rl_reload" style="margin-top:8px;">読み込み直す</button></div>';
+  var o=RL.open;
+  if(o&&o.kind==='edit')return h+rlEditHTML(o.item);
+  if(o&&o.kind==='item')return h+rlItemHTML();
+  if(o&&o.kind==='req') return h+rlReqHTML();
+  h+='<div class="chips">'
+    +[['items','よその園の出品'],['mine','自分の出品'],['reqs','申し込みの状況']].map(function(t){
+      return '<button class="chip'+(RL.tab===t[0]?' on':'')+'" data-rt="'+t[0]+'">'+t[1]+'</button>';}).join('')
+    +'</div>';
+  if(RL.tab==='items')return h+rlListHTML();
+  if(RL.tab==='mine') return h+rlMineHTML();
+  return h+rlReqsHTML();
+}
+
+/* 種類や扱いを選ぶと画面を組み直すので、その前に打ちかけの文字を控える。
+   控えないと、名前を書いたあとに種類を選んだだけで消えてしまう。 */
+function rlCollect(){
+  var it=RL.open&&RL.open.item;
+  if(!it)return;
+  var g=function(i){var e=document.getElementById(i);return e?e.value:undefined;},v;
+  v=g('rl_title'); if(v!==undefined)it.title=v.trim();
+  v=g('rl_cond');  if(v!==undefined)it.cond=v.trim();
+  v=g('rl_pref');  if(v!==undefined)it.pref=v.trim();
+  v=g('rl_city');  if(v!==undefined)it.city=v.trim();
+  v=g('rl_note');  if(v!==undefined)it.note=v;
+  v=g('rl_qty');   if(v!==undefined)it.qty=parseInt(v,10)||1;
+}
+
+function wireRental(){
+  var $=function(i){return document.getElementById(i);};
+  /* 押しボタンの配線。使い回しの入れ物（var b など）に受けて、その入れ物を
+     押されたときに読むと、あとで別のボタンを入れた時点で、先に配ったはずの
+     押しボタンがそちらを指してしまう（申し込みの押しボタンが押せなくなった）。
+     押した瞬間に「そのボタン自身」が渡るようにする。 */
+  function on(id,fn){
+    var el=document.getElementById(id);
+    if(el)el.onclick=function(){return fn(el);};
+  }
+
+  document.querySelectorAll('[data-rt]').forEach(function(el){el.onclick=function(){
+    RL.tab=el.getAttribute('data-rt');stSet('rl_tab',RL.tab);RL.open=null;RL.err='';render();};});
+  document.querySelectorAll('[data-rlitem]').forEach(function(el){el.onclick=function(){
+    RL.open={kind:'item',id:el.getAttribute('data-rlitem')};RL.detail=null;RL.err='';render();};});
+  document.querySelectorAll('[data-rlreq]').forEach(function(el){el.onclick=function(){
+    RL.open={kind:'req',id:el.getAttribute('data-rlreq')};RL.req=null;RL.msgs=null;RL.err='';render();};});
+  document.querySelectorAll('[data-rledit]').forEach(function(el){el.onclick=function(){
+    RL.open={kind:'edit',id:el.getAttribute('data-rledit'),item:null};RLPHOTO=null;RL.err='';render();};});
+  document.querySelectorAll('[data-rldel]').forEach(function(el){el.onclick=function(){
+    if(!confirm('この出品を消します。よろしいですか。'))return;
+    API.call('DELETE','/rental/items/'+encodeURIComponent(el.getAttribute('data-rldel')))
+      .then(function(){toast('消しました');RL.mine=null;RL.items=null;render();})
+      .catch(function(e){toast(e.message);});};});
+
+  on('rl_reload',function(){RL.reload();render();});
+  on('rl_back',  function(){RL.open=null;RLPHOTO=null;RL.err='';render();});
+  on('rl_new',   function(){
+    RL.open={kind:'edit',id:'',item:{qty:1,status:'公開',cat:RL_CATS[0]}};RLPHOTO=null;render();});
+  on('rl_find',  function(){
+    var e=$('rl_q');RL.q=e?e.value.trim():'';RL.items=null;render();});
+
+  /* 出品の編集。選び直しても打ちかけが消えないよう、先に控える。 */
+  (function(){
+    var it=RL.open&&RL.open.item;
+    if(!it)return;
+    var box=$('rl_cat');
+    if(box)box.querySelectorAll('[data-v]').forEach(function(x){x.onclick=function(){
+      rlCollect();it.cat=x.getAttribute('data-v');render();};});
+    var sg=$('rl_status');
+    if(sg)sg.querySelectorAll('[data-v]').forEach(function(x){x.onclick=function(){
+      rlCollect();it.status=x.getAttribute('data-v');render();};});
+    var ph=$('rl_photo');
+    if(ph)ph.onchange=function(){
+      var f=ph.files&&ph.files[0];
+      if(!f){RLPHOTO=null;return;}
+      if(f.size>1024*1024){toast('写真が大きすぎます（1MBまで）');ph.value='';return;}
+      var r=new FileReader();
+      r.onload=function(){rlCollect();RLPHOTO={name:f.name,body:String(r.result)};render();};
+      r.onerror=function(){toast('写真を読み込めませんでした');};
+      r.readAsDataURL(f);
+    };
+    var sv=$('rl_save');
+    if(sv)sv.onclick=function(){
+      rlCollect();
+      if(!it.title){toast('品物の名前を入れてください');return;}
+      var body={title:it.title,cat:it.cat||'',qty:it.qty||1,cond:it.cond||'',
+        pref:it.pref||'',city:it.city||'',note:it.note||'',status:it.status||'公開',
+        /* 写真を選び直していないときは、いま登録されているものをそのまま送り返す。
+           送らないと、サーバ側で写真が消える。 */
+        photo:RLPHOTO?RLPHOTO.body:(it.photo||'')};
+      sv.disabled=true;
+      API.call(it.id?'PUT':'POST','/rental/items'+(it.id?'/'+encodeURIComponent(it.id):''),body)
+        .then(function(){
+          toast(it.id?'直しました':'出しました');
+          RLPHOTO=null;RL.open=null;RL.mine=null;RL.items=null;
+          RL.tab='mine';stSet('rl_tab','mine');render();
+        })
+        .catch(function(e){sv.disabled=false;toast(e.message);});
+    };
+  })();
+
+  /* 申し込む */
+  on('rq_send',function(el){
+    var g=function(i){var e=$(i);return e?e.value.trim():'';};
+    var from=g('rq_from');
+    if(!from){toast('いつから借りたいかを入れてください');return;}
+    el.disabled=true;
+    API.call('POST','/rental/items/'+encodeURIComponent(RL.open.id)+'/request',
+      {wantFrom:from,wantTo:g('rq_to'),
+       terms:{shipping:g('rq_ship'),damage:g('rq_dmg'),note:g('rq_note')}})
+      .then(function(j){
+        /* 文言はサーバのものをそのまま出す。園ごとに違う言い方にしないため。 */
+        toast(j.message||'申し込みを送りました');
+        RL.open=null;RL.reqs=null;RL.tab='reqs';stSet('rl_tab','reqs');render();
+      })
+      .catch(function(e){el.disabled=false;toast(e.message);});
+  });
+
+  /* 進める。決めたことも、このときいっしょに送る。 */
+  document.querySelectorAll('[data-rldecide]').forEach(function(el){el.onclick=function(){
+    var s=el.getAttribute('data-rldecide');
+    if(!confirm('「'+s+'」にします。よろしいですか。'))return;
+    var g=function(i){var e=$(i);return e?e.value.trim():'';};
+    el.disabled=true;
+    API.call('POST','/rental/requests/'+encodeURIComponent(RL.open.id)+'/decide',
+      {status:s,terms:{shipping:g('tm_ship'),damage:g('tm_dmg'),note:g('tm_note')}})
+      .then(function(j){
+        toast('「'+j.request.status+'」にしました');
+        if(j.warn)alert(j.warn);
+        RL.req=null;RL.msgs=null;RL.reqs=null;render();
+      })
+      .catch(function(e){el.disabled=false;toast(e.message);});};});
+
+  on('rl_send',function(el){
+    var e=$('rl_msg'),t=e?e.value.trim():'';
+    if(!t){toast('内容を入れてください');return;}
+    el.disabled=true;
+    API.call('POST','/rental/requests/'+encodeURIComponent(RL.open.id)+'/messages',{text:t})
+      .then(function(){RL.msgs=null;render();})
+      .catch(function(err){el.disabled=false;toast(err.message);});
+  });
+}
+
 /* ============================================================
    描画と操作
    ============================================================ */
 var TITLES={home:['つくる','HOME'],posts:['つくる','あそぶ・まなぶ'],shop:['つくる','ショップ出品'],
-  events:['つくる','イベント'],comms:['つくる','コミュニティ'],analytics:['みる','分析'],
+  events:['つくる','イベント'],comms:['つくる','コミュニティ'],
+  rental:['つくる','園どうしの貸し借り'],analytics:['みる','分析'],
   rank:['みる','ランク制度'],me:['みる','マイページ'],editor:['つくる','投稿する']};
 
 function render(){
@@ -1267,7 +1843,10 @@ function render(){
     +'<span class="mini" style="white-space:nowrap;">'+esc(M.name)+'</span>';
 
   var v=document.getElementById('view');
-  if(editing) v.innerHTML=editorHTML();
+  if(editing){ v.innerHTML=editorHTML();
+    /* ダウンロード教材のときだけ、預かっているファイルを確かめて組み直す */
+    if(editing.type==='shop'&&editing.item.cat==='ダウンロード教材')
+      DLF.load(function(hit){ if(hit&&editing){v.innerHTML=editorHTML();wire();} }); }
   else if(page==='home') v.innerHTML=homeHTML();
   else if(page==='posts') v.innerHTML=postsHTML();
   else if(page==='shop') v.innerHTML=shopHTML();
@@ -1275,6 +1854,9 @@ function render(){
     /* 申込の数は、開いたときに一度だけ取りに行く。取れたら描き直す。 */
     EVJOIN.load(function(){ if(page==='events'){v.innerHTML=eventsHTML();wire();} }); }
   else if(page==='comms') v.innerHTML=commsHTML();
+  else if(page==='rental'){ v.innerHTML=rentalHTML();
+    /* 端末の中には控えを持たないので、開くたびにサーバから取り直す */
+    RL.load(function(hit){ if(hit&&page==='rental'){v.innerHTML=rentalHTML();wire();} }); }
   else if(page==='analytics') v.innerHTML=analyticsHTML();
   else if(page==='rank') v.innerHTML=rankHTML();
   else if(page==='me') v.innerHTML=meHTML();
@@ -1342,6 +1924,7 @@ function wire(){
     M.biz.addr=g('b_addr');M.biz.email=g('b_email');
     saveMe(M);toast('保存しました');render();};
 
+  wireRental();
   wireEditor();
 }
 function listOf(t){return t==='posts'?posts():t==='shop'?products():t==='events'?events():comms();}
@@ -1400,7 +1983,11 @@ function wireEditor(){
     var type=editing.type;              /* editing を消す前に控えておく */
     var arr=listOf(type);
     if(!x.id){
-      x.id=uid(type);
+      /* 商品の番号だけは数字にする。園の画面（index.html）が数字で採番していて、
+         お渡しするファイルを預ける入口（/school/download-files）も、数字の番号しか
+         受け付けないため。文字のまじった番号で作ると、出品はできるのにファイルだけ
+         預けられない、という状態になってしまう。 */
+      x.id=(type==='shop')?nextProductId():uid(type);
       x.at=todayISO();
       x.stats={view:0,save:0,like:0,review:0,rating:0};
       x.by=MY_SELLER;                       /* どの出品者のものかを残す */
@@ -1419,6 +2006,45 @@ function wireEditor(){
     page=type;                          /* 作ったものの一覧へ戻る */
     render();
   }
+  /* ── お渡しするファイル（ダウンロード教材のときだけ出る） ── */
+  var fi=document.getElementById('dl_file');
+  if(fi)fi.onchange=function(){
+    var f=fi.files&&fi.files[0];
+    if(!f){DLPICK=null;return;}
+    /* 大きさは選んだ時点で見る。送ってから断られると、待たせただけになる。 */
+    if(f.size>4*1024*1024){toast('ファイルが大きすぎます（4MBまで）');fi.value='';return;}
+    if(!/\.(pdf|png|jpe?g)$/i.test(f.name)){toast('PDF・PNG・JPEG のみ預かれます');fi.value='';return;}
+    var r=new FileReader();
+    r.onload=function(){DLPICK={pid:String(x.id),name:f.name,body:String(r.result),size:f.size};render();};
+    r.onerror=function(){toast('ファイルを読み込めませんでした');};
+    r.readAsDataURL(f);
+  };
+  var ds=document.getElementById('dl_save');
+  if(ds)ds.onclick=function(){
+    if(!DLPICK||DLPICK.pid!==String(x.id)){toast('ファイルを選んでください');return;}
+    var gn=function(i,d){var e=document.getElementById(i),n=e?parseInt(e.value,10):NaN;
+      return isNaN(n)?d:n;};
+    ds.disabled=true;
+    API.call('POST','/school/download-files',
+      {productId:String(x.id),name:DLPICK.name,body:DLPICK.body,
+       days:gn('dl_days',90),maxCount:gn('dl_count',10)})
+      .then(function(j){
+        DLPICK=null;
+        toast('ファイルを預かりました');
+        /* 日数や回数を短くしようとしたときは、サーバがそのままにする。黙って変えない。 */
+        if(j.kept)alert(j.kept);
+        DLF.refresh(function(){render();});
+      })
+      .catch(function(e){ds.disabled=false;toast(e.message);});
+  };
+  var dd=document.getElementById('dl_del');
+  if(dd)dd.onclick=function(){
+    if(!confirm('お渡しをやめます。すでにお申し込みいただいたご家庭も、受け取れなくなります。よろしいですか。'))return;
+    API.call('DELETE','/school/download-files/'+encodeURIComponent(String(x.id)))
+      .then(function(){toast('お渡しをやめました');DLF.refresh(function(){render();});})
+      .catch(function(e){toast(e.message);});
+  };
+
   var s=document.getElementById('edSave');   if(s)s.onclick=function(){store('public');};
   var d=document.getElementById('edDraft');  if(d)d.onclick=function(){store('draft');};
   var dl=document.getElementById('edDel');
