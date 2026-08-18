@@ -6223,7 +6223,7 @@ function blankFormBody(type,date,qr){
     function fmtD(d2){return d2.getFullYear()+'/'+pad(d2.getMonth()+1)+'/'+pad(d2.getDate());}
     body='<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">Weekly Plan　'+fmtD(wdays[0])+' 〜 '+fmtD(wdays[4])+'</div>'
       +'<table class="blankform"><thead><tr><th style="width:74px;font-size:9px;">（曜日）</th>'
-      +[['フォニックス','Phonics'],['午前の活動','Morning Activity'],['午後の活動','Afternoon Activity'],['絵本','Story Book'],['クラスの様子・エピソード',''],['業務日誌（連絡）','']].map(function(l){return '<th style="font-size:9px;">'+esc(l)+'</th>';}).join('')
+      +[['活動内容（午前）','Morning Activity'],['活動内容（午後）','Afternoon Activity'],['使った絵本や玩具','Story Book'],['クラスの様子・エピソード',''],['引き継ぎ・特記事項','']].map(function(l){return '<th style="font-size:9px;">'+esc(l)+'</th>';}).join('')
       +'</tr></thead><tbody>'
       +wdays.map(function(d2){return '<tr><td style="font-size:9px;">'+WD[d2.getDay()]+'曜日<div style="font-size:8px;">'+((d2.getMonth()+1)+'/'+d2.getDate())+'</div></td>'
         +'<td style="height:74px;"></td><td></td><td></td><td></td><td></td><td></td></tr>';}).join('')
@@ -8687,6 +8687,26 @@ function dmNotify(childId,msg){
   DB.history=h;
 }
 var dmPulling=false;
+/* 宛名の書き方。「高橋 恵 様　（高橋 心春ちゃん）」の形（2026-08-18 ご指定）。
+   1か所で決めて、一覧・見出し・やりとりのどこでも同じ書き方にする。 */
+function dmName(c){
+  if(!c)return '';
+  /* c.child は「心春ちゃん」の形で敬称込みで入っている。
+     そのまま足すと「心春ちゃんちゃん」になるので、
+     付いている敬称を取り出して、フルネーム（姓＋名）に添え直す。 */
+  var m=String(c.child||'').match(/(ちゃん|くん|君)$/);
+  var suf=m?m[1]:'ちゃん';
+  var full=(typeof childFullName==='function')?childFullName(c):String(c.child||'');
+  return esc(c.name||'')+' 様　（'+esc(full+suf)+'）';
+}
+/* まとめて送るときに選んでいる家庭。園児のidを持つ。 */
+var dmPick={};
+function dmPickList(){
+  var out=[];
+  enrolled().forEach(function(c){ if(dmPick[c.id])out.push(c); });
+  return out;
+}
+
 function renderDM(){
   /* 開いたときに、保護者から届いた分をもう一度取りに行く。
      取り終わったら1度だけ描き直す（そのまま呼ぶと止まらなくなる）。 */
@@ -8703,16 +8723,45 @@ function renderDM(){
   var defBy=staffNames.indexOf(me)>-1?me:(staffNames[0]||'');
   var th=dmThread(dmSel);
   var cur=kids.filter(function(c){return c.id===dmSel;})[0];
+  /* 退園などで居なくなった家庭が選ばれたままにならないよう、毎回そろえる */
+  Object.keys(dmPick).forEach(function(k){
+    if(!kids.filter(function(c){return String(c.id)===String(k);}).length)delete dmPick[k];
+  });
+  var picked=dmPickList();
   s.innerHTML='<div class="grid" style="grid-template-columns:280px 1fr;align-items:start;gap:16px;">'
-    +'<div class="card" style="padding:12px;"><h3 style="font-size:13.5px;">'+ic('users')+'家庭を選ぶ</h3>'
+    +'<div class="card" style="padding:12px;">'
+      +'<h3 style="font-size:13.5px;">'+ic('users')+'送信する保護者を選択</h3>'
+      +'<div class="muted" style="font-size:11.5px;margin:-4px 0 8px;line-height:1.7;">'
+      +'名前を押すと、そのご家庭のやりとりが開きます。<br>'
+      +'左のチェックで選ぶと、同じ文面をまとめて送れます。</div>'
+      +'<div class="row" style="gap:6px;margin-bottom:8px;">'
+        +'<button class="btn btn-sm btn-ghost" id="dmPickAll">すべて選ぶ</button>'
+        +'<button class="btn btn-sm btn-ghost" id="dmPickNone">選択を外す</button></div>'
       +kids.map(function(c){var t=dmThread(c.id);var last=t.messages[t.messages.length-1];var un=dmUnreadStaff(c.id);var on=c.id===dmSel;
-        return '<div data-dmk="'+esc(c.id)+'" style="padding:8px 10px;border-radius:9px;cursor:pointer;margin-bottom:3px;'+(on?'background:var(--teal);color:#fff;':'')+'">'
-          +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;font-size:13px;flex:1;">'+esc(childName(c))+'</span>'+(un?'<span style="background:#E24B4A;color:#fff;border-radius:99px;font-size:10px;padding:1px 7px;font-weight:700;">'+un+'</span>':'')+'</div>'
-          +'<div style="font-size:11px;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(last?esc(last.text.slice(0,22)):'メッセージはまだありません')+'</div></div>';}).join('')
+        return '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:9px;margin-bottom:3px;'+(on?'background:var(--teal);color:#fff;':'')+'">'
+          +'<input type="checkbox" data-dmp="'+esc(c.id)+'"'+(dmPick[c.id]?' checked':'')+' style="margin-top:3px;flex-shrink:0;">'
+          +'<div data-dmk="'+esc(c.id)+'" style="flex:1;min-width:0;cursor:pointer;">'
+          +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;font-size:12.5px;flex:1;line-height:1.4;">'+dmName(c)+'</span>'+(un?'<span style="background:#E24B4A;color:#fff;border-radius:99px;font-size:10px;padding:1px 7px;font-weight:700;">'+un+'</span>':'')+'</div>'
+          +'<div style="font-size:11px;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(last?esc(last.text.slice(0,22)):'メッセージはまだありません')+'</div></div></div>';}).join('')
     +'</div>'
-    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('mail')+esc(childName(cur))+'（'+esc(cur.name)+' 様）</h3><span class="muted" style="font-size:11.5px;">'+esc(cur.email)+'</span></div>'
-      +'<div class="muted" style="margin-bottom:10px;font-size:12px;">送信すると保護者へ<b>通知メール（返信URL付き）</b>が届き、保護者ページのメッセージに表示されます。</div>'
-      +'<div id="dmLog" style="max-height:380px;overflow-y:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
+      +'<h3 style="margin:0;flex:1;">'+ic('mail')+(picked.length>1?('選んだ '+picked.length+' 家庭へ送る'):dmName(cur))+'</h3></div>'
+      /* メールアドレスは出さない。未来WA を通して届くので、メールは使っていない。
+         「通知メールが届きます」とも書かない。メール送信の中身は作られておらず、
+         送信履歴に書いているだけだった（事実と違うことを書かない）。 */
+      +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.8;">'
+      +(picked.length>1
+        ? '選んだご家庭それぞれに、同じ文面を送ります。やりとりはご家庭ごとに別々に残ります。'
+        : '送ると、保護者の未来WAの「園からの個人メッセージ」に届きます。')
+      +'</div>'
+      /* 2名以上を選んでいるときは、やりとりを出しようがないので宛先を並べる */
+      +(picked.length>1
+        ? '<div style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;max-height:380px;overflow-y:auto;">'
+          +'<div style="font-size:12px;font-weight:700;margin-bottom:7px;">送る先</div>'
+          +picked.map(function(c){return '<div style="font-size:12.5px;padding:3px 0;">'+dmName(c)+'</div>';}).join('')
+          +'</div>'
+        : '')
+      +'<div id="dmLog" style="max-height:380px;overflow-y:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;flex-direction:column;gap:8px;display:'+(picked.length>1?'none':'flex')+';">'
         +(th.messages.length?th.messages.map(function(m){var mine=m.from==='staff';
           return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%;">'
             +'<div style="font-size:10.5px;color:var(--tx3);margin-bottom:2px;text-align:'+(mine?'right':'left')+';">'+(mine?esc(m.by||'園'):esc(cur.name)+' 様')+' ・ '+esc(m.at)+'</div>'
@@ -8726,13 +8775,30 @@ function renderDM(){
       +'<div id="dmMsg" class="muted" style="margin-top:8px;font-size:12px;"></div></div>'
     +'</div>';
   s.querySelectorAll('[data-dmk]').forEach(function(b){b.onclick=function(){dmSel=+b.getAttribute('data-dmk');dmMarkReadStaff(dmSel);renderDM();};});
+  s.querySelectorAll('[data-dmp]').forEach(function(b){b.onchange=function(){
+    var id=+b.getAttribute('data-dmp');
+    if(b.checked)dmPick[id]=1; else delete dmPick[id];
+    renderDM();
+  };});
+  var pa=$('#dmPickAll');
+  if(pa)pa.onclick=function(){ kids.forEach(function(c){dmPick[c.id]=1;}); renderDM(); };
+  var pn=$('#dmPickNone');
+  if(pn)pn.onclick=function(){ dmPick={}; renderDM(); };
   dmMarkReadStaff(dmSel);
   var log=$('#dmLog');if(log)log.scrollTop=log.scrollHeight;
   $('#dmSend').onclick=function(){
     var tx=$('#dmText').value.trim();if(!tx){alert('メッセージを入力してください');return;}
-    var m=dmPost(dmSel,'staff',$('#dmBy').value,tx);dmNotify(dmSel,m);
-    $('#dmText').value='';renderDM();
-    $('#dmMsg').innerHTML='<span style="color:#0B5F8F;font-weight:600;">送信しました。保護者へ通知メール（返信URL付き）を送信しました。</span>';
+    /* 選んでいれば、その全員へ。選んでいなければ、いま開いているご家庭へ。
+       同じ文面でも、やりとりはご家庭ごとに別々に残す（1つに混ぜない）。 */
+    var to=picked.length?picked:[cur];
+    if(to.length>1&&!confirm(to.length+' 家庭に、同じ文面を送ります。よろしいですか。'))return;
+    to.forEach(function(c){ var m=dmPost(c.id,'staff',$('#dmBy').value,tx); dmNotify(c.id,m); });
+    $('#dmText').value='';
+    var n=to.length;
+    renderDM();
+    $('#dmMsg').innerHTML='<span style="color:#0B5F8F;font-weight:600;">'
+      +(n>1?(n+' 家庭に送りました。'):'送信しました。')
+      +'保護者の未来WAの画面に届きます。</span>';
   };
   var nav=$('#navDM');if(nav){var un=dmUnreadTotal();nav.textContent=un||'';nav.style.display=un?'':'none';}
 }
@@ -9304,7 +9370,6 @@ function rosterProfile(kids){
   h+=rpGuardCard(rpGuards);
   h+=rpHealthCard(p);
   h+=spCardHTML(SP_GROUPS[2],p);
-  h+='<div class="muted" style="font-size:11.5px;line-height:1.8;">お支払い（口座など）は「生徒情報（契約・オプション）」に移しました。</div>';
   return h;
 }
 function wireRpGuards(){
