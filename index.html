@@ -61,7 +61,7 @@
   .topbar h1{font-size:18px;font-weight:600;margin:0;}
   .topbar .crumb{font-size:12px;color:var(--tx3);}
   .spacer{flex:1;}
-  .sender-chip{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--tx2);background:var(--bg);padding:6px 12px;border-radius:10px;border:1px solid var(--line);line-height:1.3;}
+  .sender-chip{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12.5px;color:var(--tx2);background:var(--bg);padding:6px 12px;border-radius:10px;border:1px solid var(--line);line-height:1.3;}
   .sender-chip .sc-l{display:block;font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:.04em;}
   /* いま見ている画面のプランを、上の帯にいつも出す。
      商談のときは、ここを押してプランごとの見え方をそのまま見せる。
@@ -148,6 +148,9 @@
   .row-sub{font-size:12px;color:var(--tx3);}
   .avatar{width:34px;height:34px;border-radius:50%;background:var(--teal-l);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;}
   input,select,textarea{font-family:inherit;font-size:13.5px;color:var(--tx);background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%;outline:none;}
+  /* チェックと丸印は、上の width:100% を拾うと横に伸びて、右の文字を押し出してしまう。
+     ここで1回だけ元にもどす（画面ごとに書かない）。 */
+  input[type="checkbox"],input[type="radio"]{width:auto;flex:none;}
   input:focus,select:focus,textarea:focus{border-color:var(--teal-l);box-shadow:0 0 0 3px rgba(29,158,117,.13);}
   label{font-size:12px;color:var(--tx2);display:block;margin-bottom:5px;}
   .field{margin-bottom:16px;}
@@ -380,19 +383,19 @@
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <div class="sub" id="brandSchool">大宮与野校</div>
+      <div class="sub" id="brandSchool"></div>
     </div>
     <nav class="nav" id="nav">
       <a data-go="home" class="active">{ic:grid}ホーム</a>
     </nav>
-    <div class="side-foot">送信元：omiya@cocoas-kids.com<br>BCC：本部共有 自動付与</div>
+    <div class="side-foot" id="sideFoot"></div>
   </aside>
   <div class="main">
     <div class="topbar">
       <button id="navToggle" title="メニューの開け閉め" aria-label="メニューの開け閉め"><span></span><span></span><span></span></button>
       <div><div class="crumb" id="crumb">ホーム</div><h1 id="pageTitle">ダッシュボード</h1></div>
       <div class="spacer"></div>
-      <div class="sender-chip" title="保護者へメールを送るときの差出人です。設定＞送信設定で変えられます">{ic:send}<span><span class="sc-l">送信元</span><span id="senderAddr">omiya@cocoas-kids.com</span></span></div>
+      <div class="sender-chip" title="保護者へメールを送るときの差出人です。設定＞送信設定で変えられます">{ic:send}<span><span class="sc-l">送信元</span><span id="senderAddr"></span></span></div>
       <button class="btn btn-primary" data-go="compose">{ic:plus}新規メール</button>
     </div>
     <div class="content">
@@ -884,26 +887,51 @@ if(!localStorage.getItem('cocoas_contacts')||stGetRaw('mockVersion')!==MOCK_VERS
 }
 function stGetRaw(k){try{return JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){return null;}}
 
+/* 最初に入っている値の版。
+   これまでは、ある一つの園の名前・住所・電話・メール・口座が最初から入っていた。
+   どの園でも使えるよう既定を空にしたが、すでに使っている端末には古い値が保存で残る。
+   そこで、園が誰なのかが分かる欄だけを、一度だけ空にする。
+   ここに古い値を書いて見比べる作りにはしない。このファイルは公開しているので、
+   見比べるための表に書いただけでも、その園の住所や電話が読めてしまうため。
+   料金は消さない（金額を黙って0にすると、0円の請求書が出てしまう）。
+   空にしたあとは、設定の一番上に「園の基本情報が未設定です」と出る。 */
+var SET_SEED_VERSION=1;
+(function(){
+  try{
+    if(stGetRaw('setSeedVersion')===SET_SEED_VERSION)return;
+    var wipe=['sender','bcc','school','manager','tel','address','access',
+              'bankName','bankBranch','bankHolder','photoUrl'];
+    var s=DB.settings||{};
+    wipe.forEach(function(k){if(s[k])s[k]='';});
+    DB.settings=s;
+    localStorage.setItem('cocoas_setSeedVersion',JSON.stringify(SET_SEED_VERSION));
+  }catch(e){}
+})();
+
 var SET=Object.assign({
-  /* ここは差し込みの「元」なので、実際の値を入れる。
-     ひな形の側は 〔学校名〕〔送信元〕〔担当者〕 で書き、園ごとにここから差し込む。 */
-  sender:"omiya@cocoas-kids.com",bcc:"omiya@cocoas-kids.com",
-  school:"COCOAS KIDS International School 大宮与野校",manager:"白神",tel:"048-782-5791",
-  address:"〒338-0002 埼玉県さいたま市中央区下落合6-4-5 NK2ビル2階",access:"JR埼京線 与野本町駅 徒歩約6分",
-  bankName:"ゆうちょ銀行",bankBranch:"ニイチハチ支店",bankType:"普通",bankNo:"",bankHolder:"ココアス(カ)",
-  photoUrl:"https://with.8122.jp/",photoCodePre:"",photoCodeKinder:"",
-  daycareFeeNormal:"5,500",daycareFeeExt:"6,600",daycareLunch:"550",
+  /* ここは差し込みの「元」。ひな形の側は 〔学校名〕〔送信元〕〔担当者〕 で書き、園ごとにここから差し込む。
+     どの園でも使えるよう、園が特定できるものは空にしてある。
+     園が「設定 → 送信設定」で入れるまでは、差し込みに「（設定で入力）」が出る。 */
+  sender:"",bcc:"",
+  school:"",manager:"",tel:"",
+  address:"",access:"",
+  /* 口座の種類だけは、どの園でもたいてい「普通」なので入れておく */
+  bankName:"",bankBranch:"",bankType:"普通",bankNo:"",bankHolder:"",
+  photoUrl:"",photoCodePre:"",photoCodeKinder:"",
+  daycareFeeNormal:"",daycareFeeExt:"",daycareLunch:"",
   daycareFormUrl:"",surveyUrl:"",docAuditDate:"",attendOptions:['ランチ','ロングステイ'],
   /* どのオプションを「通園曜日から自動」にするかの対応表（設定画面で変更できる）。値は 'lunch' / 'long' / '' (手動) */
   attendAutoMap:{'ランチ':'lunch','ロングステイ':'long'},
   /* 経費管理：園に支給される経費のベース額と、経理部の送付先（管理者のみ設定で変更） */
   expenseBase:0,acctMail:"",
   /* 請求書の体裁（管理側で設定） */
-  ocrEndpoint:"",invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
+  invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
   invUseAgency:false,invAgencyName:"",invAgencyAddr:"",invAgencyTel:"",invAgencyBank:"",
   invGreeting:"平素は格別のご高配を賜り、厚く御礼申し上げます。\n下記のとおりご請求申し上げますので、お支払期日までにお振込みくださいますようお願い申し上げます。",
   invFooter:"※振込名義はお子様のお名前でお願いいたします。\n※お振込手数料はご負担いただきますようお願いいたします。",
-  pricing:{plans:{'週2':30000,'週3':42000,'週4':52000,'週5':58000},lunch:550,extended:1000,material:3000,admission:30000,options:[]}
+  /* コースの名前は入れ物として残す（請求書と契約の画面が「週3」のような名前で引いているため）。
+     金額は0にして、園が「料金設定」で入れる。 */
+  pricing:{plans:{'週2':0,'週3':0,'週4':0,'週5':0},lunch:0,extended:0,material:0,admission:0,options:[]}
 },DB.settings);
 if(!SET.attendOptions||!SET.attendOptions.length)SET.attendOptions=['ランチ','ロングステイ'];
 if(!SET.attendAutoMap||typeof SET.attendAutoMap!=='object')SET.attendAutoMap={'ランチ':'lunch','ロングステイ':'long'};
@@ -936,7 +964,9 @@ function curSchedSet(cls,date,obj){var s=curSched();s[cls]=s[cls]||{};s[cls][dat
 function curCont(){if(!CUR.content)CUR.content={};return CUR.content;}
 function curContGet(cls,wk,type){var c=curCont();return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
 function curContSet(cls,wk,type,obj){var c=curCont();c[cls]=c[cls]||{};c[cls][wk]=c[cls][wk]||{};c[cls][wk][type]=obj;DB.curriculum=CUR;}
-/* クラス別の月次項目（Pre / Kinder で別々に登録） */
+/* クラス別の月次項目（Pre / Kinder で別々に登録）。
+   入力するカードは画面から外したが、これまでに入れた内容を失わないよう、
+   また、あとで戻せるよう、保存と読み出しの仕組みはそのまま残している。 */
 function curMonthly(cls){
   if(!CUR.byClass)CUR.byClass={};
   if(!CUR.byClass[cls]){
@@ -996,7 +1026,7 @@ var AUDIT_CATS=[
     {key:'jido_meibo',name:'児童名簿',place:'入園者名簿・月間名簿・退園者ファイル',when:'運営中',sys:'contacts'},
     {key:'shusseki',name:'出席簿（利用記録）',place:'生徒出席簿ファイル',when:'運営中',sys:'records'},
     {key:'shintai',name:'身体測定記録（昨年度含む）',place:'身体測定記録表・個別 健康手帳',when:'運営中',sys:'records'},
-    {key:'hattatsu',name:'生徒個人発達記録（3ヶ月ごと）',place:'システム内・日常記録',when:'運営中',sys:'records'},
+    {key:'hattatsu',name:'生徒個人発達記録（毎月）',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'keiyaku',name:'利用契約書',place:'規約・料金表・利用にあたって（掲示）',when:'年度前',sys:'docs'}
   ]},
   {cat:'② 職員関係',items:[
@@ -1079,17 +1109,75 @@ function recPageOf(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
 var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','ヒヤリハット・怪我':'rec_hiyari','生徒個人発達記録':'rec_発達','業務日報・保育日誌':'rec_日報'};
 function attendedToday(id){var sh=stGet('rec_登園シート',{})[todayISO()];return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
-var DRILL_PROC_DEFAULT='①日本人スタッフ1人 → 避難経路ドア（地震時）確保／火元の場所確認（火事時）\n　必要書類（健康管理手帳）、避難袋、最終確認\n　日本人スタッフ1人 → 子どもたちを安全な場所へ移動させる\n　※棚やモノが落ちてきそうなところは避けて、お昼寝マットで子どもの頭を守る\n　安全確認、子どもたちの靴を袋に入れて一番小さい子どもを連れて一番先に外へ出る\n　外国人スタッフ1人 → 子供たちを安全な場所に移動させ、子どもたちを連れて外へ避難\n②自動ドア外 or 正面玄関外に避難したら子供たちに靴を履かせる\n③子供たちをならばせ人数をチェック後、横の駐車場へ避難し再度人数チェック\n④必要であれば第2・3避難場所の小学校へ避難';
+/* 手順は園によって違うので、初期値は空にしてある。
+   以前はある園の運用そのもの（日本人／外国人スタッフ・横の駐車場・第2・第3避難場所）が入っており、
+   ほかの園にそのまま出せないため。仕組み（種別ごとに書ける・自動保存・印刷に入る）はそのまま残してある。
+   すでに園が書いた文章は drill_proc_by_kind に入っているので、ここを空にしても消えない */
+var DRILL_PROC_DEFAULT='';
+/* 何を書けばいいかの手がかり。中身ではなく骨組みだけを、書き込み欄の薄字で出す */
+var DRILL_PROC_HINT='① 誰が何をするか（通報・初期消火・子どもの誘導・持ち出し）\n② どこへ、どの道で逃げるか\n③ 人数の数え方と、数え直す場所\n④ 保護者への連絡と引き渡し';
+
 /* 種別ごとの手順（スタッフ役割分担）。回ごとの計画・記録にもこのテンプレが入る */
 var DRILL_PROC_BY_KIND={
   '地震':DRILL_PROC_DEFAULT,
-  '火事':'①発見者 → 「火事だ！」と大声で知らせる／火元の場所を確認\n　日本人スタッフ1人 → 119番通報（園名・住所・目標物を伝える）\n　日本人スタッフ1人 → 初期消火（消火器）※危険と判断したら無理をせず避難優先\n　外国人スタッフ1人 → 子どもたちを火元と反対側へ集め、口・鼻をタオル等で覆わせる\n　※煙を吸わないよう低い姿勢で移動する。防火扉・窓を閉める\n②必要書類（健康管理手帳）、避難袋、緊急連絡用携帯を持ち出す\n③自動ドア外 or 正面玄関外に避難したら子どもたちに靴を履かせる\n④子どもたちをならばせ人数をチェック後、横の駐車場へ避難し再度人数チェック\n⑤必要であれば第2・3避難場所の小学校へ避難し、保護者へ連絡',
-  '不審者':'①発見者 → あらかじめ決めた合言葉・緊急コールで全職員に知らせる（子どもを刺激しない）\n　日本人スタッフ1人 → 110番通報（不審者の特徴・人数・凶器の有無・現在地を伝える）\n　日本人スタッフ1人 → 出入口を施錠し、さすまた等で対応（複数人で・単独対応しない）\n　外国人スタッフ1人 → 子どもたちを安全な部屋（死角の少ない場所）へ誘導し施錠\n　※子どもと不審者の間に必ず職員が入る。子どもを外へ逃がす判断は状況により行う\n②室内で人数をチェックし、静かに待機。カーテンを閉め窓から離れる\n③警察到着まで園児の安全確保を最優先。負傷者がいれば119番通報\n④安全確認後、人数を再チェックし保護者へ連絡・引き渡し\n⑤不審者の特徴・時刻・逃走方向を記録し、警察・自治体へ報告'
+  '火事':'',
+  '不審者':''
 };
 function drillProcOf(kind){var m=stGet('drill_proc_by_kind',null);if(m&&m[kind]!=null)return m[kind];if(kind==='地震')return stGet('drill_proc',DRILL_PROC_BY_KIND['地震']);return DRILL_PROC_BY_KIND[kind]||'';}
 function drillProcSet(kind,text){var m=stGet('drill_proc_by_kind',{});m[kind]=text;stSet('drill_proc_by_kind',m);}
-var DRILL_KINDS=['地震','火事','不審者'];
+/* 訓練の種別は、市町村や地域によって違う（津波・風水害をやる園もある）ので、
+   園が設定＞選択肢の管理で足したり書き換えたりできるようにした。
+   はじめの3つは、何も設定していない園のための既定値 */
+var DRILL_KINDS_DEFAULT=['地震','火事','不審者'];
+Object.defineProperty(window,'DRILL_KINDS',{get:function(){return optList('drillKinds',DRILL_KINDS_DEFAULT);}});
 var drillProcTab='地震';
+/* 手順を書く欄で選んでいた種別が、設定から消されていることがある。
+   そのままだと誰も選んでいない見た目になるので、先頭の種別に寄せる */
+function drillProcTabNow(){var l=DRILL_KINDS;if(l.indexOf(drillProcTab)<0)drillProcTab=l[0]||'';return drillProcTab;}
+/* 一覧をぱっと見て種別が分かることに意味があるので、種別には色をつける。
+   はじめからある3つは今までと同じ色。園が足した種別は名前から色を決めるので、同じ名前なら毎回同じ色になる。
+   返す形は「背景色;color:文字色」で、style="background:…" にそのまま差し込む */
+function drillKindColor(k){
+  var fixed={'地震':'#FAEEDA;color:#854F0B','火事':'#FCEBEB;color:#A32D2D','不審者':'#E6F1FB;color:#123E6B'};
+  if(fixed[k])return fixed[k];
+  if(!k)return '#F1EFE8;color:#5F5E5A';
+  var h=0,i;for(i=0;i<k.length;i++){h=(h*31+k.charCodeAt(i))%360;}
+  return 'hsl('+h+',60%,92%);color:hsl('+h+',62%,26%)';
+}
+/* 種別の名前を変えたときに、書いた手順と各回の種別を新しい名前へ連れていく。
+   手順は種別の名前を鍵にして保存しており（drill_proc_by_kind）、各回も名前で種別を持っているため、
+   何もしないと「地震」→「地震・津波」と直しただけで、書いた手順も回の種別も迷子になる */
+function drillKindRename(oldName,newName){
+  if(!oldName||!newName||oldName===newName)return;
+  var m=stGet('drill_proc_by_kind',{})||{};
+  var txt=(m[oldName]!=null)?m[oldName]:((oldName==='地震')?stGet('drill_proc',null):null);
+  if(txt!=null&&txt!==''&&(m[newName]==null||m[newName]===''))m[newName]=txt;
+  if(m[oldName]!=null)delete m[oldName];
+  stSet('drill_proc_by_kind',m);
+  var d=stGet('drills3',null),ch=false;
+  if(d&&d.rows){d.rows.forEach(function(r){if(r.kind===oldName){r.kind=newName;ch=true;}});if(ch)stSet('drills3',d);}
+  if(drillProcTab===oldName)drillProcTab=newName;
+}
+/* 種別を消す前に、その種別が使われていないか・手順が書かれていないかを見て、先に知らせる。
+   消しても各回の種別はそのままにする（記録が空欄になるほうが困るため） */
+function drillKindDelWarn(name){
+  var d=stGet('drills3',null),m=stGet('drill_proc_by_kind',{})||{},ms=[],used=[];
+  if(d&&d.rows)d.rows.forEach(function(r){if(r.kind===name&&used.indexOf(r.month)<0)used.push(r.month);});
+  if(used.length)ms.push(used.join('・')+'の回で使われています。');
+  var t=(m[name]!=null)?m[name]:((name==='地震')?stGet('drill_proc',''):'');
+  if(t)ms.push('手順が書かれています。');
+  if(!ms.length)return '';
+  return ms.join('')+'\n消しても、これまでの回の種別と、書いた手順は残ります。';
+}
+/* 印刷用の手順。空のときに章ごと消すと、監査に出す紙から手順が「無かったこと」になってしまうので、
+   未登録と分かる書き方にして、その場で手書きできる罫線を出す */
+function drillProcPrintHtml(kind){
+  var t=drillProcOf(kind),i,lines='';
+  if(t&&t.replace(/\s/g,''))return '<p style="font-size:12px;line-height:1.7;">'+esc(t).replace(/\n/g,'<br>')+'</p>';
+  for(i=0;i<6;i++)lines+='<div style="border-bottom:1px solid #999;height:22px;"></div>';
+  return '<p style="font-size:12px;">手順が未登録です。この用紙に書き入れるか、「避難訓練」の画面で登録してください。</p>'
+    +'<div style="margin-bottom:10px;">'+lines+'</div>';
+}
 var DRILL_KIND_DEFAULTS={
   '地震':{scenario:'地震発生を想定',cautions:'頭部を保護し安全な場所へ誘導。落下物・転倒物に注意。'},
   '火事':{scenario:'給食室からの出火を想定',cautions:'口鼻を覆い低い姿勢で避難。火元に近づかない。'},
@@ -1210,7 +1298,7 @@ function recExport(){
   var body=document.getElementById('recBody');if(!body)return;
   var tables=body.querySelectorAll('table');
   if(!tables.length){alert('この記録には保存できる表がありません。');return;}
-  var stamp=(recType==='身体測定'?recMonth:recType==='生徒個人発達記録'?recQuarter:recDate);
+  var stamp=(recType==='身体測定'?recMonth:recType==='生徒個人発達記録'?recDevMonth:recDate);
   var html='<html><head><meta charset="utf-8"></head><body><h2>'+recType+'（'+stamp+'）</h2>'+[].slice.call(tables).map(tableToHtml).join('<br>')+'<p style="font-size:11px;color:#888;">'+SET.school+'　出力日 '+fmt(todayISO())+'</p></body></html>';
   dlFile(recType+'_'+stamp+'.xls',html,'application/vnd.ms-excel');
 }
@@ -1308,13 +1396,13 @@ function fillTokens(text,c,ctx){
     /* デイリーメール用。配信の画面で選んだ日から作る。ほかの画面で見たときは、見本の文字を出す */
     '〔配信日〕':ctx.sendDate||'〇月〇日',
     '〔本日の活動〕':(ctx.dayText!=null?ctx.dayText:'（その日の午前・午後の活動が入ります）'),
-    '〔銀行〕':SET.bankName,'〔支店〕':SET.bankBranch,'〔種類〕':SET.bankType,
-    '〔口座番号〕':SET.bankNo||'（設定で入力）','〔口座名義〕':SET.bankHolder,
-    '〔写真URL〕':SET.photoUrl,'〔写真コードPre〕':SET.photoCodePre||'（設定で入力）','〔写真コードKinder〕':SET.photoCodeKinder||'（設定で入力）',
+    '〔銀行〕':SET.bankName||'（設定で入力）','〔支店〕':SET.bankBranch||'（設定で入力）','〔種類〕':SET.bankType||'（設定で入力）',
+    '〔口座番号〕':SET.bankNo||'（設定で入力）','〔口座名義〕':SET.bankHolder||'（設定で入力）',
+    '〔写真URL〕':SET.photoUrl||'（設定で入力）','〔写真コードPre〕':SET.photoCodePre||'（設定で入力）','〔写真コードKinder〕':SET.photoCodeKinder||'（設定で入力）',
     '〔フォームURL〕':SET.daycareFormUrl||'（設定で入力）','〔アンケートURL〕':SET.surveyUrl||'（設定で入力）',
-    '〔Daycare通常料金〕':SET.daycareFeeNormal,'〔Daycare延長料金〕':SET.daycareFeeExt,'〔ランチ料金〕':SET.daycareLunch,
-    '〔学校名〕':SET.school,
-    '〔送信元〕':SET.sender,
+    '〔Daycare通常料金〕':SET.daycareFeeNormal||'（設定で入力）','〔Daycare延長料金〕':SET.daycareFeeExt||'（設定で入力）','〔ランチ料金〕':SET.daycareLunch||'（設定で入力）',
+    '〔学校名〕':SET.school||'（設定で入力）',
+    '〔送信元〕':SET.sender||'（設定で入力）',
     '〔電話〕':SET.tel||'（設定で入力）',
     '〔所在地〕':SET.address||'（設定で入力）',
     '〔アクセス〕':SET.access||'（設定で入力）',
@@ -1492,6 +1580,18 @@ function storageFullBanner(){
   var x=document.getElementById('storageFullX');
   if(x)x.onclick=function(){d.remove();};
 }
+/* 園名と送信元は、設定から読んで出す。
+   ここに文字を直接書くと、別の園で使うときにその園の名前が残ってしまう。
+   まだ入っていないときは「未設定」と出し、設定を開けば直せることが分かるようにする。 */
+function applyBrand(){
+  var b=document.getElementById('brandSchool');
+  if(b)b.textContent=(SET.school||'園名を設定してください');
+  var a=document.getElementById('senderAddr');
+  if(a)a.textContent=(SET.sender||'未設定');
+  var f=document.getElementById('sideFoot');
+  /* ログインすると、ここは職員の名前とボタンに置きかわる */
+  if(f&&!f.querySelector('button'))f.innerHTML='送信元：'+esc(SET.sender||'未設定')+'<br>BCC：本部共有 自動付与';
+}
 function expandIcons(node){node.innerHTML=node.innerHTML.replace(/\{ic:(\w+)\}/g,function(_,n){return ic(n);});}
 
 /* サイドバーを、見出しごとに開閉できるようにする。
@@ -1549,6 +1649,11 @@ function saveNavOpen(){
   });
   stSet('navOpen',out);
 }
+/* サイドバーの、どの行を光らせるか。
+   スクールガイドはサイドバーから外したので、そのままだとどこも光らず、
+   いま自分がどこにいるのか分からなくなる。
+   書類格納の「ガイダンス資料をひらく」から入る画面なので、書類格納を光らせたままにする。 */
+function navActiveOf(page){ return page==='guide' ? 'docs' : page; }
 /* いま開いている画面が閉じた組の中にあるときは、その組を開く */
 function navRevealActive(){
   var a=document.querySelector('#nav a.active');
@@ -1605,7 +1710,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -1696,7 +1801,8 @@ function go(page){
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
-  document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===page);});
+  var navOn=navActiveOf(page);
+  document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===navOn);});
   if(typeof navRevealActive==='function')navRevealActive();   /* 閉じた組の中なら開く */
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
@@ -1738,6 +1844,8 @@ function buildNav(){
     lb.className='nav-label';lb.textContent=g.cat;
     var any=[];
     g.items.forEach(function(x){
+      /* navHide が付いているものは、ホームのマスにだけ出してサイドバーには出さない */
+      if(x.navHide)return;
       var pages=x.sub?x.sub:[{p:x.p,l:x.l}];
       /* 同じ画面へのリンクが重ならないようにする */
       /* 同じ画面でも、開く記録がちがえば別の行として出す。
@@ -1886,9 +1994,15 @@ var EG_NAV=[
      /* 先生用。生徒台帳は触ってほしくないので、見るだけの画面を分けた（依頼F7） */
      {p:'kidsview', l:'生徒情報'},
      {p:'roster',   l:'生徒台帳'}]},
+   /* メールテンプレートは、ここ（連絡・配信）に置く。
+      前は「新規顧客管理」の中にあり、プロのプランの園長だけのものになっていた。
+      配信の文面を園が自分で作る形にしたので、
+      コネクトの園でも、先生でも開けないと文面が作れず行き止まりになる。
+      この組にはプランの指定も boss も付いていないので、置くだけで全プラン・全役職に出る。 */
    {k:'renraku', l:'連絡・配信', i:'ic:63',si:'send', c:'#A32D2D', bg:'#FCEBEB', sub:[
      {p:'dm',        l:'保護者DM'},
-     {p:'broadcast', l:'全体周知・お知らせ'}]},
+     {p:'broadcast', l:'全体周知・お知らせ'},
+     {p:'templates', l:'メールテンプレート'}]},
    /* 出品も売上も未来WA の画面に1本化したので、入口は1つでよい。
       行き先は wastore（未来WA を開く案内）にする。
       creator は section を持たないため egHasPage で外れる。ここの行き先には使えない。 */
@@ -1901,17 +2015,18 @@ var EG_NAV=[
       料金表シート6行C/D列・EduGrow システム概要15〜20行に合わせている。 */
    {k:'aiplan',     l:'AI保育計画',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'standard'},
    /* rec は、その画面のどの記録を開くか。
-      同じ carerec でも、押した項目の記録が選ばれた状態で開くようにする。 */
+      身体測定・生徒個人発達記録・ヒヤリハット・怪我 の3つは、どれも同じ「保育記録」の画面を
+      開いていただけなので、サイドバーは1行にまとめた（3行あると別々の画面だと思われるため）。
+      画面の中では、上のタブで行き来する。開いたときは、これまでどおり「身体測定」から。
+      避難訓練は別の画面なので、これまでどおり分けたまま残す。 */
    {k:'katsudo',    l:'活動記録',        i:'ic:58',si:'activity', c:'#854F0B', bg:'#FAEEDA', sub:[
-     {p:'carerec', l:'身体測定記録',      rec:'身体測定'},
-     {p:'drill',   l:'避難訓練'},
-     {p:'carerec', l:'生徒個人発達記録',  rec:'生徒個人発達記録'},
-     {p:'carerec', l:'ヒヤリハット・怪我', rec:'ヒヤリハット・怪我'}]}
+     {p:'carerec', l:'保育記録',  rec:'身体測定'},
+     {p:'drill',   l:'避難訓練'}]}
  ]},
  {cat:'顧客情報・料金管理',boss:true,items:[
    {k:'contacts', l:'連絡先',   i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
    {k:'enroll',   l:'生徒情報', i:'ic:75',si:'idcard', c:'#3C3489', bg:'#EEEDFE', p:'enroll'},
-   {k:'billing',  l:'請求管理', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'}
+   {k:'billing',  l:'請求書発行', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'}
  ]},
  {cat:'職員情報・運営関連',boss:true,items:[
    {k:'staffg',  l:'職員管理', i:'ic:70',si:'staff', c:'#0B5F8F', bg:'#E3F1F9', sub:[
@@ -1927,9 +2042,7 @@ var EG_NAV=[
  {cat:'新規顧客管理',boss:true,plan:'pro',items:[
    {k:'leads',   l:'顧客リスト',     i:'ic:49',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
    {k:'trial',   l:'体験結果報告',   i:'ic:39',si:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
-   {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', sub:[
-     {p:'compose',   l:'個別メールを送る'},
-     {p:'templates', l:'メールテンプレート'}]},
+   {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose'},
    {k:'sales',   l:'営業分析',       i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', plan:'pro', p:'sales'}
  ]},
  {cat:'監査対応・書類作成',boss:true,plan:'standard',items:[
@@ -1939,7 +2052,10 @@ var EG_NAV=[
      {p:'reqnav', l:'市町村指定の書類'}]}
  ]},
  {cat:'設定・その他',items:[
-   {k:'guide',    l:'スクールガイド', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide'},
+   /* スクールガイドは、書類格納の「ガイダンス資料をひらく」から行けるので、
+      サイドバーには出さない（navHide）。ホームのマスと画面はこれまでどおり残す。
+      ここから丸ごと消すと、ホームのマスも一緒に消え、プランの判定（egPlanOfPage）からも外れる。 */
+   {k:'guide',    l:'スクールガイド', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide', navHide:true},
    {k:'facility', l:'施設管理',      i:'ic:42',si:'home', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
    {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true}
  ]}
@@ -3971,7 +4087,7 @@ function renderDash(){
       '</div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('users')+'やり取り中の連絡リスト</h3>'+
-      (activeLeads.length?'<table><thead><tr><th>名前</th><th>状況</th><th>次回アクション</th><th>方法</th></tr></thead><tbody>'+activeLeads.map(function(c){var age=(typeof spAge==='function')?spAge(c.dob):'';return '<tr style="cursor:pointer;" data-lead="'+esc(c.id)+'"><td class="row-name">'+c.name+' <span class="row-sub">'+(c.child||'')+(age?' '+age:'')+'</span></td><td>'+statusPill(c.status)+'</td><td class="row-sub">'+(c.nextAction?fmt(c.nextAction):'—')+'</td><td>'+(c.nextMethod?'<span class="tag">'+c.nextMethod+'</span>':'<span class="muted">—</span>')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">対応中のリードはありません</div>')+
+      (activeLeads.length?'<table><thead><tr><th>名前</th><th>状況</th><th>次回アクション</th><th>方法</th></tr></thead><tbody>'+activeLeads.map(function(c){var age=(typeof spAge==='function')?spAge(c.dob):'';return '<tr style="cursor:pointer;" data-lead="'+esc(c.id)+'"><td class="row-name">'+esc(c.name)+' <span class="row-sub">'+esc(c.child||'')+(age?' '+esc(age):'')+'</span></td><td>'+statusPill(c.status)+'</td><td class="row-sub">'+(c.nextAction?fmt(c.nextAction):'—')+'</td><td>'+(c.nextMethod?'<span class="tag">'+c.nextMethod+'</span>':'<span class="muted">—</span>')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">対応中のリードはありません</div>')+
     '</div>');
   s.querySelectorAll('[data-task]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-task').split('|');routeTo(p);});});
   s.querySelectorAll('[data-lead]').forEach(function(r){r.onclick=function(){contactModal(+r.getAttribute('data-lead'));};});
@@ -4102,8 +4218,8 @@ function renderContacts(){
             +(c.concerns?'<div style="margin-top:5px;display:inline-flex;align-items:flex-start;gap:5px;background:#FCEBEB;border:1px solid #F3C9C9;color:#A32D2D;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>懸念</b>'+esc(c.concerns)+'</div>':'')
             +((chaseList.length||c.chaseNote)?'<div style="margin-top:4px;display:inline-flex;align-items:flex-start;gap:5px;background:#E6F1FB;border:1px solid #C3DCF5;color:#123E6B;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>追い状況</b>'+esc([chaseList.join('・'),c.chaseNote].filter(Boolean).join(' ／ '))+'</div>':'');
         }
-        return '<tr><td><div style="display:flex;align-items:center;gap:11px;">'+avatarHTML(c,34)+'<div><div class="row-name">'+c.name+' 様</div><div class="row-sub">'+c.child+(c.dob?' <span style="color:var(--tx3);">'+fmt(c.dob)+'生</span>':'')+'</div></div></div></td>'+
-          '<td><div>'+c.email+'</div><div class="row-sub">'+(c.phone||'')+'</div></td>'+
+        return '<tr><td><div style="display:flex;align-items:center;gap:11px;">'+avatarHTML(c,34)+'<div><div class="row-name">'+esc(c.name)+' 様</div><div class="row-sub">'+esc(c.child)+(c.dob?' <span style="color:var(--tx3);">'+fmt(c.dob)+'生</span>':'')+'</div></div></div></td>'+
+          '<td><div>'+esc(c.email)+'</div><div class="row-sub">'+esc(c.phone||'')+'</div></td>'+
           '<td>'+badge+'</td><td>'+right+'</td>'+
           '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+esc(c.id)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(c.id)+'">'+ic('trash')+'</button></td></tr>';
       }).join(''):'<tr><td colspan="5" class="empty">該当する連絡先がありません</td></tr>')+
@@ -4412,13 +4528,25 @@ function contactModal(id){
   $('#f_cancel').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#f_save').onclick=function(){
-    var nc={id:id||Date.now(),kind:kind,name:$('#f_name').value.trim(),child:$('#f_child').value.trim(),dob:$('#f_dobTop').value,email:$('#f_email').value.trim(),phone:$('#f_phone').value.trim(),note:$('#f_note').value.trim()};
+    /* 元の行を写してから、この窓に出ていた欄だけを差し替える。
+       行をまるごと作り直すと、窓に出ていない欄（受付日・問合せ方法・体験日・入園説明会日・
+       請求書状況・懸念点・追い状況・入園初日）が保存のたびに消え、
+       その欄から作っている配信カレンダーの予定も一緒に消えてしまうため。
+       区分（リード／在園児／退園児）を切り替えたときも、前の区分の記録はそのまま残す。 */
+    var arr=DB.contacts,nc={};
+    if(id){
+      var _old=arr.filter(function(x){return x.id===id;})[0]||{};
+      for(var _k in _old){if(Object.prototype.hasOwnProperty.call(_old,_k))nc[_k]=_old[_k];}
+    }
+    nc.id=id||Date.now();nc.kind=kind;
+    nc.name=$('#f_name').value.trim();nc.child=$('#f_child').value.trim();nc.dob=$('#f_dobTop').value;
+    nc.email=$('#f_email').value.trim();nc.phone=$('#f_phone').value.trim();nc.note=$('#f_note').value.trim();
     if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.nextMethod=$('#f_nmethod').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
     else{nc.paused=!!($('#f_paused')&&$('#f_paused').checked);
       nc.klass=$('#f_klass').value;nc.feeAmount=+$('#f_fee').value;nc.withdrawDay=+$('#f_wd').value;nc.admissionDate=$('#f_adm').value;var dop={};WEEK5.forEach(function(d){var g=m.querySelector('[data-dayo="'+d+'|go"]'),l=m.querySelector('[data-dayo="'+d+'|lunch"]'),lg=m.querySelector('[data-dayo="'+d+'|long"]');dop[d]={go:!!(g&&g.checked),lunch:!!(g&&g.checked&&l&&l.checked),long:!!(g&&g.checked&&lg&&lg.checked)};});
       nc.dayOpts=dop;nc.days=daysStrOf(dop);nc.lunch=dayCount(dop,'lunch')>0;nc.long=dayCount(dop,'long')>0;if(kind==='withdrawn')nc.withdrawDate=$('#f_wdate').value;}
     if(!nc.name||!nc.email){alert('保護者名とメールアドレスは必須です');return;}
-    var arr=DB.contacts;if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
+    if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
     DB.contacts=arr;
     try{if(pendingPhoto)photoSet(nc.id,pendingPhoto);else if(photoCleared)photoSet(nc.id,'');}catch(e){alert('写真を保存できませんでした（保存容量が不足している可能性があります）');}
     m.remove();renderContacts();
@@ -4523,11 +4651,14 @@ function sentMailModal(h){
 /* ---------- broadcast ---------- */
 var broadcastPreset=null,bTpl='dailyPre',bSel=null,bTodayOnly=false;
 /* テンプレートごとの表示権限（役割別）。管理者が設定→テンプレートの表示権限で調整可 */
-var TPL_PERMS_VERSION=1;
+var TPL_PERMS_VERSION=2;
 function tplPermsDefault(){
   var o={broadcast:{},mail:{}};
   bcastAll().forEach(function(x){o.broadcast[x.key]=x.daily?['管理者','マネージャー','一般']:['管理者','マネージャー'];});
-  mailTplKeys().forEach(function(k){o.mail[k]=['管理者','マネージャー'];});
+  /* 個別メールのひな形は、どの役職でも見られるようにする。
+     見せる相手を決める表を設定から外したので、ここを絞ったままにすると
+     先生の画面にひな形が1件も出ず、しかもそれを直す場所が無くなる。 */
+  mailTplKeys().forEach(function(k){o.mail[k]=['管理者','マネージャー','一般'];});
   return o;
 }
 function tplPerms(){var p=stGet('tplPerms',null);if(!p||stGet('tplPermsVersion',0)!==TPL_PERMS_VERSION){p=tplPermsDefault();stSet('tplPerms',p);stSet('tplPermsVersion',TPL_PERMS_VERSION);}return p;}
@@ -4719,14 +4850,20 @@ function tplCreateModal(){
     +'<div class="field" id="tc_toWrap"><label>送る相手</label><select id="tc_to"><option value="lead">問い合わせ・体験の方</option><option value="enrolled">在園のご家庭</option></select></div>'
     +'<div class="field"><label>題名</label><input id="tc_sub" placeholder="〔学校名〕　〇〇のご案内"></div>'
     +'<div class="field"><label>本文</label><textarea id="tc_body" rows="12" placeholder="〔お名前〕様&#10;&#10;いつもお世話になっております。"></textarea></div>'
-    +tplRoleFieldHtml('tc',defRoles)
+    +'<div id="tc_roleWrap" style="display:none;">'+tplRoleFieldHtml('tc',defRoles)+'</div>'
     +'<label>できあがり（差し込みを入れた見え方）</label><div class="preview" id="tc_prev" style="max-height:200px;"></div>'
     +'<div style="margin-top:14px;">'+tokenHelpHtml()+'</div>'
     +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;align-items:center;"><span class="muted" id="tc_msg" style="margin-right:auto;"></span><button class="btn" id="tc_cancel">やめる</button><button class="btn btn-primary" id="tc_save">'+ic('check')+'作成する</button></div>'
     +'</div>';
   function prev(){$('#tc_prev').textContent='題名: '+fillTokens($('#tc_sub').value,null,{})+'\n\n'+fillTokens($('#tc_body').value,null,{});}
   $('#tc_sub').oninput=prev;$('#tc_body').oninput=prev;prev();
-  $('#tc_kind').onchange=function(){$('#tc_toWrap').style.display=($('#tc_kind').value==='mail')?'':'none';};
+  /* 「見られる人」は全体周知・お知らせのときだけ出す。
+     個別メールのひな形は、どの役職でも見られる形にしたため。 */
+  $('#tc_kind').onchange=function(){
+    var isMail=($('#tc_kind').value==='mail');
+    $('#tc_toWrap').style.display=isMail?'':'none';
+    $('#tc_roleWrap').style.display=isMail?'none':'';
+  };
   $('#tc_cancel').onclick=function(){m.remove();};
   $('#tc_save').onclick=function(){
     var label=String($('#tc_label').value||'').replace(/^\s+|\s+$/g,''),sub=$('#tc_sub').value,body=$('#tc_body').value;
@@ -4743,7 +4880,7 @@ function tplCreateModal(){
     }
     var st=tplUserStore();st.custom.push(c);
     try{tplUserSave(st);}catch(e){$('#tc_msg').textContent='保存できませんでした（保存容量が不足している可能性があります）';return;}
-    tplSetPerm(kind,key,tplRoleRead('tc'));
+    tplSetPerm(kind,key,(kind==='mail')?STAFF_ROLES.slice():tplRoleRead('tc'));
     m.remove();renderTemplates();
   };
 }
@@ -4763,7 +4900,7 @@ function tplEditModal(kind,key){
     +(cst?'<div class="field"><label>ひな形の名前</label><input id="te_label" value="'+esc(cst.label)+'"></div>':'')
     +'<div class="field"><label>題名</label><input id="te_sub" value="'+esc(cur.subject)+'"></div>'
     +'<div class="field"><label>本文</label><textarea id="te_body" rows="14">'+esc(cur.body)+'</textarea></div>'
-    +tplRoleFieldHtml('te',perm)
+    +(isMail?'':tplRoleFieldHtml('te',perm))
     +'<label>できあがり（差し込みを入れた見え方）</label><div class="preview" id="te_prev" style="max-height:200px;"></div>'
     +'<div style="margin-top:14px;">'+tokenHelpHtml()+'</div>'
     +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;align-items:center;">'
@@ -4794,7 +4931,10 @@ function tplEditModal(kind,key){
       else s2[kind][key]={subject:sub,body:body,by:tplWho(),at:todayISO()};
     }
     try{tplUserSave(s2);}catch(e){$('#te_msg').textContent='保存できませんでした（保存容量が不足している可能性があります）';return;}
-    tplSetPerm(kind,key,tplRoleRead('te'));
+    /* 個別メールは欄を出していないので、読み取ると「管理者だけ」になってしまう。
+       ここで書き込まず、3つの役職すべてのままにしておく。 */
+    if(isMail)tplSetPerm(kind,key,STAFF_ROLES.slice());
+    else tplSetPerm(kind,key,tplRoleRead('te'));
     m.remove();renderTemplates();
   };
 }
@@ -4925,23 +5065,9 @@ function curActTypeBox(types){
   h+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><input id="curActNew" placeholder="例：わらべうた" style="max-width:240px;"><button class="btn btn-sm" id="curActAdd">'+ic('plus')+'追加</button></div>';
   return h+'</div></div>';
 }
-/* 月次項目（その月ひと月ぶんの登録）。
-   デイリーメールの決まった様式をやめたので、入力はこの画面に戻した。
-   入れた内容は、この画面の印刷（MTG配布用）に出る。
-   英語の欄は、使わない園は空のままでよい（園によって呼び方が違うため消してはいない）。 */
-function curMonthlyBox(){
-  var M=curMonthly(curClass);
-  function f(key,label){
-    return '<div class="field"><label>'+esc(label)+'</label><input data-cmon="'+esc(key)+'" value="'+String(M[key]||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>';
-  }
-  return '<div class="card" style="margin-bottom:14px;">'
-    +'<div style="font-size:13px;font-weight:600;margin-bottom:4px;">月次項目（'+esc(curClass)+'・月に1回登録）</div>'
-    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">英語の欄は、使わない園は空のままで大丈夫です。</div>'
-    +f('theme','今月のテーマ（Monthly Theme）')
-    +'<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('phonicsLetter','Phonics Letter')+f('phonicsSong','Phonics Song')+'</div>'
-    +'<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('songEN','Monthly Song（English）')+f('songJP','Monthly Song（Japanese）')+'</div>'
-    +'</div>';
-}
+/* 「月次項目（Monthly Theme・Phonics・Monthly Song）」の入力カードは、画面から外した。
+   インターナショナルスクール前提の様式で、日本語を基本にする方針と合わないため。
+   保存の仕組み（curMonthly / curMonthlySet）は、あとで戻せるように残してある。 */
 function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
   var y=+CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
@@ -4957,7 +5083,7 @@ function renderCurriculum(){
     for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
     bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   } else {
-    bodyHtml=curActTypeBox(types)+curMonthlyBox()+
+    bodyHtml=curActTypeBox(types)+
       '<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間のねらい・担当（'+curClass+'・月に1回登録）</div>'+
       types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+esc(t)+'</span><input data-actm="'+esc(t)+'|goal" value="'+esc(v(m.goal))+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+esc(t)+'|teacher" value="'+esc(v(m.teacher))+'" placeholder="担当" style="width:110px;"></div>';}).join('')+
       (types.length?'':'<div class="empty">まだ活動がありません。上の「活動内容を追加」から足すと、ここに入ります。</div>')+'</div>'+
@@ -4979,10 +5105,6 @@ function renderCurriculum(){
       (types.length?'':'<div class="empty">まだ活動がありません。上の「活動内容を追加」から足すと、週ごとの入力欄が、ここに入ります。</div>')+'</div>';
   }
   s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curPrint">'+ic('printer')+'印刷（MTG配布用）</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
-  /* 月次項目（今月のテーマ・Phonics・Monthly Song）の入力欄は、この画面に置いている。
-     デイリーメールの決まった様式をやめたので、入力できる場所をここ1か所にまとめた。
-     入れた内容は今までどおり保存され、この画面の印刷にも出る。 */
-  s.querySelectorAll('[data-cmon]').forEach(function(inp){inp.onchange=function(){curMonthlySet(curClass,inp.getAttribute('data-cmon'),inp.value);};});
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
   s.querySelectorAll('[data-ctab]').forEach(function(b){b.onclick=function(){curTab=b.getAttribute('data-ctab');renderCurriculum();};});
   s.querySelectorAll('[data-cw]').forEach(function(b){b.onclick=function(){curWeek=b.getAttribute('data-cw');renderCurriculum();};});
@@ -5166,22 +5288,48 @@ function helpLogHTML(){
     +Object.keys(byRole).map(function(r){return esc(r)+' '+byRole[r];}).join('　')+'</div>'
     +'<div style="margin-top:12px;"><button class="btn btn-sm btn-ghost" id="helpLogClear">記録を消す</button></div></div>';
 }
+/* 園の基本情報のうち、まだ入っていないものを並べる。
+   空のまま送ると、園名や連絡先が抜けたメールが保護者に届いてしまうため。 */
+function setupMissing(){
+  var need=[{k:'school',l:'学校名'},{k:'sender',l:'送信元アドレス'},{k:'manager',l:'担当者名'},
+            {k:'tel',l:'電話番号'},{k:'address',l:'所在地'}];
+  var out=[];
+  need.forEach(function(x){if(!String(SET[x.k]||'').trim())out.push(x.l);});
+  return out;
+}
+function setupWarnHTML(){
+  var m=setupMissing();
+  if(!m.length)return '';
+  return '<div class="card" style="max-width:820px;margin-bottom:16px;background:#FCEBEB;border:1px solid #E8C9C9;">'
+    +'<h3 style="color:#A32D2D;">'+ic('alert')+'園の基本情報が未設定です</h3>'
+    +'<div style="font-size:12.5px;color:#A32D2D;line-height:1.9;">'
+    +'まだ入っていない項目：<b>'+esc(m.join('・'))+'</b><br>'
+    +'このままメールや請求書を出すと、園名や連絡先が空欄のまま保護者に届きます。'
+    +'下の「送信設定」に入れてから「保存」を押してください。</div></div>';
+}
 function renderSettings(){
   var s=$('section[data-page="settings"]');
-  function f(id,lab,val){return '<div class="field"><label>'+lab+'</label><input id="'+id+'" value="'+(val||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>';}
+  /* ph は、まだ何も入っていないときに薄く出す案内。何を書けばよいかが分かるようにする */
+  function f(id,lab,val,ph){
+    function q(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+    return '<div class="field"><label>'+lab+'</label><input id="'+id+'" value="'+q(val)+'"'+(ph?' placeholder="'+q(ph)+'"':'')+'></div>';}
   s.innerHTML=
+    setupWarnHTML()+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('send')+'送信設定</h3>'+
-      f('s_sender','送信元アドレス',SET.sender)+f('s_bcc','BCC（本部共有・全送信に自動付与）',SET.bcc)+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_school','学校名',SET.school)+f('s_manager','担当者名（署名）',SET.manager)+'</div></div>'+
+      '<div class="muted" style="margin-bottom:10px;font-size:12px;">メールや請求書に差し込まれる、園の基本情報です。ここが空のままだと、保護者に届く文面も空欄になります。</div>'+
+      f('s_sender','送信元アドレス',SET.sender,'例：info@（園のメールアドレス）')+f('s_bcc','BCC（本部共有・全送信に自動付与）',SET.bcc,'例：honbu@（控えを受け取るメールアドレス）')+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_school','学校名',SET.school,'例：〇〇インターナショナルスクール 〇〇校')+f('s_manager','担当者名（署名）',SET.manager,'例：山田')+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_tel','電話番号',SET.tel,'例：03-1234-5678')+f('s_access','最寄り駅からの道のり',SET.access,'例：〇〇線 〇〇駅 徒歩約5分')+'</div>'+
+      f('s_address','所在地',SET.address,'〒000-0000 〇〇県〇〇市〇〇1-2-3 〇〇ビル2階')+'</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'振込口座（請求書・振込お願いで自動差し込み）</h3>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_bankName','金融機関名',SET.bankName)+f('s_bankBranch','支店名',SET.bankBranch)+'</div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_bankType','種類',SET.bankType)+f('s_bankNo','口座番号',SET.bankNo)+f('s_bankHolder','口座名義',SET.bankHolder)+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_bankName','金融機関名',SET.bankName,'例：〇〇銀行')+f('s_bankBranch','支店名',SET.bankBranch,'例：〇〇支店')+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_bankType','種類',SET.bankType,'例：普通')+f('s_bankNo','口座番号',SET.bankNo,'例：1234567')+f('s_bankHolder','口座名義',SET.bankHolder,'例：カ）〇〇ガクエン')+'</div>'+
       '<div class="muted">口座番号は各端末のブラウザにのみ保存され、公開ページのソースには含まれません。</div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('photo')+'写真販売・預かり保育・アンケート</h3>'+
-      f('s_photoUrl','写真販売のページ URL',SET.photoUrl)+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre)+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder)+'</div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal)+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt)+f('s_dcL','昼食（ランチ）料金',SET.daycareLunch)+'</div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl)+f('s_survey','アンケートURL',SET.surveyUrl)+'</div></div>'+
+      f('s_photoUrl','写真販売のページ URL',SET.photoUrl,'例：https://（写真販売のページ）')+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre,'例：pre2026')+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder,'例：kinder2026')+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal,'例：5,500')+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt,'例：6,600')+f('s_dcL','昼食（ランチ）料金',SET.daycareLunch,'例：550')+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl,'例：https://（申込フォーム）')+f('s_survey','アンケートURL',SET.surveyUrl,'例：https://（アンケート）')+'</div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。ランチ・ロングステイなど、園に合わせて自由に追加・変更・削除できます。</div><div class="muted" style="margin-bottom:10px;font-size:11.5px;">「通園曜日から自動」にしたオプションは、登園シートでは変更できません（すでに記録がある日は、その日の記録がそのまま残ります）。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類です。園に合わせて足したり、名前を変えたりできます。</div><div id="actTypeBox"></div></div>'+
     (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
@@ -5196,9 +5344,9 @@ function renderSettings(){
         '<span id="s_logoPrev" style="display:inline-flex;align-items:center;justify-content:center;min-width:120px;height:52px;border:1px dashed var(--line);border-radius:8px;background:#fff;">'+(SET.invLogo?'<img src="'+SET.invLogo+'" style="max-width:150px;max-height:48px;object-fit:contain;">':'<span class="muted" style="font-size:11px;">未設定</span>')+'</span>'+
         '<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'ロゴを選ぶ<input type="file" id="s_logo" accept="image/*" style="display:none;"></label>'+
         '<button class="btn btn-sm btn-ghost" id="s_logoDel">'+ic('trash')+'削除</button><span class="muted" id="s_logoMsg" style="font-size:11.5px;">横長のロゴを推奨（自動で縮小されます）</span></div></div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_coName','会社名・園名',SET.invCoName||SET.school)+f('s_regNo','登録番号（インボイス）',SET.invRegNo)+'</div>'+
-      f('s_coAddr','住所',SET.invCoAddr)+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_coTel','電話番号',SET.invCoTel)+f('s_coMail','メールアドレス',SET.invCoMail)+f('s_coRep','代表者名',SET.invCoRep)+'</div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_coName','会社名・園名',SET.invCoName||SET.school,'例：株式会社〇〇')+f('s_regNo','登録番号（インボイス）',SET.invRegNo,'例：T1234567890123')+'</div>'+
+      f('s_coAddr','住所',SET.invCoAddr,'例：〒000-0000 〇〇県〇〇市〇〇1-2-3')+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_coTel','電話番号',SET.invCoTel,'例：03-1234-5678')+f('s_coMail','メールアドレス',SET.invCoMail,'例：info@（園のメールアドレス）')+f('s_coRep','代表者名',SET.invCoRep,'例：山田 太郎')+'</div>'+
       '<div class="field"><label>挨拶文（請求書の冒頭）</label><textarea id="s_greet" rows="3">'+esc(SET.invGreeting||'')+'</textarea></div>'+
       '<div class="field"><label>注意書き（請求書の末尾）</label><textarea id="s_ifoot" rows="2">'+esc(SET.invFooter||'')+'</textarea></div>'+
       '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin:6px 0 8px;"><input type="checkbox" id="s_useAgency" style="width:auto;"'+(SET.invUseAgency?' checked':'')+'>収納代行会社を利用する（お支払先を収納会社の情報に切り替えます）</label>'+
@@ -5206,25 +5354,28 @@ function renderSettings(){
         '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_agName','収納会社名',SET.invAgencyName)+f('s_agTel','収納会社 電話番号',SET.invAgencyTel)+'</div>'+
         f('s_agAddr','収納会社 住所',SET.invAgencyAddr)+f('s_agBank','収納会社 振込先・お支払い方法',SET.invAgencyBank)+
       '</div></div>'+
-    '<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('photo')+'文字読み取り（OCR）</h3>'+
-      '<div class="muted" style="margin-bottom:10px;">紙に書かれた文字を、自動で読み取る機能です。接続先（URL）を登録すると使えます。未登録でも、紙の画像の保管・印刷はそのまま使えます。</div>'+
-      f('s_ocr','読み取りサービスの接続先URL',SET.ocrEndpoint)+
-      '<div class="muted" style="font-size:11.5px;">※ 画像を送信して文字を受け取る仕組みのため、外部サービス（Google Cloud Vision 等）またはバックエンドの用意が必要です。手書き文字の読み取り精度は書き方により差があります。</div></div>'+
     '<button class="btn btn-primary" id="s_save">'+ic('check')+'保存</button> <span class="muted" id="s_msg"></span>';
   s.innerHTML+=helpLogHTML();
   var hc=$('#helpLogClear');
   if(hc)hc.onclick=function(){if(confirm('使い方サポートの記録を消しますか。')){stSet('help_log',[]);stSet('help_esc',[]);renderSettings();}};
   $('#s_save').onclick=function(){
     SET.sender=$('#s_sender').value;SET.bcc=$('#s_bcc').value;SET.school=$('#s_school').value;SET.manager=$('#s_manager').value;
+    SET.tel=$('#s_tel').value;SET.address=$('#s_address').value;SET.access=$('#s_access').value;
     SET.bankName=$('#s_bankName').value;SET.bankBranch=$('#s_bankBranch').value;SET.bankType=$('#s_bankType').value;SET.bankNo=$('#s_bankNo').value;SET.bankHolder=$('#s_bankHolder').value;
     SET.photoUrl=$('#s_photoUrl').value;SET.photoCodePre=$('#s_photoPre').value;SET.photoCodeKinder=$('#s_photoKinder').value;
-    SET.ocrEndpoint=$('#s_ocr').value.trim();
     SET.invCoName=$('#s_coName').value;SET.invRegNo=$('#s_regNo').value;SET.invCoAddr=$('#s_coAddr').value;
     SET.invCoTel=$('#s_coTel').value;SET.invCoMail=$('#s_coMail').value;SET.invCoRep=$('#s_coRep').value;
     SET.invGreeting=$('#s_greet').value;SET.invFooter=$('#s_ifoot').value;SET.invUseAgency=$('#s_useAgency').checked;
     SET.invAgencyName=$('#s_agName').value;SET.invAgencyTel=$('#s_agTel').value;SET.invAgencyAddr=$('#s_agAddr').value;SET.invAgencyBank=$('#s_agBank').value;
     SET.daycareFeeNormal=$('#s_dcN').value;SET.daycareFeeExt=$('#s_dcE').value;SET.daycareLunch=$('#s_dcL').value;SET.daycareFormUrl=$('#s_form').value;SET.surveyUrl=$('#s_survey').value;
-    DB.settings=SET;$('#s_msg').textContent='保存しました';setTimeout(function(){$('#s_msg').textContent='';},1800);
+    DB.settings=SET;
+    /* サイドバーの園名と送信元を、その場で新しくする */
+    try{applyBrand();}catch(e){}
+    /* 「園の基本情報が未設定です」の知らせを新しくするため、設定の画面を作り直す。
+       作り直すと「保存しました」も消えてしまうので、作り直してから出す。 */
+    renderSettings();
+    var msg=$('#s_msg');
+    if(msg){msg.textContent='保存しました';setTimeout(function(){var m2=$('#s_msg');if(m2)m2.textContent='';},1800);}
   };
   function renderOpts(){
     var AUTO_LABEL={'':'手動（タップで選ぶ）','lunch':'ランチ（通園曜日から自動）','long':'ロングステイ（通園曜日から自動）'};
@@ -5306,7 +5457,6 @@ function renderSettings(){
   if(typeof renderExpenseSettings==='function')renderExpenseSettings(s);
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
   if(typeof renderOptionSettings==='function')renderOptionSettings(s);
-  if(typeof renderServerSettings==='function')renderServerSettings(s);
   if(typeof renderScanArchiveSettings==='function')renderScanArchiveSettings(s);
   /* バックアップは全園児のデータを丸ごと持ち出せる。
      シート41行のとおり管理者だけにする。 */
@@ -5594,11 +5744,12 @@ function autoAttendKey(op){
 }
 function isAutoAttendOpt(op){return !!autoAttendKey(op);}
 function renderRecords(){renderRecGroup('records',REC_DAILY,'毎日記録する項目です。');}
-function renderCareRec(){renderRecGroup('carerec',REC_CARE,'月ごと・都度・3ヶ月ごとに記録する項目です。');}
+function renderCareRec(){renderRecGroup('carerec',REC_CARE,'毎日ではなく、月ごと・そのつど書く記録です。上のタブで切り替えます。');}
 /* ========== 紙の記録のスキャン保存 ==========
    現場で紙に書いた記録を撮影／スキャンして、その記録・日付に紐づけて保管する。
    対象：毎日使い、紙のほうが早い記録（登園・安全点検・午睡・健康・業務日報・ヒヤリハット）
-   データ: recScans = { 'rec_キー|日付': [{img, at, by, note, ocr}] } */
+   データ: recScans = { 'rec_キー|日付': [{img, at, by, note, ocr}] }
+   ocr は、以前あった文字読み取りの結果。機能は外したが、書いてあるものは消さない */
 var SCAN_TARGETS={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','業務日報・保育日誌':'rec_日報'};
 /* ヒヤリハット・怪我は落ち着いてから書く記録で文字量が多く、読み取りに失敗しやすいので取り込みの対象外。
    ただし紙で書きたい現場もあるため、記入用紙の印刷だけは残す */
@@ -5621,7 +5772,7 @@ function weekMonISO(d){
 }
 function scanDateOf(type){
   if(type==='身体測定')return recMonth;
-  if(type==='生徒個人発達記録')return recQuarter;
+  if(type==='生徒個人発達記録')return recDevMonth;
   if(type==='安全点検')return String(recDate||todayISO()).slice(0,7);
   /* 業務日報・保育日誌の紙は1週間まとめの様式。週1枚の紙が曜日ごとに散らばらないよう、その週の月曜日をキーにする */
   if(type==='業務日報・保育日誌')return weekMonISO(recDate||todayISO());
@@ -5651,17 +5802,6 @@ function scanResize(file,cb){
   rd.onerror=function(){cb(new Error('ファイルを読み込めませんでした'));};
   rd.readAsDataURL(file);
 }
-/* 文字の自動読み取り（OCR）。接続先が未設定のときは案内のみ */
-function ocrExtract(dataUri,cb){
-  var ep=(SET.ocrEndpoint||'').trim();
-  if(!ep){cb(new Error('未設定'));return;}
-  try{
-    fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:dataUri})})
-      .then(function(r){return r.json();})
-      .then(function(j){cb(null,(j&&(j.text||j.result))||'');})
-      .catch(function(e){cb(e);});
-  }catch(e){cb(e);}
-}
 function scanCard(type){
   var date=scanDateOf(type),list=scansOf(type,date);
   if(!SCAN_TARGETS[type])return '';
@@ -5674,15 +5814,13 @@ function scanCard(type){
     +(type==='安全点検'?'記入用紙は1ヶ月分の月間表です。1ヶ月分の記録が終わったらまとめて取り込みます。上の日付で選んでいる月の分として保管されますので、前の月の紙を取り込むときは、日付をその月に変えてください。'
       :type==='業務日報・保育日誌'?'記入用紙は1週間（月〜金）まとめの様式です。1枚の紙は、上の日付を含む週の分としてまとめて保管されます。週のどの日を選んでいても同じ場所に入ります。'
       :'紙に書いた記録をそのまま撮影して保管できます。監査時は画面でも印刷でも提示できます。')
-    +(SET.ocrEndpoint?'　文字の自動読み取りが有効です。':'　※文字の自動読み取り（OCR）は「設定 → 文字読み取り（OCR）」で接続先を登録すると使えます。')+'</div>'
+    +'</div>'
     +'<div id="scanList" style="display:flex;gap:10px;flex-wrap:wrap;">'
     +(list.length?list.map(function(x,i){
       return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;width:190px;">'
         +'<img src="'+x.img+'" data-scanview="'+esc(i)+'" style="width:100%;height:120px;object-fit:cover;border-radius:6px;cursor:zoom-in;">'
         +'<div class="row-sub" style="margin-top:5px;font-size:11px;">'+esc(x.at||'')+(x.by?'　'+esc(x.by):'')+'</div>'
-        +(x.ocr?'<div class="row-sub" style="font-size:11px;color:#0B5F8F;">読み取り済み</div>':'')
         +'<div style="display:flex;gap:5px;margin-top:5px;">'
-          +'<button class="btn btn-sm btn-ghost" data-scanocr="'+esc(i)+'" style="font-size:11px;padding:3px 7px;">読み取り</button>'
           +'<button class="btn btn-sm btn-ghost" data-scandel="'+esc(i)+'" style="font-size:11px;padding:3px 7px;">'+ic('trash')+'</button></div></div>';}).join('')
       :'<div class="muted" style="font-size:12px;">まだ取り込んだ紙はありません。</div>')
     +'</div><div class="muted" id="scanMsg" style="margin-top:8px;font-size:12px;"></div></div>';
@@ -5717,7 +5855,6 @@ function wireScan(type){
     var x=scansOf(type,date)[+im.getAttribute('data-scanview')];if(!x)return;
     var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
     m.innerHTML='<div class="modal" style="width:min(880px,94vw);"><h2>取り込んだ紙の記録</h2><img src="'+x.img+'" style="width:100%;border-radius:8px;">'
-      +(x.ocr?'<div class="field" style="margin-top:10px;"><label>読み取った文字</label><textarea rows="5" readonly>'+esc(x.ocr)+'</textarea></div>':'')
       +'<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn" id="svClose">閉じる</button></div></div>';
     m.addEventListener('click',function(ev){if(ev.target===m)m.remove();});
     $('#svClose').onclick=function(){m.remove();};
@@ -5726,21 +5863,6 @@ function wireScan(type){
     if(!confirm('この画像を削除しますか？'))return;
     var l=scansOf(type,date);l.splice(+b.getAttribute('data-scandel'),1);scansSet(type,date,l);
     renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?REC_CARE:REC_DAILY);
-  };});
-  document.querySelectorAll('[data-scanocr]').forEach(function(b){b.onclick=function(){
-    var i=+b.getAttribute('data-scanocr'),l=scansOf(type,date),x=l[i];if(!x)return;
-    $('#scanMsg').textContent='読み取り中…';
-    ocrExtract(x.img,function(err,text){
-      if(err){
-        $('#scanMsg').innerHTML=(err.message==='未設定')
-          ?'文字の自動読み取りは、<b>設定 → 文字読み取り（OCR）</b> に接続先を登録すると使えます（外部の読み取りサービスが必要です）。'
-          :'読み取りに失敗しました：'+esc(err.message);
-        return;
-      }
-      x.ocr=text||'';l[i]=x;scansSet(type,date,l);
-      $('#scanMsg').textContent='読み取りました。画像をタップすると内容を確認できます。';
-      renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?REC_CARE:REC_DAILY);
-    });
   };});
   var bp=$('#blankPrint');if(bp)bp.onclick=function(){printBlankForm(type);};
   var sp=$('#scanPrint');
@@ -5789,8 +5911,8 @@ function bfKidCells(c,i,fs){
     +'<td style="'+f+'white-space:nowrap;text-align:center;">'+esc(bfDob(c.dob))+'</td>'
     +'<td style="'+f+'white-space:nowrap;text-align:center;'+bfAgeStyle(lb)+'">'+esc(lb)+'</td>';
 }
-/* 英語を併記するかどうか。
-   既定は日本語だけ。インターの園は 設定 →「英語を併記する」で足せる。
+/* 英語表記を足すかどうか。
+   既定は日本語だけ。インターの園は 設定 →「表示のことば」の「英語表記を追加する」で足せる。
    （2026-08-17 決定。これまで記入用紙は英語が前提だった） */
 function bilingual(){ return !!(SET && SET.bilingual); }
 /* 日本語の見出しに、必要なときだけ英語を小さく添える */
@@ -6087,6 +6209,8 @@ function renderRecGroup(page,list,note){
   if(!recDate)recDate=todayISO();
   if(!recMonth)recMonth=todayISO().slice(0,7);
   if(!recQuarter)recQuarter=curQuarter();
+  /* 生徒個人発達記録は毎月に変えたので、四半期（虐待防止チェックで使う）とは別に月を持つ */
+  if(!recDevMonth)recDevMonth=todayISO().slice(0,7);
   if(list.indexOf(recType)<0)recType=list[0];
   /* #recBody が両ページに重複しないよう、もう一方のグループは空にする */
   var other=$('section[data-page="'+(page==='records'?'carerec':'records')+'"]');
@@ -6382,7 +6506,9 @@ function edBody(){
   $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select><button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
     '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+
-    (kids.length?kids.map(function(c){var r=rowOf(c.id);return '<tr><td class="row-name">'+childName(c)+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+c.klass+'</td>'+
+    (kids.length?kids.map(function(c){var r=rowOf(c.id);
+      /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
+      return '<tr><td class="row-name">'+esc(childFullName(c))+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+c.klass+'</td>'+
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"></td>'+
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
@@ -6392,7 +6518,7 @@ function edBody(){
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
   document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
   $('#bmPrint').onclick=function(){
-    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+childName(c)+'</td><td>'+c.klass+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
+    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+esc(childFullName(c))+'</td><td>'+c.klass+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
   };
   $('#bmShare').onclick=function(){
@@ -6431,6 +6557,25 @@ function edHiyari(){
   /* 記録の追加・削除で画面を描き直すので、記入用紙のカードを付け直す */
   attachRecPaperCard();
 }
+/* 怪我・ヒヤリハットの記録は、園児を「名前の文字」で保存している（番号ではない）。
+   同じ名前の園児がいると取り違えるので、選ぶときは姓＋名のフルネームで出す。
+   これまでの記録は名前だけで入っているため、
+   ・名前だけでも、その園児がひとりしかいなければ選ばれた状態にする
+   ・どれにも当たらないときは、保存されている名前を先頭にそのまま残す
+   こうしないと、開いて保存し直しただけで、書いてあった園児の名前が消えてしまう。 */
+function hyChildOpts(kids,cur){
+  var same={},i,n,fn,sn,on,body='',hit=false;
+  for(i=0;i<kids.length;i++){n=childName(kids[i]);same[n]=(same[n]||0)+1;}
+  for(i=0;i<kids.length;i++){
+    fn=childFullName(kids[i]);sn=childName(kids[i]);
+    on=(cur===fn)||(cur===sn&&same[sn]===1);
+    if(on)hit=true;
+    body+='<option value="'+esc(fn)+'"'+(on?' selected':'')+'>'+esc(fn)+'</option>';
+  }
+  n='<option value="">—</option>';
+  if(cur&&!hit)n+='<option value="'+esc(cur)+'" selected>'+esc(cur)+'（記録に入っている名前）</option>';
+  return n+body;
+}
 function hiyariModal(idx,log,K){
   var kids=enrolled();
   var r=idx!=null?JSON.parse(JSON.stringify(log[idx])):{date:recDate,time:'',child:'',types:[],other:'',content:'',treatment:'',future:'',remarks:'',by:'',marks:[]};
@@ -6441,7 +6586,7 @@ function hiyariModal(idx,log,K){
   function collect(){if($('#hy_content')){r.date=$('#hy_date').value;r.time=$('#hy_time').value;r.child=$('#hy_child').value;r.other=$('#hy_other').value;r.content=$('#hy_content').value;r.treatment=$('#hy_treat').value;r.future=$('#hy_future').value;r.remarks=$('#hy_remarks').value;r.by=$('#hy_by').value;}}
   function render(){
     m.innerHTML='<div class="modal" style="width:680px;"><h2>怪我・発熱等 記録</h2>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1.2fr;"><div class="field"><label>発生日</label><input type="date" id="hy_date" value="'+esc((r.date||''))+'"></div><div class="field"><label>時刻</label><input id="hy_time" value="'+esc(v(r.time))+'" placeholder="10:30頃"></div><div class="field"><label>児童</label><select id="hy_child"><option value="">—</option>'+kids.map(function(c){return '<option'+(childName(c)===r.child?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select></div></div>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1.2fr;"><div class="field"><label>発生日</label><input type="date" id="hy_date" value="'+esc((r.date||''))+'"></div><div class="field"><label>時刻</label><input id="hy_time" value="'+esc(v(r.time))+'" placeholder="10:30頃"></div><div class="field"><label>児童</label><select id="hy_child">'+hyChildOpts(kids,r.child)+'</select></div></div>'+
       '<div class="field"><label>内容</label><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">'+['怪我','発熱','ヒヤリハット'].map(function(t){var on=r.types.indexOf(t)>-1;return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" data-hytype="'+esc(t)+'" style="width:auto;"'+(on?' checked':'')+'>'+t+'</label>';}).join('')+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;">その他<input id="hy_other" value="'+esc(v(r.other))+'" style="width:150px;"></label></div></div>'+
       '<div class="grid" style="grid-template-columns:1.4fr 1fr;align-items:start;">'+
         '<div><div class="field"><label>内容（状況）</label><textarea id="hy_content" rows="2">'+esc((r.content||''))+'</textarea></div>'+
@@ -6470,35 +6615,129 @@ var DEV_CATS=[
   {cat:'発育・発達',items:[['保育者とのやりとりを繰り返し楽しむ',['できる','育ちつつある','まだ難しい']],['保育者に甘える／泣いて助けを求める',['できる','育ちつつある','まだ難しい']],['保育者に興味をもち模倣しようとする',['できる','育ちつつある','まだ難しい']],['しぐさや言葉で気持ちを伝えようとする',['できる','育ちつつある','まだ難しい']],['保育者の言葉を繰り返そうとする',['できる','育ちつつある','まだ難しい']],['座って待つことができる',['できる','育ちつつある','まだ難しい']],['話しかけられた時に目を見て聞ける',['できる','育ちつつある','まだ難しい']]]}
 ];
 var devChild=null;
+/* 生徒個人発達記録は「3ヶ月ごと」から「毎月」に変えた（毎月と決めている自治体があるため）。
+   これまでは「2026-Q3」のような3ヶ月ごとの鍵で保存していた。
+   その記録は監査で出すものなので消さない。選ぶ欄にも残して、開いて印刷できるようにしてある。 */
+var recDevMonth=null;
+function devIsMonth(k){return /^\d{4}-\d{2}$/.test(String(k==null?'':k));}
+function devIsQuarter(k){return /^\d{4}-Q[1-4]$/.test(String(k==null?'':k));}
+function devQFirst(k){var p=String(k).split('-Q');return p[0]+'-'+pad(+p[1]*3-2);}
+function devQLast(k){var p=String(k).split('-Q');return p[0]+'-'+pad(+p[1]*3);}
+/* 1つ前の月。年をまたぐときは前の年の12月にする */
+function devPrevMonth(m){
+  var p=String(m).split('-'),y=+p[0],mm=+p[1]-1;
+  if(mm<1){mm=12;y--;}
+  return y+'-'+pad(mm);
+}
+/* 画面と紙に出す期間の名前。3ヶ月ごとのころの記録は、そうと分かるように書く */
+function devPeriodLabel(k){
+  if(devIsMonth(k))return (+String(k).slice(0,4))+'年'+(+String(k).slice(5,7))+'月';
+  if(devIsQuarter(k)){var p=String(k).split('-Q');return p[0]+'年'+(+p[1]*3-2)+'〜'+(+p[1]*3)+'月（3ヶ月ごとのころの記録）';}
+  return String(k==null?'':k);
+}
+/* 並べ替えのための文字。3ヶ月ごとの記録は、その最初の月のところに置く */
+function devSortKey(k){return devIsQuarter(k)?devQFirst(k)+'-0':devIsMonth(k)?k+'-1':String(k==null?'':k);}
+/* 選べる月：前年度の4月から、今年度の3月まで（24ヶ月ぶん） */
+function devMonthList(){
+  var now=addDays(0),y=now.getFullYear(),m=now.getMonth()+1;
+  var fy=(m>=4)?y:y-1;          /* 今年度。4月はじまりで数える */
+  var st=fy-1,a=[],i,yy,mm;
+  for(i=0;i<24;i++){
+    yy=st+Math.floor((3+i)/12);
+    mm=((3+i)%12)+1;
+    a.push(yy+'-'+pad(mm));
+  }
+  return a;
+}
+/* その記録に、選んだ項目が1つでも入っているか。
+   空の記録を「前回の記録」として写しても何も入らないので、候補から外すために使う */
+function devHasItems(r){
+  var it=(r&&r.items)||{},k;
+  for(k in it){if(Object.prototype.hasOwnProperty.call(it,k)&&it[k])return true;}
+  return false;
+}
+/* いま選んでいる月より前で、その園児のいちばん近い記録の鍵を返す。無ければ空の文字。
+   月の記録だけでなく、3ヶ月ごとのころの記録も候補に入れる。
+   いま選んでいる月を含む四半期の記録は「すぐ前の記録」として扱う。その月のことが書いてあるため。
+   同じ近さなら、月の記録のほうを先に選ぶ（そちらが細かいため）。 */
+function devPrevKey(all,sel){
+  if(!all||!sel)return '';
+  var selFirst=devIsQuarter(sel)?devQFirst(sel):String(sel);
+  var best='',bestPos='',bestRank=0,k,pos,rank;
+  for(k in all){
+    if(!Object.prototype.hasOwnProperty.call(all,k))continue;
+    if(k===sel)continue;
+    if(!devHasItems(all[k]))continue;
+    pos='';rank=0;
+    if(devIsMonth(k)){if(k<selFirst){pos=k;rank=2;}}
+    else if(devIsQuarter(k)){
+      if(devQLast(k)<selFirst){pos=devQLast(k);rank=0;}
+      else if(devQFirst(k)<=selFirst){pos=devPrevMonth(selFirst);rank=1;}
+    }
+    if(!pos)continue;
+    if(pos>bestPos||(pos===bestPos&&rank>bestRank)){best=k;bestPos=pos;bestRank=rank;}
+  }
+  return best;
+}
 function edDev(){
   var K='rec_発達',data=stGet(K,{});
-  if(!recQuarter)recQuarter=curQuarter();
+  if(!recDevMonth)recDevMonth=todayISO().slice(0,7);
   var kids=enrolled();
   if(!devChild&&kids.length)devChild=kids[0].id;
-  var rec=(data[devChild]&&data[devChild][recQuarter])||{items:{},memo:'',by:''};
+  var mine=data[devChild]||{};
+  var rec=mine[recDevMonth]||{items:{},memo:'',by:''};
   var cur=kids.filter(function(c){return c.id===devChild;})[0];
-  var y=addDays(0).getFullYear();var qs=[];[y-1,y].forEach(function(yy){[1,2,3,4].forEach(function(q){qs.push(yy+'-Q'+q);});});
-  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（3ヶ月ごと）','<select id="dvChild" style="width:150px;">'+kids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===devChild?' selected':'')+'>'+childName(c)+'</option>';}).join('')+'</select><select id="dvQ" style="width:150px;">'+qs.map(function(q){return '<option'+(q===recQuarter?' selected':'')+'>'+q+'</option>';}).join('')+'</select><button class="btn btn-sm" id="dvPrint">'+ic('printer')+'選択児童を出力</button><button class="btn btn-sm btn-primary" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>')+
-    (cur?'<div class="muted" style="margin-bottom:10px;">監査書類（生徒個人発達記録）に対応します。</div>':'<div class="empty">在園児がいません</div>')+
+  /* 選べる期間は、各月に加えて、その園児がすでに書いた期間（3ヶ月ごとのころを含む）も並べる。
+     並べないと、昔の記録が画面から開けなくなり、監査のときに出せなくなる */
+  var periods=devMonthList(),pk;
+  for(pk in mine){if(Object.prototype.hasOwnProperty.call(mine,pk)&&periods.indexOf(pk)<0)periods.push(pk);}
+  if(periods.indexOf(recDevMonth)<0)periods.push(recDevMonth);
+  periods.sort(function(a,b){var x=devSortKey(a),y=devSortKey(b);return x<y?-1:x>y?1:0;});
+  var prevKey=cur?devPrevKey(mine,recDevMonth):'';
+  $('#recBody').innerHTML='<div class="card">'+recHead('生徒個人発達記録（毎月）',
+    '<select id="dvChild" style="width:170px;">'+kids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===devChild?' selected':'')+'>'+esc(childFullName(c))+'</option>';}).join('')+'</select>'+
+    '<select id="dvQ" style="width:230px;">'+periods.map(function(q){return '<option value="'+esc(q)+'"'+(q===recDevMonth?' selected':'')+'>'+esc(devPeriodLabel(q))+'</option>';}).join('')+'</select>'+
+    /* 写せる記録が無いときは押せないようにする。押しても何も起きない、をやらないため */
+    '<button class="btn btn-sm" id="dvPrev"'+(prevKey?'':' disabled')+' title="'+esc(prevKey?devPeriodLabel(prevKey)+'の記録を写します':'写せる前の記録がありません')+'">'+ic('clipboard')+'前回の記録を反映</button>'+
+    '<button class="btn btn-sm" id="dvPrint">'+ic('printer')+'選択児童を出力</button>'+
+    '<button class="btn btn-sm btn-primary" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>')+
+    (cur?'<div class="muted" style="margin-bottom:10px;">いま開いているのは <b>'+esc(childFullName(cur))+'</b> さんの '+esc(devPeriodLabel(recDevMonth))+' の記録です。毎月記録します。監査書類（生徒個人発達記録）に対応します。'
+        +(prevKey?'<br>「前回の記録を反映」を押すと、'+esc(devPeriodLabel(prevKey))+'の記録を写せます。':'<br>この園児には、写せる前の記録がありません。そのため「前回の記録を反映」は押せません。')
+        +'</div>':'<div class="empty">在園児がいません</div>')+
     (cur?DEV_CATS.map(function(c,ci){return '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:13px;background:#F1EFE8;padding:6px 10px;border-radius:6px;margin-bottom:2px;">'+c.cat+'</div><table><tbody>'+
       c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+esc(key)+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+(rec.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="dvBy" value="'+(rec.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>':'')+'</div>';
-  function save(){data[devChild]=data[devChild]||{};data[devChild][recQuarter]=rec;stSet(K,data);}
+  function save(){data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
   $('#dvChild').onchange=function(e){devChild=+e.target.value;edDev();};
-  $('#dvQ').onchange=function(e){recQuarter=e.target.value;edDev();};
+  $('#dvQ').onchange=function(e){recDevMonth=e.target.value;edDev();};
+  /* 前回の記録を写す。写すのは各項目の選び方だけ。
+     メモと記録者は、その月に書いたことなので写さない（前の月の文章が残ると事実と食い違うため）。 */
+  if($('#dvPrev'))$('#dvPrev').onclick=function(){
+    if(!prevKey)return;
+    var src=mine[prevKey];
+    if(!src||!devHasItems(src))return;
+    if(!confirm(devPeriodLabel(prevKey)+'の記録を、'+devPeriodLabel(recDevMonth)+'に写します。\n'
+      +'いま入っている各項目の選び方は上書きされます。\n'
+      +'メモと記録者は写しません。\n\nよろしいですか？'))return;
+    var it={},sk;
+    for(sk in src.items){if(Object.prototype.hasOwnProperty.call(src.items,sk))it[sk]=src.items[sk];}
+    rec.items=it;
+    save();
+    edDev();
+  };
   document.querySelectorAll('[data-dv]').forEach(function(sl){sl.onchange=function(){rec.items[sl.getAttribute('data-dv')]=sl.value;save();};});
   if($('#dvMemo'))$('#dvMemo').onchange=function(e){rec.memo=e.target.value;save();};
   if($('#dvBy'))$('#dvBy').onchange=function(e){rec.by=e.target.value;save();};
   $('#dvPrint').onclick=function(){
-    var body='<p>'+(cur?childName(cur)+'（'+ageClassOf(cur)+'）':'')+'　記録：'+recQuarter+'　記録者：'+(rec.by||'')+'</p>'+
+    var body='<p>'+(cur?esc(childFullName(cur))+'（'+ageClassOf(cur)+'）':'')+'　記録：'+esc(devPeriodLabel(recDevMonth))+'　記録者：'+esc(rec.by||'')+'</p>'+
       DEV_CATS.map(function(c,ci){return '<h3>'+c.cat+'</h3><table><tbody>'+c.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rec.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+
-      '<p>メモ：'+(rec.memo||'')+'</p>';
-    printDoc('生徒個人発達記録（'+(cur?childName(cur):'')+'・'+recQuarter+'）',body);
+      '<p>メモ：'+esc(rec.memo||'')+'</p>';
+    printDoc('生徒個人発達記録（'+(cur?childFullName(cur):'')+'・'+devPeriodLabel(recDevMonth)+'）',body);
   };
   $('#dvPrintAll').onclick=function(){
-    var body=kids.map(function(c){var rc=(data[c.id]&&data[c.id][recQuarter])||{items:{},memo:'',by:''};return '<h2>'+childName(c)+'（'+ageClassOf(c)+'）</h2><p>記録者：'+(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+(rc.memo||'')+'</p>';}).join('<div style="page-break-after:always;"></div>');
-    printDoc('生徒個人発達記録 全員分（'+recQuarter+'）',body);
+    var body=kids.map(function(c){var rc=(data[c.id]&&data[c.id][recDevMonth])||{items:{},memo:'',by:''};return '<h2>'+esc(childFullName(c))+'（'+ageClassOf(c)+'）</h2><p>記録者：'+esc(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+esc(rc.memo||'')+'</p>';}).join('<div style="page-break-after:always;"></div>');
+    printDoc('生徒個人発達記録 全員分（'+devPeriodLabel(recDevMonth)+'）',body);
   };
   attachRecPaperCard();
 }
@@ -6813,16 +7052,23 @@ function renderGyakutai(box){
 
 /* ---------- 避難訓練（実物フォーマット準拠） ---------- */
 function renderDrill(){
-  var D=drillData(),proc=stGet('drill_proc',DRILL_PROC_DEFAULT),s=$('section[data-page="drill"]');
+  var D=drillData(),s=$('section[data-page="drill"]');
   var doneN=D.rows.filter(function(r){return r.record.date;}).length;
   s.innerHTML=
-    '<div class="card" style="margin-bottom:16px;">'+recHead('年間 避難訓練（'+D.year+'年度・毎月1回／年'+D.rows.length+'回）','<span class="tag" style="background:#EAF3DE;color:#27500A;">実施済 '+doneN+' / '+D.rows.length+'</span><button class="btn btn-sm" id="dr2PrintYear">'+ic('printer')+'年間記録表を出力</button>')+
+    '<div class="card" style="margin-bottom:16px;">'+/* 回数は市町村によって違うので、見出しでは言い切らない。右の「実施済 ◯/◯」は実際の件数なので残す */
+    recHead('年間 避難訓練','<span class="tag" style="background:#EAF3DE;color:#27500A;">実施済 '+doneN+' / '+D.rows.length+'</span><button class="btn btn-sm" id="dr2PrintYear">'+ic('printer')+'年間記録表を出力</button>')+
       '<div class="muted" style="margin-bottom:10px;">各回は「計画」と「実施記録」に分かれます。計画は初期値が入っており修正可能。実施記録の参加名簿・年齢別人数は、その日の「登園（出席）」から自動反映されます（手動修正も可）。クラスも回ごとに選択できます。</div>'+
-      '<div class="scrollx"><table><thead><tr><th style="width:44px;">月</th><th style="width:74px;">種別</th><th style="width:110px;">対象クラス</th><th style="width:130px;">実施日</th><th>タイム</th><th style="width:76px;">状態</th><th style="width:150px;"></th></tr></thead><tbody>'+
+      '<div class="scrollx"><table><thead><tr><th style="width:44px;">月</th><th style="width:132px;">種別</th><th style="width:110px;">対象クラス</th><th style="width:130px;">実施日</th><th>タイム</th><th style="width:76px;">状態</th><th style="width:150px;"></th></tr></thead><tbody>'+
       D.rows.map(function(r,i){
-        var kc={'地震':'#FAEEDA;color:#854F0B','火事':'#FCEBEB;color:#A32D2D','不審者':'#E6F1FB;color:#123E6B'}[r.kind]||'#F1EFE8;color:#5F5E5A';
+        var kc=drillKindColor(r.kind);
         var done=!!r.record.date;
-        return '<tr><td class="row-name">'+r.month+'</td><td><span class="pill" style="background:'+kc+';">'+r.kind+'</span></td>'+
+        /* 何月に何の訓練をするかは市町村によって違うので、ここで選び直せるようにした。
+           いま入っている種別が設定の一覧に無いときは、先頭に残して選び直せるようにする */
+        var kinds=DRILL_KINDS.slice();
+        var lost=(kinds.indexOf(r.kind)<0);
+        var opts=(lost?'<option value="'+esc(r.kind)+'" selected>'+esc(r.kind)+'（一覧にありません）</option>':'')
+          +kinds.map(function(k){return '<option value="'+esc(k)+'"'+(k===r.kind?' selected':'')+'>'+esc(k)+'</option>';}).join('');
+        return '<tr><td class="row-name">'+r.month+'</td><td><select data-kind="'+esc(i)+'" style="background:'+kc+';border:1px solid var(--line);border-radius:999px;font-size:11.5px;font-weight:600;padding:3px 6px;width:100%;height:auto;">'+opts+'</select></td>'+
         '<td class="row-sub">'+((r.record.classes||[]).join('・')||'—')+'</td>'+
         '<td>'+(done?fmt(r.record.date):'<span class="row-sub">未実施</span>')+'</td>'+
         '<td class="row-sub">'+((r.record.tm||r.record.ts)?((r.record.tm||0)+'分'+(r.record.ts||0)+'秒'):'—')+'</td>'+
@@ -6831,15 +7077,25 @@ function renderDrill(){
       }).join('')+'</tbody></table></div></div>'+
     '<div class="card"><h3>'+ic('shield')+'避難訓練 手順（スタッフ役割分担）</h3>'+
       '<div class="muted" style="margin-bottom:8px;">災害の種別ごとに手順を登録できます。ここで登録した手順は、その種別の回の<b>「計画・記録を印刷」に自動で入ります</b>。</div>'+
-      '<div class="chips" style="margin-bottom:10px;">'+DRILL_KINDS.map(function(k){return '<span class="chip'+(k===drillProcTab?' on':'')+'" data-ptab="'+esc(k)+'">'+k+'</span>';}).join('')+'</div>'+
-      '<textarea id="drProc" rows="10" style="font-size:13px;line-height:1.7;">'+esc(drillProcOf(drillProcTab))+'</textarea>'+
-      '<div class="muted" style="margin-top:8px;">編集すると自動保存。年間記録表の出力には3種別すべての手順が含まれます。避難場所ごとの経路は「書類作成 → 危機管理マニュアル」で管理できます。</div></div>';
+      '<div class="chips" style="margin-bottom:10px;">'+DRILL_KINDS.map(function(k){return '<span class="chip'+(k===drillProcTabNow()?' on':'')+'" data-ptab="'+esc(k)+'">'+esc(k)+'</span>';}).join('')
+        /* この画面を見ている人が、設定の場所を知らなくても種別を足せるように */
+        +'<button class="btn btn-sm btn-ghost" id="drKindEdit" style="margin-left:6px;">'+ic('gear')+'種別を追加・変更</button>'+'</div>'+
+      '<textarea id="drProc" rows="10" style="font-size:13px;line-height:1.7;" placeholder="'+esc(DRILL_PROC_HINT).replace(/\n/g,'&#10;')+'">'+esc(drillProcOf(drillProcTabNow()))+'</textarea>'+
+      '<div class="muted" style="margin-top:8px;">編集すると自動保存。年間記録表の出力には、いまある種別すべての手順が含まれます。避難場所ごとの経路は「書類作成 → 危機管理マニュアル」で管理できます。</div></div>';
+  s.querySelectorAll('[data-kind]').forEach(function(sel){sel.onchange=function(){drillKindChange(+sel.getAttribute('data-kind'),sel.value);};});
   s.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){drillModal(+b.getAttribute('data-detail'));};});
   s.querySelectorAll('[data-print]').forEach(function(b){b.onclick=function(){drillPrint(+b.getAttribute('data-print'));};});
-  $('#drProc').onchange=function(e){drillProcSet(drillProcTab,e.target.value);};
-  s.querySelectorAll('[data-ptab]').forEach(function(b){b.onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTab,ta.value);drillProcTab=b.getAttribute('data-ptab');renderDrill();};});
+  $('#drProc').onchange=function(e){drillProcSet(drillProcTabNow(),e.target.value);};
+  s.querySelectorAll('[data-ptab]').forEach(function(b){b.onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTabNow(),ta.value);drillProcTab=b.getAttribute('data-ptab');renderDrill();};});
+  /* 設定へ飛ぶ前に、書きかけの手順を保存する。飛んだあとに戻ると書いた文字が消えているのを防ぐため */
+  $('#drKindEdit').onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTabNow(),ta.value);go('settings');toastAI('設定の「選択肢の管理」→「避難訓練の種別」で追加・変更できます');};
   $('#dr2PrintYear').onclick=function(){
-    var body=DRILL_KINDS.map(function(k){return '<h2>手順（'+k+'）</h2><p>'+esc(drillProcOf(k)).replace(/\n/g,'<br>')+'</p>';}).join('')+'<h2>年間記録（毎月1回実施）</h2><table><thead><tr><th>月</th><th>種別</th><th>実施日</th><th>対象クラス</th><th>避難場所</th><th>タイム</th><th>参加児童</th></tr></thead><tbody>'+
+    /* いまの一覧にある種別に加えて、各回で使われている種別も出す。
+       設定から外した種別を使っている回が残っていることがあり、
+       その手順が紙から黙って消えると、監査に出す書類が実際と合わなくなるため */
+    var pk=DRILL_KINDS.slice();
+    D.rows.forEach(function(r){if(r.kind&&pk.indexOf(r.kind)<0)pk.push(r.kind);});
+    var body=pk.map(function(k){return '<h2>手順（'+esc(k)+'）</h2>'+drillProcPrintHtml(k);}).join('')+'<h2>年間記録（毎月1回実施）</h2><table><thead><tr><th>月</th><th>種別</th><th>実施日</th><th>対象クラス</th><th>避難場所</th><th>タイム</th><th>参加児童</th></tr></thead><tbody>'+
       D.rows.map(function(r){var cnt=drillFinalCounts(r);var tot=Object.keys(cnt).reduce(function(a,k){return a+(cnt[k]||0);},0);return '<tr><td>'+r.month+'</td><td>'+r.kind+'</td><td>'+(r.record.date?fmt(r.record.date):'')+'</td><td>'+(r.record.classes||[]).join('・')+'</td><td>'+(r.record.place||r.plan.place||'')+'</td><td>'+((r.record.tm||r.record.ts)?((r.record.tm||0)+'分'+(r.record.ts||0)+'秒'):'')+'</td><td>'+(tot?tot+'名':'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('避難訓練 手順・年間記録（'+D.year+'年度）',body);
   };
@@ -6862,6 +7118,30 @@ function drillExpectHtml(p,forPrint){
   var base2='<b>'+att.length+'名</b>（'+byCls+'）';
   return forPrint?base2:base2+'<span class="muted" style="margin-left:6px;">'+fmt(p.planDate)+' の出席実績から自動反映</span>';
 }
+/* 一覧で種別を選び直したとき。
+   「訓練の想定」と「実施時注意点」は、はじめの種別の初期値から入っている。
+   種別だけ変えると、火事なのに「頭部を保護し落下物に注意」のままになり、印刷した紙が嘘になる。
+   そこで、園が触っていなければ黙って新しい種別のものに入れ替え、書き換えてあれば先に聞く。
+   手順（スタッフ役割分担）は drillProcOf(kind) がその都度引くので、ここでは触らなくてよい */
+function drillKindChange(i,nk){
+  var D=drillData(),r=D.rows[i];
+  if(!r){renderDrill();return;}
+  var p=r.plan=r.plan||{},ok=r.kind;
+  if(!nk||nk===ok){renderDrill();return;}
+  var od=DRILL_KIND_DEFAULTS[ok]||{},nd=DRILL_KIND_DEFAULTS[nk]||{};
+  var touched=((p.scenario||'')!==(od.scenario||''))||((p.cautions||'')!==(od.cautions||''));
+  var swap=true;
+  if(touched){
+    swap=(nd.scenario||nd.cautions)
+      ? confirm('訓練の想定と実施時注意点も、「'+nk+'」のものに入れ替えますか？\n園が書き直した内容は消えます。')
+      : confirm('「'+nk+'」には決まった想定がありません。訓練の想定と実施時注意点を空にしますか？\n園が書いた内容は消えます。「いいえ」なら種別だけ変えます。');
+  }
+  if(swap){p.scenario=nd.scenario||'';p.cautions=nd.cautions||'';}
+  r.kind=nk;
+  stSet('drills3',D);
+  renderDrill();
+  toastAI(r.month+'の種別を「'+nk+'」にしました');
+}
 function drillModal(i){
   var D=drillData(),r=D.rows[i],tab='plan';
   function save(){stSet('drills3',D);}
@@ -6880,8 +7160,7 @@ function drillModal(i){
         '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>避難場所</label><input id="p_place" value="'+esc(v(p.place))+'" placeholder="横の駐車場 など"></div><div class="field"><label>避難経路</label><input id="p_route" value="'+esc(v(p.route))+'" placeholder="正門 → ○○通り"></div><div class="field"><label>避難タイム（想定）</label><input id="p_targetTime" value="'+esc(v(p.targetTime))+'" placeholder="例：3分30秒"></div></div>'+
         '<div class="field"><label>参加予定の保育者<button class="btn btn-sm btn-ghost" id="p_staffAll" style="float:right;padding:2px 8px;">全員選択</button></label><div style="display:flex;flex-wrap:wrap;gap:8px;">'+DB.staff.map(function(st){var on=(p.staffNames||[]).indexOf(st.name)>-1;return '<span class="chip'+(on?' on':'')+'" data-pstaff="'+st.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+st.name+'</span>';}).join('')+'</div></div>'+
         '<div class="field"><label>実施時注意点（計画）</label><textarea id="p_cautions" rows="2">'+esc((p.cautions||''))+'</textarea></div>'+
-        toolsUI('p',p.tools)+
-        '<div class="muted">計画は初期値が入っています。園に合わせて修正してください。実際の実施は「実施記録」タブへ。</div>';
+        toolsUI('p',p.tools);
       box.querySelectorAll('[data-pcls]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-pcls');p.classes=p.classes||[];var x=p.classes.indexOf(k);if(x>-1)p.classes.splice(x,1);else p.classes.push(k);save();b.classList.toggle('on');};});
       [['p_planDate','planDate'],['p_scenTime','scenTime'],['p_scenAct','scenAct'],['p_scenario','scenario'],['p_place','place'],['p_route','route'],['p_targetTime','targetTime'],['p_cautions','cautions']].forEach(function(f){$('#'+f[0]).onchange=function(e){p[f[1]]=e.target.value;save();if(f[1]==='planDate'&&$('#p_expect'))$('#p_expect').innerHTML=drillExpectHtml(p);};});
       box.querySelectorAll('[data-pstaff]').forEach(function(b){b.onclick=function(){var nm=b.getAttribute('data-pstaff');p.staffNames=p.staffNames||[];var x=p.staffNames.indexOf(nm);if(x>-1)p.staffNames.splice(x,1);else p.staffNames.push(nm);save();b.classList.toggle('on');};});
@@ -6936,7 +7215,7 @@ function drillPrint(i){
     '<tr><th>避難タイム（想定）</th><td colspan="3">'+(p.targetTime||'')+'</td></tr>'+
     '<tr><th>実施時注意点</th><td colspan="3">'+(p.cautions||'').replace(/\n/g,'<br>')+'</td></tr>'+
     '<tr><th>用具の確認</th><td colspan="3">'+tl(p.tools)+'</td></tr></tbody></table>'+
-    '<h2>手順・スタッフ役割分担（'+r.kind+'）</h2><p style="font-size:12px;line-height:1.7;">'+esc(drillProcOf(r.kind)).replace(/\n/g,'<br>')+'</p>'+
+    '<h2>手順・スタッフ役割分担（'+esc(r.kind)+'）</h2>'+drillProcPrintHtml(r.kind)+
     '<h2>避難訓練 実施記録</h2><table><tbody>'+
     '<tr><th style="width:110px;">実施日</th><td>'+(rec.date?fmt(rec.date):'')+'</td><th style="width:60px;">天気</th><td>'+(rec.weather||'')+'</td></tr>'+
     '<tr><th>対象クラス</th><td colspan="3">'+(rec.classes||[]).join('・')+'</td></tr>'+
@@ -7532,8 +7811,7 @@ function renderDocsHub(){
   var nGuide=Object.keys(gf).length;
   var nGuideAll=(typeof guideAll==='function')?guideAll().length:14;
 
-  s.innerHTML='<div class="page-h"><h1>'+ic('folder')+'書類格納</h1>'
-    +'<div class="sub">どちらの書類をあつかいますか。</div></div>'
+  s.innerHTML='<div class="page-h"><h1>'+ic('folder')+'書類格納</h1></div>'
     +'<div class="grid" style="grid-template-columns:repeat(2,1fr);gap:16px;">'
 
     /* ① 監査書類 */
@@ -7551,14 +7829,7 @@ function renderDocsHub(){
       +'<div class="muted">ここに登録したものが、そのまま保護者の未来WAに出ます。</div>'
       +'<div class="dpstat"><b>'+nGuide+'</b> / '+nGuideAll+' 件 原本を登録ずみ</div>'
       +'<button class="btn btn-primary" style="margin-top:14px;">ガイダンス資料をひらく</button></div>'
-    +'</div>'
-
-    +'<div class="card" style="margin-top:16px;display:flex;gap:12px;align-items:flex-start;">'
-      +'<span style="color:#854F0B;width:18px;height:18px;flex-shrink:0;margin-top:2px;">'+ic('info')+'</span>'
-      +'<div class="muted" style="line-height:1.8;">'
-      +'<b>違いは、誰が見るかです。</b><br>'
-      +'監査書類は、監査のときに園が示すもの。保管先のURLだけを控えます。<br>'
-      +'ガイダンス資料は、保護者が見るもの。PDFの実物をここに置きます。</div></div>';
+    +'</div>';
 
   $('#dpAudit').onclick=function(){docsView='audit';renderDocs();};
   $('#dpGuide').onclick=function(){docsView='';go('guide');};
@@ -7626,8 +7897,34 @@ function renderDocsAudit(){
    接続先が未設定のときは、これまで通り端末内（ブラウザ）だけで動く。
    接続すると：本物のログイン／全端末でデータ共有／サーバ側に保存とログ。
    仕組み：画面はこれまで通り端末内の保存を読み書きし、その内容をサーバと同期する（オフラインでも入力できる）。 */
+/* つなぎ先は、アプリの中に持たせる。園にURLを貼ってもらうのは商品として間違いなので、
+   設定の画面からは外した。cocoas_apiBase を入れてある端末は、そちらが勝つ
+   （開発と商談のための逃げ道。画面には出さない）。
+   空の文字を入れてあるときは「つながない」の意味なので、そのまま空を返す。 */
+var API_BASE_DEFAULT='https://cocoas-api-production.up.railway.app';
+/* 本番のサーバを使ってよいかどうかの札。
+   いまは false。本番のサーバは動いてはいるが、園も管理者も一人も入っていないため、
+   ここを true にすると職員ログインがサーバの認証だけになり、園の誰も入れなくなる。
+   ★ 次の3つが済んでから true にする（安田さんの作業）：
+      ① railway up でいまのコードを反映する
+      ② Railway の変数5つを入れる
+      ③ 最初の園と管理者を作る
+   false のあいだは、これまでどおり端末の中だけで動く（保存もこの端末の中だけ）。
+   なので、画面に「裏で保存されます」とは書かない。嘘になるため。 */
+var API_LIVE=false;
+/* サーバから返事があったかどうか。
+   札を true にしたあとでも、サーバが止まっているときは端末の中だけで動かすための備え。
+   前回たしかめた結果を控えておき、次に開いたときに効かせる
+   （ここで返事を待つと、つながらない園で画面が出るまで固まるため）。
+   ※ この控えは cocoas_ を付けない名前にしてある。
+     付けると、控えの書き出しや同期に混ざって、他の端末へ運ばれてしまうため。 */
+var API_ALIVE=(function(){try{return localStorage.getItem('edugrow_apiAlive')==='1';}catch(e){return false;}})();
 var API={
-  base:function(){return (stGetRaw('apiBase')||'').replace(/\/$/,'');},
+  base:function(){
+    var v=stGetRaw('apiBase');
+    if(typeof v==='string')return v.replace(/\/$/,'');
+    return API_BASE_DEFAULT.replace(/\/$/,'');
+  },
   setBase:function(v){localStorage.setItem('cocoas_apiBase',JSON.stringify(String(v||'').replace(/\/$/,'')));},
   /* ログイン用のトークンは sessionStorage（このタブの中だけ）に置きます。
      localStorage だと、端末に残り続けるうえ、バックアップの書き出しにも混ざってしまうためです。
@@ -7655,7 +7952,9 @@ var API={
   },
   tenant:function(){return stGetRaw('apiTenant')||null;},
   setTenant:function(t){if(t)localStorage.setItem('cocoas_apiTenant',JSON.stringify(t));else localStorage.removeItem('cocoas_apiTenant');},
-  enabled:function(){return !!API.base();},
+  /* 札が立っていて、つなぎ先があり、前回サーバから返事があったときだけ「つないでいる」。
+     どれか一つでも欠けたら、これまでどおり端末の中だけで動く。 */
+  enabled:function(){return API_LIVE&&!!API.base()&&API_ALIVE;},
   online:function(){return API.enabled()&&!!API.token();},
   call:function(method,path,body){
     var h={'Content-Type':'application/json'};
@@ -7987,7 +8286,7 @@ var ACCESS_PAGES=[
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},
-  {p:'kidsview',label:'生徒情報（先生用・閲覧のみ）'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求管理'},{p:'templates',label:'メールテンプレート'},
+  {p:'kidsview',label:'生徒情報（先生用・閲覧のみ）'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'年間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
@@ -7998,7 +8297,10 @@ var DEFAULT_PERMS={
   '管理者':ACCESS_PAGES.map(function(x){return x.p;}),
   'マネージャー':ACCESS_PAGES.map(function(x){return x.p;}),
   /* 一般スタッフ：配信はデイリーメールのみ編集可、個別メールは在園児のみ送信可。
-     配信カレンダー・メールテンプレート・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
+     配信カレンダー・監査・書類作成・設定などは非表示（管理者が権限管理でいつでも付与可）。 */
+  /* メールテンプレート（templates）は先生にも渡す。
+     配信の文面を園が自分で作る形にしたので、ここを外すと
+     「この画面は、いまのアカウントでは開けません」で止まり、文面を直せなくなる。 */
   /* シフト表は園長・マネージャーのものなので、既定では渡さない
      （必要なら管理者が権限管理から個別に渡せる）。 */
   /* シート「EduGrow システム概要」の役職別の表示範囲に合わせている。
@@ -8007,10 +8309,10 @@ var DEFAULT_PERMS={
      ・未来WA（wastore・6行）、年間スケジュール（tasks・7行）、
        AI保育計画（aiplan・15〜20行）は先生も使える。
        aiplan はプランの制限（Pro）とは別で、ここは役職の話。 */
-  '一般':['home','dashboard','dm','broadcast','records','carerec','drill',
+  '一般':['home','dashboard','dm','broadcast','templates','records','carerec','drill',
          'curriculum','kidsview','tasks','wastore','aiplan']
 };
-var PERMS_VERSION=11;
+var PERMS_VERSION=12;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
    平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
@@ -8332,8 +8634,9 @@ function renderAccessSettings(s){
         +items.map(function(it){var list=(tp[kind]||{})[it.key]||[];return '<tr><td>'+esc(it.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||list.indexOf(r)>-1;var dis=(r==='管理者')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-tpm="'+esc(kind+'|'+it.key+'|'+r)+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
         +'</tbody></table><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" data-tpmsave="'+esc(kind)+'">'+ic('check')+'この表の権限を保存</button> <span class="muted" data-tpmmsg="'+esc(kind)+'"></span></div></div>';
     }
-    html+=tplMatrix('broadcast','全体周知・お知らせのひな形の表示権限',bcastAll().map(function(x){return {key:x.key,label:x.label};}))
-      +tplMatrix('mail','個別メールテンプレートの表示権限',mailTplKeys().map(function(k){return {key:k,label:mailTpl(k).label};}));
+    /* 個別メールのひな形は、どの役職でも見られる形にしたので、この表は出さない。
+       全体周知・お知らせのほうは、園が役職で分けて使っているのでそのまま残す。 */
+    html+=tplMatrix('broadcast','全体周知・お知らせのひな形の表示権限',bcastAll().map(function(x){return {key:x.key,label:x.label};}));
   } else {
     html+='<div class="card" style="max-width:820px;"><h3>'+ic('shield')+'権限管理</h3><div class="muted">職員アカウントと権限の設定は<b>管理者</b>のみ行えます。</div></div>';
   }
@@ -9287,16 +9590,28 @@ function enrMonthly(o){
   if(o.material)t+=(P.material||0);
   return t;
 }
+/* 口座（お支払い）を見てよい人かどうか。園長・管理者だけ。
+   一般（先生）には、一覧の列も、入力の窓も出さない。
+   まだ誰もログインしていないお試しのときは、今までどおり見られるようにしている。 */
+function enrPayAllowed(){
+  var boss=(typeof isBoss==='function')?isBoss():true;
+  var ok=(typeof canView==='function')?canView('enroll'):true;
+  return boss&&ok;
+}
 function renderEnroll(){
   var s=$('section[data-page="enroll"]');
   var kids=enrolled(),mk=todayISO().slice(0,7);
+  /* 口座を見てよい人にだけ「お支払い」の列を作る。作らなければ、そもそも押せない。 */
+  var canPay=enrPayAllowed();
   var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
   var planKeys=Object.keys(P.plans||{});
   if(!kids.length){s.innerHTML='<div class="empty">在園児が登録されていません</div>';return;}
   s.innerHTML='<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'生徒情報（契約・オプション）</h3>'
     +'<div class="muted" style="margin-bottom:12px;">現在の単価：ランチ '+yen(P.lunch)+'/回　ロングステイ '+yen(P.extended)+'/回　教育関連費 '+yen(P.material)+'　入園金 '+yen(P.admission)+'（表示は '+(+mk.split('-')[1])+'月分）</div>'
-    +'<div class="muted" style="margin-bottom:12px;"><b>お支払い（口座など）はこの画面に移しました。</b>生徒台帳は先生も見る場所なので、そちらには置いていません。口座の内容はこの端末の中だけに残ります。</div>'
-    +'<div class="scrollx"><table class="enrtbl"><thead><tr><th>園児</th><th>クラス</th><th>通園曜日</th><th>コースプラン</th><th>ランチ</th><th>ロングステイ</th><th>教育関連費</th><th style="text-align:right;">月額</th><th>お支払い</th><th></th></tr></thead><tbody>'
+    +(canPay
+      ?'<div class="muted" style="margin-bottom:12px;"><b>お支払い（口座など）はこの画面に移しました。</b>生徒台帳は先生も見る場所なので、そちらには置いていません。口座の内容はこの端末の中だけに残ります。</div>'
+      :'<div class="muted" style="margin-bottom:12px;">お支払い（口座など）は、園長と管理者だけが見られます。この画面には出していません。</div>')
+    +'<div class="scrollx"><table class="enrtbl"><thead><tr><th>園児</th><th>クラス</th><th>通園曜日</th><th>コースプラン</th><th>ランチ</th><th>ロングステイ</th><th>教育関連費</th><th style="text-align:right;">月額</th>'+(canPay?'<th>お支払い</th>':'')+'<th></th></tr></thead><tbody>'
     +kids.map(function(c){var o=enrOf(c,mk),dop=dayOptsOf(c);
       function optCell(key,onKey,cnt){
         var days=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d][key];});
@@ -9309,8 +9624,8 @@ function renderEnroll(){
         +optCell('long','extOn',o.extN)
         +'<td style="text-align:center;"><input type="checkbox" data-en="'+c.id+'|material"'+(o.material?' checked':'')+' style="width:auto;"></td>'
         +'<td style="text-align:right;font-weight:600;" id="enTot'+c.id+'">'+yen(enrMonthly(o))+'</td>'
-        +'<td><button class="btn btn-sm" data-enpay="'+esc(c.id)+'">'+ic('edit')+'お支払い</button>'
-          +'<div class="row-sub" style="font-size:11px;">'+esc(spGet(c.id).payMethod||'未設定')+'</div></td>'
+        +(canPay?('<td><button class="btn btn-sm" data-enpay="'+esc(c.id)+'">'+ic('edit')+'お支払い</button>'
+          +'<div class="row-sub" style="font-size:11px;">'+esc(spGet(c.id).payMethod||'未設定')+'</div></td>'):'')
         +'<td><button class="btn btn-sm" data-eninv="'+esc(c.id)+'">'+ic('yen')+'請求書</button></td></tr>';}).join('')
     +'</tbody></table></div>'
     +'</div>';
@@ -9334,6 +9649,9 @@ function renderEnroll(){
 /* お支払い（口座など）の入力。生徒台帳から移してきた分。
    保存先は今までと同じ studentProfiles なので、前に生徒台帳で入れた内容がそのまま出る。 */
 function enrPayModal(id){
+  /* 画面の入口だけで守っていると、ほかの場所からこの関数が呼ばれたときに素通りしてしまう。
+     口座は園の大事な情報なので、窓を開ける前にここでも役職を確かめる。 */
+  if(!enrPayAllowed()){alert('お支払い（口座など）は、園長と管理者だけが開けます。');return;}
   var c=DB.contacts.filter(function(x){return x.id===id;})[0];if(!c)return;
   var p=spGet(id);
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
@@ -9353,7 +9671,7 @@ function enrPayModal(id){
   };
 }
 
-/* ========== 請求管理（作成 → 発行 → 送付 → 入金確認を一本の流れで） ==========
+/* ========== 請求書発行（作成 → 発行 → 送付 → 入金確認を一本の流れで） ==========
    金額は「生徒情報（契約・オプション）」＋「設定→料金設定」から自動計算。月ごとに個別調整も可能。
    データ: invoices = { 'YYYY-MM': { childId:{plan,lunchN,extN,material,admission,discount,discountNote,due,status,issuedAt,sentAt,paidAt,total} } } */
 var invMonth=null,INV_STATUS=['未発行','発行済','送付済','入金済'];
@@ -9426,7 +9744,7 @@ function renderBilling(){
   var sum=rows.reduce(function(a,x){return a+invTotal(x.r);},0);
   var cnt={};INV_STATUS.forEach(function(st){cnt[st]=rows.filter(function(x){return x.r.status===st;}).length;});
   var P=SET.pricing||{};
-  s.innerHTML='<div class="card" style="margin-bottom:14px;">'+recHead('請求管理（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
+  s.innerHTML='<div class="card" style="margin-bottom:14px;">'+recHead('請求書発行（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
       '<input type="month" id="ivMonth" value="'+esc(mk)+'" style="width:160px;">'
       +'<button class="btn btn-sm" id="ivIssueAll">'+ic('check')+'一括で発行</button>'
       +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'発行済をまとめて送付</button>'
@@ -9899,7 +10217,7 @@ var boukaYear=null,boukaTab='daichou';
 function kenshuAll(){return stGet('hoiku_kenshu',{});}
 function kenshuGet(fy){var a=kenshuAll();return (a[fy]&&a[fy].rows)?a[fy]:{rows:[]};}
 function kenshuSet(fy,d){var a=kenshuAll();a[fy]=d;stSet('hoiku_kenshu',a);}
-function kenshuNewRow(){return {id:Date.now(),date:'',title:'',teacher:'',members:'',content:'',note:''};}
+function kenshuNewRow(){return {id:Date.now(),date:'',title:'',teacher:'',members:'',content:'',impression:'',note:''};}
 function boukaFY(){if(boukaYear==null)boukaYear=curFY();return boukaYear;}
 function boukaAll(){return stGet('bouka',{});}
 function boukaGet(fy){
@@ -9956,11 +10274,12 @@ function renderBouka(){
       +'<div class="muted" style="margin-bottom:10px;line-height:1.9;">'
       +'園内でおこなった保育の研修を記録します。監査では、職員がどのような研修を受けたかを見られます。'
       +'外部の研修に参加した場合も、ここに書いておくとまとめて出せます。<br>'
-      +'※ 記入した内容はその場で保存されます。</div>'
-      +'<div class="tablewrap"><table><thead><tr>'
-      +'<th style="width:120px;">実施日</th><th style="width:170px;">研修名</th>'
-      +'<th style="width:120px;">講師・主催</th><th style="width:150px;">参加した職員</th>'
-      +'<th>内容</th><th style="width:150px;">備考</th><th style="width:44px;"></th>'
+      +'※ 記入した内容はその場で保存されます。<br>'
+      +'※ 画面のはばがたりないときは、表を左右にスクロールしてご覧ください。</div>'
+      +'<div class="tablewrap scrollx"><table style="min-width:980px;"><thead><tr>'
+      +'<th style="width:120px;">実施日</th><th style="width:130px;">研修名</th>'
+      +'<th style="width:100px;">講師・主催</th><th style="width:110px;">参加した職員</th>'
+      +'<th>内容</th><th>感想</th><th style="width:110px;">備考</th><th style="width:44px;"></th>'
       +'</tr></thead><tbody>'
       +(kd.rows.length?kd.rows.map(function(r,i){
         return '<tr>'
@@ -9969,10 +10288,11 @@ function renderBouka(){
           +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|teacher" placeholder="例：園長">\n'+esc(r.teacher||'')+'</textarea></td>'
           +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|members" placeholder="例：全職員">\n'+esc(r.members||'')+'</textarea></td>'
           +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|content" placeholder="研修でおこなった内容を記入します">\n'+esc(r.content||'')+'</textarea></td>'
+          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|impression" placeholder="研修を受けて感じたこと、現場で活かせそうなこと">\n'+esc(r.impression||'')+'</textarea></td>'
           +'<td style="vertical-align:top;"><textarea class="autogrow" rows="1" data-ks="'+i+'|note">\n'+esc(r.note||'')+'</textarea></td>'
           +'<td style="vertical-align:top;text-align:right;"><button class="btn btn-sm btn-ghost" data-ksdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
         }).join('')
-        :'<tr><td colspan="7" class="empty">まだ記録がありません。「研修を追加」から書きはじめてください。</td></tr>')
+        :'<tr><td colspan="8" class="empty">まだ記録がありません。「研修を追加」から書きはじめてください。</td></tr>')
       +'</tbody></table></div></div>';
   }
 
@@ -9997,16 +10317,17 @@ function renderBouka(){
         +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
         +'<table><thead><tr><th style="width:76px;">実施日</th><th style="width:130px;">研修名</th>'
         +'<th style="width:90px;">講師・主催</th><th style="width:110px;">参加した職員</th>'
-        +'<th>内容</th><th style="width:110px;">備考</th></tr></thead><tbody>'
+        +'<th>内容</th><th>感想</th><th style="width:110px;">備考</th></tr></thead><tbody>'
         +(kd2.rows.length?kd2.rows.map(function(r){
           return '<tr><td style="vertical-align:top;">'+esc(r.date||'')+'</td>'
             +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.title||'')+'</td>'
             +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.teacher||'')+'</td>'
             +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.members||'')+'</td>'
             +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.content||'')+'</td>'
+            +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.impression||'')+'</td>'
             +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.note||'')+'</td></tr>';
           }).join('')
-          :'<tr><td colspan="6">記録がありません</td></tr>')
+          :'<tr><td colspan="7">記録がありません</td></tr>')
         +'</tbody></table>';
       printDoc('保育研修の記録（'+fy+'年度）',b4);
     };
@@ -10171,8 +10492,8 @@ function renderFacility(){
    画面は月のカレンダー＋題名だけの一覧（押すと説明が開く）で見せる。
    データ: taskDone = { 'YYYY-MM|タスク名': true }（終わった印。これまでのままで変えていない）
          taskDay  = { 'YYYY-MM|タスク名': 日 }（園で決めたやる日。決めたものだけ入る新しい記録） */
-var ANNUAL_TASKS=[{"name": "避難訓練（火災・地震）", "month": "毎月", "when": "各月に必ず1回。実施日は月の初めに決め、記録は月内に仕上げる", "page": "避難訓練", "why": "児童福祉施設の設備及び運営に関する基準では、避難及び消火の訓練を少なくとも毎月1回行うこととされている。指導監査では、回数のほか、想定する災害が偏っていないか、記録に日時・参加児童数・避難に要した時間・反省点が書かれているかが見られる。"}, {"name": "消防用設備等の自主点検", "month": "毎月", "when": "消火器、誘導灯、避難経路のふさがりを目で確かめ、月内に済ませる", "page": "防火管理台帳・消火訓練", "why": "消防法上、防火管理者の業務には日々の火気の管理と設備の維持が含まれる。資格者による法定点検とは別に、毎月の自主点検の記録を残しておくと、消防の査察や監査のときに管理の実態を示す裏づけになる。"}, {"name": "身体測定", "month": "毎月", "when": "月内の決まった週（たとえば第1週）に、全員分を測る", "page": "身体測定", "why": "発育の様子を続けてつかみ、健康管理に生かすため。測定値は健康の記録として保管し、監査では記録が途切れていないか、保護者へ伝えているかが見られる。"}, {"name": "月案の作成", "month": "毎月", "when": "翌月分を、前の月の末までに用意する", "page": "月間カリキュラム", "why": "保育所保育指針では、全体的な計画に沿って指導計画を立てることとされている。計画と日誌の記録が食い違っていないかは、指導監査で最初に見られるところ。"}, {"name": "月末のふりかえり", "month": "毎月", "when": "その月の末に、計画の評価と反省を書き入れる", "page": "月間カリキュラム", "why": "保育所保育指針では、立てた指導計画について自己評価を行うこととされている。ふりかえりの記録は次の月の計画のよりどころになり、指導監査でも計画とあわせて見られる。"}, {"name": "登降園の締めと在籍数の確定", "month": "毎月", "when": "月が替わって3営業日ほどで前の月分を締め、請求を出す前に数字を固める", "page": "登園（出席）", "why": "施設型給付費や委託費などを計算する根拠になる。出席簿と請求の中身が合っていないと、過って請求したものとして返還を求められることがあるため、締めと突き合わせは欠かせない。"}, {"name": "出勤簿の月締め", "month": "毎月", "when": "月の終わりから翌月の初めにかけて、給与計算の締め日に合わせて固める", "page": "出勤簿", "why": "職員の配置基準を満たしていたことを示す客観的な資料になる。常勤換算の計算や処遇改善等加算の要件を確かめる際にも、勤務実績と賃金台帳が合っているかが見られる。"}, {"name": "翌月のシフト作成", "month": "毎月", "when": "前の月の中頃から下旬までに決め、職員へ知らせる", "page": "シフト表", "why": "開所している間はいつでも、年齢ごとの職員配置基準を満たしていなければならない。基準を欠くことは指導監査で重く見られるため、シフト表は事前に基準を満たせるか確かめるための資料になる。"}, {"name": "公費請求と保育料の徴収", "month": "毎月", "when": "自治体が決めた締切（多くは月の初め）まで。保護者への請求も同じ時期に行う", "page": "請求管理", "why": "在籍と出席の状況に応じた公費の請求、保護者から受け取る保育料や実費の処理を適正に行う必要がある。徴収の根拠（重要事項説明書と同意）と実際に受け取った額が合っているかは、会計監査で確かめられる。"}, {"name": "経費・小口現金の月締め", "month": "毎月", "when": "月末で締め、翌月10日ごろまでに帳簿へ反映させる", "page": "経費管理", "why": "会計基準にそった経理処理が求められる。領収書などの証憑と帳簿・預金の残高が合っているか、お金の使いみちが適正かが、会計監査と指導監査の双方で確かめられる。"}, {"name": "ヒヤリハット・事故のとりまとめ", "month": "毎月", "when": "月末の職員会議までにまとめ、決めた対策を書き残す", "page": "書類作成", "why": "重大事故の防止に関するガイドラインでは、事故やヒヤリハットの事例を集めて分析し、園として改善していくことが求められている。積み重ねた記録と改善の履歴が、安全管理の体制が実際に働いていることを示す資料になる。"}, {"name": "調理職員の検便", "month": "毎月", "when": "月に1回。検査機関の集荷日に合わせて出す", "page": "職員管理", "why": "大量調理施設衛生管理マニュアルなどにそった調理従事者の衛生管理として、定期的な検便が求められる。実施した記録は保健所の指導や監査で確かめられる。"}, {"name": "年間計画・行事計画の作成", "month": "4月", "when": "3月のうちに案を用意し、4月の初めまでに決める", "page": "月間カリキュラム", "why": "保育所保育指針では、全体的な計画と、それにもとづく各指導計画を作ることとされている。年間の計画が整っていない、あるいは月案と合っていない場合は監査で指摘を受ける。"}, {"name": "職員名簿・資格証・契約書の更新", "month": "4月", "when": "年度の初めに行う。新しく採る職員の書類は、着任の前までにそろえる", "page": "職員管理", "why": "職員の配置基準と資格の要件を満たしているかを確かめるため。保育士証などの資格証の写し、雇用契約書、履歴書、健康診断の結果は、指導監査で必ず出すよう求められる基本の書類。"}, {"name": "児童票・緊急連絡先・健康情報の更新", "month": "4月", "when": "新しく入る子は入園の前に、在園の子は年度初めにまとめて新しくする", "page": "生徒個人発達記録", "why": "入園時の重要事項の説明と同意、子どもと家庭の状況の把握は運営基準上の要件。緊急時の対応やアレルギー対応の前提になる情報であり、監査では内容が最新かどうかが確かめられる。"}, {"name": "処遇改善等加算の計画書提出", "month": "4月", "when": "自治体が示す年度当初の提出期限まで", "page": "提出書類ナビ", "why": "加算を受けるには、賃金の改善計画をあらかじめ出しておくことが要件になる。計画と実績が離れていると返還の対象になり得るため、計算の根拠になる賃金のデータを整えておく。"}, {"name": "決算・事業報告", "month": "5月", "when": "年度が終わったあと、所轄庁が定める提出期限に間に合うようにまとめる", "page": "経費管理", "why": "運営する法人は毎年度、計算書類と事業報告を作り、監事の監査や理事会など所定の機関の承認を経て所轄庁へ出す必要がある（手続きは法人の種類により異なる）。会計監査の中心になる資料であり、期限に遅れると指導事項になる。"}, {"name": "現況報告書の提出", "month": "6月", "when": "前年度の実績をまとめ、所轄庁が示す提出期限までに出す", "page": "提出書類ナビ", "why": "法人と施設の運営の状況を所轄庁へ知らせる、年に一度の義務。内容は公表されることもあり、出していない、書き漏れがあるといった場合は指導監査での指摘につながる。"}, {"name": "園児の定期健康診断", "month": "6月", "when": "年度の前半に1回、後半にもう1回（回数は施設の定めによる）", "page": "健康チェック", "why": "学校保健安全法に準じた定期健康診断の実施と、嘱託医を置くことが求められる。実施の記録、結果を保護者へ知らせたこと、経過を見る必要がある子への対応の記録が監査で確かめられる。"}, {"name": "職員の定期健康診断", "month": "6月", "when": "1年に1回行う。雇入時の健診は、採用のときに別に行う", "page": "職員管理", "why": "労働安全衛生法にもとづく事業者の義務。実施の記録と結果の保管の状況は、労働基準監督署の調査でも指導監査でも確かめられる。"}, {"name": "プール開始前の安全確認", "month": "7月", "when": "始める2週間前までに、計画と見守り担当の配置を決め、職員へ知らせる", "page": "安全点検", "why": "水遊び中の溺れは重大事故に直結するため、見守りだけを行う職員を置くこと、事前に安全計画を立てること、緊急時の手順を確かめておくことがガイドラインで求められている。実施した記録も残す。"}, {"name": "発達の記録（期ごと）", "month": "4月・7月・10月・1月", "when": "期の終わりまでに担任が書き、主任と園長が目を通す", "page": "生徒個人発達記録", "why": "3歳未満の子などについては、個別の指導計画と、定期的な発達の記録が求められる。記録が数か月抜けている、全員分そろっていないという状態は、監査で指摘されやすい。"}, {"name": "消防用設備等の法定点検・報告", "month": "9月", "when": "機器点検と総合点検を年間の予定にそって行い、報告は消防署が示す期限までに出す", "page": "防火管理台帳・消火訓練", "why": "消防法により、資格を持つ者による点検と、その結果を消防機関へ報告することが義務づけられている。行っていない、報告していないと是正の指導を受け、監査でも点検結果報告書を保管しているかが確かめられる。"}, {"name": "年末調整の事務", "month": "12月", "when": "11月のうちに申告書を集め、12月の給与を支払うまでに処理を終える", "page": "職員管理", "why": "給与を支払う者に課された税務上の義務。賃金台帳や源泉徴収簿を整えておくと、処遇改善などの実績報告で賃金の水準を示すときの基礎資料にもなる。"}, {"name": "自己評価と公表", "month": "2月", "when": "年度が終わるまでに、職員一人ひとりの自己評価を集め、施設としての評価にまとめる", "page": "書類作成", "why": "保育所保育指針では、保育士等の自己評価と、保育所としての自己評価を行い、その結果を公表するよう努めることとされている。実施の記録と、どのように公表したかが監査で確かめられる。"}, {"name": "保育所児童保育要録の作成と送付", "month": "3月", "when": "卒園する子について3月のうちに作り、進学先へ送る", "page": "生徒個人発達記録", "why": "小学校へなめらかにつなぐため、指針にもとづき最終年度の記録を作り、進学先へ送ることとされている。作成と送付の記録、および写しの保管が必要。"}, {"name": "翌年度の事業計画・予算", "month": "3月", "when": "年度が始まる前の3月のうちに、理事会など所定の機関の承認を得て決める", "page": "書類作成", "why": "翌年度の運営体制、職員の配置、行事、研修の計画のよりどころになる基本の文書。定められた手続き（理事会・評議員会など、法人の種類に応じた機関）を経て決めたことがわかる記録が、法人の監査で確かめられる。"}];
-var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'生徒個人発達記録':['carerec','生徒個人発達記録'],'避難訓練':['drill'],'防火管理台帳・消火訓練':['bouka'],'月間カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求管理':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
+var ANNUAL_TASKS=[{"name": "避難訓練（火災・地震）", "month": "毎月", "when": "各月に必ず1回。実施日は月の初めに決め、記録は月内に仕上げる", "page": "避難訓練", "why": "児童福祉施設の設備及び運営に関する基準では、避難及び消火の訓練を少なくとも毎月1回行うこととされている。指導監査では、回数のほか、想定する災害が偏っていないか、記録に日時・参加児童数・避難に要した時間・反省点が書かれているかが見られる。"}, {"name": "消防用設備等の自主点検", "month": "毎月", "when": "消火器、誘導灯、避難経路のふさがりを目で確かめ、月内に済ませる", "page": "防火管理台帳・消火訓練", "why": "消防法上、防火管理者の業務には日々の火気の管理と設備の維持が含まれる。資格者による法定点検とは別に、毎月の自主点検の記録を残しておくと、消防の査察や監査のときに管理の実態を示す裏づけになる。"}, {"name": "身体測定", "month": "毎月", "when": "月内の決まった週（たとえば第1週）に、全員分を測る", "page": "身体測定", "why": "発育の様子を続けてつかみ、健康管理に生かすため。測定値は健康の記録として保管し、監査では記録が途切れていないか、保護者へ伝えているかが見られる。"}, {"name": "月案の作成", "month": "毎月", "when": "翌月分を、前の月の末までに用意する", "page": "月間カリキュラム", "why": "保育所保育指針では、全体的な計画に沿って指導計画を立てることとされている。計画と日誌の記録が食い違っていないかは、指導監査で最初に見られるところ。"}, {"name": "月末のふりかえり", "month": "毎月", "when": "その月の末に、計画の評価と反省を書き入れる", "page": "月間カリキュラム", "why": "保育所保育指針では、立てた指導計画について自己評価を行うこととされている。ふりかえりの記録は次の月の計画のよりどころになり、指導監査でも計画とあわせて見られる。"}, {"name": "登降園の締めと在籍数の確定", "month": "毎月", "when": "月が替わって3営業日ほどで前の月分を締め、請求を出す前に数字を固める", "page": "登園（出席）", "why": "施設型給付費や委託費などを計算する根拠になる。出席簿と請求の中身が合っていないと、過って請求したものとして返還を求められることがあるため、締めと突き合わせは欠かせない。"}, {"name": "出勤簿の月締め", "month": "毎月", "when": "月の終わりから翌月の初めにかけて、給与計算の締め日に合わせて固める", "page": "出勤簿", "why": "職員の配置基準を満たしていたことを示す客観的な資料になる。常勤換算の計算や処遇改善等加算の要件を確かめる際にも、勤務実績と賃金台帳が合っているかが見られる。"}, {"name": "翌月のシフト作成", "month": "毎月", "when": "前の月の中頃から下旬までに決め、職員へ知らせる", "page": "シフト表", "why": "開所している間はいつでも、年齢ごとの職員配置基準を満たしていなければならない。基準を欠くことは指導監査で重く見られるため、シフト表は事前に基準を満たせるか確かめるための資料になる。"}, {"name": "公費請求と保育料の徴収", "month": "毎月", "when": "自治体が決めた締切（多くは月の初め）まで。保護者への請求も同じ時期に行う", "page": "請求書発行", "why": "在籍と出席の状況に応じた公費の請求、保護者から受け取る保育料や実費の処理を適正に行う必要がある。徴収の根拠（重要事項説明書と同意）と実際に受け取った額が合っているかは、会計監査で確かめられる。"}, {"name": "経費・小口現金の月締め", "month": "毎月", "when": "月末で締め、翌月10日ごろまでに帳簿へ反映させる", "page": "経費管理", "why": "会計基準にそった経理処理が求められる。領収書などの証憑と帳簿・預金の残高が合っているか、お金の使いみちが適正かが、会計監査と指導監査の双方で確かめられる。"}, {"name": "ヒヤリハット・事故のとりまとめ", "month": "毎月", "when": "月末の職員会議までにまとめ、決めた対策を書き残す", "page": "書類作成", "why": "重大事故の防止に関するガイドラインでは、事故やヒヤリハットの事例を集めて分析し、園として改善していくことが求められている。積み重ねた記録と改善の履歴が、安全管理の体制が実際に働いていることを示す資料になる。"}, {"name": "調理職員の検便", "month": "毎月", "when": "月に1回。検査機関の集荷日に合わせて出す", "page": "職員管理", "why": "大量調理施設衛生管理マニュアルなどにそった調理従事者の衛生管理として、定期的な検便が求められる。実施した記録は保健所の指導や監査で確かめられる。"}, {"name": "年間計画・行事計画の作成", "month": "4月", "when": "3月のうちに案を用意し、4月の初めまでに決める", "page": "月間カリキュラム", "why": "保育所保育指針では、全体的な計画と、それにもとづく各指導計画を作ることとされている。年間の計画が整っていない、あるいは月案と合っていない場合は監査で指摘を受ける。"}, {"name": "職員名簿・資格証・契約書の更新", "month": "4月", "when": "年度の初めに行う。新しく採る職員の書類は、着任の前までにそろえる", "page": "職員管理", "why": "職員の配置基準と資格の要件を満たしているかを確かめるため。保育士証などの資格証の写し、雇用契約書、履歴書、健康診断の結果は、指導監査で必ず出すよう求められる基本の書類。"}, {"name": "児童票・緊急連絡先・健康情報の更新", "month": "4月", "when": "新しく入る子は入園の前に、在園の子は年度初めにまとめて新しくする", "page": "生徒個人発達記録", "why": "入園時の重要事項の説明と同意、子どもと家庭の状況の把握は運営基準上の要件。緊急時の対応やアレルギー対応の前提になる情報であり、監査では内容が最新かどうかが確かめられる。"}, {"name": "処遇改善等加算の計画書提出", "month": "4月", "when": "自治体が示す年度当初の提出期限まで", "page": "提出書類ナビ", "why": "加算を受けるには、賃金の改善計画をあらかじめ出しておくことが要件になる。計画と実績が離れていると返還の対象になり得るため、計算の根拠になる賃金のデータを整えておく。"}, {"name": "決算・事業報告", "month": "5月", "when": "年度が終わったあと、所轄庁が定める提出期限に間に合うようにまとめる", "page": "経費管理", "why": "運営する法人は毎年度、計算書類と事業報告を作り、監事の監査や理事会など所定の機関の承認を経て所轄庁へ出す必要がある（手続きは法人の種類により異なる）。会計監査の中心になる資料であり、期限に遅れると指導事項になる。"}, {"name": "現況報告書の提出", "month": "6月", "when": "前年度の実績をまとめ、所轄庁が示す提出期限までに出す", "page": "提出書類ナビ", "why": "法人と施設の運営の状況を所轄庁へ知らせる、年に一度の義務。内容は公表されることもあり、出していない、書き漏れがあるといった場合は指導監査での指摘につながる。"}, {"name": "園児の定期健康診断", "month": "6月", "when": "年度の前半に1回、後半にもう1回（回数は施設の定めによる）", "page": "健康チェック", "why": "学校保健安全法に準じた定期健康診断の実施と、嘱託医を置くことが求められる。実施の記録、結果を保護者へ知らせたこと、経過を見る必要がある子への対応の記録が監査で確かめられる。"}, {"name": "職員の定期健康診断", "month": "6月", "when": "1年に1回行う。雇入時の健診は、採用のときに別に行う", "page": "職員管理", "why": "労働安全衛生法にもとづく事業者の義務。実施の記録と結果の保管の状況は、労働基準監督署の調査でも指導監査でも確かめられる。"}, {"name": "プール開始前の安全確認", "month": "7月", "when": "始める2週間前までに、計画と見守り担当の配置を決め、職員へ知らせる", "page": "安全点検", "why": "水遊び中の溺れは重大事故に直結するため、見守りだけを行う職員を置くこと、事前に安全計画を立てること、緊急時の手順を確かめておくことがガイドラインで求められている。実施した記録も残す。"}, {"name": "発達の記録（期ごと）", "month": "4月・7月・10月・1月", "when": "期の終わりまでに担任が書き、主任と園長が目を通す", "page": "生徒個人発達記録", "why": "3歳未満の子などについては、個別の指導計画と、定期的な発達の記録が求められる。記録が数か月抜けている、全員分そろっていないという状態は、監査で指摘されやすい。"}, {"name": "消防用設備等の法定点検・報告", "month": "9月", "when": "機器点検と総合点検を年間の予定にそって行い、報告は消防署が示す期限までに出す", "page": "防火管理台帳・消火訓練", "why": "消防法により、資格を持つ者による点検と、その結果を消防機関へ報告することが義務づけられている。行っていない、報告していないと是正の指導を受け、監査でも点検結果報告書を保管しているかが確かめられる。"}, {"name": "年末調整の事務", "month": "12月", "when": "11月のうちに申告書を集め、12月の給与を支払うまでに処理を終える", "page": "職員管理", "why": "給与を支払う者に課された税務上の義務。賃金台帳や源泉徴収簿を整えておくと、処遇改善などの実績報告で賃金の水準を示すときの基礎資料にもなる。"}, {"name": "自己評価と公表", "month": "2月", "when": "年度が終わるまでに、職員一人ひとりの自己評価を集め、施設としての評価にまとめる", "page": "書類作成", "why": "保育所保育指針では、保育士等の自己評価と、保育所としての自己評価を行い、その結果を公表するよう努めることとされている。実施の記録と、どのように公表したかが監査で確かめられる。"}, {"name": "保育所児童保育要録の作成と送付", "month": "3月", "when": "卒園する子について3月のうちに作り、進学先へ送る", "page": "生徒個人発達記録", "why": "小学校へなめらかにつなぐため、指針にもとづき最終年度の記録を作り、進学先へ送ることとされている。作成と送付の記録、および写しの保管が必要。"}, {"name": "翌年度の事業計画・予算", "month": "3月", "when": "年度が始まる前の3月のうちに、理事会など所定の機関の承認を得て決める", "page": "書類作成", "why": "翌年度の運営体制、職員の配置、行事、研修の計画のよりどころになる基本の文書。定められた手続き（理事会・評議員会など、法人の種類に応じた機関）を経て決めたことがわかる記録が、法人の監査で確かめられる。"}];
+var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'生徒個人発達記録':['carerec','生徒個人発達記録'],'避難訓練':['drill'],'防火管理台帳・消火訓練':['bouka'],'月間カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
 function taskDoneAll(){return stGet('taskDone',{});}
 function taskKey(mk,name){return mk+'|'+name;}
 /* 「済」や「やる日」は題名を鍵にして保存している。題名を短くしたので、
@@ -10198,7 +10519,7 @@ function taskAutoDone(t,mk){
     if(p==='月間カリキュラム')return (CUR.month===mk);
     if(p==='シフト表'||p==='出勤簿')return !!stGet('shifts',{})[mk];
     if(p==='経費管理'){var ex=stGet('expenses',{})[mk];return !!(ex&&(ex.rows||[]).length);}
-    if(p==='請求管理'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
+    if(p==='請求書発行'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
     if(p==='生徒個人発達記録'){var dv=stGet('rec_発達',{}),n=0;Object.keys(dv).forEach(function(k){n+=Object.keys(dv[k]).length;});return n>0;}
   }catch(e){}
   return false;
@@ -10516,7 +10837,12 @@ function backupRestoreFile(file,done){
 var OPT_DEFS=[
   {k:'classes',label:'クラス',def:function(){return CLASSES_DEFAULT;},note:'園児のクラス。連絡先・カリキュラム・配信先などで使われます。'},
   {k:'leadSources',label:'問い合わせ方法',def:function(){return LEAD_SOURCES_DEFAULT;},note:'ダッシュボードの「問い合わせ件数 内訳」の集計項目になります。'},
-  {k:'trialFormats',label:'体験の方法',def:function(){return TRIAL_FORMATS_DEFAULT;},note:'体験の実施方法（対面・オンラインなど）。'}
+  {k:'trialFormats',label:'体験の方法',def:function(){return TRIAL_FORMATS_DEFAULT;},note:'体験の実施方法（対面・オンラインなど）。'},
+  /* 訓練の種別。名前を変えたときは、その名前で保存している手順と各回の種別も一緒に連れていく（rename）。
+     消すときは、使われている回や書いた手順があることを先に知らせる（delWarn） */
+  {k:'drillKinds',label:'避難訓練の種別',def:function(){return DRILL_KINDS_DEFAULT;},
+   note:'避難訓練の一覧で選べる種別。種別ごとに手順を登録できます。地域によって津波・風水害などを足せます。',
+   rename:function(a,b){drillKindRename(a,b);},delWarn:function(a){return drillKindDelWarn(a);}}
 ];
 function optSave(k,list){var s=DB.settings||{};s[k]=list;DB.settings=s;SET[k]=list;}
 function optCur(k,def){var s=DB.settings||{};return (s[k]&&s[k].length)?s[k].slice():def.slice();}
@@ -10528,19 +10854,19 @@ function renderOptionSettings(s){
     '<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('gear')+'表示のことば</h3>'
     +'<div class="muted" style="margin-bottom:10px;font-size:12px;">'
     +'記入用紙や画面の項目名は、日本語で表示します。'
-    +'英語も並べて出したい園は、下をオンにしてください。</div>'
+    +'英語表記も出したい園は、下をオンにしてください。</div>'
     +'<label style="display:flex;gap:9px;align-items:center;cursor:pointer;font-size:13px;">'
     +'<input type="checkbox" id="setBiling"'+(SET.bilingual?' checked':'')+'>'
-    +'英語を併記する（例：出欠 / Attendance）</label>'
+    +'英語表記を追加する（例：出欠 / Attendance）</label>'
     +'<div class="muted" style="font-size:11.5px;margin-top:7px;">'
     +'インターナショナルスクールなど、保護者や職員に英語が必要な園向けの設定です。</div></div>');
   var bl=s.querySelector('#setBiling');
   if(bl)bl.onchange=function(){
     var d=DB.settings||{}; d.bilingual=bl.checked; DB.settings=d; SET.bilingual=bl.checked;
-    toast(bl.checked?'英語を併記します':'日本語だけで表示します');
+    toastAI(bl.checked?'英語表記を追加します':'日本語だけで表示します');
   };
 
-  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('gear')+'選択肢の管理（クラス・問い合わせ方法・体験の方法）</h3>'
+  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('gear')+'選択肢の管理（クラス・問い合わせ方法・体験の方法・避難訓練の種別）</h3>'
     +'<div class="muted" style="margin-bottom:10px;">園に合わせて項目を追加・変更できます。変更するとシステム全体の選択肢に反映されます。</div>'
     +OPT_DEFS.map(function(d){
       var list=optCur(d.k,d.def());
@@ -10557,13 +10883,20 @@ function renderOptionSettings(s){
     var p=inp.getAttribute('data-optv').split('|'),d=OPT_DEFS.filter(function(x){return x.k===p[0];})[0];
     var l=optCur(p[0],d.def());var v=inp.value.trim();
     if(!v){inp.value=l[+p[1]];return;}
-    l[+p[1]]=v;optSave(p[0],l);renderSettings();
+    var before=l[+p[1]];
+    /* 同じ名前が2つあると、名前で保存しているもの（避難訓練の手順など）が混ざってしまう */
+    if(l.indexOf(v)>-1&&l.indexOf(v)!==+p[1]){alert('同じ項目がすでにあります');inp.value=before;return;}
+    l[+p[1]]=v;optSave(p[0],l);
+    /* 名前で保存しているものを、新しい名前へ付け替える（避難訓練の手順・各回の種別） */
+    if(d.rename)d.rename(before,v);
+    renderSettings();
   };});
   s.querySelectorAll('[data-optx]').forEach(function(b){b.onclick=function(){
     var p=b.getAttribute('data-optx').split('|'),d=OPT_DEFS.filter(function(x){return x.k===p[0];})[0];
     var l=optCur(p[0],d.def());
     if(l.length<=1){alert('最低1つは必要です');return;}
-    if(!confirm('「'+l[+p[1]]+'」を削除しますか？'))return;
+    var nm=l[+p[1]],warn=d.delWarn?d.delWarn(nm):'';
+    if(!confirm('「'+nm+'」を削除しますか？'+(warn?'\n'+warn:'')))return;
     l.splice(+p[1],1);optSave(p[0],l);renderSettings();
   };});
   s.querySelectorAll('[data-optadd]').forEach(function(b){b.onclick=function(){
@@ -10574,52 +10907,6 @@ function renderOptionSettings(s){
     if(l.indexOf(v)>-1){alert('同じ項目がすでにあります');return;}
     l.push(v);optSave(k,l);renderSettings();
   };});
-}
-/* 設定：サーバ接続 */
-function renderServerSettings(s){
-  var on=API.online(),t=API.tenant()||{},u=serverUser()||{};
-  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('gear')+'サーバ接続（全端末でデータを共有）</h3>'
-    +'<div class="muted" style="margin-bottom:10px;line-height:1.8;">接続すると、記録が<b>サーバに保存され、どの端末からでも同じ内容</b>を見られます。ログインも本物の認証になります。<br>未接続のときは、これまで通りこの端末の中だけで動きます。</div>'
-    +(on
-      ?'<div style="background:#EAF3DE;border:1px solid #C7DFA6;border-radius:10px;padding:10px 13px;margin-bottom:12px;font-size:12.5px;color:#27500A;">接続中：<b>'+esc(t.name||'')+'</b>（園コード '+esc(t.code||'')+'）／ ログイン中：'+esc(u.name||'')+'（'+esc(u.role||'')+'）</div>'
-      :'<div style="background:#FAEEDA;border:1px solid #E9C88B;border-radius:10px;padding:10px 13px;margin-bottom:12px;font-size:12.5px;color:#6b3f08;">未接続です。この端末の中だけにデータが保存されています。</div>')
-    +'<div class="field"><label>接続先URL</label><input id="s_api" value="'+esc(API.base())+'" placeholder="https://（Railwayで発行されたURL）"></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
-      +'<button class="btn btn-sm" id="s_apiTest">接続を確認</button>'
-      +'<button class="btn btn-primary btn-sm" id="s_apiSave">'+ic('check')+'保存して再読み込み</button>'
-      +(on?'<button class="btn btn-sm" id="s_apiPush">'+ic('folder')+'この端末の内容をサーバへ送る</button><button class="btn btn-sm" id="s_apiPw">パスワードを変更</button>':'')
-      +'<span class="muted" id="s_apiMsg"></span></div>'
-    +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.7;">※ 実在の園児・職員の情報を入れる前に、接続と権限が正しく動くことを必ずご確認ください。個人情報を扱うため、園との取り決め（委託契約）もあわせてご準備ください。</div></div>';
-  s.insertAdjacentHTML('beforeend',html);
-  document.getElementById('s_apiTest').onclick=function(){
-    var b=document.getElementById('s_api').value.trim().replace(/\/$/,'');
-    if(!b){document.getElementById('s_apiMsg').textContent='URLを入力してください';return;}
-    document.getElementById('s_apiMsg').textContent='確認中…';
-    fetch(b+'/health').then(function(r){return r.json();}).then(function(j){
-      document.getElementById('s_apiMsg').textContent=j&&j.ok?'接続できました':'応答が不正です';
-    }).catch(function(e){document.getElementById('s_apiMsg').textContent='接続できませんでした：'+e.message;});
-  };
-  document.getElementById('s_apiSave').onclick=function(){
-    var b=document.getElementById('s_api').value.trim();
-    API.setBase(b);
-    if(!b){API.setToken('');API.setTenant(null);}
-    alert(b?'接続先を保存しました。ログイン画面に切り替わります。':'接続を解除しました。この端末の中だけで動きます。');
-    location.reload();
-  };
-  if(on){
-    document.getElementById('s_apiPush').onclick=function(){
-      if(!confirm('この端末に入っている内容を、サーバへ送って上書きします。よろしいですか？'))return;
-      var data={};
-      for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
-        if(String(k).indexOf('cocoas_')!==0)continue;
-        if(/^cocoas_(apiToken|apiBase|apiTenant|eventLog|snapshots|lastSnap)$/.test(k))continue;
-        try{data[k.replace('cocoas_','')]=JSON.parse(localStorage.getItem(k));}catch(e){}}
-      document.getElementById('s_apiMsg').textContent='送信中…';
-      API.call('PUT','/state',{data:data}).then(function(j){document.getElementById('s_apiMsg').textContent=j.saved+'件を送信しました';})
-        .catch(function(e){document.getElementById('s_apiMsg').textContent='失敗：'+e.message;});
-    };
-    document.getElementById('s_apiPw').onclick=function(){passwordChangeModal(false);};
-  }
 }
 /* 設定ページ用カード */
 function renderBackupSettings(s){
@@ -10648,8 +10935,7 @@ function renderBackupSettings(s){
     +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">最近の変更ログ（新しい順）</div>'
     +(lg.length?'<table><thead><tr><th>日時</th><th>項目</th><th>操作者</th></tr></thead><tbody>'+lg.map(function(x){return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(x.at.slice(5))+'</td><td>'+esc(x.label)+(x.n>1?' <span class="muted">×'+x.n+'</span>':'')+'</td><td class="row-sub">'+esc(x.by||'—')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ記録はありません</div>')
     +'</div></div></div>';
-  s.insertAdjacentHTML('beforeend',kpiCardHTML()+html);
-  kpiWire(s);
+  s.insertAdjacentHTML('beforeend',html);
   document.getElementById('bkDl').onclick=backupDownload;
   document.getElementById('bkSnap').onclick=function(){var ok=takeSnapshot('手動');document.getElementById('bkMsg').textContent=ok?'現在の状態を保存しました':'保存できませんでした（容量が不足している可能性があります）';renderSettings();};
   document.getElementById('bkFile').onchange=function(e){
@@ -10668,99 +10954,10 @@ function renderBackupSettings(s){
 }
 
 
-/* ── 未来WA アクセス数値管理表への書き出し ────────────────
-   数値管理表の「②行動ログ（生データ）」「④問い合わせログ（生データ）」の
-   列の並びに合わせて書き出す。貼り付ければ ①③ の集計はシート側で動く。 */
-function kpiRows(){
-  var a=stGet('wa_track',[])||[];
-  return a.map(function(x){
-    var at=String(x.at||''), d=at.slice(0,10), t=at.slice(11,19);
-    return [d,t,x.sid||'',x.sname||'',x.hid||'',x.act||'',
-            x.cid||'',x.cat||'',x.by||'',x.dev||'',x.ses||''];
-  });
-}
-function kpiHelpRows(){
-  var a=stGet('wa_help_log',[])||[];
-  return a.map(function(x){
-    var at=String(x.at||''), d=at.slice(0,10), t=at.slice(11,19);
-    return [d,t,x.hid||'',x.kind||'',x.tab||'',
-            x.hit?'答えられた':'答えられず',x.q||'',x.dev||'',x.sid||''];
-  });
-}
-function kpiTsv(rows){
-  return rows.map(function(r){
-    return r.map(function(c){
-      return String(c==null?'':c).replace(/[\t\r\n]/g,' ');
-    }).join('\t');
-  }).join('\n');
-}
-function kpiDownload(rows,name){
-  if(!rows.length){alert('まだ記録がありません。');return;}
-  /* Excel・スプレッドシートで文字化けしないよう BOM を付ける */
-  var blob=new Blob(['﻿'+kpiTsv(rows)],{type:'text/tab-separated-values;charset=utf-8'});
-  var u=URL.createObjectURL(blob), a=document.createElement('a');
-  a.href=u; a.download=name+'_'+todayISO()+'.tsv';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(function(){URL.revokeObjectURL(u);},1500);
-}
-function kpiCopy(rows,btn){
-  if(!rows.length){alert('まだ記録がありません。');return;}
-  var txt=kpiTsv(rows), done=function(){
-    var o=btn.textContent; btn.textContent='コピーしました';
-    setTimeout(function(){btn.textContent=o;},1600);
-  };
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(done,function(){kpiFallback(txt,done);});
-  }else kpiFallback(txt,done);
-}
-function kpiFallback(txt,done){
-  var ta=document.createElement('textarea');
-  ta.value=txt; ta.style.cssText='position:fixed;left:-9999px;top:0;';
-  document.body.appendChild(ta); ta.select();
-  try{document.execCommand('copy');done();}catch(e){alert('コピーできませんでした');}
-  ta.remove();
-}
-function kpiCardHTML(){
-  var t=stGet('wa_track',[])||[], h=stGet('wa_help_log',[])||[];
-  var days={}; t.forEach(function(x){days[String(x.at||'').slice(0,10)]=1;});
-  var homes={}; t.forEach(function(x){if(x.hid)homes[x.hid]=1;});
-  return '<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')
-    +'未来WA アクセス数値管理表への書き出し</h3>'
-    +'<div class="muted" style="margin-bottom:11px;font-size:12px;line-height:1.8;">'
-    +'保護者の方が未来WAでどの機能を使われたか、AIサポートにどんなご質問が届いたかを、'
-    +'数値管理表に貼り付けられる形で書き出します。<br>'
-    +'<b>お名前・メールアドレス・電話番号は含まれません。</b>'
-    +'ご家庭は匿名のID（例 h1konqtd）だけで数えます。'
-    +'ご質問の内容に混ざった連絡先は、記録する前に ○○ に置きかえています。</div>'
-    +'<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;font-size:12.5px;">'
-    +'<div><b>'+t.length+'</b> 件の行動</div>'
-    +'<div><b>'+h.length+'</b> 件の問い合わせ</div>'
-    +'<div><b>'+Object.keys(homes).length+'</b> ご家庭</div>'
-    +'<div><b>'+Object.keys(days).length+'</b> 日ぶん</div></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-    +'<button class="btn btn-primary btn-sm" id="kpiC1">②行動ログをコピー</button>'
-    +'<button class="btn btn-sm" id="kpiD1">ファイルで保存</button>'
-    +'<span style="width:12px;"></span>'
-    +'<button class="btn btn-primary btn-sm" id="kpiC2">④問い合わせログをコピー</button>'
-    +'<button class="btn btn-sm" id="kpiD2">ファイルで保存</button></div>'
-    +'<div class="muted" style="margin-top:11px;font-size:11.5px;line-height:1.8;">'
-    +'貼り付け先 … 数値管理表の「②行動ログ（生データ）」は3行目から、'
-    +'「④問い合わせログ（生データ）」は3行目から。'
-    +'①③の集計は貼り付けた時点で自動で計算されます。<br>'
-    +'いまは、この端末に残っている記録だけが出ます。'
-    +'ご家庭の端末ぶんをまとめて自動で集めるには、サーバとの接続が要ります。</div></div>';
-}
-function kpiWire(s){
-  var b;
-  if(b=document.getElementById('kpiC1'))b.onclick=function(){kpiCopy(kpiRows(),this);};
-  if(b=document.getElementById('kpiD1'))b.onclick=function(){kpiDownload(kpiRows(),'未来WA_行動ログ');};
-  if(b=document.getElementById('kpiC2'))b.onclick=function(){kpiCopy(kpiHelpRows(),this);};
-  if(b=document.getElementById('kpiD2'))b.onclick=function(){kpiDownload(kpiHelpRows(),'未来WA_問い合わせログ');};
-}
 
 /* ========== 使い方ヘルプ（各ページの「?」→ その場で説明・AIにも聞ける） ==========
    動画を作らなくても、画面ごとの説明と右下のAIアシスタントで使い方が分かるようにする。 */
-var HELP_DATA={"dashboard": {"summary": "ダッシュボードは、園の今の状況をひと目で確認できるホーム画面です。在園児数、本日の記録の入力もれ、本日のタスク、監査準備の進み具合、問い合わせ・体験・入退園の件数、やり取り中の連絡リストを表示し、押すとそれぞれの画面へ移動できます。", "steps": ["上の数字のカードで、在園児数と今月の状況を確認します。", "「本日の記録」の帯を見て、赤い「未」の項目を探します。", "「記録する」を押して、その場で本日分を入力します。", "「本日のタスク」を上から順に片づけていきます。", "「やり取り中の連絡リスト」の行を押して、内容を更新します。"], "tips": ["「未」は赤、「済」は緑です。帰るまでに赤をなくすことを目安にしてください。", "在園児カードのクラス名を押すと、そのクラスの男女の人数と比率が出ます。", "数字のカードを押すと、関係する画面（連絡先管理や記録など）へそのまま移動できます。", "「リード内訳」は「全期間・年度・月」を切り替えて見られます（受付日をもとに集計します）。", "一般スタッフの画面は本日のタスク中心です。問い合わせや入退園の数値は表示されません。"], "faq": [{"q": "数字が実際の人数と合っていない気がします。どこで直せますか。", "a": "ダッシュボードは各画面に入力された内容を集計して表示しています。連絡先管理や登園シートなど、もとの画面の内容をご確認ください。直すと数字も自動で変わります。"}, {"q": "問い合わせや体験の件数が私の画面には出てきません。故障でしょうか。", "a": "故障ではありません。一般スタッフの権限では運営の数値は表示されない設定です。本日のタスクと在園児・本日の出席が中心の画面になります。表示が必要な場合は管理者にご相談ください。"}, {"q": "「やり取り中の連絡リスト」に、あの保護者の名前が出てきません。", "a": "「長期見込み」「連絡不通」「入園 確定」「NG」の方は、このリストには表示されません。連絡先管理の画面からお探しください。"}]}, "compose": {"summary": "この画面では、連絡先から相手を1人選び、テンプレートを使って個別にメールを送れます。あとで送る「送信予約」や、送ったメールの確認もできます。", "steps": ["連絡先の一覧から、メールを送りたい相手を選びます。", "使いたいテンプレートを選んで、本文に読み込みます。", "件名と本文を読み、名前や日付などを書き直します。", "すぐ送るときは送信、あとで送るときは日時を決めて予約します。", "送信済みの一覧を開いて、きちんと送れたかを確かめます。"], "tips": ["テンプレートの名前・日付・時間は、そのままになりがちです。送る前に声に出して読み直すと安心です。", "宛先のお名前は必ずご確認ください。似たお名前の方がいる場合は特にご注意ください。", "急ぎでなければ送信予約が便利です。書いてすぐ送らず、時間を置いて見直せます。", "お返事がほしいときは、いつまでにお返事いただきたいかを本文に書いておくと伝わりやすくなります。"], "faq": [{"q": "送ったあとに間違いに気づきました。取り消せますか？", "a": "送信が終わったメールは取り消せません。おわびと訂正の内容を、あらためてお送りください。送信予約にしておくと、送られる前に内容を見直すことができます。"}, {"q": "送りたい方が一覧に出てきません。", "a": "連絡先に登録されていない可能性があります。お名前の一部で探しても見つからないときは、連絡先の登録内容をご確認ください。"}, {"q": "何人かの保護者に同じ内容を送りたいのですが。", "a": "この画面は1対1で送るためのものです。お一人ずつ選んで送っていただく形になります。同じテンプレートを使えば、毎回書き直さずに済みます。"}]}, "broadcast": {"summary": "この画面では、クラスや児童を選んで保護者へお知らせを一斉に送れます。左の欄で件名と本文を直すと、右の「保護者に届く見え方」がすぐ変わります。ひな形はどの園でも使える骨組みなので、園のことばに書き直してお使いください。", "steps": ["上の「ひな形」で、送るお知らせを選びます。", "左の欄で件名と本文を直します。〇〇のところに、園の時間・持ち物・日にちを入れてください。", "右の「保護者に届く見え方」で、届く文章を確かめます。", "「送り先」で、クラスで選ぶか、児童を選ぶかを決めます。", "見直してから「この内容で送る」を押します。日時を決めて「予約」もできます。"], "tips": ["左の欄での書き足しは、この1回だけに効きます。ひな形そのものを直すときは「メールテンプレート」の画面で直してください。", "デイリーメールの本文に〔本日の活動〕と書いておくと、月間カリキュラムのその日の午前・午後が入ります。", "〇〇のまま送ると、そのまま保護者に届きます。送る前に右の見え方を必ずお読みください。", "園全体へのお知らせは、クラスの選び漏れがないかご注意ください。"], "faq": [{"q": "クラスを間違えて送ってしまいました。どうすればいいですか？", "a": "おわびと正しい内容を、あらためて対象のクラスへ配信してください。送信済みのお知らせの取り扱いについては、園の管理担当者にご確認ください。"}, {"q": "〔本日の活動〕のところが空になります。", "a": "月間カリキュラムの「日別スケジュール」に、その日の午前・午後がまだ入っていません。入れると、ここに入ります。"}, {"q": "毎回おなじ直しをしています。ひな形そのものを変えられますか？", "a": "変えられます。「メールテンプレート」の画面で「題名と文章を直す」を押してください。園ごとの文章として残ります。"}, {"q": "同じお知らせを複数のクラスに送れますか？", "a": "送れます。配信先で送りたいクラスをまとめて選べば、同じ内容を一度に配信できます。"}]}, "dm": {"summary": "この画面では、ご家庭ごとに個別のメッセージをやりとりできます。送信すると保護者に通知メールが届き、メール内の返信URLからお返事をいただけます。", "steps": ["一覧から、メッセージを送りたいご家庭を選びます。", "これまでのやりとりを読み、用件を確かめます。", "入力欄に、伝えたい内容をわかりやすく書きます。", "宛先のお名前と本文を、もう一度見直します。", "「送信」を押すと、保護者へ通知メールが届きます。"], "tips": ["送信すると、すぐに保護者へメールが届きます。押す前に必ず読み返してください。", "よく似たお名前のご家庭があります。送信前に宛先のお名前をご確認ください。", "けがや発熱など急ぎのご連絡は、お電話が確実です。DMは気づくまで時間がかかります。", "長い文章より、短い文を分けて書くほうが、保護者に伝わりやすくなります。"], "faq": [{"q": "保護者には、どのように届くのですか？", "a": "送信すると、保護者へ通知メールが届きます。メールの中の返信URLを開くと、その場でお返事を書いていただけます。"}, {"q": "保護者からのお返事は、どこで見られますか？", "a": "この画面の、同じご家庭のやりとりの中に表示されます。ご家庭を選んで、内容をご確認ください。"}, {"q": "文章をまちがえて送ってしまいました。どうすればよいですか？", "a": "あわてず、続けて訂正のメッセージをお送りください。「先ほどの連絡を訂正します」と一言添えると、保護者に伝わりやすくなります。"}]}, "trial": {"summary": "体験を担当した先生が、その日の結果を入力する画面です。保存すると、連絡先の進捗と生徒台帳に自動で反映されます。", "steps": ["一覧から、報告したい体験の記録を選びます。", "お子さまのお名前と体験日が合っているか確認します。", "体験の結果を、表示されている選択肢から選びます。", "当日の様子や気づいたことをメモに入力します。", "入力内容を見直し、保存ボタンを押します。"], "tips": ["体験が終わったその日のうちに入力すると、様子を思い出しやすく正確に残せます。", "メモは次に対応する先生が読むものです。「〇〇が好きそうだった」など短く具体的に書くと伝わります。", "保存すると連絡先の進捗と生徒台帳に反映されます。同じ内容を別の画面で入力し直す必要はありません。", "保存を押す前に、お名前と体験日を必ずもう一度ご確認ください。別のお子さまに反映されるのを防げます。"], "faq": [{"q": "保存したあと、連絡先の進捗も自分で直さないといけませんか？", "a": "いいえ、必要ありません。保存すると連絡先の進捗と生徒台帳に自動で反映されますので、そのままで大丈夫です。"}, {"q": "入力を間違えて保存してしまいました。どうすればいいですか？", "a": "他の画面にも反映されていますので、気づいた時点で園の管理担当の先生にお伝えください。早めにご連絡いただくと安心です。"}, {"q": "体験を担当していない先生が代わりに入力してもいいですか？", "a": "基本は担当した先生の入力をおすすめします。代わりに入力する場合は、当日の様子を担当の先生に確認してから入力してください。"}]}, "deliveries": {"summary": "「配信カレンダー」は、デイリーメールや請求書などの定期配信の次回予定と、体験・説明会の予定をまとめて確認できる画面です。園の予定をカレンダー用のファイルに書き出して、ふだんお使いのカレンダーに取り込むこともできます。", "steps": ["左のメニューから「配信カレンダー」を開きます。", "「定期配信スケジュール」で次回の予定を確認します。", "送りたい配信の行にある「作成」を押します。", "下の「体験・説明会の予定」で今後の日程を確認します。", "「カレンダーに取り込む」→「カレンダー用ファイルを書き出す」を押します。"], "tips": ["「次回予定」に「本日」と出ている配信は、その日に送るものです。朝のうちにご確認ください。", "上に出る「予約済み配信」は今のところ予約の記録だけで、時間になっても自動では送られません。行を押すと内容を確認でき、ごみ箱のボタンで取り消せます。", "体験・説明会の予定にある「メール作成」を押すと、その方の状況に合った文面が自動で選ばれた状態でメール画面に進みます。", "書き出したファイルは、Googleカレンダーの「他のカレンダー → インポート」から取り込めます。AppleカレンダーやOutlookでも同じように取り込めます。"], "faq": [{"q": "予約した配信は、時間になったら自動で送られますか？", "a": "いいえ。今は予約を記録しておくだけで、自動送信はまだ行われません。当日はお手数ですが、配信画面から送信をお願いします。"}, {"q": "体験の予定が一覧に出てきません。", "a": "体験日が登録されていない方や、日付が過ぎた方は表示されません。連絡先の情報に体験日が入っているかご確認ください。鉛筆のボタンからその場で直せます。"}, {"q": "書き出したファイルは、どうすればカレンダーに入りますか？", "a": "パソコンにファイルが保存されますので、Googleカレンダーの「他のカレンダー → インポート」でそのファイルを選んでください。予定がそのまま入ります。"}]}, "records": {"summary": "この画面では、登園（出席）・安全点検・午睡チェック・健康チェック・業務日報を、その日ごとにまとめて記録できます。毎日の記録が1か所に残るので、あとから見返したり引き継いだりするときに役立ちます。", "steps": ["画面上部の日付を見て、今日の日付になっているか確認します。", "記録したい項目（登園・安全点検・午睡・健康・日報）を選びます。", "クラスやお子さまごとに、当てはまる内容を選んで入力します。", "気になったことがあれば、メモ欄に短いことばで書きます。", "入力が終わったら保存を押して、記録を確定します。"], "tips": ["午睡チェックは、決められた時間ごとにその場で入力すると、書き忘れを防げます。", "気になる様子は「いつ・どこで・どうしたか」を短く書くと、あとの人にも伝わりやすいです。", "入力の途中でも、こまめに保存しておくと安心です。", "登園は朝のうち、日報は帰る前など、記録する時間を決めておくと習慣になります。"], "faq": [{"q": "入力をまちがえました。直せますか？", "a": "同じ項目をもう一度開いて、正しい内容に入力し直し、保存してください。気づいたときにその日のうちに直しておくと安心です。"}, {"q": "お休みのお子さんは、どう記録すればいいですか？", "a": "登園の記録で、お休み（欠席）として記録してください。理由が分かっていれば、メモ欄に短く書いておくと共有しやすくなります。"}, {"q": "途中まで入力して、あとから続きを入力してもいいですか？", "a": "大丈夫です。入力できたところまで保存しておき、あとで同じ画面を開いて続きを入力してください。"}]}, "carerec": {"summary": "毎月の身体測定、その都度のヒヤリハット・怪我、3ヶ月ごとの生徒個人発達記録を、この画面でまとめて記録できます。記録した内容は印刷したり、控えとして保存したりできます。", "steps": ["画面の上にある3つのタブから、記録したい種類を選びます。", "身体測定は、月とクラスを選び、身長と体重を入力します。", "ヒヤリハット・怪我は「記録を追加」を押し、入力後に保存を押します。", "生徒個人発達記録は、園児と期間を選び、項目ごとに当てはまるものを選びます。", "必要に応じて「出力」で印刷し、「データ保存」で控えを残します。"], "tips": ["身長と体重を入力すると、カウプ指数は自動で計算されます。目安は15〜17です。", "「保護者へ測定結果を送信」を押すと、各ご家庭にはお子様ご本人の記録だけが届きます。ほかのお子様の記録は見えませんので、ご安心ください。", "ヒヤリハット・怪我では、人型のイラストをタップすると、けがの場所を前と後ろで残せます。まちがえたときは「クリア」でやり直せます。", "生徒個人発達記録は監査でも確認される書類です。「記録者」のお名前も入れておくと安心です。"], "faq": [{"q": "先月の身体測定を直したいのですが、どうすればよいですか？", "a": "画面上の月の欄を、直したい月に選び直してください。その月の記録が表示され、そのまま入力し直せます。"}, {"q": "入力したのに、保存ボタンが見当たりません。消えてしまいませんか？", "a": "身体測定と生徒個人発達記録は、入力するとその場で自動的に保存されます。ヒヤリハット・怪我だけ、最後に「保存」を押してください。"}, {"q": "まちがえて記録してしまいました。消せますか？", "a": "ヒヤリハット・怪我は、一覧の右にあるごみ箱のマークから削除できます。身体測定と生徒個人発達記録は、数値や選択を入れ直すと上書きされます。"}]}, "curriculum": {"summary": "クラスごとに、その月のカリキュラムをまとめて作れる画面です。月のねらいなどの項目、日ごとの予定、週ごとの活動内容を、1つの画面で入力・保存できます。", "steps": ["画面の上で、対象のクラスと年月を選びます", "月の項目欄に、ねらいや行事などを入力します", "日別スケジュールに、日ごとの予定を書き入れます", "週ごとの欄に、その週の活動内容を入力します", "入力が終わったら、保存ボタンを押します"], "tips": ["先に月の項目（ねらい）を決めてから、週・日を埋めると書きやすいです", "全部を一度に書かず、途中でこまめに保存すると安心です", "クラスと年月が合っているか、入力前にもう一度ご確認ください", "行事や園庭開放など、動きやすい予定は日別スケジュールにまとめると見やすくなります"], "faq": [{"q": "書きかけのまま、あとで続きを書いてもいいですか？", "a": "はい、大丈夫です。保存しておけば、次に同じクラス・同じ月を開いたときに、続きから入力できます。"}, {"q": "入力した内容をあとから直せますか？", "a": "はい。同じクラス・同じ月を開いて、直したい欄を書き換えて保存し直してください。"}, {"q": "クラスが違う分も作りたいのですが、どうすればいいですか？", "a": "画面の上でクラスを切り替えてから、そのクラスの内容を入力してください。クラスごとに別々に保存されます。"}]}, "drill": {"summary": "年間14回の避難訓練について、いつ・どんな内容で行うかの計画と、実施したあとの記録をまとめて管理できる画面です。参加者名簿や年間記録表を出力して、印刷や書類の確認にも使えます。", "steps": ["画面の上で、記録したい年度を選びます。", "一覧から、今回あつかう訓練の回を選んで開きます。", "日時や想定する災害など、計画の内容を入力します。", "訓練が終わったら、実施した内容と参加者を記録して保存します。", "出力ボタンから、参加者名簿や年間記録表を出します。"], "tips": ["年度のはじめに14回分の計画をまとめて入れておくと、あとがぐっと楽になります。", "実施した内容は当日のうちに記録すると、記憶が新しいまま正確に残せます。", "参加者名簿は訓練の前に出しておくと、当日の点呼の確認に使えます。", "年間記録表は書類の提出や確認をもとめられたときに使えるので、記録の入れ忘れがないか時々見直しましょう。"], "faq": [{"q": "訓練の日にちが変わったのですが、どうすればいいですか？", "a": "その回を開いて、日付を新しいものに直してから保存してください。内容が上書きされます。"}, {"q": "14回すべてを一度に入力しないといけませんか？", "a": "いいえ。年間14回分の枠が用意されているだけですので、計画や実施の記録は、できるところから順に入れていただいて大丈夫です。"}, {"q": "あとから記録を直すことはできますか？", "a": "できます。直したい回を開いて内容を書き直し、保存すれば更新されます。"}]}, "bouka": {"summary": "毎月の防火・安全設備の点検（消火器・救急箱・AED・防火扉・避難グッズ）と消火訓練の記録を、1年度分（4月〜3月）まとめて残せる画面です。入力した内容は、そのまま台帳と訓練記録の形で印刷できます。", "steps": ["画面の上にある選択欄から、記録したい年度を選びます。", "「防火管理台帳」を押し、実施した月の行に日付と内容を入力します。", "①〜⑤の点検項目のうち、確認できたものにチェックを入れます。", "「消火訓練 手順・記録」を押し、実施場所・タイム（所要時間・分）・概要を入力します。", "右上の「台帳を出力」または「記録を出力」を押して、印刷します。"], "tips": ["保存ボタンはありません。入力するとその場で自動的に保存されます。", "①〜⑤が何の点検かは、表のすぐ上に書いてあります（①消火器 ②救急箱 ③AED・自動火災報知設備 ④防火扉 ⑤避難グッズ）。", "画面上部の「実施済 ○/12」で、その年度の記録の抜けがひと目で分かります。", "「内容」の欄には例文があらかじめ入っています。実際に行った内容に合わせて書き直してください。"], "faq": [{"q": "保存ボタンが見当たりません。入力した内容は消えてしまいませんか？", "a": "消えません。日付やチェックを入れた時点で自動的に保存されます。年度を切り替えたり、別の画面に移ったりしても、入力した内容はそのまま残ります。"}, {"q": "先月の分を書き忘れてしまいました。あとから入力できますか？", "a": "できます。4月から3月までのどの月でも、いつでも入力・修正できます。日付を入れると「実施済」の数にも反映されます。"}, {"q": "「防火管理台帳」と「消火訓練」で、日付を2回入れないといけませんか？", "a": "いいえ。日付と内容は両方で共通です。どちらかで入力すれば、もう一方にも同じ内容が表示されます。"}]}, "shift": {"summary": "翌月の勤務表（シフト）を作り、実際の出勤・退勤を出勤簿に記録できる画面です。勤務時間と時間外は自動で計算され、そのまま印刷して提出用の書類にできます。", "steps": ["上部のタブで「勤務表（シフト予定）」を選びます。", "右上の月の欄で、作りたい翌月を選びます。", "早番・日勤・遅番の勤務時間と休憩時間を確認します。", "名前と日付が交わるマスを押し、早・日・遅・休を切り替えます。", "打刻は「出勤簿」タブで職員を選び、出勤と退勤を入れます。"], "tips": ["「基本シフト一括反映」を押すと、平日は各職員の基本シフト、土日は休で一度に埋まります。すでに入れた内容は上書きされるので、細かい調整をする前に押してください（基本シフトは職員管理で設定します）。", "出勤簿の「シフトから一括入力」を使うと、シフトの予定時刻がまとめて入ります。すでに打刻した日はそのまま残るので、違う日だけ直せば大丈夫です。", "勤務時間は「退勤−出勤−休憩」で自動計算されます。時間外（所定の8時間を超えた分）は赤い字で表示されるので、多い日は理由を確認しておくと安心です。", "遅刻・早退・有給などは備考欄に書いておくと、印刷した出勤簿にもそのまま残ります。印刷は「この職員を出力」「全員分を出力」から選べます。"], "faq": [{"q": "保存ボタンが見当たりません。入力が消えてしまいませんか？", "a": "入力するとその場で自動保存されますので、保存ボタンを押す必要はありません。ただし記録はお使いの端末に保存されるため、別の端末では表示されません。同じ端末で入力・確認をお願いします。"}, {"q": "シフトのマスを押し間違えました。空欄に戻せますか？", "a": "同じマスを押すたびに、早 → 日 → 遅 → 休 → 空欄 の順に変わります。何回か続けて押していただくと、元の空欄に戻ります。"}, {"q": "早番の時間が園の実際と違います。変えられますか？", "a": "表の上にある「早・日・遅」の横の時刻の欄を書き換えてください。休憩時間も同じ場所で直せます。変更した時刻は、印刷した勤務表や出勤簿の一括入力にも反映されます。"}]}, "expense": {"summary": "この画面では、月ごとの経費精算表を作成し、印刷や書き出しができます。あわせて、手元の現金を数えて記録する金種表（お札や硬貨の枚数をまとめた表）も作成できます。", "steps": ["画面の上にある年月から、作成したい月を選びます。", "経費精算表に、日付・使いみち・金額を入力します。", "現金を数えて、金種表にお札と硬貨の枚数を入力します。", "精算表の合計と、手元の現金の合計が合うか確かめます。", "出力（印刷）を押して、精算表と金種表を出します。"], "tips": ["領収書を日付順に並べてから入力すると、抜けや二重入力に気づきやすくなります。", "金種表は、現金を数えたその場で入力すると数え直しが減ります。", "精算表の合計と金種表の合計が同じ金額になるか、出力の前に必ず見比べてください。", "月末にまとめて入力するより、こまめに入力しておくと、あとから直す手間が減ります。"], "faq": [{"q": "入力をまちがえました。あとから直せますか？", "a": "はい。その月をもう一度開いて、まちがえた欄を入力し直してください。直したあとに、合計金額をもう一度確かめると安心です。"}, {"q": "現金の金額が少し合いません。どうすればよいですか？", "a": "まず領収書の入れ忘れ、次に金額の打ちまちがい、最後に現金の数えまちがいの順で確かめてください。それでも合わないときは、そのままにせず園長先生や事務担当の方にご相談ください。"}, {"q": "金種表は毎月作らないといけませんか？", "a": "園のきまりによりますが、現金を数えたときに作っておくと、あとで「いくらあったか」をすぐ確認できます。作成した月の分はこの画面から出力できます。"}]}, "docgen": {"summary": "危機管理マニュアル・運営状況報告書・保育安全計画の3つの書類を、園の情報を入力するだけで作れる画面です。右側のプレビューで仕上がりを見ながら直し、そのまま印刷やPDF保存ができます。", "steps": ["画面の上にあるボタンで、作りたい書類を1つ選びます。", "危機管理マニュアルは「施設固有情報」を開き、園名や連絡先を入力します。", "左側の入力欄や本文を、園の内容に合わせて直します。", "右側のプレビューで、書類の仕上がりを確かめます。", "「出力」ボタンを押して、印刷またはPDF保存をします。"], "tips": ["入力した内容は自動で保存されます。保存ボタンを押す必要はありません。", "プレビューの赤い〔未入力〕は、施設固有情報がまだ空の場所です。入力すると消えます。", "本文を直しすぎたときは「既定に戻す」で元の文章にもどせます。直した項目には✎が付きます。", "運営状況報告書の児童数と職員は、システムの名簿から自動で入ります。手で数え直す必要はありません。"], "faq": [{"q": "「出力」を押したら印刷の画面が出ました。PDFで保存できますか？", "a": "はい。印刷画面の「送信先」や「プリンター」の欄で「PDFに保存」を選ぶと、PDFとして残せます。"}, {"q": "危機管理マニュアルを、全部まとめて1冊で印刷できますか？", "a": "できます。左上の「全編を出力（表紙・目次つき）」を押すと、表紙と目次が付いた状態でまとめて出せます。"}, {"q": "入力した園の情報は、ほかの先生のパソコンでも見られますか？", "a": "いいえ。入力した内容はお使いの端末の中に保存されます。別の端末で使うときは、あらためて入力をお願いします。"}]}, "reqnav": {"summary": "園の施設種別を選ぶと、行政に提出・整備する書類の一覧が表示される画面です。書類ごとに「未着手・準備中・完了」で進み具合を記録でき、この中で作れる書類は作成画面へそのまま移動できます。", "steps": ["画面の一番上で、園に当てはまる「施設種別」を選びます。", "必要に応じて「自治体（市区町村）」と「定員」を入力します。", "一覧で、書類名・根拠・提出先・頻度・説明を確認します。", "書類ごとに右側で「未着手」「準備中」「完了」を選びます。", "「このシステムで作る」がある書類は、押すと作成画面に移ります。"], "tips": ["一覧が切り替わるのは「施設種別」を選んだときです。まず種別を正しく選んでください。", "一覧の上に「完了 ○/○」と出ます。今どこまで進んでいるかの目安にしてください。", "橙色の「要確認」が付いた書類は、自治体によって様式や頻度が変わりやすいものです。市区町村の公式情報でご確認ください。", "この一覧は確認日時点の暫定の内容です。制度の変更もあるため、最終的な判断は必ず自治体の案内に合わせてください。", "選んだ種別や進み具合は、お使いのパソコン・タブレットの中に自動で保存されます。別の端末には引き継がれません。"], "faq": [{"q": "施設種別を変えたら、今まで入れた進み具合は消えてしまいますか？", "a": "消えません。進み具合は種別ごとに分けて記録しています。元の種別に戻せば、前に選んだ「準備中」「完了」がそのまま表示されます。"}, {"q": "「要確認」と付いている書類は、出さなくてもよいということですか？", "a": "いいえ、不要という意味ではありません。必要かどうかや、様式・提出の頻度が自治体で違いやすい書類という印です。園のある市区町村の窓口や公式ページでご確認ください。"}, {"q": "「このシステムで作る」のボタンが出ていない書類は、どうすればよいですか？", "a": "その書類は「システム外で用意」と表示されます。園で別に作成したり、自治体の様式をお使いください。用意ができたら、この画面で「完了」に変えておくと分かりやすくなります。"}]}, "docs": {"summary": "契約書や保険証書などの書類をGoogle Driveに保存し、そのURLをこの画面に登録しておける画面です。登録すると状態が「格納済み」に変わり、監査のときにすぐ書類を開いて確認できます。", "steps": ["先にGoogle Driveへ書類を保存し、その共有URLをコピーします。", "一覧から登録したい書類名を探し、URL欄に貼り付けます。", "必要に応じて、メモ欄に有効期限や補足を書き添えます。", "「保存」を押すと、状態が「格納済み」に変わります。", "一覧にない書類は、下の「書類を追加」に名前を入れて「追加」を押します。"], "tips": ["この画面はファイルそのものを預かる場所ではありません。ファイルはDriveに置き、ここにはURLだけを登録してください。", "URLを貼っただけでは記録されません。最後に必ず「保存」を押してください。", "Driveの共有設定もご確認ください。園の関係者が開けないURLだと、監査のときに表示できません。", "書類名の文字をクリックすると、園でお使いの呼び方に書き換えられます。", "病院などの緊急連絡先は、この画面ではなく「施設管理 → 提携医療機関」で管理します。"], "faq": [{"q": "赤い「未格納」の表示が消えません。どうすればよいですか？", "a": "URL欄が空のままだと「未格納」と表示されます。DriveのURLを貼り付けて「保存」を押していただくと、緑色の「格納済み」に変わります。"}, {"q": "一覧にない書類も登録できますか？", "a": "はい、できます。表の下にある「書類を追加」に書類名を入れて「追加」を押すと、新しい行が増えます。URLは後からでも入力できます。"}, {"q": "追加した書類を削除すると、Driveのファイルも消えてしまいますか？", "a": "いいえ、Drive内のファイルはそのまま残ります。消えるのは、この画面に登録したURLとメモだけです。なお削除ボタンは、ご自身で追加した書類にのみ表示されます。"}]}, "facility": {"summary": "園の基本情報や認可・届出の内容、かかりつけ医などの提携医療機関、給食・清掃などの取引先を、この画面ひとつにまとめて登録できます。登録した内容は、緊急連絡先の壁掲示用や施設情報の一覧として印刷することもできます。", "steps": ["左のメニューの「管理」から「施設管理」を選びます。", "「園の基本情報」「認可・届出」の各欄に入力します。", "「提携医療機関」の「追加」を押し、病院名や電話番号を入れます。", "「提携先・取引先」の「追加」を押し、種別と会社名を入れます。", "「壁掲示用に出力」を押すと、緊急連絡先を印刷できます。"], "tips": ["入力した内容は、ほかの欄に移った時点で自動的に保存されます。保存ボタンはありません。", "「目標物（緊急通報用）」に建物の目印を入れておくと、119番のときに場所を伝えやすくなります。", "決まった欄にない情報は、一番下の「その他の情報（自由記載）」で見出しと内容を追加して残せます。", "表の右はしのゴミ箱を押すと、その行はすぐに消えます。確認の画面は出ませんのでご注意ください。"], "faq": [{"q": "保存ボタンが見つかりません。入力したものは消えてしまいませんか？", "a": "入力したあと、ほかの欄をクリックした時点で自動的に保存されます。保存ボタンはありませんので、そのまま画面を移っていただいて大丈夫です。"}, {"q": "病院の連絡先を、事務室の壁に貼っておきたいのですが。", "a": "「提携医療機関」の右上にある「壁掲示用に出力」を押すと印刷の画面が開きます。電話番号が大きく印刷され、消防・救急（119）と警察（110）も一緒に載ります。"}, {"q": "ここに入れた内容は、ほかの先生のパソコンでも見られますか？", "a": "いまはお使いの端末のブラウザの中に保存されるしくみのため、ほかの端末では表示されません。共有したいときは「施設情報を出力」で印刷してお渡しください。控えの保存は「設定」画面のバックアップから行えます。"}]}, "contacts": {"summary": "見学・体験のお問い合わせをいただいたご家庭（リード）と、在園児・退園児の連絡先をまとめて管理する画面です。進捗フェーズや懸念点、次回アクションの日を記録して、対応もれを防げます。", "steps": ["「すべて」「リード」「在園児」「退園児」を押して表示を絞ります", "探したい方は、上の検索欄に保護者名やお子様のお名前を入れます", "新しく登録するときは、右上の「連絡先を追加」を押します", "区分を選び、保護者名とメールアドレスなど必要な項目を入力します", "内容を直すときは行の右の鉛筆マークを押し、最後に「保存」を押します"], "tips": ["保護者名とメールアドレスは必ず必要です。ほかの項目は後から少しずつ足していけます。", "並べ替えを「次回アクションが近い順」にすると、早く連絡すべきご家庭が上に並びます。", "体験でうかがった心配ごとは「懸念点・要望」に書いておくと、一覧に赤色で表示されます。", "監査のときは「監査用に出力」から、児童名簿・緊急連絡票・健康アレルギー一覧・入退園一覧を印刷できます。"], "faq": [{"q": "「リード」って何のことですか？", "a": "見学や体験のお問い合わせをいただいた、まだ入園前のご家庭のことです。進捗フェーズで今どの段階かを管理します。"}, {"q": "入園が決まったら、どうしたらいいですか？", "a": "その方の鉛筆マークを押して編集画面を開き、区分を「在園児」に切り替えてください。クラス・入園日・通園曜日・月額を入れて保存します。"}, {"q": "退園したお子様は削除したほうがいいですか？", "a": "削除せず、区分を「退園児」にして退園日を入れてください。監査で使う入退園一覧に必要です。ゴミ箱で消すと元に戻せませんのでご注意ください。"}]}, "roster": {"summary": "園児一人ひとりの情報（基本情報・ご家族・緊急連絡先・健康情報・お支払い）を1か所にまとめて登録・確認できる画面です。地図上に園児のご自宅と園・避難場所を表示でき、一覧は名簿として印刷もできます。", "steps": ["左のメニューで「生徒台帳」を開き、「一覧」タブを選びます。", "見たい園児の行の「開く」を押し、個別プロフィールを表示します。", "各項目を入力したら、右上の「保存」を押して内容を確定します。", "「自宅マップ」タブで園児を選び、地図のご自宅の位置を押します。", "「一覧」タブの「名簿を出力」を押すと、印刷用の名簿が出ます。"], "tips": ["赤い「必須」マークの項目（住所・緊急連絡先1と2・健康情報など）が空のままだと保存できません。", "アレルギーやかかりつけ医がない園児も、空欄にせず「なし」と入力してください。", "個別プロフィールの「この子を地図で見る」を押すと、その園児のご自宅の位置へすぐ移動します。", "自宅マップはインターネットに接続しているときだけ表示されます。地図が出ないときは接続を確かめ、画面を開き直してください。"], "faq": [{"q": "探している園児の名前が一覧に出てきません。", "a": "一覧に表示されるのは在園中の園児だけです。「連絡先」の画面で、その園児が在園として登録されているかをご確認ください。"}, {"q": "住所を入力すれば、地図にご自宅のピンが自動で付きますか？", "a": "自動では付きません。住所を外部に送らないようにしているためです。「自宅マップ」タブで園児を選び、地図のご自宅の場所を押してピンを置いてください。置き直しや削除もできます。"}, {"q": "入力した内容は、他の先生のパソコンでも見られますか？", "a": "見られません。入力した情報は、今お使いの端末のブラウザの中だけに保存されます。別の端末で見たい場合は、その端末で改めて入力が必要です。"}]}, "enroll": {"summary": "園児ごとのコースプランと、ランチ・ロングステイ・教育関連費の有無をまとめて設定できる画面です。設定した内容から月額が自動で計算され、そのまま請求書づくりに引き継がれます。", "steps": ["左のメニューから「生徒情報（契約・オプション）」を選びます。", "一覧から園児の行を探し、「コースプラン」を選びます。", "ランチ・ロングステイを使う園児は「あり」にチェックを入れます。", "教育関連費がかかる園児は、その列のチェックを入れます。", "右端の「月額（自動）」を確かめ、「請求書」を押します。"], "tips": ["チェックや選びなおしは、その場ですぐ保存されます。保存ボタンはありません。", "ランチ・ロングステイの下に赤い字で「曜日が未設定」と出たときは、回数が0回のままです。「連絡先」で通園曜日とオプションを設定してください。", "「月額（自動）」はその月の曜日の数で計算されるため、月によって金額が変わることがあります。", "ランチなどの単価は「設定」の「料金設定」で変えられます。入園金は請求書の画面でチェックを入れて加えます。"], "faq": [{"q": "ランチの回数は、この画面で直接入力できますか？", "a": "この画面では「あり」「なし」だけを決めます。回数は「連絡先」の曜日ごとの設定と、その月の曜日の数から自動で計算されます。今月だけ回数を変えたいときは、「請求書」ボタンから開く請求書の画面で直せます。"}, {"q": "名前が一覧に出てこない園児がいます。", "a": "この画面には在園児として登録されている園児だけが表示されます。「連絡先」でその園児の区分が「在園児」になっているかご確認ください。"}, {"q": "変えた内容は、いつ請求に反映されますか？", "a": "変更するとすぐ保存され、次に作る請求書に反映されます。すでに作成済みの月の請求書には自動では反映されませんので、「請求管理」でその月の内容をご確認ください。"}]}, "billing": {"summary": "月ごとの保育料の請求書を、内容の確認から発行・保護者への送付・入金の確認まで、この画面だけで進められます。金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動で計算されます。", "steps": ["右上の月を選んで、その月の請求一覧を表示します", "園児ごとに「明細」を押し、回数や割引、支払期日を確かめます", "内容がよければ上の「一括で発行」を押します", "「発行済をまとめて送付」を押し、保護者へお送りします", "入金を確認できたら、その行の「入金済」を押します"], "tips": ["この画面を開くと、はじめは翌月分が表示されます。前の月を見たいときは、右上の月を変えてください。", "金額は自動で計算されます。その月だけ回数を変えたい・割引を付けたいときは、その子の行の「明細」から直します。", "「明細」で「保存」を押すと、状態が「未発行」から「発行済」に変わります。まだ発行したくないときは「閉じる」を押してください。", "紙でお渡しするときは「全員分を印刷」、1人分だけなら行の右にあるプリンターのマークを押します。"], "faq": [{"q": "金額がちがうのですが、どこで直せますか？", "a": "その子の行の「明細」を押すと、コースプラン・ランチやロングステイの回数・教育関連費・割引・支払期日を直せます。全員に共通する単価そのものを変えたいときは「設定 → 料金設定」で変更してください。"}, {"q": "まちがえて送ってしまいました。取り消せますか？", "a": "送ったものを取り消すことはできません。「明細」で正しい内容に直してから「再送」を押し、保護者の方にはひとことお詫びとご連絡を添えてください。"}, {"q": "入金がまだのご家庭は、どこを見れば分かりますか？", "a": "状態が「送付済」のままの行が、まだ入金を確認できていないご家庭です。画面上部のタグで「送付済」「入金済」の件数が分かり、支払期日は一覧の「支払期日」の列で確認できます。"}]}, "templates": {"summary": "「メールテンプレート」は、配信でよく使う定型の文面を一覧で見られる画面です。保護者への個別メールと、クラス全体へのお知らせ配信の見本を確認して、そのまま送信画面へ持っていけます。", "steps": ["上が個別メール、下が全体周知・お知らせの一覧です。使いたい文面を探します", "カードに出ている件名と本文の見本を読み、内容を確かめます", "カードの下の「対象」を見て、送りたい相手と合うか確認します", "そのまま送るときは「この文面で送信」（全体周知・お知らせは「この文面で配信」）を押します", "ひな形そのものを園のことばに直すときは「題名と文章を直す」を押します"], "tips": ["ひな形の中身は、この画面の「題名と文章を直す」で書き直せます。直した内容は園ごとの文章として残り、「はじめの内容に戻す」で元に戻せます", "送信画面で直した文面は、その送信だけに使われます。見本はそのまま残るので、次の方にもきれいな状態から始められます", "〔お名前〕〔お子様〕などのカッコは、送るときに宛先ごとの名前に自動で入れ替わります。そのまま残しておいて大丈夫です", "「〇月〇日」「〇曜日」のような〇印は自動では入りません。送る前に必ずご自身で書き直してください"], "faq": [{"q": "文面を直したいのですが、この画面で書き換えられますか？", "a": "この画面では書き換えられません。「この文面で送信」を押して移った画面で、件名と本文を自由に直せます。直した内容はその送信にだけ使われ、こちらの見本は変わりません。"}, {"q": "〔お名前〕と書いてありますが、このまま送られてしまいませんか？", "a": "大丈夫です。送信するときに、宛先の保護者様のお名前へ自動で入れ替わります。送信画面のプレビューで、実際に送られる文面を確かめられます。"}, {"q": "どの文面を使えばよいか分かりません。", "a": "各カードの下に「対象」が書かれています。体験前の方、在園児の保護者様など、送りたい相手に合うものをお選びください。迷ったときはマネージャーにご確認ください。"}]}, "staff": {"summary": "職員の名簿（役職・保有資格・入社日と勤続年数・健康診断日）をまとめて管理できる画面です。健康診断の期限をお知らせしたり、身分証や資格証の控えを保管したり、システムにログインするアカウントを発行したりできます。", "steps": ["左のメニューから「職員管理」を選びます。", "「職員を追加」を押し、氏名・役職・保有資格・入社日を入れて保存します。", "一覧のえんぴつマークを押し、直近の健康診断日を入れます。", "同じ画面の「身分証・証明書の保管」で、画像またはURLを追加します。", "ログインが必要な方は「アカウント作成」を押し、ID・パスワード・役割を決めます。"], "tips": ["健康診断日を入れると、その1年後が次回期限として自動で表示されます。期限の30日前から黄色の「要更新」、過ぎると赤の「期限切れ」になり、画面のいちばん上にもお知らせが出ます。", "「身分証・証明書の保管」の欄は、いったん保存したあと一覧のえんぴつマークから開くと出てきます。新しく追加する画面には出ませんので、まず保存してください。", "登録した画像は、今お使いの端末の中だけに保存されます。別のパソコンやスマホからは見えませんので、園で使う端末を決めておくと安心です。", "監査や提出の前は「労働者名簿を出力」を押すと、全職員の一覧を印刷できます。", "編集画面で「基本シフト（早・日・遅）」を選んでおくと、シフト表で一括して反映できます。"], "faq": [{"q": "健康診断のところに出る「要更新」って、どういう意味ですか？", "a": "前回の健診日から1年が近づいたときに出る印です。期限の30日前から黄色の「要更新」、期限を過ぎると赤の「期限切れ」になります。新しい健診日を入れていただくと、元の緑の表示に戻ります。"}, {"q": "資格証や免許証の写真を入れても大丈夫でしょうか？", "a": "登録した画像はこの端末の中だけに保存され、外部には送られません。ただし共有の端末や持ち出しにはご注意ください。Googleドライブに保管している場合は、画像の代わりにURLを貼り付けることもできます。"}, {"q": "職員が退職したときは、削除したほうがいいですか？", "a": "削除ではなく、えんぴつマークから「退職日」を入れることをおすすめします。名簿に残るので、勤続年数などの記録も残せます。ゴミ箱マークを押すと、その職員の情報は消えてしまいます。"}]}, "audit": {"summary": "監査で必要な書類を「①児童関係」から「⑤給食」まで一覧で確認し、書類ごとに準備状況（未・対応中・済）を記録できる画面です。それぞれの書類を作る画面へその場で移動でき、最後に最終チェックリストとして印刷できます。", "steps": ["上の「監査日」に日程が決まったら入力し、残り日数を確認します", "①〜⑤の一覧から書類を探し、左の欄で「未・対応中・済」を選びます", "システムで作る書類は、右のボタンを押してその画面へ移動します", "書類名の下の「保管：」欄に、園での置き場所を入力します", "最後に「監査パッケージ（最終チェックリスト）を出力」を押して印刷します"], "tips": ["書類名の横の青い「年度前」は3〜4月に整えるもの、オレンジの「運営中」は毎日の記録で溜まっていくものです", "現場監査は5〜11月に予告なく来ます。日々の記録を毎日つけておけば、そのまま提示できます", "緑色の「システム内データ」は、その書類のデータがどれくらい溜まっているかの目安です。「未格納」と出たらまだ登録されていません", "状態や保管先は、選んだり入力したりした時点で自動で保存されます。保存ボタンを押す必要はありません", "一番下の「虐待防止チェックシート」は3ヶ月に1回。監査でも確認されるので、実施日と実施者まで入れておきましょう"], "faq": [{"q": "「未」「対応中」「済」は、どう使い分ければいいですか？", "a": "まだ手をつけていないものは「未」、作りかけ・確認中のものは「対応中」、監査でそのまま出せる状態になったら「済」を選んでください。システムで作れる書類は、はじめから「対応中」になっています。"}, {"q": "監査の日程がまだ決まっていないのですが、空欄のままでいいですか？", "a": "はい、空欄のままで大丈夫です。書類監査の日程は自治体から連絡が入ってから確定しますので、決まってから入力すると残り日数が表示されます。現場監査は予告なしのため、日々の記録は続けてください。"}, {"q": "印刷した最終チェックリストには、何が載りますか？", "a": "①〜⑤すべての書類名と、状態・保管場所・「年度前／運営中」の区分・システム内のデータ量が一覧で出ます。提出漏れがないかの最終確認にお使いください。"}]}, "settings": {"summary": "送信設定・振込先口座・料金設定・請求書の体裁に加え、職員のログインアカウントの発行、役割ごとの権限、テンプレートの表示権限、データのバックアップと変更ログを管理する画面です。", "steps": ["送信元アドレスやBCC、園名などの送信設定を入力します。", "振込先口座・料金設定・請求書の体裁を必要に応じて入力します。", "「保存」を押して、入力した内容を確定します。", "職員アカウントの表で、ログインIDと役割を発行します。", "権限管理の表で、役割ごとに見せる画面をチェックします。"], "tips": ["送信設定・振込口座・請求書の体裁は、一番下の「保存」を押すまで反映されません。料金や登園オプションの追加は、入力したその場で保存されます。", "「職員アカウント」と「権限管理」は、管理者としてログインしているときだけ表示されます。ご自身の役割は画面左下のお名前の下に出ています。", "権限管理でチェックを外した画面は、その役割の先生のメニューから見えなくなります。まず一人で試してから、全体に反映すると安心です。", "データはお使いの端末の中に保存されます。月に一度は「バックアップをダウンロード」を押して、ファイルをパソコンに保管してください。"], "faq": [{"q": "「職員アカウント」や「権限管理」のところが見当たりません。", "a": "この2つは、役割が「管理者」の方でログインしたときだけ表示されます。画面左下にご自身の役割が出ていますので、ご確認のうえ、管理者の先生にお願いしてください。"}, {"q": "口座番号を入れても大丈夫ですか。", "a": "入力した口座情報はお使いの端末の中だけに保存され、外部に公開されることはありません。ただし共用の端末をお使いのときは、使い終わったらログアウトしてください。"}, {"q": "別のパソコンで開いたら、設定が空になっていました。", "a": "設定は端末ごとに保存されるため、そのままでは引き継がれません。前の端末で「バックアップをダウンロード」したファイルを、新しい端末の「バックアップから復元」で読み込んでください。"}]}, "tasks": {"summary": "その月にやることを自動で表示する画面です。システムに記録があるものは自動で「記録あり」になり、それ以外はチェックで完了にできます。年間の一覧も確認できます。", "steps": ["画面の上で、確認したい月を選びます。", "「毎月やること」を上から順に確認します。", "その月だけのタスクを右側で確認します。", "「開く」を押して、その記録の画面へ移動します。", "終わったものはチェックを入れて完了にします。"], "tips": ["身体測定や避難訓練など、システムに記録があるものは自動で「記録あり」になります。手作業でのチェックは不要です。", "月初にこの画面を開いて、その月にやることをひととおり見ておくと、提出忘れを防げます。", "「なぜ必要か」の一文に、監査での位置づけが書いてあります。判断に迷ったときの参考にしてください。", "下の年間一覧で、来月以降の予定も先に確認できます。"], "faq": [{"q": "チェックを入れ忘れると、どうなりますか。", "a": "未完了として赤い印のまま残ります。ダッシュボードの監査カードにも未了として表示されますので、気づいたときにチェックしてください。"}, {"q": "自動で「記録あり」になる条件は何ですか。", "a": "その月の記録がシステムに保存されているかを見ています。たとえば身体測定はその月の測定記録、避難訓練はその月の実施記録があるかどうかで判定します。"}, {"q": "園独自のタスクを追加できますか。", "a": "現在は決まった一覧の表示のみです。追加が必要な場合は、開発担当にご相談ください。"}]}};
+var HELP_DATA={"dashboard": {"summary": "ダッシュボードは、園の今の状況をひと目で確認できるホーム画面です。在園児数、本日の記録の入力もれ、本日のタスク、監査準備の進み具合、問い合わせ・体験・入退園の件数、やり取り中の連絡リストを表示し、押すとそれぞれの画面へ移動できます。", "steps": ["上の数字のカードで、在園児数と今月の状況を確認します。", "「本日の記録」の帯を見て、赤い「未」の項目を探します。", "「記録する」を押して、その場で本日分を入力します。", "「本日のタスク」を上から順に片づけていきます。", "「やり取り中の連絡リスト」の行を押して、内容を更新します。"], "tips": ["「未」は赤、「済」は緑です。帰るまでに赤をなくすことを目安にしてください。", "在園児カードのクラス名を押すと、そのクラスの男女の人数と比率が出ます。", "数字のカードを押すと、関係する画面（連絡先管理や記録など）へそのまま移動できます。", "「リード内訳」は「全期間・年度・月」を切り替えて見られます（受付日をもとに集計します）。", "一般スタッフの画面は本日のタスク中心です。問い合わせや入退園の数値は表示されません。"], "faq": [{"q": "数字が実際の人数と合っていない気がします。どこで直せますか。", "a": "ダッシュボードは各画面に入力された内容を集計して表示しています。連絡先管理や登園シートなど、もとの画面の内容をご確認ください。直すと数字も自動で変わります。"}, {"q": "問い合わせや体験の件数が私の画面には出てきません。故障でしょうか。", "a": "故障ではありません。一般スタッフの権限では運営の数値は表示されない設定です。本日のタスクと在園児・本日の出席が中心の画面になります。表示が必要な場合は管理者にご相談ください。"}, {"q": "「やり取り中の連絡リスト」に、あの保護者の名前が出てきません。", "a": "「長期見込み」「連絡不通」「入園 確定」「NG」の方は、このリストには表示されません。連絡先管理の画面からお探しください。"}]}, "compose": {"summary": "この画面では、連絡先から相手を1人選び、テンプレートを使って個別にメールを送れます。あとで送る「送信予約」や、送ったメールの確認もできます。", "steps": ["連絡先の一覧から、メールを送りたい相手を選びます。", "使いたいテンプレートを選んで、本文に読み込みます。", "件名と本文を読み、名前や日付などを書き直します。", "すぐ送るときは送信、あとで送るときは日時を決めて予約します。", "送信済みの一覧を開いて、きちんと送れたかを確かめます。"], "tips": ["テンプレートの名前・日付・時間は、そのままになりがちです。送る前に声に出して読み直すと安心です。", "宛先のお名前は必ずご確認ください。似たお名前の方がいる場合は特にご注意ください。", "急ぎでなければ送信予約が便利です。書いてすぐ送らず、時間を置いて見直せます。", "お返事がほしいときは、いつまでにお返事いただきたいかを本文に書いておくと伝わりやすくなります。"], "faq": [{"q": "送ったあとに間違いに気づきました。取り消せますか？", "a": "送信が終わったメールは取り消せません。おわびと訂正の内容を、あらためてお送りください。送信予約にしておくと、送られる前に内容を見直すことができます。"}, {"q": "送りたい方が一覧に出てきません。", "a": "連絡先に登録されていない可能性があります。お名前の一部で探しても見つからないときは、連絡先の登録内容をご確認ください。"}, {"q": "何人かの保護者に同じ内容を送りたいのですが。", "a": "この画面は1対1で送るためのものです。お一人ずつ選んで送っていただく形になります。同じテンプレートを使えば、毎回書き直さずに済みます。"}]}, "broadcast": {"summary": "この画面では、クラスや児童を選んで保護者へお知らせを一斉に送れます。左の欄で件名と本文を直すと、右の「保護者に届く見え方」がすぐ変わります。ひな形はどの園でも使える骨組みなので、園のことばに書き直してお使いください。", "steps": ["上の「ひな形」で、送るお知らせを選びます。", "左の欄で件名と本文を直します。〇〇のところに、園の時間・持ち物・日にちを入れてください。", "右の「保護者に届く見え方」で、届く文章を確かめます。", "「送り先」で、クラスで選ぶか、児童を選ぶかを決めます。", "見直してから「この内容で送る」を押します。日時を決めて「予約」もできます。"], "tips": ["左の欄での書き足しは、この1回だけに効きます。ひな形そのものを直すときは「メールテンプレート」の画面で直してください。", "デイリーメールの本文に〔本日の活動〕と書いておくと、月間カリキュラムのその日の午前・午後が入ります。", "〇〇のまま送ると、そのまま保護者に届きます。送る前に右の見え方を必ずお読みください。", "園全体へのお知らせは、クラスの選び漏れがないかご注意ください。"], "faq": [{"q": "クラスを間違えて送ってしまいました。どうすればいいですか？", "a": "おわびと正しい内容を、あらためて対象のクラスへ配信してください。送信済みのお知らせの取り扱いについては、園の管理担当者にご確認ください。"}, {"q": "〔本日の活動〕のところが空になります。", "a": "月間カリキュラムの「日別スケジュール」に、その日の午前・午後がまだ入っていません。入れると、ここに入ります。"}, {"q": "毎回おなじ直しをしています。ひな形そのものを変えられますか？", "a": "変えられます。「メールテンプレート」の画面で「題名と文章を直す」を押してください。園ごとの文章として残ります。"}, {"q": "同じお知らせを複数のクラスに送れますか？", "a": "送れます。配信先で送りたいクラスをまとめて選べば、同じ内容を一度に配信できます。"}]}, "dm": {"summary": "この画面では、ご家庭ごとに個別のメッセージをやりとりできます。送信すると保護者に通知メールが届き、メール内の返信URLからお返事をいただけます。", "steps": ["一覧から、メッセージを送りたいご家庭を選びます。", "これまでのやりとりを読み、用件を確かめます。", "入力欄に、伝えたい内容をわかりやすく書きます。", "宛先のお名前と本文を、もう一度見直します。", "「送信」を押すと、保護者へ通知メールが届きます。"], "tips": ["送信すると、すぐに保護者へメールが届きます。押す前に必ず読み返してください。", "よく似たお名前のご家庭があります。送信前に宛先のお名前をご確認ください。", "けがや発熱など急ぎのご連絡は、お電話が確実です。DMは気づくまで時間がかかります。", "長い文章より、短い文を分けて書くほうが、保護者に伝わりやすくなります。"], "faq": [{"q": "保護者には、どのように届くのですか？", "a": "送信すると、保護者へ通知メールが届きます。メールの中の返信URLを開くと、その場でお返事を書いていただけます。"}, {"q": "保護者からのお返事は、どこで見られますか？", "a": "この画面の、同じご家庭のやりとりの中に表示されます。ご家庭を選んで、内容をご確認ください。"}, {"q": "文章をまちがえて送ってしまいました。どうすればよいですか？", "a": "あわてず、続けて訂正のメッセージをお送りください。「先ほどの連絡を訂正します」と一言添えると、保護者に伝わりやすくなります。"}]}, "trial": {"summary": "体験を担当した先生が、その日の結果を入力する画面です。保存すると、連絡先の進捗と生徒台帳に自動で反映されます。", "steps": ["一覧から、報告したい体験の記録を選びます。", "お子さまのお名前と体験日が合っているか確認します。", "体験の結果を、表示されている選択肢から選びます。", "当日の様子や気づいたことをメモに入力します。", "入力内容を見直し、保存ボタンを押します。"], "tips": ["体験が終わったその日のうちに入力すると、様子を思い出しやすく正確に残せます。", "メモは次に対応する先生が読むものです。「〇〇が好きそうだった」など短く具体的に書くと伝わります。", "保存すると連絡先の進捗と生徒台帳に反映されます。同じ内容を別の画面で入力し直す必要はありません。", "保存を押す前に、お名前と体験日を必ずもう一度ご確認ください。別のお子さまに反映されるのを防げます。"], "faq": [{"q": "保存したあと、連絡先の進捗も自分で直さないといけませんか？", "a": "いいえ、必要ありません。保存すると連絡先の進捗と生徒台帳に自動で反映されますので、そのままで大丈夫です。"}, {"q": "入力を間違えて保存してしまいました。どうすればいいですか？", "a": "他の画面にも反映されていますので、気づいた時点で園の管理担当の先生にお伝えください。早めにご連絡いただくと安心です。"}, {"q": "体験を担当していない先生が代わりに入力してもいいですか？", "a": "基本は担当した先生の入力をおすすめします。代わりに入力する場合は、当日の様子を担当の先生に確認してから入力してください。"}]}, "deliveries": {"summary": "「配信カレンダー」は、デイリーメールや請求書などの定期配信の次回予定と、体験・説明会の予定をまとめて確認できる画面です。園の予定をカレンダー用のファイルに書き出して、ふだんお使いのカレンダーに取り込むこともできます。", "steps": ["左のメニューから「配信カレンダー」を開きます。", "「定期配信スケジュール」で次回の予定を確認します。", "送りたい配信の行にある「作成」を押します。", "下の「体験・説明会の予定」で今後の日程を確認します。", "「カレンダーに取り込む」→「カレンダー用ファイルを書き出す」を押します。"], "tips": ["「次回予定」に「本日」と出ている配信は、その日に送るものです。朝のうちにご確認ください。", "上に出る「予約済み配信」は今のところ予約の記録だけで、時間になっても自動では送られません。行を押すと内容を確認でき、ごみ箱のボタンで取り消せます。", "体験・説明会の予定にある「メール作成」を押すと、その方の状況に合った文面が自動で選ばれた状態でメール画面に進みます。", "書き出したファイルは、Googleカレンダーの「他のカレンダー → インポート」から取り込めます。AppleカレンダーやOutlookでも同じように取り込めます。"], "faq": [{"q": "予約した配信は、時間になったら自動で送られますか？", "a": "いいえ。今は予約を記録しておくだけで、自動送信はまだ行われません。当日はお手数ですが、配信画面から送信をお願いします。"}, {"q": "体験の予定が一覧に出てきません。", "a": "体験日が登録されていない方や、日付が過ぎた方は表示されません。連絡先の情報に体験日が入っているかご確認ください。鉛筆のボタンからその場で直せます。"}, {"q": "書き出したファイルは、どうすればカレンダーに入りますか？", "a": "パソコンにファイルが保存されますので、Googleカレンダーの「他のカレンダー → インポート」でそのファイルを選んでください。予定がそのまま入ります。"}]}, "records": {"summary": "この画面では、登園（出席）・安全点検・午睡チェック・健康チェック・業務日報を、その日ごとにまとめて記録できます。毎日の記録が1か所に残るので、あとから見返したり引き継いだりするときに役立ちます。", "steps": ["画面上部の日付を見て、今日の日付になっているか確認します。", "記録したい項目（登園・安全点検・午睡・健康・日報）を選びます。", "クラスやお子さまごとに、当てはまる内容を選んで入力します。", "気になったことがあれば、メモ欄に短いことばで書きます。", "入力が終わったら保存を押して、記録を確定します。"], "tips": ["午睡チェックは、決められた時間ごとにその場で入力すると、書き忘れを防げます。", "気になる様子は「いつ・どこで・どうしたか」を短く書くと、あとの人にも伝わりやすいです。", "入力の途中でも、こまめに保存しておくと安心です。", "登園は朝のうち、日報は帰る前など、記録する時間を決めておくと習慣になります。"], "faq": [{"q": "入力をまちがえました。直せますか？", "a": "同じ項目をもう一度開いて、正しい内容に入力し直し、保存してください。気づいたときにその日のうちに直しておくと安心です。"}, {"q": "お休みのお子さんは、どう記録すればいいですか？", "a": "登園の記録で、お休み（欠席）として記録してください。理由が分かっていれば、メモ欄に短く書いておくと共有しやすくなります。"}, {"q": "途中まで入力して、あとから続きを入力してもいいですか？", "a": "大丈夫です。入力できたところまで保存しておき、あとで同じ画面を開いて続きを入力してください。"}]}, "carerec": {"summary": "毎月の身体測定、その都度のヒヤリハット・怪我、3ヶ月ごとの生徒個人発達記録を、この画面でまとめて記録できます。記録した内容は印刷したり、控えとして保存したりできます。", "steps": ["画面の上にある3つのタブから、記録したい種類を選びます。", "身体測定は、月とクラスを選び、身長と体重を入力します。", "ヒヤリハット・怪我は「記録を追加」を押し、入力後に保存を押します。", "生徒個人発達記録は、園児と期間を選び、項目ごとに当てはまるものを選びます。", "必要に応じて「出力」で印刷し、「データ保存」で控えを残します。"], "tips": ["身長と体重を入力すると、カウプ指数は自動で計算されます。目安は15〜17です。", "「保護者へ測定結果を送信」を押すと、各ご家庭にはお子様ご本人の記録だけが届きます。ほかのお子様の記録は見えませんので、ご安心ください。", "ヒヤリハット・怪我では、人型のイラストをタップすると、けがの場所を前と後ろで残せます。まちがえたときは「クリア」でやり直せます。", "生徒個人発達記録は監査でも確認される書類です。「記録者」のお名前も入れておくと安心です。"], "faq": [{"q": "先月の身体測定を直したいのですが、どうすればよいですか？", "a": "画面上の月の欄を、直したい月に選び直してください。その月の記録が表示され、そのまま入力し直せます。"}, {"q": "入力したのに、保存ボタンが見当たりません。消えてしまいませんか？", "a": "身体測定と生徒個人発達記録は、入力するとその場で自動的に保存されます。ヒヤリハット・怪我だけ、最後に「保存」を押してください。"}, {"q": "まちがえて記録してしまいました。消せますか？", "a": "ヒヤリハット・怪我は、一覧の右にあるごみ箱のマークから削除できます。身体測定と生徒個人発達記録は、数値や選択を入れ直すと上書きされます。"}]}, "curriculum": {"summary": "クラスごとに、その月のカリキュラムをまとめて作れる画面です。月のねらいなどの項目、日ごとの予定、週ごとの活動内容を、1つの画面で入力・保存できます。", "steps": ["画面の上で、対象のクラスと年月を選びます", "月の項目欄に、ねらいや行事などを入力します", "日別スケジュールに、日ごとの予定を書き入れます", "週ごとの欄に、その週の活動内容を入力します", "入力が終わったら、保存ボタンを押します"], "tips": ["先に月の項目（ねらい）を決めてから、週・日を埋めると書きやすいです", "全部を一度に書かず、途中でこまめに保存すると安心です", "クラスと年月が合っているか、入力前にもう一度ご確認ください", "行事や園庭開放など、動きやすい予定は日別スケジュールにまとめると見やすくなります"], "faq": [{"q": "書きかけのまま、あとで続きを書いてもいいですか？", "a": "はい、大丈夫です。保存しておけば、次に同じクラス・同じ月を開いたときに、続きから入力できます。"}, {"q": "入力した内容をあとから直せますか？", "a": "はい。同じクラス・同じ月を開いて、直したい欄を書き換えて保存し直してください。"}, {"q": "クラスが違う分も作りたいのですが、どうすればいいですか？", "a": "画面の上でクラスを切り替えてから、そのクラスの内容を入力してください。クラスごとに別々に保存されます。"}]}, "drill": {"summary": "年間14回の避難訓練について、いつ・どんな内容で行うかの計画と、実施したあとの記録をまとめて管理できる画面です。参加者名簿や年間記録表を出力して、印刷や書類の確認にも使えます。", "steps": ["画面の上で、記録したい年度を選びます。", "一覧から、今回あつかう訓練の回を選んで開きます。", "日時や想定する災害など、計画の内容を入力します。", "訓練が終わったら、実施した内容と参加者を記録して保存します。", "出力ボタンから、参加者名簿や年間記録表を出します。"], "tips": ["年度のはじめに14回分の計画をまとめて入れておくと、あとがぐっと楽になります。", "実施した内容は当日のうちに記録すると、記憶が新しいまま正確に残せます。", "参加者名簿は訓練の前に出しておくと、当日の点呼の確認に使えます。", "年間記録表は書類の提出や確認をもとめられたときに使えるので、記録の入れ忘れがないか時々見直しましょう。"], "faq": [{"q": "訓練の日にちが変わったのですが、どうすればいいですか？", "a": "その回を開いて、日付を新しいものに直してから保存してください。内容が上書きされます。"}, {"q": "14回すべてを一度に入力しないといけませんか？", "a": "いいえ。年間14回分の枠が用意されているだけですので、計画や実施の記録は、できるところから順に入れていただいて大丈夫です。"}, {"q": "あとから記録を直すことはできますか？", "a": "できます。直したい回を開いて内容を書き直し、保存すれば更新されます。"}]}, "bouka": {"summary": "毎月の防火・安全設備の点検（消火器・救急箱・AED・防火扉・避難グッズ）と消火訓練の記録を、1年度分（4月〜3月）まとめて残せる画面です。入力した内容は、そのまま台帳と訓練記録の形で印刷できます。", "steps": ["画面の上にある選択欄から、記録したい年度を選びます。", "「防火管理台帳」を押し、実施した月の行に日付と内容を入力します。", "①〜⑤の点検項目のうち、確認できたものにチェックを入れます。", "「消火訓練 手順・記録」を押し、実施場所・タイム（所要時間・分）・概要を入力します。", "右上の「台帳を出力」または「記録を出力」を押して、印刷します。"], "tips": ["保存ボタンはありません。入力するとその場で自動的に保存されます。", "①〜⑤が何の点検かは、表のすぐ上に書いてあります（①消火器 ②救急箱 ③AED・自動火災報知設備 ④防火扉 ⑤避難グッズ）。", "画面上部の「実施済 ○/12」で、その年度の記録の抜けがひと目で分かります。", "「内容」の欄には例文があらかじめ入っています。実際に行った内容に合わせて書き直してください。"], "faq": [{"q": "保存ボタンが見当たりません。入力した内容は消えてしまいませんか？", "a": "消えません。日付やチェックを入れた時点で自動的に保存されます。年度を切り替えたり、別の画面に移ったりしても、入力した内容はそのまま残ります。"}, {"q": "先月の分を書き忘れてしまいました。あとから入力できますか？", "a": "できます。4月から3月までのどの月でも、いつでも入力・修正できます。日付を入れると「実施済」の数にも反映されます。"}, {"q": "「防火管理台帳」と「消火訓練」で、日付を2回入れないといけませんか？", "a": "いいえ。日付と内容は両方で共通です。どちらかで入力すれば、もう一方にも同じ内容が表示されます。"}]}, "shift": {"summary": "翌月の勤務表（シフト）を作り、実際の出勤・退勤を出勤簿に記録できる画面です。勤務時間と時間外は自動で計算され、そのまま印刷して提出用の書類にできます。", "steps": ["上部のタブで「勤務表（シフト予定）」を選びます。", "右上の月の欄で、作りたい翌月を選びます。", "早番・日勤・遅番の勤務時間と休憩時間を確認します。", "名前と日付が交わるマスを押し、早・日・遅・休を切り替えます。", "打刻は「出勤簿」タブで職員を選び、出勤と退勤を入れます。"], "tips": ["「基本シフト一括反映」を押すと、平日は各職員の基本シフト、土日は休で一度に埋まります。すでに入れた内容は上書きされるので、細かい調整をする前に押してください（基本シフトは職員管理で設定します）。", "出勤簿の「シフトから一括入力」を使うと、シフトの予定時刻がまとめて入ります。すでに打刻した日はそのまま残るので、違う日だけ直せば大丈夫です。", "勤務時間は「退勤−出勤−休憩」で自動計算されます。時間外（所定の8時間を超えた分）は赤い字で表示されるので、多い日は理由を確認しておくと安心です。", "遅刻・早退・有給などは備考欄に書いておくと、印刷した出勤簿にもそのまま残ります。印刷は「この職員を出力」「全員分を出力」から選べます。"], "faq": [{"q": "保存ボタンが見当たりません。入力が消えてしまいませんか？", "a": "入力するとその場で自動保存されますので、保存ボタンを押す必要はありません。ただし記録はお使いの端末に保存されるため、別の端末では表示されません。同じ端末で入力・確認をお願いします。"}, {"q": "シフトのマスを押し間違えました。空欄に戻せますか？", "a": "同じマスを押すたびに、早 → 日 → 遅 → 休 → 空欄 の順に変わります。何回か続けて押していただくと、元の空欄に戻ります。"}, {"q": "早番の時間が園の実際と違います。変えられますか？", "a": "表の上にある「早・日・遅」の横の時刻の欄を書き換えてください。休憩時間も同じ場所で直せます。変更した時刻は、印刷した勤務表や出勤簿の一括入力にも反映されます。"}]}, "expense": {"summary": "この画面では、月ごとの経費精算表を作成し、印刷や書き出しができます。あわせて、手元の現金を数えて記録する金種表（お札や硬貨の枚数をまとめた表）も作成できます。", "steps": ["画面の上にある年月から、作成したい月を選びます。", "経費精算表に、日付・使いみち・金額を入力します。", "現金を数えて、金種表にお札と硬貨の枚数を入力します。", "精算表の合計と、手元の現金の合計が合うか確かめます。", "出力（印刷）を押して、精算表と金種表を出します。"], "tips": ["領収書を日付順に並べてから入力すると、抜けや二重入力に気づきやすくなります。", "金種表は、現金を数えたその場で入力すると数え直しが減ります。", "精算表の合計と金種表の合計が同じ金額になるか、出力の前に必ず見比べてください。", "月末にまとめて入力するより、こまめに入力しておくと、あとから直す手間が減ります。"], "faq": [{"q": "入力をまちがえました。あとから直せますか？", "a": "はい。その月をもう一度開いて、まちがえた欄を入力し直してください。直したあとに、合計金額をもう一度確かめると安心です。"}, {"q": "現金の金額が少し合いません。どうすればよいですか？", "a": "まず領収書の入れ忘れ、次に金額の打ちまちがい、最後に現金の数えまちがいの順で確かめてください。それでも合わないときは、そのままにせず園長先生や事務担当の方にご相談ください。"}, {"q": "金種表は毎月作らないといけませんか？", "a": "園のきまりによりますが、現金を数えたときに作っておくと、あとで「いくらあったか」をすぐ確認できます。作成した月の分はこの画面から出力できます。"}]}, "docgen": {"summary": "危機管理マニュアル・運営状況報告書・保育安全計画の3つの書類を、園の情報を入力するだけで作れる画面です。右側のプレビューで仕上がりを見ながら直し、そのまま印刷やPDF保存ができます。", "steps": ["画面の上にあるボタンで、作りたい書類を1つ選びます。", "危機管理マニュアルは「施設固有情報」を開き、園名や連絡先を入力します。", "左側の入力欄や本文を、園の内容に合わせて直します。", "右側のプレビューで、書類の仕上がりを確かめます。", "「出力」ボタンを押して、印刷またはPDF保存をします。"], "tips": ["入力した内容は自動で保存されます。保存ボタンを押す必要はありません。", "プレビューの赤い〔未入力〕は、施設固有情報がまだ空の場所です。入力すると消えます。", "本文を直しすぎたときは「既定に戻す」で元の文章にもどせます。直した項目には✎が付きます。", "運営状況報告書の児童数と職員は、システムの名簿から自動で入ります。手で数え直す必要はありません。"], "faq": [{"q": "「出力」を押したら印刷の画面が出ました。PDFで保存できますか？", "a": "はい。印刷画面の「送信先」や「プリンター」の欄で「PDFに保存」を選ぶと、PDFとして残せます。"}, {"q": "危機管理マニュアルを、全部まとめて1冊で印刷できますか？", "a": "できます。左上の「全編を出力（表紙・目次つき）」を押すと、表紙と目次が付いた状態でまとめて出せます。"}, {"q": "入力した園の情報は、ほかの先生のパソコンでも見られますか？", "a": "いいえ。入力した内容はお使いの端末の中に保存されます。別の端末で使うときは、あらためて入力をお願いします。"}]}, "reqnav": {"summary": "園の施設種別を選ぶと、行政に提出・整備する書類の一覧が表示される画面です。書類ごとに「未着手・準備中・完了」で進み具合を記録でき、この中で作れる書類は作成画面へそのまま移動できます。", "steps": ["画面の一番上で、園に当てはまる「施設種別」を選びます。", "必要に応じて「自治体（市区町村）」と「定員」を入力します。", "一覧で、書類名・根拠・提出先・頻度・説明を確認します。", "書類ごとに右側で「未着手」「準備中」「完了」を選びます。", "「このシステムで作る」がある書類は、押すと作成画面に移ります。"], "tips": ["一覧が切り替わるのは「施設種別」を選んだときです。まず種別を正しく選んでください。", "一覧の上に「完了 ○/○」と出ます。今どこまで進んでいるかの目安にしてください。", "橙色の「要確認」が付いた書類は、自治体によって様式や頻度が変わりやすいものです。市区町村の公式情報でご確認ください。", "この一覧は確認日時点の暫定の内容です。制度の変更もあるため、最終的な判断は必ず自治体の案内に合わせてください。", "選んだ種別や進み具合は、お使いのパソコン・タブレットの中に自動で保存されます。別の端末には引き継がれません。"], "faq": [{"q": "施設種別を変えたら、今まで入れた進み具合は消えてしまいますか？", "a": "消えません。進み具合は種別ごとに分けて記録しています。元の種別に戻せば、前に選んだ「準備中」「完了」がそのまま表示されます。"}, {"q": "「要確認」と付いている書類は、出さなくてもよいということですか？", "a": "いいえ、不要という意味ではありません。必要かどうかや、様式・提出の頻度が自治体で違いやすい書類という印です。園のある市区町村の窓口や公式ページでご確認ください。"}, {"q": "「このシステムで作る」のボタンが出ていない書類は、どうすればよいですか？", "a": "その書類は「システム外で用意」と表示されます。園で別に作成したり、自治体の様式をお使いください。用意ができたら、この画面で「完了」に変えておくと分かりやすくなります。"}]}, "docs": {"summary": "契約書や保険証書などの書類をGoogle Driveに保存し、そのURLをこの画面に登録しておける画面です。登録すると状態が「格納済み」に変わり、監査のときにすぐ書類を開いて確認できます。", "steps": ["先にGoogle Driveへ書類を保存し、その共有URLをコピーします。", "一覧から登録したい書類名を探し、URL欄に貼り付けます。", "必要に応じて、メモ欄に有効期限や補足を書き添えます。", "「保存」を押すと、状態が「格納済み」に変わります。", "一覧にない書類は、下の「書類を追加」に名前を入れて「追加」を押します。"], "tips": ["この画面はファイルそのものを預かる場所ではありません。ファイルはDriveに置き、ここにはURLだけを登録してください。", "URLを貼っただけでは記録されません。最後に必ず「保存」を押してください。", "Driveの共有設定もご確認ください。園の関係者が開けないURLだと、監査のときに表示できません。", "書類名の文字をクリックすると、園でお使いの呼び方に書き換えられます。", "病院などの緊急連絡先は、この画面ではなく「施設管理 → 提携医療機関」で管理します。"], "faq": [{"q": "赤い「未格納」の表示が消えません。どうすればよいですか？", "a": "URL欄が空のままだと「未格納」と表示されます。DriveのURLを貼り付けて「保存」を押していただくと、緑色の「格納済み」に変わります。"}, {"q": "一覧にない書類も登録できますか？", "a": "はい、できます。表の下にある「書類を追加」に書類名を入れて「追加」を押すと、新しい行が増えます。URLは後からでも入力できます。"}, {"q": "追加した書類を削除すると、Driveのファイルも消えてしまいますか？", "a": "いいえ、Drive内のファイルはそのまま残ります。消えるのは、この画面に登録したURLとメモだけです。なお削除ボタンは、ご自身で追加した書類にのみ表示されます。"}]}, "facility": {"summary": "園の基本情報や認可・届出の内容、かかりつけ医などの提携医療機関、給食・清掃などの取引先を、この画面ひとつにまとめて登録できます。登録した内容は、緊急連絡先の壁掲示用や施設情報の一覧として印刷することもできます。", "steps": ["左のメニューの「管理」から「施設管理」を選びます。", "「園の基本情報」「認可・届出」の各欄に入力します。", "「提携医療機関」の「追加」を押し、病院名や電話番号を入れます。", "「提携先・取引先」の「追加」を押し、種別と会社名を入れます。", "「壁掲示用に出力」を押すと、緊急連絡先を印刷できます。"], "tips": ["入力した内容は、ほかの欄に移った時点で自動的に保存されます。保存ボタンはありません。", "「目標物（緊急通報用）」に建物の目印を入れておくと、119番のときに場所を伝えやすくなります。", "決まった欄にない情報は、一番下の「その他の情報（自由記載）」で見出しと内容を追加して残せます。", "表の右はしのゴミ箱を押すと、その行はすぐに消えます。確認の画面は出ませんのでご注意ください。"], "faq": [{"q": "保存ボタンが見つかりません。入力したものは消えてしまいませんか？", "a": "入力したあと、ほかの欄をクリックした時点で自動的に保存されます。保存ボタンはありませんので、そのまま画面を移っていただいて大丈夫です。"}, {"q": "病院の連絡先を、事務室の壁に貼っておきたいのですが。", "a": "「提携医療機関」の右上にある「壁掲示用に出力」を押すと印刷の画面が開きます。電話番号が大きく印刷され、消防・救急（119）と警察（110）も一緒に載ります。"}, {"q": "ここに入れた内容は、ほかの先生のパソコンでも見られますか？", "a": "いまはお使いの端末のブラウザの中に保存されるしくみのため、ほかの端末では表示されません。共有したいときは「施設情報を出力」で印刷してお渡しください。控えの保存は「設定」画面のバックアップから行えます。"}]}, "contacts": {"summary": "見学・体験のお問い合わせをいただいたご家庭（リード）と、在園児・退園児の連絡先をまとめて管理する画面です。進捗フェーズや懸念点、次回アクションの日を記録して、対応もれを防げます。", "steps": ["「すべて」「リード」「在園児」「退園児」を押して表示を絞ります", "探したい方は、上の検索欄に保護者名やお子様のお名前を入れます", "新しく登録するときは、右上の「連絡先を追加」を押します", "区分を選び、保護者名とメールアドレスなど必要な項目を入力します", "内容を直すときは行の右の鉛筆マークを押し、最後に「保存」を押します"], "tips": ["保護者名とメールアドレスは必ず必要です。ほかの項目は後から少しずつ足していけます。", "並べ替えを「次回アクションが近い順」にすると、早く連絡すべきご家庭が上に並びます。", "体験でうかがった心配ごとは「懸念点・要望」に書いておくと、一覧に赤色で表示されます。", "監査のときは「監査用に出力」から、児童名簿・緊急連絡票・健康アレルギー一覧・入退園一覧を印刷できます。"], "faq": [{"q": "「リード」って何のことですか？", "a": "見学や体験のお問い合わせをいただいた、まだ入園前のご家庭のことです。進捗フェーズで今どの段階かを管理します。"}, {"q": "入園が決まったら、どうしたらいいですか？", "a": "その方の鉛筆マークを押して編集画面を開き、区分を「在園児」に切り替えてください。クラス・入園日・通園曜日・月額を入れて保存します。"}, {"q": "退園したお子様は削除したほうがいいですか？", "a": "削除せず、区分を「退園児」にして退園日を入れてください。監査で使う入退園一覧に必要です。ゴミ箱で消すと元に戻せませんのでご注意ください。"}]}, "roster": {"summary": "園児一人ひとりの情報（基本情報・ご家族・緊急連絡先・健康情報・お支払い）を1か所にまとめて登録・確認できる画面です。地図上に園児のご自宅と園・避難場所を表示でき、一覧は名簿として印刷もできます。", "steps": ["左のメニューで「生徒台帳」を開き、「一覧」タブを選びます。", "見たい園児の行の「開く」を押し、個別プロフィールを表示します。", "各項目を入力したら、右上の「保存」を押して内容を確定します。", "「自宅マップ」タブで園児を選び、地図のご自宅の位置を押します。", "「一覧」タブの「名簿を出力」を押すと、印刷用の名簿が出ます。"], "tips": ["赤い「必須」マークの項目（住所・緊急連絡先1と2・健康情報など）が空のままだと保存できません。", "アレルギーやかかりつけ医がない園児も、空欄にせず「なし」と入力してください。", "個別プロフィールの「この子を地図で見る」を押すと、その園児のご自宅の位置へすぐ移動します。", "自宅マップはインターネットに接続しているときだけ表示されます。地図が出ないときは接続を確かめ、画面を開き直してください。"], "faq": [{"q": "探している園児の名前が一覧に出てきません。", "a": "一覧に表示されるのは在園中の園児だけです。「連絡先」の画面で、その園児が在園として登録されているかをご確認ください。"}, {"q": "住所を入力すれば、地図にご自宅のピンが自動で付きますか？", "a": "自動では付きません。住所を外部に送らないようにしているためです。「自宅マップ」タブで園児を選び、地図のご自宅の場所を押してピンを置いてください。置き直しや削除もできます。"}, {"q": "入力した内容は、他の先生のパソコンでも見られますか？", "a": "見られません。入力した情報は、今お使いの端末のブラウザの中だけに保存されます。別の端末で見たい場合は、その端末で改めて入力が必要です。"}]}, "enroll": {"summary": "園児ごとのコースプランと、ランチ・ロングステイ・教育関連費の有無をまとめて設定できる画面です。設定した内容から月額が自動で計算され、そのまま請求書づくりに引き継がれます。", "steps": ["左のメニューから「生徒情報（契約・オプション）」を選びます。", "一覧から園児の行を探し、「コースプラン」を選びます。", "ランチ・ロングステイを使う園児は「あり」にチェックを入れます。", "教育関連費がかかる園児は、その列のチェックを入れます。", "右端の「月額（自動）」を確かめ、「請求書」を押します。"], "tips": ["チェックや選びなおしは、その場ですぐ保存されます。保存ボタンはありません。", "ランチ・ロングステイの下に赤い字で「曜日が未設定」と出たときは、回数が0回のままです。「連絡先」で通園曜日とオプションを設定してください。", "「月額（自動）」はその月の曜日の数で計算されるため、月によって金額が変わることがあります。", "ランチなどの単価は「設定」の「料金設定」で変えられます。入園金は請求書の画面でチェックを入れて加えます。"], "faq": [{"q": "ランチの回数は、この画面で直接入力できますか？", "a": "この画面では「あり」「なし」だけを決めます。回数は「連絡先」の曜日ごとの設定と、その月の曜日の数から自動で計算されます。今月だけ回数を変えたいときは、「請求書」ボタンから開く請求書の画面で直せます。"}, {"q": "名前が一覧に出てこない園児がいます。", "a": "この画面には在園児として登録されている園児だけが表示されます。「連絡先」でその園児の区分が「在園児」になっているかご確認ください。"}, {"q": "変えた内容は、いつ請求に反映されますか？", "a": "変更するとすぐ保存され、次に作る請求書に反映されます。すでに作成済みの月の請求書には自動では反映されませんので、「請求書発行」でその月の内容をご確認ください。"}]}, "billing": {"summary": "月ごとの保育料の請求書を、内容の確認から発行・保護者への送付・入金の確認まで、この画面だけで進められます。金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動で計算されます。", "steps": ["右上の月を選んで、その月の請求一覧を表示します", "園児ごとに「明細」を押し、回数や割引、支払期日を確かめます", "内容がよければ上の「一括で発行」を押します", "「発行済をまとめて送付」を押し、保護者へお送りします", "入金を確認できたら、その行の「入金済」を押します"], "tips": ["この画面を開くと、はじめは翌月分が表示されます。前の月を見たいときは、右上の月を変えてください。", "金額は自動で計算されます。その月だけ回数を変えたい・割引を付けたいときは、その子の行の「明細」から直します。", "「明細」で「保存」を押すと、状態が「未発行」から「発行済」に変わります。まだ発行したくないときは「閉じる」を押してください。", "紙でお渡しするときは「全員分を印刷」、1人分だけなら行の右にあるプリンターのマークを押します。"], "faq": [{"q": "金額がちがうのですが、どこで直せますか？", "a": "その子の行の「明細」を押すと、コースプラン・ランチやロングステイの回数・教育関連費・割引・支払期日を直せます。全員に共通する単価そのものを変えたいときは「設定 → 料金設定」で変更してください。"}, {"q": "まちがえて送ってしまいました。取り消せますか？", "a": "送ったものを取り消すことはできません。「明細」で正しい内容に直してから「再送」を押し、保護者の方にはひとことお詫びとご連絡を添えてください。"}, {"q": "入金がまだのご家庭は、どこを見れば分かりますか？", "a": "状態が「送付済」のままの行が、まだ入金を確認できていないご家庭です。画面上部のタグで「送付済」「入金済」の件数が分かり、支払期日は一覧の「支払期日」の列で確認できます。"}]}, "templates": {"summary": "「メールテンプレート」は、配信でよく使う定型の文面を一覧で見られる画面です。保護者への個別メールと、クラス全体へのお知らせ配信の見本を確認して、そのまま送信画面へ持っていけます。", "steps": ["上が個別メール、下が全体周知・お知らせの一覧です。使いたい文面を探します", "カードに出ている件名と本文の見本を読み、内容を確かめます", "カードの下の「対象」を見て、送りたい相手と合うか確認します", "そのまま送るときは「この文面で送信」（全体周知・お知らせは「この文面で配信」）を押します", "ひな形そのものを園のことばに直すときは「題名と文章を直す」を押します"], "tips": ["ひな形の中身は、この画面の「題名と文章を直す」で書き直せます。直した内容は園ごとの文章として残り、「はじめの内容に戻す」で元に戻せます", "送信画面で直した文面は、その送信だけに使われます。見本はそのまま残るので、次の方にもきれいな状態から始められます", "〔お名前〕〔お子様〕などのカッコは、送るときに宛先ごとの名前に自動で入れ替わります。そのまま残しておいて大丈夫です", "「〇月〇日」「〇曜日」のような〇印は自動では入りません。送る前に必ずご自身で書き直してください"], "faq": [{"q": "文面を直したいのですが、この画面で書き換えられますか？", "a": "この画面では書き換えられません。「この文面で送信」を押して移った画面で、件名と本文を自由に直せます。直した内容はその送信にだけ使われ、こちらの見本は変わりません。"}, {"q": "〔お名前〕と書いてありますが、このまま送られてしまいませんか？", "a": "大丈夫です。送信するときに、宛先の保護者様のお名前へ自動で入れ替わります。送信画面のプレビューで、実際に送られる文面を確かめられます。"}, {"q": "どの文面を使えばよいか分かりません。", "a": "各カードの下に「対象」が書かれています。体験前の方、在園児の保護者様など、送りたい相手に合うものをお選びください。迷ったときはマネージャーにご確認ください。"}]}, "staff": {"summary": "職員の名簿（役職・保有資格・入社日と勤続年数・健康診断日）をまとめて管理できる画面です。健康診断の期限をお知らせしたり、身分証や資格証の控えを保管したり、システムにログインするアカウントを発行したりできます。", "steps": ["左のメニューから「職員管理」を選びます。", "「職員を追加」を押し、氏名・役職・保有資格・入社日を入れて保存します。", "一覧のえんぴつマークを押し、直近の健康診断日を入れます。", "同じ画面の「身分証・証明書の保管」で、画像またはURLを追加します。", "ログインが必要な方は「アカウント作成」を押し、ID・パスワード・役割を決めます。"], "tips": ["健康診断日を入れると、その1年後が次回期限として自動で表示されます。期限の30日前から黄色の「要更新」、過ぎると赤の「期限切れ」になり、画面のいちばん上にもお知らせが出ます。", "「身分証・証明書の保管」の欄は、いったん保存したあと一覧のえんぴつマークから開くと出てきます。新しく追加する画面には出ませんので、まず保存してください。", "登録した画像は、今お使いの端末の中だけに保存されます。別のパソコンやスマホからは見えませんので、園で使う端末を決めておくと安心です。", "監査や提出の前は「労働者名簿を出力」を押すと、全職員の一覧を印刷できます。", "編集画面で「基本シフト（早・日・遅）」を選んでおくと、シフト表で一括して反映できます。"], "faq": [{"q": "健康診断のところに出る「要更新」って、どういう意味ですか？", "a": "前回の健診日から1年が近づいたときに出る印です。期限の30日前から黄色の「要更新」、期限を過ぎると赤の「期限切れ」になります。新しい健診日を入れていただくと、元の緑の表示に戻ります。"}, {"q": "資格証や免許証の写真を入れても大丈夫でしょうか？", "a": "登録した画像はこの端末の中だけに保存され、外部には送られません。ただし共有の端末や持ち出しにはご注意ください。Googleドライブに保管している場合は、画像の代わりにURLを貼り付けることもできます。"}, {"q": "職員が退職したときは、削除したほうがいいですか？", "a": "削除ではなく、えんぴつマークから「退職日」を入れることをおすすめします。名簿に残るので、勤続年数などの記録も残せます。ゴミ箱マークを押すと、その職員の情報は消えてしまいます。"}]}, "audit": {"summary": "監査で必要な書類を「①児童関係」から「⑤給食」まで一覧で確認し、書類ごとに準備状況（未・対応中・済）を記録できる画面です。それぞれの書類を作る画面へその場で移動でき、最後に最終チェックリストとして印刷できます。", "steps": ["上の「監査日」に日程が決まったら入力し、残り日数を確認します", "①〜⑤の一覧から書類を探し、左の欄で「未・対応中・済」を選びます", "システムで作る書類は、右のボタンを押してその画面へ移動します", "書類名の下の「保管：」欄に、園での置き場所を入力します", "最後に「監査パッケージ（最終チェックリスト）を出力」を押して印刷します"], "tips": ["書類名の横の青い「年度前」は3〜4月に整えるもの、オレンジの「運営中」は毎日の記録で溜まっていくものです", "現場監査は5〜11月に予告なく来ます。日々の記録を毎日つけておけば、そのまま提示できます", "緑色の「システム内データ」は、その書類のデータがどれくらい溜まっているかの目安です。「未格納」と出たらまだ登録されていません", "状態や保管先は、選んだり入力したりした時点で自動で保存されます。保存ボタンを押す必要はありません", "一番下の「虐待防止チェックシート」は3ヶ月に1回。監査でも確認されるので、実施日と実施者まで入れておきましょう"], "faq": [{"q": "「未」「対応中」「済」は、どう使い分ければいいですか？", "a": "まだ手をつけていないものは「未」、作りかけ・確認中のものは「対応中」、監査でそのまま出せる状態になったら「済」を選んでください。システムで作れる書類は、はじめから「対応中」になっています。"}, {"q": "監査の日程がまだ決まっていないのですが、空欄のままでいいですか？", "a": "はい、空欄のままで大丈夫です。書類監査の日程は自治体から連絡が入ってから確定しますので、決まってから入力すると残り日数が表示されます。現場監査は予告なしのため、日々の記録は続けてください。"}, {"q": "印刷した最終チェックリストには、何が載りますか？", "a": "①〜⑤すべての書類名と、状態・保管場所・「年度前／運営中」の区分・システム内のデータ量が一覧で出ます。提出漏れがないかの最終確認にお使いください。"}]}, "settings": {"summary": "送信設定・振込先口座・料金設定・請求書の体裁に加え、職員のログインアカウントの発行、役割ごとの権限、テンプレートの表示権限、データのバックアップと変更ログを管理する画面です。", "steps": ["送信元アドレスやBCC、園名などの送信設定を入力します。", "振込先口座・料金設定・請求書の体裁を必要に応じて入力します。", "「保存」を押して、入力した内容を確定します。", "職員アカウントの表で、ログインIDと役割を発行します。", "権限管理の表で、役割ごとに見せる画面をチェックします。"], "tips": ["送信設定・振込口座・請求書の体裁は、一番下の「保存」を押すまで反映されません。料金や登園オプションの追加は、入力したその場で保存されます。", "「職員アカウント」と「権限管理」は、管理者としてログインしているときだけ表示されます。ご自身の役割は画面左下のお名前の下に出ています。", "権限管理でチェックを外した画面は、その役割の先生のメニューから見えなくなります。まず一人で試してから、全体に反映すると安心です。", "データはお使いの端末の中に保存されます。月に一度は「バックアップをダウンロード」を押して、ファイルをパソコンに保管してください。"], "faq": [{"q": "「職員アカウント」や「権限管理」のところが見当たりません。", "a": "この2つは、役割が「管理者」の方でログインしたときだけ表示されます。画面左下にご自身の役割が出ていますので、ご確認のうえ、管理者の先生にお願いしてください。"}, {"q": "口座番号を入れても大丈夫ですか。", "a": "入力した口座情報はお使いの端末の中だけに保存され、外部に公開されることはありません。ただし共用の端末をお使いのときは、使い終わったらログアウトしてください。"}, {"q": "別のパソコンで開いたら、設定が空になっていました。", "a": "設定は端末ごとに保存されるため、そのままでは引き継がれません。前の端末で「バックアップをダウンロード」したファイルを、新しい端末の「バックアップから復元」で読み込んでください。"}]}, "tasks": {"summary": "その月にやることを自動で表示する画面です。システムに記録があるものは自動で「記録あり」になり、それ以外はチェックで完了にできます。年間の一覧も確認できます。", "steps": ["画面の上で、確認したい月を選びます。", "「毎月やること」を上から順に確認します。", "その月だけのタスクを右側で確認します。", "「開く」を押して、その記録の画面へ移動します。", "終わったものはチェックを入れて完了にします。"], "tips": ["身体測定や避難訓練など、システムに記録があるものは自動で「記録あり」になります。手作業でのチェックは不要です。", "月初にこの画面を開いて、その月にやることをひととおり見ておくと、提出忘れを防げます。", "「なぜ必要か」の一文に、監査での位置づけが書いてあります。判断に迷ったときの参考にしてください。", "下の年間一覧で、来月以降の予定も先に確認できます。"], "faq": [{"q": "チェックを入れ忘れると、どうなりますか。", "a": "未完了として赤い印のまま残ります。ダッシュボードの監査カードにも未了として表示されますので、気づいたときにチェックしてください。"}, {"q": "自動で「記録あり」になる条件は何ですか。", "a": "その月の記録がシステムに保存されているかを見ています。たとえば身体測定はその月の測定記録、避難訓練はその月の実施記録があるかどうかで判定します。"}, {"q": "園独自のタスクを追加できますか。", "a": "現在は決まった一覧の表示のみです。追加が必要な場合は、開発担当にご相談ください。"}]}};
 var helpOpen=false;
 /* ══ 画面から外した説明の置き場 ═══════════════════════════
    画面の説明が多すぎて、かえって読まれなくなっていた。
@@ -10782,15 +10979,14 @@ var HELP_MORE={
   '「日別スケジュール」は、日ごとに午前・午後の活動を選び、1日託児の日はチェックします。日付が付くので、デイリーメールに引き継がれます。',
   '「アクティビティ別 月間のねらい・担当」に入れると、Week1〜4に自動で入ります。週ごとに変えたいときは、各週の欄で上書きできます。',
   '各週の欄で書き換えると、その週だけ上書きされます。戻す先（月間の登録）があるときだけ ↺ が出て、月間の内容に戻せます。',
-  '「活動内容を追加」で足した活動は、月間のねらい・担当にも、Week1〜4の入力欄にも、そのまま増えます。',
-  '「月次項目」は、その月ぜんたいのテーマなどを入れる欄です。印刷（MTG配布用）に出ます。']},
+  '「活動内容を追加」で足した活動は、月間のねらい・担当にも、Week1〜4の入力欄にも、そのまま増えます。']},
  records:{tips:[
   '安全点検は、場所ごとに「良／要対応」を押します。要対応があれば、下のメモに対応を書いてください。月末に月間表として出力できます。',
   '健康チェックは、その日出席した園児が並びます。症状のある子は「症状を記録」で記録し、それ以外は「症状なし」として記録に残ります。体温は「登園（出席）」の値がそのまま入ります。']},
  carerec:{tips:[
   '身体測定は、クラスを選ぶとその園児が並びます。身長・体重を入れると、カウプ指数が自動で出ます。',
   '怪我・発熱・ヒヤリハットの記録では、人の形の絵を押して、けがの場所を前・後ろで記録できます。',
-  '生徒個人発達記録は、3ヶ月ごとに記録します。監査で見られる書類です。']},
+  '生徒個人発達記録は、毎月記録します。監査で見られる書類です。「前回の記録を反映」で、いちばん近い前の記録を写してから、変わったところだけ直せます。']},
  roster:{tips:[
   '自宅マップの「学校 → 避難場所」の道すじは、監査のときにも使えます。']},
  enroll:{tips:[
@@ -10893,12 +11089,12 @@ var HELP_KB={
   out:'登園シート／安全点検の月間表／午睡チェック表／健康チェック記録／業務日報を、それぞれA4横で印刷できます。右上の「データ保存」でExcelでも出せます。',
   paper:'紙で書きたい日は、下の「紙の記録を取り込む」からQR付きの用紙を印刷し、書いたあとに撮影すると同じ日付の記録として残ります。'},
 
- carerec:{t:'保育記録',kw:'身体測定 身長 体重 カウプ ヒヤリハット 怪我 けが 発達記録 個人記録 四半期 measurement',role:['一般','マネージャー'],
-  can:'毎日ではない記録です。身体測定（月1）、ヒヤリハット・怪我（そのつど）、生徒個人発達記録（3か月ごと）。',
+ carerec:{t:'保育記録',kw:'身体測定 身長 体重 カウプ ヒヤリハット 怪我 けが 発達記録 個人記録 毎月 月ごと measurement',role:['一般','マネージャー'],
+  can:'毎日ではない記録です。身体測定（月1）、ヒヤリハット・怪我（そのつど）、生徒個人発達記録（毎月）。上のタブで切り替えます。',
   steps:['月とクラスを選び、身長と体重を入れます。カウプ指数はその場で計算されます。',
    '「保護者へ測定結果を送信」を押すと、ご家庭ごとにそのお子さまの結果だけを書いた文面が作られます。',
    'ヒヤリハットは、人型の絵をタップするとその場所に印が付きます。',
-   '発達記録は園児と四半期を選び、項目を選んでいきます。'],
+   '発達記録は園児と月を選び、項目を選んでいきます。「前回の記録を反映」を押すと、いちばん近い前の記録を写せます（写す前に確認が出ます）。'],
   tips:['発達記録は「全員分を出力」があります。監査で全員分を求められたときに1回で揃います。'],
   out:'身体測定の一覧／ヒヤリハットの年間一覧／発達記録（1名分または全員分）をA4横で印刷できます。'},
 
@@ -10937,8 +11133,7 @@ var HELP_KB={
    'ここで入れた内容は Week1〜4 に自動で入ります（緑の「自動」バッジが付きます）。',
    '週ごとに変えたいときは、その週だけ書き換えてください。↺ で元に戻せます。',
    '「日別スケジュール」タブで、平日ごとに午前・午後のアクティビティを選びます。'],
-  tips:['ここで作った日別の内容は、業務日報の「活動実績」に自動で入ります。日誌に書き写す必要はありません。',
-   '今月のテーマ・Phonics・Monthly Song は、「活動の内容」タブの「月次項目」で入れます。入れた内容は印刷（MTG配布用）に出ます。'],
+  tips:['ここで作った日別の内容は、業務日報の「活動実績」に自動で入ります。日誌に書き写す必要はありません。'],
   out:'月案一式（月次項目・週マトリクス・日別スケジュール）を、会議で配れる形でA4横で印刷できます。'},
 
  shift:{t:'シフト表',kw:'シフト 勤務表 出勤簿 打刻 早番 遅番 日勤 休憩 時間外 労務 CSV 取込',role:['マネージャー','管理者'],
@@ -10958,7 +11153,7 @@ var HELP_KB={
   tips:['差額が出たときは、原因を行として残してください。残った額が使途不明金として赤で出ます。'],
   out:'経費精算表をA4横で印刷できます。'},
 
- billing:{t:'請求管理',kw:'請求 請求書 保育料 入金 未収 引き落とし 支払 発行 送付 明細',role:['マネージャー','管理者'],
+ billing:{t:'請求書発行',kw:'請求 請求書 保育料 入金 未収 引き落とし 支払 発行 送付 明細',role:['マネージャー','管理者'],
   can:'月ごとの請求を作り、送付と入金を管理します。',
   steps:['月を選ぶと、在園児の契約内容から請求が作られます。',
    '内容を確認して「発行」にします。',
@@ -11596,6 +11791,25 @@ function aiOpenSection(id){AI_OPEN=false;$('#aiPanel').classList.remove('open');
 /* ---------- start ---------- */
 /* サイドバーは組み立て直すので、目印が無いこともある。止まらないようにする。 */
 var _nc=$('#navContacts'); if(_nc)_nc.textContent=DB.contacts.length;
+/* サーバが動いているかを、裏で確かめて控えておく。
+   ここで返事を待つと、つながらない園で画面が出るまで固まるので待たない。
+   控えた結果は、次にこの画面を開いたときに効く。 */
+function apiHealthCheck(){
+  var base=API.base();
+  function mark(alive){try{localStorage.setItem('edugrow_apiAlive',alive?'1':'0');}catch(e){}}
+  /* 札が立つまでは、確かめにも行かない。
+     行くと、園の端末から毎回サーバへ通信が出るうえ、
+     つながらない園では読み込むたびに通信の失敗が記録に残るため。 */
+  if(!API_LIVE){mark(false);return;}
+  if(!base){mark(false);return;}
+  try{
+    fetch(base+'/health').then(function(r){return r.json();})
+      .then(function(j){mark(!!(j&&j.ok));})
+      .catch(function(){mark(false);});
+  }catch(e){mark(false);}
+}
+try{apiHealthCheck();}catch(e){}
+try{applyBrand();}catch(e){}
 staffBoot();
 /* サイドバーは、画面がすべて読み込まれてから組み立てる
    （どの画面が存在するかを見て決めているため） */
