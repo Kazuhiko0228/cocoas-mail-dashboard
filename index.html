@@ -1530,7 +1530,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA ストア管理'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体配信（お知らせ）'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','防火管理台帳・消火訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求管理'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -1637,8 +1637,16 @@ function go(page){
      いまは実害がないが、creator.html は利用者が書いたものを表示する画面なので、
      そこに差し込みが1件でも通れば、この管理画面まで直につながる。
      投稿の表示は esc() を通しているが、そこが最後の砦になっている。 */
-  (page==='creator') ? (function(){window.open('creator.html','_blank');page='home';})() :
-  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaStore,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,kidsview:renderKidsView,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  /* 開いたあと、この画面には何も出していなかった。
+     タブがふさがれて開かなかったときに行き先が分からなくなるので、
+     案内（未来WA を開く）をこの画面に出しておく。 */
+  (page==='creator') ? (function(){
+      waOpen();
+      var wsec=document.querySelector('section[data-page="wastore"]');
+      if(wsec)wsec.hidden=false;
+      renderWaOpen();
+    })() :
+  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,kidsview:renderKidsView,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -1806,9 +1814,10 @@ var EG_NAV=[
    {k:'renraku', l:'連絡・配信', i:'ic:63',si:'send', c:'#A32D2D', bg:'#FCEBEB', sub:[
      {p:'dm',        l:'保護者DM'},
      {p:'broadcast', l:'全体配信'}]},
-   {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', sub:[
-     {p:'wastore', l:'ストア出品'},
-     {p:'creator', l:'コンテンツ投稿'}]}
+   /* 出品も売上も未来WA の画面に1本化したので、入口は1つでよい。
+      行き先は wastore（未来WA を開く案内）にする。
+      creator は section を持たないため egHasPage で外れる。ここの行き先には使えない。 */
+   {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', p:'wastore'}
  ]},
  {cat:'カリキュラム・スケジュール',items:[
    {k:'tasks',      l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
@@ -3419,8 +3428,7 @@ var HOME_GROUPS=[
     {p:'carerec',i:'report',l:'保育記録',c:'#854F0B',bg:'#FAEEDA'},
     {p:'dashboard',i:'home',l:'ダッシュボード',c:'#3C3489',bg:'#EEEDFE'},
     {p:'audit',i:'audit',l:'監査対応',c:'#A32D2D',bg:'#FCEBEB'},
-    {p:'wastore',i:'yen',l:'未来WA ストア',c:'#A8560F',bg:'#FDEDE2'},
-    {p:'creator',i:'send',l:'未来WA 投稿',c:'#C43478',bg:'#FDECF4'}
+    {p:'wastore',i:'cast',l:'未来WA',c:'#C43478',bg:'#FDECF4'}
   ]},
   {t:'記録・書類',items:[
     {p:'guide',i:'book',l:'スクールガイド',c:'#123E6B',bg:'#E6F1FB'},
@@ -3554,85 +3562,51 @@ function renderHome(){
     goRec(b.getAttribute('data-tile'),b.getAttribute('data-rec'),b.getAttribute('data-tab2'));};});
 }
 
-/* ---------- 未来WA ストア管理 ----------
-   保護者アプリ「未来WA」に並ぶ商品を園が決める画面。
-   売れると売上の一部が園に還元されるので、その集計もここで見る。
-   データは未来WAと同じ場所に置いているため、登録するとすぐ保護者側に出る。 */
-var WA_CATS=['教材','絵本','知育玩具','制服','クラフト材料','食育用品','ハンドメイド','ダウンロード教材','イベント用品','中古・レンタル'];
-var WA_AIMS=['かず・かたち','ことば','おんがく','からだ','しぜん'];
-function waProd(){
-  var d=stGet('wa_products',null);
-  if(d&&d.length)return d;
-  d=[
-    {id:1,name:'かず・かたち もりのワーク',desc:'2〜4歳／数と形にふれる毎月のワーク',price:3000,emoji:'📗',cat:'教材',sub:true,aim:'かず・かたち',rec:true},
-    {id:2,name:'えいごのおと カードセット',desc:'耳から入る英語のリズム',price:2400,emoji:'🔤',cat:'教材',sub:true,aim:'ことば',rec:false},
-    {id:3,name:'リズムあそび 音源＋絵本',desc:'からだを動かしながら音を楽しむ',price:1800,emoji:'🎵',cat:'絵本',sub:true,aim:'おんがく',rec:false},
-    {id:4,name:'しぜんとあそぶ 観察キット',desc:'虫めがね・観察ノート付き',price:2200,emoji:'🔎',cat:'知育玩具',sub:false,aim:'しぜん',rec:false},
-    {id:5,name:'園指定 体操服',desc:'サイズ 100 / 110 / 120',price:3600,emoji:'👕',cat:'制服',sub:false,aim:'',rec:false,schoolOnly:true},
-    {id:6,name:'サマーキャンプ 参加費',desc:'8/20-21 一泊二日',price:8000,emoji:'🏕️',cat:'イベント用品',sub:false,aim:'',rec:false,schoolOnly:true}
-  ];
-  stSet('wa_products',d);return d;
+/* ---------- 未来WA の案内 ----------
+   商品の登録・売上と還元・イベントの申込・ダウンロード教材の預かりは、
+   未来WA の画面（creator.html）にまとめた。
+   同じ商品の帳簿（wa_products）をこの画面と未来WA の両方が書いていたため、
+   園の一覧に他社の商品まで並び、園から直せてしまう状態だった。
+   入口を1つにして、ここは「未来WA を開く」ための案内だけにする。 */
+
+/* 未来WA を別のタブで開く。
+   ログインの控えはタブの中（sessionStorage）にしか置いていないので、
+   noopener は付けない。付けると新しいタブに引き継がれず、向こうで保存できなくなる。 */
+function waOpen(){ window.open('creator.html','_blank'); }
+
+/* 未来WA でできること。案内に並べる文言をここにまとめておく。 */
+var WA_CAN=[
+  ['商品を出す','写真・値段・毎月おとどけ・ねらいを決めて出します。'],
+  ['保護者に見せる並び','園のおすすめを、保護者のストアのいちばん上に並べます。'],
+  ['園で使っている外部の教材','市販のものを、運営が発行したリンクで知らせます。'],
+  ['売れたもの','今月の売上と園への還元、注文の明細を見ます。「受け取りました」もここです。'],
+  ['イベントの申込の名簿','どなたが申し込まれたかを見ます（管理者・マネージャーのみ）。'],
+  ['ダウンロード教材の預かり','保護者にお渡しするファイルを預けます。']
+];
+/* この画面は案内だけ。園児のお名前や売上は、ここには出さない（未来WA の画面で見る）。
+   タブがふさがれて開かなかったときの行き先にもなるので、ボタンは必ず1つ置く。 */
+function renderWaOpen(){
+  var s=$('section[data-page="wastore"]');
+  s.innerHTML='<div class="card">'
+      +'<h3>'+ic('cast')+'未来WA を開く</h3>'
+      +'<div class="muted" style="margin:-4px 0 12px;">'
+      +'商品を出すのも、売れたものを見るのも、未来WA の画面で行います。'
+      +'この画面からは、その入口をご案内しています。</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
+      +'<button class="btn btn-primary" id="waGo">'+ic('send')+'未来WA を開く</button>'
+      +'<span class="muted" style="font-size:12px;">別のタブで開きます。</span></div></div>'
+    +'<div class="card"><h3>'+ic('check')+'未来WA でできること</h3>'
+      +WA_CAN.map(function(x){
+        return '<div style="border-top:1px solid var(--line);padding:10px 0;">'
+          +'<div style="font-weight:700;font-size:13.5px;">'+esc(x[0])+'</div>'
+          +'<div class="muted" style="font-size:12.5px;margin-top:2px;">'+esc(x[1])+'</div></div>';
+      }).join('')
+      +'<div class="note-b" style="margin-top:13px;">'
+      +'売上と還元・イベントの申込の名簿・保護者にお渡しするファイルは、'
+      +'園の職員としてログインしているときだけ出ます。</div></div>';
+  $('#waGo').onclick=waOpen;
 }
-/* 園の端末で入れた分（wa_orders）と、保護者が買った分（保護者から届いた控え）を
-   1本にまとめる。同じ注文が二重に数えられないよう、注文の番号でそろえる。 */
-/* 注文を1件ずつ見分ける印。保護者の端末で作られた注文なので、
-   園が勝手に番号を振り直せない。買った中身で組み立てる。 */
-function waOrdKey(o){
-  return String(o&&o.id||'')+'|'+String(o&&o.at||'')+'|'+String(o&&o.childId||'');
-}
-/* 園が「受け取りました」を押した記録。
-   保護者にもそのまま渡る（サーバの PARENT_READ に入れてある）。 */
-function waRecv(){var v=stGet('wa_order_recv',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
-function waRecvMark(o,on){
-  var r=waRecv(),k=waOrdKey(o);
-  if(on){
-    var st=(typeof currentStaff==='function')?currentStaff():null;
-    r[k]={at:todayISO(),by:(st&&st.name)||''};
-  }else{ delete r[k]; }
-  stSet('wa_order_recv',r);
-}
-function waOrd(){
-  var mine=stGet('wa_orders',[])||[],seen={},out=[];
-  mine.concat(PSTATE.list('wa_orders')).forEach(function(o){
-    if(!o)return;
-    var k=String(o.id||'')+'|'+String(o.at||'')+'|'+String(o.childId||'');
-    if(seen[k])return;seen[k]=1;out.push(o);
-  });
-  return out;
-}
-function waRate(){var s=stGet('wa_settings',null);return (s&&s.rate!=null)?s.rate:0.20;}
-function waSetRate(r){var s=stGet('wa_settings',{})||{};s.rate=r;stSet('wa_settings',s);}
-function waMonth(){return todayISO().slice(0,7);}
-var waTab2='items';
-/* 商品の写真。長辺600pxに縮めて端末内に保存する（外部サービスへは送らない） */
-function waImgPick(id){
-  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
-  inp.onchange=function(){
-    var f=inp.files&&inp.files[0];if(!f)return;
-    var rd=new FileReader();
-    rd.onload=function(){
-      var im=new Image();
-      im.onload=function(){
-        var MX=600,sc=Math.min(1,MX/Math.max(im.width,im.height));
-        var cv=document.createElement('canvas');
-        cv.width=Math.round(im.width*sc);cv.height=Math.round(im.height*sc);
-        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
-        var ps=waProd();
-        ps.forEach(function(x){if(String(x.id)===String(id))x.img=cv.toDataURL('image/jpeg',0.78);});
-        try{stSet('wa_products',ps);}catch(e){alert('保存できませんでした。写真の枚数が多い可能性があります。');return;}
-        renderWaStore();
-      };
-      im.onerror=function(){alert('画像を読み込めませんでした。');};
-      im.src=rd.result;
-    };
-    rd.readAsDataURL(f);
-  };
-  inp.click();
-}
-function waImgClear(id){
-  var ps=waProd();ps.forEach(function(x){if(String(x.id)===String(id))delete x.img;});
-  stSet('wa_products',ps);renderWaStore();
-}
+
 /* ---------- スクールガイド（入園時にお渡しする一式） ----------
    紙で配っているものを園がここに入れておくと、保護者は未来WAでいつでも見られる。
    中身は園ごとにちがうので、ひな型の上に園の原本を重ねる形にしている。
@@ -3749,412 +3723,6 @@ function renderGuide(){
   var gb=sec.querySelector('#gdBack');
   if(gb)gb.onclick=function(){docsView='';go('docs');};
 }
-/* 園が「保護者にどう見せるか」を決める画面。
-   ここで指定したものが、未来WAのストアの上に別枠で出る。 */
-function renderWaPick(s){
-  var ps=waProd();
-  var picked=ps.filter(function(x){return x.pick;}).sort(function(a,b){return a.pick-b.pick;});
-  s.innerHTML+='<div class="card"><h3>'+ic('star')+'保護者のストアの上に出すもの</h3>'
-    +'<div class="muted" style="margin-bottom:12px;">'
-    +'えらんだ順に、未来WAのストアのいちばん上に並びます。'
-    +'「今月のねらいに合わせて先生が選んでいます」という枠で出ます。</div>'
-    +'<div class="scrollx"><table><thead><tr>'
-    +'<th style="width:44px;">見せる</th><th>商品</th><th style="width:88px;">表示順</th>'
-    +'<th style="width:190px;">ご用意のお願い</th><th style="width:96px;">園で使用中</th></tr></thead><tbody>'
-    +ps.map(function(x){
-      return '<tr><td style="text-align:center;">'
-        +'<input type="checkbox" data-pk="'+esc(x.id)+'"'+(x.pick?' checked':'')+' style="width:auto;"></td>'
-        +'<td><div style="font-weight:600;">'+esc(x.name)+'</div>'
-          +'<div class="row-sub">'+esc(x.cat||'')+' ・ '+(x.src==='amazon'?'外部教材':yen(x.price))+'</div></td>'
-        +'<td><input type="number" min="1" max="99" data-po="'+esc(x.id)+'" value="'+esc(x.pick||'')+'" style="width:70px;"></td>'
-        +'<td><input type="text" data-pn="'+esc(x.id)+'" value="'+esc(x.need||'')+'" placeholder="例：入園までにご用意ください"></td>'
-        +'<td style="text-align:center;"><input type="checkbox" data-pu="'+esc(x.id)+'"'+(x.use?' checked':'')+' style="width:auto;"></td></tr>';
-    }).join('')
-    +'</tbody></table></div>'
-    +'<div style="margin-top:14px;display:flex;gap:10px;align-items:center;">'
-    +'<button class="btn btn-primary" id="pkSave">この内容で保護者に見せる</button>'
-    +'<span class="muted" id="pkMsg"></span></div></div>'
-    +'<div class="card"><h3>'+ic('eye')+'いま保護者に出ているもの</h3>'
-    +(picked.length
-      ? '<ol style="margin:0;padding-left:20px;line-height:2;">'
-        +picked.map(function(x){return '<li>'+esc(x.name)
-          +(x.need?' <span class="pill" style="background:#FDEDE2;color:#A8560F;">'+esc(x.need)+'</span>':'')
-          +(x.use?' <span class="pill" style="background:#EAF3DE;color:#27500A;">園で使用中</span>':'')+'</li>';}).join('')
-        +'</ol>'
-      : '<div class="empty">まだ指定していません。上の表でチェックを入れてください。</div>')
-    +'</div>';
-  $('#pkSave').onclick=function(){
-    var ps=waProd();
-    ps.forEach(function(x){
-      var ck=document.querySelector('[data-pk="'+x.id+'"]');
-      var od=document.querySelector('[data-po="'+x.id+'"]');
-      var nd=document.querySelector('[data-pn="'+x.id+'"]');
-      var us=document.querySelector('[data-pu="'+x.id+'"]');
-      if(ck&&ck.checked){ x.pick=parseInt(od&&od.value,10)||99; } else { delete x.pick; }
-      var nv=nd?nd.value.trim():''; if(nv)x.need=nv; else delete x.need;
-      if(us&&us.checked)x.use=true; else delete x.use;
-    });
-    stSet('wa_products',ps);
-    $('#pkMsg').textContent='保存しました。保護者の画面に反映されています。';
-    renderWaStore();
-  };
-}
-
-/* 外部の教材は、運営が発行したリンクでのみ保護者に出す。
-   園が勝手にリンクを貼れる形にすると、どこへ飛ばされるか分からなくなるため。 */
-/* イベントの申込。保護者の画面から届いたものをそのまま並べる。
-   名前が入るので、この画面（管理者・マネージャー）だけに出す。
-   出品者の画面には数だけを出している。 */
-/* ダウンロード教材のファイルを預かる。
-   保護者は、園がここにファイルを入れて、かつ注文に「受け取りました」を押したときだけ
-   受け取れる。どちらかが欠けていると、買っても渡せない。 */
-var WADL={files:null,busy:false,err:''};
-function waDlLoad(cb){
-  if(!API.online()){WADL.files=[];WADL.err='サーバにつないでいません';cb&&cb();return;}
-  if(WADL.busy)return;
-  WADL.busy=true;
-  API.call('GET','/school/download-files')
-    .then(function(j){WADL.files=(j&&j.files)||[];WADL.err='';})
-    .catch(function(e){WADL.files=[];WADL.err=e.message;})
-    .then(function(){WADL.busy=false;cb&&cb();});
-}
-function waDlKB(n){ return n==null?'—':(n<1024?n+' B':(n<1048576?Math.round(n/1024)+' KB':(Math.round(n/104858)/10)+' MB')); }
-function renderWaDl(s){
-  if(WADL.files===null){
-    s.innerHTML+='<div class="card"><div class="empty">読み込んでいます…</div></div>';
-    waDlLoad(function(){ if(waTab2==='dl')renderWaStore(); });
-    return;
-  }
-  /* ストアに並んでいるダウンロード教材と、預かっているファイルを突き合わせる。
-     園の画面の一覧に無い商品（未来WA投稿から出したものなど）でも、
-     預かっているファイルは必ず出す。出さないと、入れたはずのものが行方不明になる。 */
-  var have={};
-  WADL.files.forEach(function(f){ have[String(f.productId)]=f; });
-  var dls=waProd().filter(function(p){return String(p.cat||'')==='ダウンロード教材';});
-  var seen={};
-  dls.forEach(function(p){ seen[String(p.id)]=1; });
-  WADL.files.forEach(function(f){
-    if(f.orphan||seen[String(f.productId)])return;
-    dls.push({id:f.productId,name:f.productName||('商品番号 '+f.productId),cat:'ダウンロード教材'});
-    seen[String(f.productId)]=1;
-  });
-
-  s.innerHTML+='<div class="card"><h3>'+ic('folder')+'ダウンロード教材のファイル</h3>'
-    +'<div class="muted" style="margin:-4px 0 12px;font-size:12px;line-height:1.8;">'
-    +'ここにファイルを入れると、保護者が買えるようになります。'
-    +'<b>ファイルが無い商品は、買えないようにしています</b>（買っても渡せないため）。'
-    +'買われたあとは、注文の明細で「受け取りました」を押すと、保護者が受け取れます。'
-    +(WADL.err?'<br><span style="color:var(--bad);">'+esc(WADL.err)+'</span>':'')+'</div>'
-    +(dls.length?dls.map(function(p){
-      var f=have[String(p.id)];
-      return '<div style="border-top:1px solid var(--line);padding:11px 0;">'
-        +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
-          +'<b style="font-size:13.5px;flex:1;min-width:180px;">'+esc(p.name||'')+'</b>'
-          +(f?'<span class="tag">'+esc(f.name)+'（'+waDlKB(f.size)+'）</span>'
-              +'<span class="muted" style="font-size:11.5px;">'+f.downloaded+'回お渡し済み</span>'
-            :'<span class="tag" style="background:var(--bad-w,#FAE9E8);color:var(--bad,#A3302F);">ファイルがありません</span>')
-          +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+(f?'差し替える':'ファイルを入れる')
-            +'<input type="file" data-dlfile="'+esc(p.id)+'" style="display:none;"></label>'
-          +(f?'<button class="btn btn-sm btn-ghost" data-dldel="'+esc(p.id)+'">取り下げる</button>':'')
-        +'</div></div>';
-    }).join('')
-    :'<div class="empty">ストアにダウンロード教材がありません。未来WA 投稿の画面で出品してください。</div>')
-    +'</div>';
-
-  /* 行き先を失ったファイル（商品を消したあとに残ったもの） */
-  var orphan=WADL.files.filter(function(f){return f.orphan;});
-  if(orphan.length){
-    s.innerHTML+='<div class="card"><h3>'+ic('alert')+'商品が見つからないファイル</h3>'
-      +'<div class="muted" style="margin:-4px 0 10px;font-size:12px;">'
-      +'商品を消したあとに残っているファイルです。もう誰にも渡りません。</div>'
-      +orphan.map(function(f){
-        return '<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line2);">'
-          +'<span style="flex:1;">'+esc(f.name)+'（'+waDlKB(f.size)+'）</span>'
-          +'<span class="muted" style="font-size:11.5px;">商品番号 '+esc(f.productId)+'</span>'
-          +'<button class="btn btn-sm btn-ghost" data-dldel="'+esc(f.productId)+'">消す</button></div>';
-      }).join('')+'</div>';
-  }
-
-  /* ファイルを選んだら、その場で送る */
-  s.querySelectorAll('[data-dlfile]').forEach(function(inp){
-    inp.onchange=function(){
-      var pid=inp.getAttribute('data-dlfile'),file=inp.files&&inp.files[0];
-      if(!file)return;
-      /* 大きすぎるものは、送る前に断る（サーバも断るが、待たせない） */
-      if(file.size>6*1024*1024){ alert('ファイルが大きすぎます（6MBまで）。'); inp.value=''; return; }
-      var fr=new FileReader();
-      fr.onload=function(){
-        API.call('POST','/school/download-files',
-          {productId:pid,name:file.name,mime:file.type||'application/octet-stream',body:String(fr.result)})
-          .then(function(){ WADL.files=null; renderWaStore(); toast('ファイルを入れました'); })
-          .catch(function(e){ alert(e.message); });
-      };
-      fr.readAsDataURL(file);
-    };
-  });
-  s.querySelectorAll('[data-dldel]').forEach(function(b){
-    b.onclick=function(){
-      if(!confirm('このファイルを取り下げますか。保護者は受け取れなくなります。'))return;
-      API.call('DELETE','/school/download-files/'+encodeURIComponent(b.getAttribute('data-dldel')))
-        .then(function(){ WADL.files=null; renderWaStore(); toast('取り下げました'); })
-        .catch(function(e){ alert(e.message); });
-    };
-  });
-}
-
-function renderWaJoins(s){
-  var rows=PSTATE.list('wa_ev_joindetail');
-  /* イベントごとにまとめる。イベント番号が同じものを1つの束にする。 */
-  var by={};
-  rows.forEach(function(j){
-    if(!j||!j.id)return;
-    var k=String(j.id);
-    if(!by[k])by[k]={id:k,title:j.title||'（名称なし）',date:j.date||'',place:j.place||'',fee:j.fee||'',list:[]};
-    by[k].list.push(j);
-  });
-  var evs=Object.keys(by).map(function(k){return by[k];})
-    .sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
-
-  s.innerHTML+='<div class="card"><h3>'+ic('cal')+'イベントの申込</h3>'
-    +'<div class="muted" style="margin:-4px 0 12px;font-size:12px;">'
-    +'保護者の画面からお申し込みのあったものです。'
-    +(PSTATE.at?'':'　※ まだサーバから受け取れていません（つないでいないか、読み込みに失敗しています）')
-    +'</div>'
-    +(evs.length?evs.map(function(e){
-      return '<div style="border-top:1px solid var(--line);padding:11px 0;">'
-        +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;">'
-          +'<b style="font-size:13.5px;">'+esc(e.title)+'</b>'
-          +'<span class="tag">'+esc(e.list.length)+'名</span>'
-          +'<span class="muted" style="font-size:12px;">'+esc(e.date?fmt(e.date):'')
-            +(e.place?'　'+esc(e.place):'')+(e.fee?'　'+esc(e.fee):'')+'</span></div>'
-        +'<div class="scrollx" style="margin-top:7px;"><table><thead><tr>'
-          +'<th>お申し込み</th><th>園児</th><th>保護者</th></tr></thead><tbody>'
-        +e.list.slice().sort(function(a,b){return String(a.at).localeCompare(String(b.at));})
-          .map(function(j){
-            var c=DB.contacts.filter(function(x){return String(x.id)===String(j.childId);})[0];
-            return '<tr><td class="row-sub">'+esc(j.at||'')+'</td>'
-              +'<td>'+esc(c?childFullName(c):'（園外・退園）')+'</td>'
-              +'<td class="row-sub">'+esc(c?(c.name||''):'')+'</td></tr>';
-          }).join('')
-        +'</tbody></table></div></div>';
-    }).join('')
-    :'<div class="empty">まだお申し込みはありません。保護者の画面から申し込まれると、ここに入ります。</div>')
-    +'</div>';
-}
-
-function renderWaAmz(s){
-  var ps=waProd();
-  var ext=ps.filter(function(x){return x.src==='amazon';});
-  var LB={approved:['発行ずみ','#EAF3DE','#27500A'],requested:['申請中','#FDF3E3','#7A5312'],
-          none:['未申請','#F1F1EF','#6E6A72']};
-  s.innerHTML+='<div class="card"><h3>'+ic('link')+'園で使っている外部の教材</h3>'
-    +'<div class="muted" style="margin-bottom:12px;">'
-    +'園で使っているけれど未来WAでは売っていないもの（市販の文具など）を、保護者に知らせる欄です。<br>'
-    +'リンクは<b>運営が発行します</b>。申請すると内容を確認したうえでお返しします。'
-    +'発行前のものは、保護者の画面ではボタンが出ません。</div>'
-    +'<div class="scrollx"><table><thead><tr><th>教材</th><th style="width:110px;">状態</th>'
-    +'<th>リンク</th><th style="width:130px;"></th></tr></thead><tbody>'
-    +(ext.length?ext.map(function(x){
-      var st=(x.amz&&x.amz.status)||'none',lb=LB[st]||LB.none;
-      return '<tr><td><div style="font-weight:600;">'+esc(x.name)+'</div>'
-        +'<div class="row-sub">'+esc(x.desc||'')+'</div></td>'
-        +'<td><span class="pill" style="background:'+lb[1]+';color:'+lb[2]+';">'+lb[0]+'</span></td>'
-        +'<td class="row-sub" style="word-break:break-all;">'+esc((x.amz&&x.amz.url)||'—')+'</td>'
-        +'<td>'+(st==='approved'
-          ? '<span class="muted" style="font-size:12px;">保護者に出ています</span>'
-          : '<button class="btn btn-sm" data-amz="'+esc(x.id)+'">'+(st==='requested'?'申請しなおす':'リンクを申請する')+'</button>')
-        +'</td></tr>';}).join('')
-      :'<tr><td colspan="4" class="empty">外部教材はまだ登録されていません。</td></tr>')
-    +'</tbody></table></div></div>'
-    +'<div class="card"><h3>'+ic('plus')+'外部教材を足す</h3>'
-    +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;">'
-    +'<div><label class="lbl">教材の名前</label><input id="az_name" placeholder="例：くもん こどもえんぴつ 6B"></div>'
-    +'<div><label class="lbl">カテゴリ</label><select id="az_cat">'
-      +['教材','絵本','知育玩具','クラフト材料','食育用品','制服'].map(function(c){
-        return '<option>'+esc(c)+'</option>';}).join('')+'</select></div></div>'
-    +'<div style="margin-top:10px;"><label class="lbl">保護者への説明</label>'
-    +'<input id="az_desc" placeholder="例：クラフトの時間で使っています。三角軸で持ち方がくずれません。"></div>'
-    +'<div style="margin-top:10px;"><label class="lbl">参考にするページ（Amazonの商品ページ）</label>'
-    +'<input id="az_url" placeholder="https://www.amazon.co.jp/dp/..."></div>'
-    +'<div style="margin-top:10px;"><label class="lbl">ご用意のお願い（任意）</label>'
-    +'<input id="az_need" placeholder="例：入園までにご用意ください"></div>'
-    +'<div style="display:flex;gap:10px;align-items:center;margin-top:14px;">'
-    +'<button class="btn btn-primary" id="azAdd">この内容で申請する</button>'
-    +'<span class="muted" id="azMsg"></span></div>'
-    +'<div class="muted" style="margin-top:10px;font-size:12px;">'
-    +'※ 保護者の画面には、広告であることを示す表示が自動で入ります（法令上の決まりです）。</div></div>';
-
-  document.querySelectorAll('[data-amz]').forEach(function(b){b.onclick=function(){
-    var id=b.getAttribute('data-amz'),ps=waProd();
-    ps.forEach(function(x){if(String(x.id)===String(id)){
-      x.amz=x.amz||{};x.amz.status='requested';x.amz.at=todayISO();}});
-    stSet('wa_products',ps);
-    amzLog(id,'再申請');
-    renderWaStore();
-  };});
-  $('#azAdd').onclick=function(){
-    var n=$('#az_name').value.trim(),u=$('#az_url').value.trim();
-    if(!n){$('#azMsg').textContent='教材の名前を入れてください';return;}
-    if(!/^https:\/\/(www\.)?amazon\.co\.jp\//i.test(u)){
-      $('#azMsg').textContent='Amazon（amazon.co.jp）の商品ページのURLを入れてください';return;}
-    var ps=waProd();
-    var nid=Math.max.apply(null,ps.map(function(x){return +x.id||0;}).concat([100]))+1;
-    ps.push({id:nid,name:n,desc:$('#az_desc').value.trim(),price:0,emoji:'📎',
-      cat:$('#az_cat').value,sub:false,aim:'',by:'school',src:'amazon',use:true,
-      need:$('#az_need').value.trim()||undefined,
-      amz:{status:'requested',url:u,at:todayISO()},stat:{v:0,r:0,n:0}});
-    stSet('wa_products',ps);
-    amzLog(nid,'新規申請');
-    renderWaStore();
-  };
-}
-function amzLog(id,what){
-  var a=stGet('wa_amz_log',[])||[];
-  a.push({id:id,what:what,at:new Date().toISOString().slice(0,16).replace('T',' '),
-    by:(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:''});
-  stSet('wa_amz_log',a);
-}
-function renderWaStore(){
-  var s=$('section[data-page="wastore"]'),rate=waRate(),mk=waMonth();
-  var os=waOrd().filter(function(o){return String(o.at||'').slice(0,7)===mk;});
-  var gmv=0,kb=0;os.forEach(function(o){gmv+=(+o.amount||0);kb+=(+o.kickback||0);});
-  s.innerHTML='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-    +'<div class="chips" style="margin:0;flex:1;">'
-      +'<span class="chip'+(waTab2==='items'?' on':'')+'" data-wt="items">商品の管理</span>'
-      +'<span class="chip'+(waTab2==='pick'?' on':'')+'" data-wt="pick">保護者に見せる</span>'
-      +'<span class="chip'+(waTab2==='amz'?' on':'')+'" data-wt="amz">外部教材のリンク</span>'
-      +'<span class="chip'+(waTab2==='sales'?' on':'')+'" data-wt="sales">売上と還元</span>'
-      +'<span class="chip'+(waTab2==='joins'?' on':'')+'" data-wt="joins">イベントの申込</span>'
-      +'<span class="chip'+(waTab2==='dl'?' on':'')+'" data-wt="dl">ダウンロード教材</span></div>'
-    +'<span class="muted" style="font-size:12px;">ここで登録すると、保護者アプリ「未来WA」にすぐ表示されます</span></div>';
-  /* タブの配線は、ここで先に済ませる。
-     下の「保護者に見せる」「外部教材のリンク」は途中で return するうえ、
-     中で innerHTML を足して作り直すため、関数の最後で配線していると
-     一度それらを開いたあとタブが押せなくなる（Remiさんのご指摘）。 */
-  var wireWaTabs=function(){
-    s.querySelectorAll('[data-wt]').forEach(function(b){
-      b.onclick=function(){ waTab2=b.getAttribute('data-wt'); renderWaStore(); };});
-  };
-  wireWaTabs();
-  if(waTab2==='pick'){ renderWaPick(s); wireWaTabs(); return; }
-  if(waTab2==='amz'){ renderWaAmz(s); wireWaTabs(); return; }
-  if(waTab2==='dl'){ renderWaDl(s); wireWaTabs(); return; }
-  if(waTab2==='joins'){ renderWaJoins(s); wireWaTabs(); return; }
-  if(waTab2==='sales'){
-    s.innerHTML+='<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">'
-      +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">未来WAの流通額（'+esc(mk)+'）</div>'
-        +'<div style="font-size:26px;font-weight:800;margin-top:4px;">'+yen(gmv)+'</div><div class="muted" style="font-size:12px;">'+os.length+'件</div></div>'
-      +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">園への還元（'+Math.round(rate*100)+'%）</div>'
-        +'<div style="font-size:26px;font-weight:800;margin-top:4px;color:#27500A;">'+yen(kb)+'</div>'
-        +'<div class="muted" style="font-size:12px;">'+os.length+'件ぶん</div></div>'
-      /* 「EduGrow利用料」と「園の実質負担」は、いったん出さない。
-         ここに出していた 8,800円 は料金表のどのプランにも無い数字で、
-         園がこれを見て契約すると食い違うため。
-         正式な金額が決まったら、サーバの料金表（src/admin.js）から取って出す。 */
-      +'<div class="card" style="margin:0;"><div class="muted" style="font-size:12px;font-weight:700;">1件あたりの還元</div>'
-        +'<div style="font-size:26px;font-weight:800;margin-top:4px;">'
-        +(os.length?yen(Math.round(kb/os.length)):'—')+'</div>'
-        +'<div class="muted" style="font-size:12px;">今月の平均</div></div></div>'
-      +'<div class="card"><h3>'+ic('yen')+'注文の明細（'+esc(mk)+'）</h3><div class="scrollx"><table><thead><tr>'
-        +'<th>日時</th><th>園児</th><th>商品</th><th style="text-align:right;">金額</th><th style="text-align:right;">還元</th><th>園で確認</th></tr></thead><tbody>'
-      +(os.length?os.slice().reverse().map(function(o){
-          var c=DB.contacts.filter(function(x){return String(x.id)===String(o.childId);})[0];
-          var rv=waRecv()[waOrdKey(o)];
-          return '<tr><td class="row-sub">'+esc(o.at||'')+'</td><td>'+esc(c?childFullName(c):'（園外）')+'</td>'
-            +'<td>'+esc(o.name||'')+'</td><td style="text-align:right;">'+yen(o.amount)+'</td>'
-            +'<td style="text-align:right;color:#27500A;font-weight:700;">'+yen(o.kickback)+'</td>'
-            /* 押すと保護者の画面が「受け取り済み」に変わる。
-               押すまでは予定のまま出る（届いていないのに届いたと出さないため）。 */
-            +'<td>'+(rv
-              ? '<span class="muted" style="font-size:11.5px;">'+esc(fmt(rv.at))+' 受取'
-                +(rv.by?'<br>'+esc(rv.by):'')+'</span>'
-                +' <button class="btn btn-sm" data-unrecv="'+esc(waOrdKey(o))+'" style="margin-left:4px;">取り消す</button>'
-              : '<button class="btn btn-sm btn-primary" data-recv="'+esc(waOrdKey(o))+'">受け取りました</button>')
-            +'</td></tr>';}).join('')
-        :'<tr><td colspan="6" class="empty">今月の注文はまだありません。未来WAのストアで購入されると、ここに入ります。</td></tr>')
-      +'</tbody></table></div>'
-      +'<div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;">'
-        +'<span style="font-size:13px;font-weight:600;">園への還元率</span>'
-        +'<input id="waRate" type="number" min="0" max="50" step="1" value="'+esc(Math.round(rate*100))+'" style="width:90px;">'
-        +'<span class="muted" style="font-size:12.5px;">%　商品の粗利から決めます。<b>この数字は保護者の画面には出ません。</b></span>'
-        +'<button class="btn btn-sm btn-primary" id="waRateSave">保存</button><span class="muted" id="waRateMsg"></span></div>'
-      +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.7;">'
-      +'「受け取りました」を押すと、保護者の画面の状態が「受け取り済み」に変わります。'
-      +'<br><b>ダウンロード教材は、これを押すまで保護者がファイルを受け取れません。</b>'
-      +'品物は園に届きませんが、内容を確かめたら押してください。'
-      +'押すまでは「園に届く予定」のまま出ます。</div></div>';
-    /* 受け取りの記録。os から探し直すのは、印だけでは中身が分からないため。 */
-    s.querySelectorAll('[data-recv],[data-unrecv]').forEach(function(b){b.onclick=function(){
-      var on=b.hasAttribute('data-recv');
-      var key=b.getAttribute(on?'data-recv':'data-unrecv');
-      var o=os.filter(function(x){return waOrdKey(x)===key;})[0];
-      if(!o)return;
-      waRecvMark(o,on);
-      renderWaStore();
-    };});
-    $('#waRateSave').onclick=function(){
-      waSetRate((parseFloat($('#waRate').value)||0)/100);
-      $('#waRateMsg').textContent='保存しました';renderWaStore();};
-  }else{
-    var ps=waProd();
-    s.innerHTML+='<div class="card"><h3>'+ic('folder')+'商品（'+ps.length+'点）</h3>'
-      +'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">「今月のおすすめ」にすると、未来WAのストアで先頭に出ます。'
-      +'「園の家庭だけ」は、園とつながっている保護者にしか表示しません（制服・行事費など）。</div>'
-      +'<div class="scrollx"><table><thead><tr><th style="width:62px;">写真</th><th>商品名</th><th style="width:120px;">分類</th>'
-      +'<th style="width:120px;">ねらい</th><th style="width:100px;">価格</th><th style="width:74px;">毎月</th>'
-      +'<th style="width:88px;">園の家庭だけ</th><th style="width:96px;">おすすめ</th><th style="width:56px;"></th></tr></thead><tbody>'
-      +ps.map(function(x){
-        return '<tr><td style="text-align:center;">'
-            +(x.img?'<img src="'+escImgSrc(x.img)+'" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:9px;display:block;margin:0 auto;">'
-                   :'<span style="font-size:21px;">'+esc(x.emoji||'📦')+'</span>')
-            +'<div style="display:flex;gap:4px;justify-content:center;margin-top:5px;">'
-              +'<button class="btn btn-sm btn-ghost" data-wimg="'+esc(x.id)+'" style="padding:2px 6px;font-size:10px;">写真</button>'
-              +(x.img?'<button class="btn btn-sm btn-ghost" data-wimgx="'+esc(x.id)+'" style="padding:2px 6px;font-size:10px;">×</button>':'')
-            +'</div></td>'
-          +'<td><input data-wp="'+esc(x.id)+'" data-k="name" value="'+esc(x.name)+'" style="font-weight:600;">'
-            +'<input data-wp="'+esc(x.id)+'" data-k="desc" value="'+esc(x.desc||'')+'" style="margin-top:4px;font-size:12px;color:var(--tx2);"></td>'
-          +'<td><select data-wp="'+esc(x.id)+'" data-k="cat">'+WA_CATS.map(function(cc){return '<option'+(cc===x.cat?' selected':'')+'>'+esc(cc)+'</option>';}).join('')+'</select></td>'
-          +'<td><select data-wp="'+esc(x.id)+'" data-k="aim"><option value="">—</option>'+WA_AIMS.map(function(a){return '<option'+(a===x.aim?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select></td>'
-          +'<td><input data-wp="'+esc(x.id)+'" data-k="price" type="number" value="'+esc((+x.price||0))+'" style="width:92px;"></td>'
-          +'<td style="text-align:center;"><input data-wp="'+esc(x.id)+'" data-k="sub" type="checkbox"'+(x.sub?' checked':'')+' style="width:auto;"></td>'
-          +'<td style="text-align:center;"><input data-wp="'+esc(x.id)+'" data-k="schoolOnly" type="checkbox"'+(x.schoolOnly?' checked':'')+' style="width:auto;"></td>'
-          +'<td style="text-align:center;"><button class="btn btn-sm'+(x.rec?' btn-primary':'')+'" data-wrec="'+esc(x.id)+'">'+(x.rec?'おすすめ中':'—')+'</button></td>'
-          +'<td style="text-align:right;"><button class="btn btn-sm btn-ghost" data-wdel="'+esc(x.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')
-      +'</tbody></table></div>'
-      +'<div style="display:flex;gap:9px;margin-top:14px;flex-wrap:wrap;align-items:center;">'
-        +'<input id="wnEmoji" value="📦" style="width:56px;text-align:center;">'
-        +'<input id="wnName" placeholder="商品名" style="width:220px;">'
-        +'<select id="wnCat">'+WA_CATS.map(function(cc){return '<option>'+esc(cc)+'</option>';}).join('')+'</select>'
-        +'<input id="wnPrice" type="number" placeholder="価格" style="width:100px;">'
-        +'<label style="font-size:12.5px;display:flex;gap:5px;align-items:center;"><input id="wnSub" type="checkbox" style="width:auto;">毎月おとどけ</label>'
-        +'<button class="btn btn-primary" id="wnAdd">'+ic('plus')+'追加する</button></div></div>';
-    function save(list){stSet('wa_products',list);}
-    s.querySelectorAll('[data-wp]').forEach(function(el2){
-      el2.onchange=function(){
-        var id=+el2.getAttribute('data-wp'),k=el2.getAttribute('data-k'),ps2=waProd();
-        ps2.forEach(function(x){if(x.id!==id)return;
-          x[k]=(el2.type==='checkbox')?el2.checked:(k==='price'?(parseInt(el2.value,10)||0):el2.value);});
-        save(ps2);};});
-    s.querySelectorAll('[data-wimg]').forEach(function(b){b.onclick=function(){waImgPick(b.getAttribute('data-wimg'));};});
-    s.querySelectorAll('[data-wimgx]').forEach(function(b){b.onclick=function(){
-      if(confirm('この写真を外しますか？'))waImgClear(b.getAttribute('data-wimgx'));};});
-    s.querySelectorAll('[data-wrec]').forEach(function(b){b.onclick=function(){
-      var id=+b.getAttribute('data-wrec'),ps2=waProd();
-      ps2.forEach(function(x){if(x.id===id)x.rec=!x.rec;});save(ps2);renderWaStore();};});
-    s.querySelectorAll('[data-wdel]').forEach(function(b){b.onclick=function(){
-      if(!confirm('この商品を未来WAのストアから外します。よろしいですか？'))return;
-      var id=+b.getAttribute('data-wdel');
-      save(waProd().filter(function(x){return x.id!==id;}));renderWaStore();};});
-    $('#wnAdd').onclick=function(){
-      var n=$('#wnName').value.trim();if(!n){alert('商品名を入力してください');return;}
-      var ps2=waProd();
-      ps2.push({id:Date.now(),name:n,desc:'',price:parseInt($('#wnPrice').value,10)||0,
-        emoji:$('#wnEmoji').value||'📦',cat:$('#wnCat').value,sub:$('#wnSub').checked,aim:'',rec:false});
-      save(ps2);renderWaStore();};
-  }
-  wireWaTabs();
-}
-
 /* ---------- dashboard ---------- */
 var dashPeriod='all',dashFY=null,dashMonth=null;
 function fyOf(s){var p=s.split('-');var y=+p[0],mm=+p[1];return mm>=4?y:y-1;}
@@ -7989,7 +7557,9 @@ var API={
 /* 保護者から届いたものを受け取る。
    保護者の画面が書いたものは、園の帳簿とは別の場所に貯まっている。
    ここで取りに行って、園の画面で読める形にする。 */
-var PSTATE={keys:['absence_log','dm_out','wa_orders','wa_ev_joins','wa_ev_joindetail'],busy:false,at:null,
+/* 注文・イベントの申込は、未来WA の画面がサーバから直に読む。
+   この画面では使わないので取りに行かない（使わない控えを端末に残さない）。 */
+var PSTATE={keys:['absence_log','dm_out'],busy:false,at:null,
   pull:function(){
     if(!API.online()||PSTATE.busy)return Promise.resolve();
     PSTATE.busy=true;
@@ -8299,7 +7869,7 @@ var IDLE={
    ★デモ認証（本物のセキュリティではない）。本番は認証つきバックエンド必須。 */
 var STAFF_ROLES=['管理者','マネージャー','一般'];
 var ACCESS_PAGES=[
-  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'wastore',label:'未来WA ストア管理'},{p:'guide',label:'スクールガイド'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
+  {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード'},{p:'wastore',label:'未来WA'},{p:'guide',label:'スクールガイド'},{p:'compose',label:'個別メール送信'},{p:'broadcast',label:'全体配信'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'bouka',label:'防火管理台帳・消火訓練'},{p:'shift',label:'シフト表'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},
@@ -8308,8 +7878,7 @@ var ACCESS_PAGES=[
   {p:'tasks',label:'年間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
      管理者がマネージャーへ渡すことができない。 */
-  {p:'aiplan',label:'AI保育計画'},{p:'leads',label:'顧客リスト'},{p:'sales',label:'営業分析'},
-  {p:'creator',label:'未来WA 投稿'}
+  {p:'aiplan',label:'AI保育計画'},{p:'leads',label:'顧客リスト'},{p:'sales',label:'営業分析'}
 ];
 var DEFAULT_PERMS={
   '管理者':ACCESS_PAGES.map(function(x){return x.p;}),
@@ -8358,7 +7927,11 @@ function saveRolePerms(p){stSet('rolePerms',p);}
 function roleColor(r){return r==='管理者'?{bg:'#FCEBEB',fg:'#A32D2D'}:r==='マネージャー'?{bg:'#E3F1F9',fg:'#0B5F8F'}:{bg:'#F1EFE8',fg:'#5F5E5A'};}
 function currentStaff(){var id=sessionStorage.getItem('cocoas_staffSession');if(!id)return null;return staffAccounts().filter(function(a){return String(a.id)===String(id);})[0]||null;}
 function currentRole(){var s=currentStaff();return s?s.role:null;}
-function canView(page){var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;return (rolePerms()[s.role]||[]).indexOf(page)>-1;}
+/* 未来WA は、案内（wastore）と、開く先（creator）で1つの権限にする。
+   別々にすると、案内は開けるのにボタンを押すと断られる、という食い違いが起きる。 */
+function canView(page){var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;
+  if(page==='creator')page='wastore';
+  return (rolePerms()[s.role]||[]).indexOf(page)>-1;}
 /* ログインの確認。ハッシュの照合に少し時間がかかるため、結果はコールバックでお返しします。
    まだ平文のまま残っているアカウントは、照合が通った瞬間にハッシュへ置き換えます。
    （置き換えによって、ログインできなくなることはありません） */
@@ -11222,11 +10795,15 @@ var HELP_KB={
   tips:['1ファイル4MBまでです。原本が無くても、要点は保護者に表示されます。'],
   out:'記入して出す用紙（登園許可証・投薬依頼書など6種）は、保護者が印刷できます。'},
 
- wastore:{t:'未来WA ストア管理',kw:'ストア 未来WA 商品 出品 教材 おすすめ 還元 Amazon リンク 販売',role:['一般','マネージャー','管理者'],
-  can:'保護者に見せる商品を決めます。園が指定したものがストアの上に出ます。',
-  steps:['「保護者に見せる」タブを開きます。','見せたい商品にチェックを入れ、表示順を数字で決めます。',
-   '「ご用意のお願い」に文言を入れると、保護者側に札が付きます。','「この内容で保護者に見せる」を押します。'],
-  tips:['園で使っている市販品は「外部教材のリンク」から申請してください。リンクは運営が発行します。'],
+ wastore:{t:'未来WA',kw:'ストア 未来WA 商品 出品 教材 おすすめ 還元 売上 Amazon リンク 販売 イベント 申込 ダウンロード',role:['一般','マネージャー','管理者'],
+  can:'未来WA の画面を開きます。商品を出すのも、売れたものを見るのも、開いた先で行います。',
+  steps:['「未来WA を開く」を押します。別のタブで開きます。',
+   '商品を出すときは「ショップ出品」を選びます。',
+   '保護者に見せる並び・園で使っている外部の教材も、同じ「ショップ出品」の中にあります。',
+   '売れたものと園への還元は「売れたもの」で見ます。',
+   'イベントに申し込まれた方のお名前は、イベントの行の「申込の名簿」で見ます。'],
+  tips:['売上・申込の名簿・保護者にお渡しするファイルは、園の職員としてログインしているときだけ出ます。',
+   'タブが開かないときは、この画面のボタンをもう一度押してください。'],
   out:'なし（画面で確認します）。'},
 
  dashboard:{t:'ダッシュボード',kw:'ダッシュボード ホーム 今日 やること タスク 未入力 状況',role:['一般','マネージャー','管理者'],
