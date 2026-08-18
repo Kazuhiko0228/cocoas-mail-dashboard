@@ -667,6 +667,27 @@ function isSchool(){return API.online()&&SCHOOL_ROLES.indexOf(WHO.role)>-1;}
 function canSeeNames(){return isSchool()&&(WHO.role==='管理者'||WHO.role==='マネージャー');}
 
 /* ============================================================
+   サーバにつないでいないとき（この端末だけで使う）
+   ------------------------------------------------------------
+   index.html には「この端末だけで使う（サーバに接続しない）」入口があり、
+   商談のデモはこの形で見せている。
+   園のストア管理から移してきた6つは、移す前はすべて
+   端末の中（localStorage）だけで動いていた。
+   つないでいないときに isSchool() で閉じてしまうと、
+   「園のおすすめの並び」「外部の教材」「ダウンロード教材の預かり」
+   「売れたもの」「申込の名簿」が出なくなり、デモが成立しない。
+
+   つないでいないときは、サーバも、ほかの出品者も、ほかの職員もいない。
+   見えるのはこの端末に入れたものだけなので、園の画面を出してよい。
+   つないでいるときの線引き（isSchool / canSeeNames）は、そのまま残す。
+   緩めない。
+   ============================================================ */
+function showSchool(){return !API.online()||isSchool();}
+/* お名前の一覧を出してよいか。つないでいるときは、サーバと同じ線を引く
+   （管理者・マネージャーだけ）。ここは緩めない。 */
+function showNames(){return !API.online()||canSeeNames();}
+
+/* ============================================================
    保護者の画面から届いたもの（注文・イベントの申込・お名前）
    ------------------------------------------------------------
    受け取ったものは、この端末に保存しないし、サーバへ送り返さない。
@@ -726,6 +747,20 @@ JOINS.load=function(cb){
     .then(function(){JOINS.busy=false;cb&&cb(true);});
 };
 JOINS.reload=function(cb){JOINS.tried=false;JOINS.by=null;JOINS.load(cb);};
+/* つないでいないときは、同じ端末の保護者の画面が書いたものを読む。
+   移す前（園の画面）も、つないでいないときはここを読んでいた。 */
+JOINS.localBy=function(){
+  var by={};
+  (stGet('wa_ev_joindetail',[])||[]).forEach(function(v){
+    if(!v||!v.id)return;
+    var k=String(v.id);
+    if(!by[k])by[k]=[];
+    by[k].push(v);
+  });
+  return by;
+};
+/* 名簿の出どころ。つないでいれば サーバ、つないでいなければ この端末。 */
+function joinsBy(){return API.online()?JOINS.by:JOINS.localBy();}
 
 /* 園児のお名前。園の帳簿（/state）から読むだけで、書き戻さない。
    生徒台帳（studentProfiles）は管理者・マネージャーにしか渡らないので、
@@ -745,14 +780,28 @@ NAMES.load=function(cb){
     .catch(function(){})
     .then(function(){NAMES.busy=false;cb&&cb(true);});
 };
+/* お名前の出どころ。つないでいれば サーバから受け取ったもの。
+   つないでいなければ、同じ端末の園の画面（index.html）が持っている
+   連絡先・生徒台帳をそのまま読む。移す前と同じ出どころ。
+   どちらも取れないときは、作り話をせずに空のまま返す。 */
+function nameBook(){
+  if(!NAMES.c&&!API.online()){
+    var c=stGet('contacts',null);
+    if(Array.isArray(c))NAMES.c=c;
+    var sp=stGet('studentProfiles',null);
+    if(sp&&typeof sp==='object')NAMES.sp=sp;
+  }
+  return NAMES.c;
+}
 function childOf(cid){
-  if(!NAMES.c||cid==null||cid==='')return null;
-  return NAMES.c.filter(function(x){return String(x.id)===String(cid);})[0]||null;
+  var book=nameBook();
+  if(!book||cid==null||cid==='')return null;
+  return book.filter(function(x){return String(x.id)===String(cid);})[0]||null;
 }
 /* お名前の出し方。取れないときは、見本の名前に落とさない。 */
 function childLabel(cid){
   if(cid==null||cid==='')return '（園外のご家庭）';
-  if(!NAMES.c)return '（お名前は取れていません）';
+  if(!nameBook())return '（お名前は取れていません）';
   var c=childOf(cid);
   if(!c)return '（園の連絡先にありません）';
   var p=NAMES.sp[String(c.id)]||{};
@@ -884,10 +933,11 @@ var PAGES=[
    以前は5つ並べていたが、それだと ショップ出品・ランク制度・マイページ に
    スマホからたどり着けなかった（左の一覧はスマホでは出ないため）。 */
 var TAB_MAIN=['home','posts','events','analytics'];
-/* 園だけの画面は、園の職員としてログインしているときだけ出す。
-   つないでいないとき（お試し）も出さない。見本の園児名を出さないため。 */
+/* 園だけの画面は、園の職員としてログインしているときに出す。
+   つないでいないときは、この端末に入れたものしか無いので出す（移す前と同じ）。
+   見本の園児名は出さない。お名前が取れないときは、その旨をそのまま書く。 */
 function pages(){
-  var sc=isSchool();
+  var sc=showSchool();
   return PAGES.filter(function(x){return !x.s||sc;});
 }
 var page='home';
@@ -1033,7 +1083,7 @@ function listHead(type,title,newLabel,newKind){
   var t=listTab[type],s=listSort[type];
   var tabs=[['all','投稿一覧'],['public','公開中'],['draft','下書き']];
   /* 園のときだけ、外部の教材だけを見る絞り込みを足す */
-  if(type==='shop'&&isSchool())tabs.push(['amazon','外部の教材']);
+  if(type==='shop'&&showSchool())tabs.push(['amazon','外部の教材']);
   return '<div class="row" style="margin-bottom:12px;flex-wrap:wrap;gap:9px;">'
       +'<h2 class="sec" style="margin:0;">'+title+'</h2>'
       +'<button class="btn sm" style="margin-left:auto;" data-new="'+newKind+'">＋ '+esc(newLabel)+'</button></div>'
@@ -1095,7 +1145,7 @@ function postsHTML(){
       }).join(''):'<div class="empty">ここに表示するものがありません</div>')+'</div>';
 }
 function shopHTML(){
-  var sc=isSchool();
+  var sc=showSchool();
   var list=filterSort('shop',products().map(function(p){
     if(!p.stats)p.stats={view:0,save:0,like:0,review:0,rating:0};
     if(!p.status)p.status='public';
@@ -1112,12 +1162,12 @@ function shopHTML(){
       }).join(''):'<div class="empty">出品しているものがありません</div>')+'</div>'
     +(sc?amzCardHTML():'')
     +(sc?dlKeepHTML():'')
-    /* つないでいないときは、園の職員かどうかが分からないので園の画面を出さない。
-       出さない理由を書いておかないと、消えたように見える。 */
+    /* つないでいないときは、この端末に入れたものだけが出る。
+       どこまでが本当かを書いておかないと、サーバにも入っていると思われる。 */
     +(!API.online()
       ? '<div class="mini" style="margin-top:12px;line-height:1.9;">'
-        +'園の職員としてログインすると、保護者に見せる並び・外部の教材・売れたもの の画面が出ます。'
-        +'園の画面（未来WA）でログインしてから、この画面を開いてください。</div>'
+        +'サーバにつないでいないので、この端末にあるものだけを出しています。'
+        +'ここでの変更も、この端末にだけ残ります。</div>'
       : '');
 }
 /* 保護者が申し込んだ記録を、サーバから受け取る。
@@ -1163,7 +1213,7 @@ function eventsHTML(){
     +'<div class="card">'+(list.length?list.map(function(x){
       var a=EVJOIN.of(x),rate=x.cap?Math.round(a.n/x.cap*100):0;
       /* どなたが申し込んだかは、園の職員だけが見られる */
-      var ex=isSchool()?'<button class="btn gh sm" data-roster="'+esc(x.id)+'">申込の名簿</button>':'';
+      var ex=showSchool()?'<button class="btn gh sm" data-roster="'+esc(x.id)+'">申込の名簿</button>':'';
       return itemRow(x,'🎪',
         x.target+' ・ '+(x.theme||x.kind||'')+' ・ '+fmtDate(x.date)
         +' ・ 申込 '+a.n+'/'+x.cap+'（'+rate+'%）'+(a.real?'':'（見本の数字）'),'events',ex);
@@ -1171,8 +1221,15 @@ function eventsHTML(){
     +'<div class="muted" style="font-size:11.5px;margin-top:8px;line-height:1.7;">'
     +(EVJOIN.n
       ? 'お申し込みの数は、保護者の画面から届いたものです。'
-        +(isSchool()?'どなたが申し込んだかは、行の「申込の名簿」から見られます。':'')
       : 'お申し込みの数は、まだ受け取れていません（サーバにつないでいないか、読み込みに失敗しています）。')
+    /* 名簿は、つないでいないときも開ける。ただし出るのはこの端末にあるものだけ。
+       すぐ上に「数は受け取れていません」と出るので、出どころを添えておかないと
+       名簿の中身まで園ぜんぶのものだと思われる。 */
+    +(showSchool()
+      ? (API.online()
+        ? 'どなたが申し込んだかは、行の「申込の名簿」から見られます。'
+        : 'どなたが申し込んだかは、行の「申込の名簿」から見られます（この端末にあるものだけです）。')
+      : '')
     +'</div>';
 }
 function commsHTML(){
@@ -1193,7 +1250,9 @@ function commsHTML(){
    ・園で使っている外部の教材
    ・ダウンロード教材の預かりの様子
    もとは園の画面（未来WA ストア管理）にあったもの。
-   出すか出さないかは、必ず isSchool() で決める。
+   出すか出さないかは、必ず showSchool() で決める。
+   （つないでいるときは isSchool()＝サーバの返事だけで決める。
+     つないでいないときは、この端末に入れたものしか無いので出す。）
    ============================================================ */
 
 /* ---------- 売れたもの ---------- */
@@ -1203,12 +1262,15 @@ function soldHTML(){
   var h='<div class="row" style="margin-bottom:12px;flex-wrap:wrap;gap:9px;">'
     +'<h2 class="sec" style="margin:0;">💰 売れたもの</h2>'
     +'<button class="btn gh sm" id="soldReload" style="margin-left:auto;">読み込み直す</button></div>';
-  if(ORD.rows===null){
+  /* つないでいるときは、サーバから届くまで待つ（この端末の古い控えを
+     「園ぜんぶの売上」として出さないため）。
+     つないでいないときは、この端末にある注文をそのまま出す。移す前と同じ。 */
+  if(API.online()&&ORD.rows===null){
     return h+'<div class="card"><div class="empty">'
       +(ORD.err?'読み込めませんでした：'+esc(ORD.err):'読み込んでいます…')
       +'</div></div>';
   }
-  var os=ORD.rows.filter(function(o){
+  var os=orders().filter(function(o){
     return soldTab==='all'||String(o.at||'').slice(0,7)===mk;});
   var gmv=0,kb=0;
   os.forEach(function(o){gmv+=(+o.amount||0);kb+=(+o.kickback||0);});
@@ -1220,6 +1282,10 @@ function soldHTML(){
     +[['month','今月'],['all','すべて']].map(function(x){
       return '<button class="chip'+(soldTab===x[0]?' on':'')+'" data-sold="'+x[0]+'">'+x[1]+'</button>';}).join('')
     +'</div>'
+    /* 出どころを正直に書く。つないでいないときは、園ぜんぶの売上ではない。 */
+    +(API.online()?''
+      :'<div class="mini" style="margin:10px 0 0;line-height:1.9;">'
+        +'サーバにつないでいないので、この端末にあるものだけを出しています。</div>')
     +'<div class="tiles">'
       +'<div class="tile"><b>'+yen(gmv)+'</b><span>売れた金額（'+esc(span)+'）</span></div>'
       +'<div class="tile"><b>'+yen(kb)+'</b><span>園への還元（'+Math.round(rate*100)+'%）</span></div>'
@@ -1282,16 +1348,18 @@ function rosterHTML(){
         +(ev.place?'　'+esc(ev.place):'')+(ev.fee?'　'+esc(ev.fee):'')+'</div>':'')
     +'</div>';
   /* 園児のお名前は、サーバが管理者・マネージャーにしか渡さない。
-     画面でも同じ線を引く（押しても出ないボタンを作らない）。 */
-  if(!canSeeNames())
+     画面でも同じ線を引く（押しても出ないボタンを作らない）。
+     つないでいないときは、この端末に入れたものしか無いので出す。 */
+  if(!showNames())
     return h+'<div class="card"><div class="empty">'
       +'お名前の一覧は、管理者・マネージャーだけが見られます。<br>'
       +'お申し込みの数は、イベントの一覧に出ています。</div></div>';
-  if(JOINS.by===null)
+  var by=joinsBy();
+  if(by===null)
     return h+'<div class="card"><div class="empty">'
       +(JOINS.err?'見られませんでした：'+esc(JOINS.err):'読み込んでいます…')
       +'</div></div>';
-  var list=(JOINS.by[String(evRoster)]||[]).slice()
+  var list=(by[String(evRoster)]||[]).slice()
     .sort(function(a,b){return String(a.at||'').localeCompare(String(b.at||''));});
   return h+'<div class="card"><div class="row"><div class="lbl" style="margin:0;">'
       +'お申し込み '+list.length+'名</div>'
@@ -1305,7 +1373,11 @@ function rosterHTML(){
             +'<td class="mini">'+esc(parentLabel(j.childId))+'</td></tr>';}).join('')
         +'</tbody></table></div>'
       : '<div class="empty">まだお申し込みはありません。保護者の画面から申し込まれると、ここに入ります。</div>')
-    +'<div class="mini" style="margin-top:10px;">この一覧は、この端末には残しません。開くたびにサーバから読んでいます。</div>'
+    +'<div class="mini" style="margin-top:10px;">'
+    +(API.online()
+      ? 'この一覧は、この端末には残しません。開くたびにサーバから読んでいます。'
+      : 'サーバにつないでいないので、この端末にあるものだけを出しています。')
+    +'</div>'
     +'</div>';
 }
 
@@ -1392,6 +1464,12 @@ function dlKeepHTML(){
     +'<div class="muted">ファイルを預けると、保護者が買えるようになります。'
     +'ファイルの無い商品は買えません（買っても渡せないため）。<br>'
     +'預けるのは、その商品の編集の画面からです。</div>';
+  /* 預けたファイルはサーバにしかない。つないでいないときは、
+     出せないことをそのまま書く（「読み込んでいます…」のまま止めない）。 */
+  if(!API.online())
+    return h+'<div class="mini" style="margin-top:10px;line-height:1.9;">'
+      +'サーバにつないでいないので、この端末にあるものだけを出しています。'
+      +'預けたファイルは、つないでから確かめてください。</div></div>';
   if(DLF.err)
     return h+'<div class="mini" style="margin-top:10px;">'
       +'預かっているファイルを確かめられませんでした：'+esc(DLF.err)+'</div></div>';
@@ -1602,7 +1680,7 @@ function editorHTML(){
 
   if(e.type==='new'){
     return head+'<div class="card"><div class="lbl">何を投稿しますか</div>'
-      +'<div class="grid g2">'+NEW_KINDS.filter(function(k){return !k.s||isSchool();}).map(function(k){
+      +'<div class="grid g2">'+NEW_KINDS.filter(function(k){return !k.s||showSchool();}).map(function(k){
         return '<button class="btn sec" style="flex-direction:column;padding:18px;" data-new="'+k.k+'">'
           +'<div style="font-size:15px;font-weight:800;">'+esc(k.l)+'</div>'
           +'<div class="mini" style="margin-top:3px;">'+esc(k.d)+'</div></button>';}).join('')
@@ -1647,7 +1725,7 @@ function editorHTML(){
       +'</div></div>'
       /* 園だけの欄（ねらい・おすすめ・見せる相手・写真）。
          もとは園の画面（未来WA ストア管理）の表にあったもの。 */
-      +(isSchool()?shopSchoolFieldsHTML(x):'')
+      +(showSchool()?shopSchoolFieldsHTML(x):'')
       /* ダウンロード教材のときだけ、実際にお渡しするファイルの欄を出す */
       +(x.cat==='ダウンロード教材'?dlCardHTML(x):'')
       +saveBar(x);
@@ -2342,8 +2420,8 @@ function render(){
   /* 園の職員でなくなったとき（ログインが切れたときなど）に、
      園だけの画面が開いたまま残らないようにする。分からないときは HOME に戻す。 */
   var pg=PAGES.filter(function(x){return x.p===page;})[0];
-  if(pg&&pg.s&&!isSchool()){page='home';evRoster=null;}
-  if(!isSchool())evRoster=null;
+  if(pg&&pg.s&&!showSchool()){page='home';evRoster=null;}
+  if(!showSchool())evRoster=null;
   var M=me(),R=rankScore();
   document.getElementById('nav').innerHTML=railHTML();
   document.getElementById('tabbar').innerHTML=tabbarHTML();
@@ -2373,7 +2451,7 @@ function render(){
     EVJOIN.load(function(){ if(page==='events'&&!editing){v.innerHTML=eventsHTML();wire();} });
     /* 名簿を開いているときだけ、どなたが申し込んだかとお名前を取りに行く。
        開くたびに取り直すので、この端末には残らない。 */
-    if(evRoster){
+    if(evRoster&&API.online()){
       var evAgain=function(hit){
         if(hit&&page==='events'&&evRoster&&!editing){v.innerHTML=eventsHTML();wire();} };
       JOINS.load(evAgain);NAMES.load(evAgain);
@@ -2382,7 +2460,7 @@ function render(){
     /* 注文とお名前は、開いたときに取りに行く（園の帳簿には書かない） */
     var soAgain=function(hit){
       if(hit&&page==='sold'&&!editing){v.innerHTML=soldHTML();wire();} };
-    ORD.load(soAgain);NAMES.load(soAgain); }
+    if(API.online()){ORD.load(soAgain);NAMES.load(soAgain);} }
   else if(page==='comms') v.innerHTML=commsHTML();
   else if(page==='rental'){ v.innerHTML=rentalHTML();
     /* 端末の中には控えを持たないので、開くたびにサーバから取り直す */
@@ -2465,7 +2543,7 @@ function wire(){
 
 /* 園だけの画面の配線。園でないときは何もしない（押しボタン自体が出ていない）。 */
 function wireSchool(){
-  if(!isSchool())return;
+  if(!showSchool())return;
   var V=document.getElementById('view');
 
   /* 売れたもの */
@@ -2477,7 +2555,7 @@ function wireSchool(){
   V.querySelectorAll('[data-recv],[data-unrecv]').forEach(function(b){b.onclick=function(){
     var on=b.hasAttribute('data-recv');
     var key=b.getAttribute(on?'data-recv':'data-unrecv');
-    var o=(ORD.rows||[]).filter(function(x){return ordKey(x)===key;})[0];
+    var o=orders().filter(function(x){return ordKey(x)===key;})[0];
     if(!o)return;
     recvMark(o,on);
     toast(on?'受け取りにしました':'取り消しました');
