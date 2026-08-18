@@ -186,20 +186,35 @@ tbody tr:hover{background:transparent}
 /* ══ EduGrow 本部 ══════════════════════════
    園を何か所か運営する法人が、全園をまとめて見る画面。
 
-   見るだけ。ここから園のデータは書き換えられない。
+   ホームは見るだけ。ここから園の帳簿は書き換えられない。
    （サーバ側も /org/... しか受け付けず、園の帳簿の入口は
      本部のトークンを通さない。src/org.js を参照）
 
+   ただし「控えと変更ログ」の中の《この時点に戻す》だけは、
+   園の帳簿を書き換える操作になる。本部からの書き換えはこれ1つだけ。
+   受け口（/org/backups/restore）を作るときは、
+   ・その法人の園かどうかを毎回みる
+   ・戻す前に園の側でも控えをとる
+   ・誰がいつ戻したかを残す
+   の3つを必ず入れること。
+
    園の職員のログインとも、運営（BIM JAPAN）の管理画面とも、
-   入口・トークン・保存場所をすべて分けている。 */
+   入口・トークン・保存場所をすべて分けている。
+
+   書き方は admin.html（運営管理）に揃えてある。
+   view で画面を切り替え、render() が shell() で骨組みを描き、
+   load() がその画面ぶんだけサーバへ聞きに行く。 */
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function $(q){return document.querySelector(q);}
-function yen(n){return n==null?'—':'\u00a5'+Number(n).toLocaleString('ja-JP');}
+function $(id){return document.getElementById(id);}
+function yen(n){return n==null?'—':'¥'+Number(n).toLocaleString('ja-JP');}
 function fmtDate(s){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s||''));
   return m?(m[1]+'年'+(+m[2])+'月'+(+m[3])+'日'):String(s||'');}
+/* 大きさは KB で出す。園の方が「どれくらい入っているか」を目で見るためのもの */
+function kb(n){return (n==null||isNaN(n))?'—':(Math.round(Number(n)/1024)+'KB');}
 
+/* ── 接続 ───────────────────────────── */
 var API={
   base:function(){return String(localStorage.getItem('hq_api')||'').replace(/\/$/,'');},
   setBase:function(v){localStorage.setItem('hq_api',String(v||'').replace(/\/$/,''));},
@@ -213,9 +228,17 @@ var API={
       .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
         /* ログインそのものが 401 のときは「期限切れ」ではない。
            入れ違いの文言を出すと、正しいパスワードを疑って何度も試すことになる。 */
-        if(r.status===401&&p!=='/org/login'){API.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
-        if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
-        return j;});});
+        if(r.status===401&&p!=='/org/login'){API.setToken('');
+          var e1=new Error('ログインの有効期限が切れました。もう一度ログインしてください。');e1.status=401;throw e1;}
+        if(!r.ok){var e2=new Error(j.error||('通信に失敗しました（'+r.status+'）'));e2.status=r.status;throw e2;}
+        return j;});})
+      .catch(function(e){
+        /* 何番で断られたかを呼び出し元へ渡す。
+           「まだ受け口が無い（404）」と「壊れている」を、画面で書き分けるため。 */
+        if(e&&e.status!==undefined)throw e;
+        var e3=new Error('サーバにつながりませんでした。接続先が正しいか、サーバが動いているかをご確認ください。');
+        e3.status=0;throw e3;
+      });
   }
 };
 /* ?api=… で接続先を入れられる。入れたらURLから消す（履歴に残さない）。 */
@@ -225,44 +248,64 @@ var API={
     history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:''));}
 }catch(e){}})();
 
-var ME=null, DATA=null;
+var view='home', ME=null, DATA=null;
+/* 控えと変更ログの画面が持つもの。
+   bkState … '' まだ選んでいない／'load' 読み込み中／'ok' 届いた／
+             'none' サーバに受け口がまだ無い／'err' それ以外の失敗 */
+var bkTenant='', BK=null, bkState='', bkMsg='';
 
-/* ── ログイン ─────────────────────────── */
+/* ── ログイン ────────────────────────── */
 function loginHTML(){
   return '<div class="login"><div class="card">'
     +'<h1>EduGrow 本部</h1>'
     +'<p class="s">運営している園を、まとめて見る画面です。</p>'
-    +'<div class="err" id="er"></div>'
+    +'<div class="err" id="e"></div>'
     +'<div class="f"><label>接続先</label><input id="ap" placeholder="https://…" value="'+esc(API.base())+'"></div>'
     +'<div class="f"><label>法人コード</label><input id="og" placeholder="例：bimgroup" autocapitalize="off"></div>'
     +'<div class="f"><label>ログインID</label><input id="lid" autocapitalize="off"></div>'
     +'<div class="f"><label>パスワード</label><input id="pw" type="password"></div>'
     +'<button class="btn" id="go" style="width:100%;margin-top:6px;">ログイン</button>'
     +'<p class="s" style="margin:16px 0 0;font-size:11.5px;">'
-    +'この画面からは園のデータを変更できません。記録の入力や保護者への連絡は、'
+    +'この画面からは園の記録を変更できません。記録の入力や保護者への連絡は、'
     +'各園の画面から行ってください。</p>'
     +'</div></div>';
 }
 function wireLogin(){
-  var go=$('#go'),er=$('#er');
+  var go=$('go'),er=$('e');
   function stop(m){er.textContent=m;er.style.display='block';go.textContent='ログイン';go.disabled=false;}
-  go.onclick=function(){
-    var ap=$('#ap').value.trim();
+  function run(){
+    var ap=$('ap').value.trim();
     if(!ap)return stop('接続先を入れてください');
     API.setBase(ap);
     er.style.display='none';go.textContent='確認中…';go.disabled=true;
-    API.call('POST','/org/login',{org:$('#og').value.trim(),loginId:$('#lid').value.trim(),password:$('#pw').value})
+    API.call('POST','/org/login',{org:$('og').value.trim(),loginId:$('lid').value.trim(),password:$('pw').value})
       .then(function(j){
         API.setToken(j.token);
         if(j.user&&j.user.mustChange)alert('はじめてのログインです。あとで「パスワードの変更」からご自身のものに変えてください。');
-        load();
+        view='home';render();
       })
       .catch(function(e){stop(e.message);});
-  };
-  $('#pw').addEventListener('keydown',function(e){if(e.key==='Enter')go.click();});
+  }
+  go.onclick=run;
+  $('pw').addEventListener('keydown',function(ev){if(ev.key==='Enter')run();});
 }
 
-/* ── 本体 ─────────────────────────── */
+/* ── 全体の骨組み ───────────────────── */
+function shell(inner){
+  var tabs=[['home','ホーム'],['backup','控えと変更ログ']];
+  return '<div class="top"><div><div class="lg">EduGrow</div>'
+    +'<div class="sub">本部</div></div>'
+    +'<div class="sp"></div>'
+    +'<button id="rl">最新にする</button>'
+    +'<button id="pwbtn">パスワードの変更</button>'
+    +'<button id="out">ログアウト</button></div>'
+    +'<div class="nav">'+tabs.map(function(t){
+      return '<button data-v="'+t[0]+'" class="'+(view===t[0]?'on':'')+'">'+t[1]+'</button>';
+    }).join('')+'</div>'
+    +'<div class="wrap">'+inner+'</div>';
+}
+
+/* ── ホーム ─────────────────────────── */
 function bar(done,total){
   var p=total?Math.round(done/total*100):0;
   var cls=p>=100?'':(p>=60?' mid':' low');
@@ -272,7 +315,9 @@ function bar(done,total){
 }
 
 function homeHTML(){
-  var d=DATA,t=d.total;
+  var d=DATA;
+  if(!d)return '<div class="empty">読み込んでいます…</div>';
+  var t=d.total||{};
   var h='<div class="hq-hero"><h2>'+esc((ME&&ME.org&&ME.org.name)||'本部')+'</h2>'
     +'<div class="s">'+esc(fmtDate(d.date))+' 現在　運営している園 '+d.count+'か所</div>'
     +'<div class="n">'
@@ -330,19 +375,176 @@ function homeHTML(){
   return h;
 }
 
+/* ── 控えと変更ログ ───────────────────
+   園の画面（設定 → データのバックアップ・変更ログ）にあるものを、
+   本部からも見られるようにしたところ。
+
+   ★ いまは、ここに中身は出ない。
+     控え（自動保存）と変更ログは、園の端末（ブラウザ）の中にしか無く、
+     サーバへ送っていない（index.html の SYNC.mark が
+     eventLog・snapshots・lastSnap を送らないようにしてある）。
+     受け口（/org/backups）も、まだサーバに無い。
+     「集まっているように見える」表示は作らない。空なら空と書く。 */
+function schoolOf(id){
+  var a=(DATA&&DATA.schools)||[];
+  for(var i=0;i<a.length;i++){if(String(a[i].id)===String(id))return a[i];}
+  return null;
+}
+function bkPickerHTML(){
+  var a=(DATA&&DATA.schools)||[];
+  return '<div class="card"><h3>園を選ぶ</h3>'
+    +'<div class="f" style="max-width:360px;margin-bottom:0;">'
+    +'<label>園</label><select id="bkSel">'
+    +a.map(function(s){
+      return '<option value="'+esc(s.id)+'"'+(String(s.id)===String(bkTenant)?' selected':'')+'>'+esc(s.name)+'</option>';
+    }).join('')
+    +'</select></div></div>';
+}
+/* サーバから届いていないときに出すことば。
+   園の方・本部の方が「壊れている」と思わないよう、理由と次にすることを書く。 */
+function bkNotYetHTML(){
+  var s=schoolOf(bkTenant);
+  return '<div class="note bad">'
+    +'<b>まだサーバとつながっていないため、控えは各園の端末の中にあります。</b><br>'
+    +'この園の控え（自動保存）と変更ログは、本部にはまだ1件も届いていません。'
+    +'何も出ていないのは不具合ではなく、まだ集めていないためです。'
+    +'</div>'
+    +'<div class="card"><h3>いま控えを見るには</h3>'
+    +'<div style="font-size:12.5px;line-height:1.95;">'
+    +'1. '+esc(s?s.name:'その園')+' の画面（EduGrow 園務管理システム）を、園の端末で開いてもらいます。<br>'
+    +'2. 「設定」→「データのバックアップ・変更ログ」を開きます。<br>'
+    +'3. その画面に、自動保存の一覧と変更ログが出ています。戻すこと・書き出すことも、そこからできます。'
+    +'</div>'
+    +'<div class="note" style="margin:12px 0 0;">'
+    +'本部にも同じ一覧が出るようになるのは、サーバ（Railway）が動き、'
+    +'園の控えをサーバへ送るようにしてからです。それまでは、園の端末が控えの置き場所です。'
+    +'端末が壊れると控えも一緒に無くなるので、園には「バックアップをダウンロード」で'
+    +'ときどき書き出して保管してもらってください。'
+    +'</div></div>';
+}
+function bkSnapHTML(){
+  var sn=(BK&&BK.snapshots)||[];
+  var can=!!(BK&&BK.canRestore);
+  var h='<div class="card"><h3>自動保存（控え）</h3>'
+    +'<div class="lead" style="margin-bottom:10px;">園の端末で1日1回、そのままの状態が控えとして残ります</div>';
+  if(!sn.length){
+    h+='<div class="empty">この園の控えは、まだ本部に届いていません。</div></div>';
+    return h;
+  }
+  h+='<div class="tw" style="border:none;"><table style="min-width:520px;"><thead><tr>'
+    +'<th>日時</th><th>とった理由</th><th class="r">大きさ</th><th></th></tr></thead><tbody>'
+    +sn.map(function(x){
+      return '<tr><td class="num" style="white-space:nowrap;">'+esc(x.at)+'</td>'
+        +'<td>'+esc(x.reason||'自動')+'</td>'
+        +'<td class="r num">'+kb(x.size)+'</td>'
+        +'<td style="text-align:right;">'
+        +(can
+          ? '<button class="btn sm warn" data-bkres="'+esc(x.at)+'">この時点に戻す</button>'
+          : '<button class="btn sm" disabled>この時点に戻す</button>')
+        +'</td></tr>';
+    }).join('')
+    +'</tbody></table></div>';
+  if(!can){
+    /* 押せないボタンを、理由も書かずに置かない */
+    h+='<div class="note" style="margin:12px 0 0;">'
+      +'《この時点に戻す》は、いまは押せません。'
+      +'本部から園の帳簿を書き換える操作なので、サーバ側にその受け口ができるまで止めてあります。'
+      +'園の画面（設定 → データのバックアップ・変更ログ）からは、これまでどおり戻せます。</div>';
+  }else{
+    h+='<div class="note bad" style="margin:12px 0 0;">'
+      +'<b>《この時点に戻す》を押すと、その園の帳簿がその時点の内容に入れ替わります。</b>'
+      +'その時点よりあとに園で入力されたものは、すべて消えます。押す前に、もう一度お知らせします。</div>';
+  }
+  return h+'</div>';
+}
+function bkLogHTML(){
+  var lg=(BK&&BK.log)||[];
+  var h='<div class="card"><h3>変更ログ（新しい順）</h3>'
+    +'<div class="lead" style="margin-bottom:10px;">いつ・誰が・何を保存したかの記録です。中身そのものは本部には届きません</div>';
+  if(!lg.length){
+    h+='<div class="empty">この園の変更ログは、まだ本部に届いていません。</div></div>';
+    return h;
+  }
+  h+='<div class="tw" style="border:none;"><table style="min-width:520px;"><thead><tr>'
+    +'<th>日時</th><th>項目</th><th>保存した人</th><th class="r">回数</th></tr></thead><tbody>'
+    +lg.map(function(x){
+      return '<tr><td class="num" style="white-space:nowrap;">'+esc(x.at)+'</td>'
+        +'<td>'+esc(x.label||x.key||'—')+'</td>'
+        +'<td>'+esc(x.by||'—')+'</td>'
+        +'<td class="r num">'+((x.n&&x.n>1)?x.n:'—')+'</td></tr>';
+    }).join('')
+    +'</tbody></table></div></div>';
+  return h;
+}
+function backupHTML(){
+  var h='<h2>控えと変更ログ</h2>'
+    +'<div class="lead">園ごとに、自動保存（控え）と、いつ誰が何を保存したかの記録を見ます</div>';
+  var a=(DATA&&DATA.schools)||[];
+  if(!a.length){
+    return h+'<div class="card"><div class="empty">この法人には、まだ園が登録されていません。<br>'
+      +'運営（BIM JAPAN）にお問い合わせください。</div></div>';
+  }
+  h+=bkPickerHTML();
+  if(bkState==='load')return h+'<div class="card"><div class="empty">読み込んでいます…</div></div>';
+  if(bkState==='none')return h+bkNotYetHTML();
+  if(bkState==='err')return h+'<div class="note bad">'+esc(bkMsg)+'</div>';
+  if(bkState!=='ok')return h+'<div class="card"><div class="empty">園を選んでください。</div></div>';
+  /* 届いたとき。いつの時点のものかを必ず書く（古いものを最新と思わせない）。
+     つながってはいても、その園からまだ1件も来ていないことがある。
+     そのときに「届いています」と書くと嘘になるので、書き分ける。 */
+  var n1=((BK&&BK.snapshots)||[]).length, n2=((BK&&BK.log)||[]).length;
+  if(!n1&&!n2){
+    h+='<div class="note">サーバにはつながっていますが、この園からは控えも変更ログも'
+      +'まだ1件も届いていません。園の端末で控えが作られ、それがサーバへ送られたあとに出ます。</div>';
+  }else{
+    h+='<div class="note ok">この園から本部へ届いている控えです。'
+      +(BK&&BK.receivedAt?'最後に届いたのは '+esc(BK.receivedAt)+' です。':'')
+      +'</div>';
+  }
+  return h+bkSnapHTML()+bkLogHTML();
+}
+
+/* ── 読み込みと描画 ─────────────────── */
+function loadBackups(){
+  var a=(DATA&&DATA.schools)||[];
+  if(!a.length){bkState='';BK=null;return Promise.resolve();}
+  if(!bkTenant||!schoolOf(bkTenant))bkTenant=String(a[0].id);
+  bkState='load';BK=null;
+  return API.call('GET','/org/backups?tenant='+encodeURIComponent(bkTenant))
+    .then(function(j){BK=j;bkState='ok';})
+    .catch(function(e){
+      BK=null;
+      if(e.status===401)throw e;      /* 期限切れは、いつもどおり入り直してもらう */
+      /* 404・501 は「サーバにその受け口がまだ無い」。壊れているのではないので、そう書き分ける。 */
+      bkState=(e.status===404||e.status===501)?'none':'err';
+      bkMsg=e.message;
+    });
+}
+function load(){
+  if(view==='home')return Promise.all([API.call('GET','/org/me'),API.call('GET','/org/summary')])
+    .then(function(a){ME=a[0];DATA=a[1];});
+  if(view==='backup'){
+    /* 園の一覧は /org/summary から借りる。控えの画面だけを開いても園を選べるように */
+    var pre=DATA?Promise.resolve():API.call('GET','/org/summary').then(function(j){DATA=j;});
+    return pre.then(loadBackups);
+  }
+  return Promise.resolve();
+}
+
 function render(){
-  var r=$('#root');
-  if(!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
-  if(!DATA){r.innerHTML='<div class="wrap"><div class="empty">読み込んでいます…</div></div>';return;}
-  r.innerHTML='<div class="top"><span class="lg">EduGrow</span><span class="sub">本部</span>'
-    +'<span class="sp"></span>'
-    +'<button id="rl">最新にする</button>'
-    +'<button id="pwbtn">パスワードの変更</button>'
-    +'<button id="out">ログアウト</button></div>'
-    +'<div class="wrap">'+homeHTML()+'</div>';
-  $('#rl').onclick=function(){load();};
-  $('#out').onclick=function(){API.setToken('');DATA=null;ME=null;render();};
-  $('#pwbtn').onclick=changePassword;
+  var r=$('root');
+  if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
+  var inner={home:homeHTML,backup:backupHTML}[view]||homeHTML;
+  r.innerHTML=shell(inner());
+  wire();
+  load().then(function(){
+    r.innerHTML=shell(inner());
+    wire();
+  }).catch(function(e){
+    r.innerHTML=shell('<div class="note bad">'+esc(e.message)+'</div>');
+    wire();
+    if(!API.token()){r.innerHTML=loginHTML();wireLogin();}
+  });
 }
 
 function changePassword(){
@@ -357,18 +559,50 @@ function changePassword(){
     .catch(function(e){alert(e.message);});
 }
 
-function load(){
-  render();
-  Promise.all([API.call('GET','/org/me'),API.call('GET','/org/summary')])
-    .then(function(a){ME=a[0];DATA=a[1];render();})
-    .catch(function(e){
-      DATA=null;
-      $('#root').innerHTML=loginHTML();wireLogin();
-      var er=$('#er');if(er){er.textContent=e.message;er.style.display='block';}
-    });
+/* 控えを戻す。本部から園の帳簿を書き換える、ただ1つの操作。
+   押す前に「何が起きるか」をぜんぶ出し、そのうえで園の名前を打ってもらう。
+   一覧のとなりのボタンなので、指が当たっただけで進むことがないようにする。 */
+function bkRestore(at){
+  var s=schoolOf(bkTenant),name=s?s.name:'';
+  if(!name){alert('園が選ばれていません。');return;}
+  var msg='【押すとどうなるか】\n'
+    +'・'+name+' の帳簿を、'+at+' の時点の内容にそっくり入れ替えます。\n'
+    +'・その時点よりあとに '+name+' で入力されたものは、すべて消えます。\n'
+    +'　（記録・連絡先・請求・シフト・書類など、園のデータのすべてです）\n'
+    +'・戻す直前の状態も控えとして残すので、やり直すことはできます。\n'
+    +'・園の職員が画面を開いている場合は、次に読み込んだときに入れ替わります。\n'
+    +'　入力の途中の方がいると、その入力は消えます。先に園へお知らせください。\n'
+    +'・本部の画面から園の帳簿を書き換えるのは、この操作だけです。\n\n'
+    +'よろしいですか？';
+  if(!confirm(msg))return;
+  var typed=prompt('取り違えを防ぐため、園の名前を入れてください。\n「'+name+'」と入れると実行します。');
+  if(typed==null)return;
+  if(String(typed).trim()!==name){alert('園の名前が違いました。何もしていません。');return;}
+  API.call('POST','/org/backups/restore',{tenant:bkTenant,at:at})
+    .then(function(){alert(name+' を '+at+' の時点に戻しました。園の画面は、次に読み込んだときに入れ替わります。');render();})
+    .catch(function(e){alert('戻せませんでした：'+e.message);});
 }
 
-if(API.token())load(); else render();
+function wire(){
+  /* 上の帯 */
+  if($('rl'))$('rl').onclick=function(){render();};
+  if($('out'))$('out').onclick=function(){API.setToken('');DATA=null;ME=null;BK=null;bkState='';view='home';render();};
+  if($('pwbtn'))$('pwbtn').onclick=changePassword;
+  /* 画面の切り替え */
+  document.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){
+    view=b.getAttribute('data-v');
+    /* 前に開いたときの控えが一瞬だけ見えないように、開き直すたびに空にする。
+       別の園の控えを、いま選んでいる園のものと見まちがえないため。 */
+    if(view==='backup'){BK=null;bkState='load';}
+    render();};});
+  /* 控えと変更ログ */
+  var sel=$('bkSel');
+  if(sel)sel.onchange=function(){bkTenant=sel.value;BK=null;bkState='load';render();};
+  document.querySelectorAll('[data-bkres]').forEach(function(b){b.onclick=function(){
+    bkRestore(b.getAttribute('data-bkres'));};});
+}
+
+render();
 </script>
 </body>
 </html>

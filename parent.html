@@ -656,6 +656,19 @@ var WD=['日','月','火','水','木','金','土'];
 function fmtDate(s){if(!s)return'';var p=s.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);return (+p[1])+'/'+(+p[2])+'（'+WD[d.getDay()]+'）';}
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function childName(c){return (c.child||'').replace(/ちゃん|くん/g,'');}
+/* 同じ名前の園児がいるため、画面に出す名前は「姓＋名」で組み立てる。
+   職員側（index.html）と同じ studentProfiles の姓名を先に使い、
+   無ければ保護者名の姓＋お子様名でつなぐ。 */
+function childFullName(c){
+  if(!c)return '';
+  var p={};
+  try{p=stGet('studentProfiles',{})[c.id]||{};}catch(e){p={};}
+  var ln=String(p.lastName||'').trim(),fn=String(p.firstName||'').trim();
+  if(!ln){var nm=String(c.name||'').replace(/　/g,' ').trim().split(/\s+/);ln=nm[0]||'';}
+  if(!fn)fn=c.child?childName(c):'';
+  var full=((ln?ln+' ':'')+fn).trim();
+  return full||(c.child?childName(c):(c.name||''));
+}
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2200);}
 
 /* ---- seed sample data if empty (standalone で動くように・実データは入れない) ---- */
@@ -1065,7 +1078,7 @@ function consentHTML(){
   return '<div class="login-wrap" style="max-width:520px;">'
     +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA"></div>'
       +'<h1 style="font-size:19px;margin-top:14px;">未来WAのご利用にあたって</h1>'
-      +'<div class="sub" style="margin-top:6px;">'+(c?esc(childName(c))+' さんのご登録':'はじめる前に')+'</div></div>'
+      +'<div class="sub" style="margin-top:6px;">'+(c?esc(childFullName(c))+' さんのご登録':'はじめる前に')+'</div></div>'
 
     +'<div class="card" style="margin-top:4px;">'
       +'<div style="font-size:13.5px;line-height:1.9;">'
