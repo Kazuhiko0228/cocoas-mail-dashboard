@@ -593,7 +593,7 @@
 })();
 
 /* =========================================================================
-   COCOAS KIDS 保護者ページ（プロトタイプ）
+   未来WA 保護者ページ（プロトタイプ）
    - 職員ダッシュボード(index.html)と同一オリジンのlocalStorageでデータ共有
    - 出欠連絡は職員側の rec_登園シート に反映 / 身体測定・配信は共有データを表示
    - デモ認証（本物のセキュリティではない）。将来バックエンドに載せ替え可能な設計。
@@ -910,6 +910,8 @@ function login(email,pw,cb){
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
 function logout(){
   try{WAPI.setToken('');}catch(e){}
+  /* 共用のタブレットで次の方が入ったとき、その方にもご案内のお知らせが出るように戻す */
+  noticeShown=false;
   sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');
   /* 共用のタブレットで、次のご家庭に前の内容が見えないようにします。
 
@@ -958,8 +960,12 @@ function render(){
   }
   /* つながっていないのにスクールを開こうとしたら、ストアへ寄せる（白紙を出さない） */
   if(!c&&tab==='school'&&typeof linkHTML!=='function')tab='store';
+  /* 出欠の連絡や購入は別の画面で保存されるので、画面を作る前にまとめて数える */
+  try{ptSync();}catch(e){}
   document.getElementById('root').innerHTML=portalHTML(c);
   wirePortal(c);
+  /* ご案内の書き方が変わったときは、一度だけお知らせする。ご同意はやり直さない */
+  try{ if(!noticeShown&&noticeNeeded()){noticeShown=true;noticeOpen();} }catch(e){}
   /* タブが変わったときだけ先頭へ戻す。同じタブ内の絞り込みでは位置を保つ */
   if(lastTab!==tab){lastTab=tab;try{window.scrollTo(0,0);}catch(e){}}
   try{if(sessionChild())PLOCK.start();}catch(e){}
@@ -970,6 +976,16 @@ function render(){
    版を上げると、もう一度ご同意をいただく形になる。
    【　】は未確定。事業者名・所在地などが決まったら差し替える。 */
 var WA_TERMS_VER='2026-08-15.ai';
+/* ご案内の版。同意画面の「大切なところ」など、読んでいただく説明の文章の版。
+   同意の対象は規約とプライバシーポリシーの本文なので、そちらの版（WA_TERMS_VER）とは分けて持つ。
+   分けていないと、同じ版名に2通りの説明文がぶら下がり、
+   あとから「この方は何を読んで同意したのか」を特定できない。
+   規約の版を上げると、もう一度ご同意をいただく形になる。
+   こちらを上げても、ご同意はやり直さない。やり直すと
+   「スポンサー・キャンペーンのお知らせを受け取る」の設定が黙って消えるため。 */
+var WA_NOTICE_VER='2026-08-17';
+/* 版を上げたときに、次に開いた方へ一度だけお出しする文。 */
+var WA_NOTICE_TEXT='ご案内の書き方を変えました（園の預かり先にも保存する旨を書き足しています）。';
 var WA_OPERATOR='株式会社BIM JAPAN';
 /* 保有個人データについて、事業者の名称・所在地・代表者名を
    お客さまが知り得る状態に置く必要がある（個人情報保護法32条）。
@@ -1063,12 +1079,58 @@ function consentSave(){
   var promo=false;
   try{ var e=document.getElementById('cChkS'); promo=!!(e&&e.checked); }catch(x){}
   a[consentKey()]={at:new Date().toISOString().slice(0,19).replace('T',' '),
-    ver:WA_TERMS_VER, dev:(typeof waDevice==='function')?waDevice():'',
+    ver:WA_TERMS_VER,
+    /* どの説明文をお読みいただいたかを、同意の記録に一緒に残す */
+    noticeVer:WA_NOTICE_VER,
+    dev:(typeof waDevice==='function')?waDevice():'',
     items:['利用規約・プライバシーポリシー','児童情報を登録する権限の確認'],
     promo:promo};
   stSet('wa_promo_ok',promo);
   stSet('wa_consent',a);
   try{ if(typeof waTrack==='function')waTrack('利用規約に同意',{cid:WA_TERMS_VER}); }catch(e){}
+}
+
+/* ── ご案内の版が変わったときのお知らせ ─────────────
+   同意はやり直さない。読んでいただいた説明文が今と違う方に、
+   変わったことを一度だけお伝えし、閉じたら記録に残す。 */
+var noticeShown=false;   /* 画面を作り直すたびに重ねて出さないための印 */
+function noticeNeeded(){
+  var r=consentGet();
+  if(!r)return false;                    /* まだご同意をいただいていない方には出さない */
+  if(r.ver!==WA_TERMS_VER)return false;  /* 規約の版が上がっているときは、同意画面が先に出る */
+  return r.noticeVer!==WA_NOTICE_VER;
+}
+function noticeSeen(){
+  var a=stGet('wa_consent',{})||{},k=consentKey(),r=a[k];
+  if(!r)return;
+  r.noticeVer=WA_NOTICE_VER;
+  r.noticeAt=new Date().toISOString().slice(0,19).replace('T',' ');
+  a[k]=r; stSet('wa_consent',a);
+  try{ if(typeof waTrack==='function')waTrack('ご案内の更新を確認',{cid:WA_NOTICE_VER}); }catch(e){}
+}
+function noticeOpen(){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:1450;background:rgba(0,0,0,.42);'
+    +'display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML='<div class="card" style="max-width:420px;width:100%;background:var(--bg,#fff);">'
+    +'<div style="font-weight:800;font-size:14px;">ご案内を新しくしました</div>'
+    +'<div class="muted" style="margin-top:9px;font-size:12.5px;line-height:1.9;">'
+    +esc(WA_NOTICE_TEXT)
+    +'<br><br>あらためてのご同意は必要ありません。'
+    +'利用規約とプライバシーポリシーの本文は変わっていないためです。</div>'
+    +'<button class="btn" id="ntX" style="margin-top:14px;width:100%;">とじる</button>'
+    +'<button class="btn sec" id="ntP" style="margin-top:8px;width:100%;font-size:12.5px;">'
+    +'プライバシーポリシーを読む</button>'
+    +'<div class="muted" style="text-align:center;margin-top:11px;font-size:11px;line-height:1.7;">'
+    +'ご案内の版 '+esc(WA_NOTICE_VER)+'<br>'
+    +'このお知らせを閉じた日時は、マイページに残ります。</div></div>';
+  document.body.appendChild(ov);
+  var x=document.getElementById('ntX');
+  if(x)x.onclick=function(){noticeSeen();ov.remove();};
+  var p=document.getElementById('ntP');
+  /* 読みに行った方も「お読みいただいた」ものとして記録する。
+     重ねて出すと、規約の画面が下に隠れてしまうため、先に閉じる */
+  if(p)p.onclick=function(){noticeSeen();ov.remove();waLegalOpen('privacy');};
 }
 
 /* ── 同意画面 ───────────────────────────── */
@@ -1100,7 +1162,8 @@ function consentHTML(){
       +'イベント等にお申し込みいただくと、受付のために<b>主催者</b>へ、必要な情報が共有されることがあります。')
     +cPoint('3','広告・掲載',
       /* 「『広告』『PR』などと表示します」の一文は、ご依頼により外した（2026-08-17）。
-         規約 第17条1項には残っており、実際の掲載にも「広告」の印は出る。 */
+         規約 第17条1項には残っているが、実際の掲載に「広告」「PR」の印を出す作りは
+         まだ画面に無い。スポンサー広告を載せる日までに作る必要がある（2026-08-19 確認）。 */
       'お子さまや保護者の方を識別できる情報を、ご本人の同意なく'
       +'スポンサー・広告主へ提供することはありません。')
     /* 52行「これはどういうことだろ？」へのお答え。
@@ -1388,7 +1451,7 @@ function loginHTML(){
   var demo=isDemoContacts();
   var en=demo?enrolled():[];
   return '<div class="login-wrap">'
-    +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div><div class="sub" style="margin-top:8px;">COCOAS KIDS 大宮与野校</div></div>'
+    +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div>'+(waSchoolSet()?'<div class="sub" style="margin-top:8px;">'+esc(waSchoolSet())+'</div>':'')+'</div>'
     +'<div class="err" id="loginErr"></div>'
     +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<div class="field"><label>パスワード</label><input id="li_pw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
@@ -1732,12 +1795,21 @@ function sellerCertified(id){
   var s=waSellerOf(id);
   return !!(s&&s.certified);
 }
+/* ポイントぶん。creator.html の waPointBonus と同じ式にする。
+   別々にすると、同じ出品者のランクが園の画面と保護者の画面で食い違う。
+   1000ptで10点、上限10点。 */
+function waPointBonusOf(id){
+  if(id&&id!=='school')return 0;   /* いまポイントを持っているのは園（出品者）だけ */
+  var p=0;
+  try{ p=+((stGet('wa_points',{})||{}).creator||{}).total||0; }catch(e){ p=0; }
+  return Math.min(10, p/100);
+}
 function sellerRank(id){
   id=id||'school';
   if(!sellerItems(id).length)return WA_RANKS[0];
   var sc=sellerScores(id),total=0;
   WA_RANK_ITEMS.forEach(function(it){ total+=(sc[it.k]||0)*it.w; });
-  total=Math.round(total);
+  total=Math.round(total+waPointBonusOf(id));
   var out=WA_RANKS[0];
   for(var i=WA_RANKS.length-1;i>=0;i--){ if(total>=WA_RANKS[i].min){out=WA_RANKS[i];break;} }
   /* 認定を受けていないうちは、プラチナで止める（自動では上がらない） */
@@ -1806,14 +1878,17 @@ function amzUrl(p){
   var u=String(a.url||'');
   return /^https:\/\/(www\.)?amazon\.co\.jp\//i.test(u)?u:'';
 }
-function waSchoolName(){try{return (stGet('settings',{})||{}).school||'COCOAS KIDS 大宮与野校';}catch(e){return 'COCOAS KIDS 大宮与野校';}}
+/* 園の名前は「設定」から出す。入っていないときにある園の名前を出すと、別の園の保護者に混ざるので持たない。
+   waSchoolSet は入っていなければ空。waSchoolName は文章にまぜて使うので「園」と読ませる。 */
+function waSchoolSet(){try{return ((stGet('settings',{})||{}).school||'');}catch(e){return '';}}
+function waSchoolName(){return waSchoolSet()||'園';}
 
 /* ── 出品者アカウント ──────────────────────────────────
    商品・記事・イベント・コミュニティの「出し手」を1か所にまとめる。
    カードの顔は絵文字ではなくアカウント画像にして、押すと出品者ページへ移る。
    写真は外に取りにいかず、登録がなければ頭文字のアバターをその場で描く。 */
 var WA_SELLERS=[
-  {id:'school',name:'',kind:'園',area:'さいたま市中央区',since:'2019年',
+  {id:'school',name:'',kind:'園',area:'',since:'2019年',
    bio:'園の毎日と、そこで実際に使っている教材をおとどけしています。お買いものの一部は園の運営に使われます。'},
   {id:'morinotsukue',name:'もりのつくえ',kind:'教育事業者',area:'埼玉県ときがわ町',since:'2016年',
    bio:'国産の木で、子どもの手の大きさに合わせた道具をつくっています。工作キットは園での使用実績があるものだけを出しています。'},
@@ -2500,7 +2575,7 @@ function wirePostActs(kind){
     e.stopPropagation();
     var id=b.getAttribute('data-share'),p=feedFind(id);
     var url=location.href.split('#')[0]+'#post-'+id;
-    var ttl=(p&&p.t)||'COCOAS';
+    var ttl=(p&&p.t)||waSchoolName();
     if(navigator.share){
       try{navigator.share({title:ttl,text:ttl,url:url})['catch'](function(){});return;}catch(err){}
     }
@@ -2544,9 +2619,9 @@ function wireLink(){}
 /* 所属スクールの情報（住所・連絡先・HP・SNS） */
 function schoolInfoHTML(){
   var s=stGet('settings',{})||{}, sns=stGet('sns',{})||{};
-  var rows=[['所在地',s.address||'埼玉県さいたま市中央区（サンプル）'],
-            ['電話',s.tel||'048-000-0000'],
-            ['メール',s.sender||'omiya@cocoas-kids.com']];
+  /* 入っていない欄は出さない。ある園の住所・電話を初期値にすると、別の園の保護者へ間違って伝わる。 */
+  var rows=[['所在地',s.address||''],['電話',s.tel||''],['メール',s.sender||'']]
+           .filter(function(x){return x[1];});
   var links=[['ホームページ',s.hp||''],['Instagram',sns.instagram||''],['LINE',sns.line||''],['YouTube',sns.youtube||'']]
             .filter(function(x){return x[1];});
   return '<h2 class="sec sec-b">🏫 所属スクール</h2>'
@@ -2556,7 +2631,7 @@ function schoolInfoHTML(){
         return '<a class="chip" href="'+esc(l[1])+'" target="_blank" rel="noopener noreferrer">'+esc(l[0])+' ↗</a>';}).join('')+'</div>':'')
     +'<div class="silinks" style="margin-top:12px;">'
       +'<button class="chip" data-goto="school">出欠・メッセージ</button>'
-      +'<a class="chip" href="tel:'+esc(String(s.tel||'0480000000').replace(/[^0-9+]/g,''))+'">電話をかける</a>'
+      +(s.tel?'<a class="chip" href="tel:'+esc(String(s.tel).replace(/[^0-9+]/g,''))+'">電話をかける</a>':'')
     +'</div></div>';
 }
 /* マイページ：お子さま情報・所属スクール・購入履歴・請求 */
@@ -2602,44 +2677,44 @@ function orderState(o){
    （既定はひな型だけ。実物のPDFは園が登録したものを表示する） */
 var WA_GUIDE_CATS=['はじめに','毎日のこと','健康・お薬','安全・災害','手続き','園の情報'];
 var WA_GUIDE=[
-  {id:'g_cover',cat:'はじめに',t:'ガイダンスブック',kind:'read',
+  {id:'g_cover',cat:'はじめに',t:'入園のご案内（お手引き）',kind:'read',
    d:'入園のときにお渡しする冊子です。スクールの考え方と、一年の流れがまとまっています。'},
-  {id:'g_school',cat:'はじめに',t:'スクール概要',kind:'read',
+  {id:'g_school',cat:'はじめに',t:'園の概要',kind:'read',
    d:'保育時間・クラス編成・年間行事など、スクールの基本の情報です。'},
-  {id:'g_items',cat:'毎日のこと',t:'服装・持ち物について',kind:'read',
+  {id:'g_items',cat:'毎日のこと',t:'持ち物と服装のきまり',kind:'read',
    d:'毎日持ってくる物、園でお預かりする物の一覧です。持ち物にはすべて記名をお願いします。',
    points:['毎日：おむつ・お尻拭き／歯ブラシセット／ドリンクボトル／手拭タオル／フルーツ／連絡帳／ランチセット',
            '園でお預かり：スモック／お着替え1セット／ブランケット2枚／指定のカラー帽子',
            '15:00以降の延長保育をご利用の方は、おやつとおむつ2枚を追加でお持ちください']},
-  {id:'g_kansen',cat:'健康・お薬',t:'感染症と出席停止の基準',kind:'read',
+  {id:'g_kansen',cat:'健康・お薬',t:'感染症にかかったとき（出席停止の基準）',kind:'read',
    d:'インフルエンザ・新型コロナなど、登園を控えていただく期間の目安です。',
    points:['インフルエンザ：解熱後3日、かつ発症後5日が経過するまで',
            '新型コロナ：発症後5日を経過し、かつ症状が軽快して1日を経過するまで',
            'おたふくかぜ：腫れが出て5日を経過し、全身の状態が良くなるまで',
            '水ぼうそう：すべての発疹がかさぶたになるまで',
-           '※復帰には「登園許可証／治癒証明書」の提出が必要です']},
-  {id:'g_toyaku',cat:'健康・お薬',t:'投薬の依頼について',kind:'read',
+           '※復帰には「治癒証明書／登園許可証」の提出が必要です']},
+  {id:'g_toyaku',cat:'健康・お薬',t:'お薬をお預かりするときの手順',kind:'read',
    d:'園でお薬をお預かりする際の条件です。1つでも満たないとお預かりできません。',
    points:['主治医が処方したお薬に限ります（市販薬は不可）',
            '1回分ずつに分け、それぞれにお名前をご記入ください',
            '座薬・頓服など効能の強いお薬は原則お預かりできません',
            '必ず手渡しで日本人講師にお渡しください']},
-  {id:'g_hinan',cat:'安全・災害',t:'避難場所について',kind:'read',
+  {id:'g_hinan',cat:'安全・災害',t:'災害時の避難先のご案内',kind:'read',
    d:'園でお預かりしている時間に避難が必要になった場合の順序と、避難先です。',
    points:['① 安全が確認できる場合はスクールで待機します',
            '② 建物や周辺が危険なときは、いったん駐車場へ避難します',
            '③ 大火災などでさらに避難が必要なときは、第一〜第三避難場所へ移動します',
            '※避難先は園の入口に張り紙でお知らせします']},
-  {id:'g_keiho',cat:'安全・災害',t:'警報が出たときの休園について',kind:'read',
+  {id:'g_keiho',cat:'安全・災害',t:'警報発表時の休園の取り扱い',kind:'read',
    d:'暴風・大雪などの警報が出たときの、休園とお迎えの基準です。',
    points:['保育開始の2時間前に発令 → 休園',
            '保育開始の2時間前に解除 → 通常どおり',
            '保育時間中に発令 → 保育を中止し、お迎えのご連絡をします',
            '※大雨洪水警報は該当しません。天災による休園の振替はありません']},
-  {id:'g_ninka',cat:'園の情報',t:'施設の内容の掲示（利用にあたって）',kind:'read',
+  {id:'g_ninka',cat:'園の情報',t:'ご利用にあたって（施設の内容の掲示）',kind:'read',
    d:'施設の名称・設置者・保育内容・加入保険・提携医療機関などの掲示です。'},
   /* ここから記入して提出するもの */
-  {id:'d_kyoka',cat:'健康・お薬',t:'登園許可証／治癒証明書',kind:'form',
+  {id:'d_kyoka',cat:'健康・お薬',t:'治癒証明書／登園許可証',kind:'form',
    d:'感染症のあと、登園を再開するときに医療機関で記入していただきます。',
    note:'登園の際、担任に直接ご提出ください。',
    fields:['お子様の名前','病名','□ 治癒したことを証明します','□（条件）　　　　をしていれば登園できます',
@@ -2650,12 +2725,12 @@ var WA_GUIDE=[
    fields:['依頼者（保護者氏名）','お子様の名前','主治医（　　　　病院・医院）','持参した薬（　年　月　日に処方）',
            '病名','症状','薬の内容（抗生物質・咳止め・整腸剤・その他）','薬の剤型（粉・シロップ・その他）',
            '投薬する時間（食前・食後・その他）']},
-  {id:'d_kenshin',cat:'健康・お薬',t:'在園児健康診断書',kind:'form',
+  {id:'d_kenshin',cat:'健康・お薬',t:'在籍児健康診断書',kind:'form',
    d:'かかりつけの小児科で記入していただく、年に一度の健康診断書です。',
    fields:['子ども氏名','男・女','生年月日（西暦　年　月　日生）','健診月日（　年　月　日／月齢　歳　ヶ月）',
            '医師の所見　□特に異常は認められず通園可能です','　　　　　　□一部異常が認められるので通園には注意が必要です',
            '　　　　　　□異常があり通園できる状態ではありません','小児医療機関名','小児医師名']},
-  {id:'d_henko',cat:'手続き',t:'変更届',kind:'form',
+  {id:'d_henko',cat:'手続き',t:'コース変更届',kind:'form',
    d:'コース・曜日・延長託児・ランチの内容を変えるときにご提出ください。',
    note:'希望月の前々月1日〜月末営業日までにご提出ください（例：8月変更希望なら6月末まで）。原則1か月1枚のみ、口頭ではお受けできません。',
    fields:['お子様の名前','希望月（　　月より）',
@@ -2814,6 +2889,135 @@ function wireGuide(c){
   document.querySelectorAll('[data-doc]').forEach(function(b){b.onclick=function(){
     openDoc(b.getAttribute('data-doc'),c);};});
 }
+/* ============================================================
+   ポイント
+   ------------------------------------------------------------
+   ポイントは、ランクを上げるための持ち点。お金やお買い物には使えない。
+   ・お金に換える、値引きに使う、期限で消す、といった処理は作らない
+   ・減らす処理も作らない。取り消しや返品のときの決まりが無いため
+   ・さかのぼって数えない。仕組みを入れたときにあるものは
+     「もう数えた」ことにして、0から始める
+   ・行動ごとに「もう数えたか」を控えるので、同じ行動で二重に増えない
+   置き場は出品者の画面（creator.html）と同じ wa_points。
+   保護者のぶん（parent）だけを書き換え、出品者のぶん（creator）には触らない。
+   ============================================================ */
+var PT_RULES=[
+  {k:'att',   n:'出欠のご連絡',                     p:20},
+  {k:'msg',   n:'園へのメッセージ',                 p:20},
+  {k:'guide', n:'スクールガイドを開く（はじめの1回）',p:10},
+  {k:'review',n:'口コミを書く',                     p:15},
+  {k:'buy',   n:'ご購入',                           p:10},
+  {k:'rent',  n:'レンタルのお申し込み',             p:10},
+  {k:'join',  n:'イベントへのご参加',               p:15},
+  {k:'save',  n:'保存・お気に入り',                 p:5}
+];
+var PT_NOTE='ポイントは、ランクを上げるための持ち点です。お金やお買い物には使えません。';
+function ptRule(k){
+  for(var i=0;i<PT_RULES.length;i++){if(PT_RULES[i].k===k)return PT_RULES[i];}
+  return null;
+}
+function ptBox(){
+  var b=stGet('wa_points',{});
+  if(!b||typeof b!=='object')b={};
+  var p=b.parent;
+  if(!p||typeof p!=='object')p={};
+  if(typeof p.total!=='number'||isNaN(p.total))p.total=0;
+  if(!p.done||typeof p.done!=='object')p.done={};
+  if(Object.prototype.toString.call(p.log)!=='[object Array]')p.log=[];
+  b.parent=p;
+  return b;
+}
+/* いまの記録を見て、まだ数えていないぶんだけ足す。引く処理は無い。 */
+function ptSync(){
+  var b=ptBox(),p=b.parent;
+  var start=!p.ready;        /* 1回目は足さない。印だけ付けて0から始める */
+  var ch=false;               /* 変わったときだけ保存する。画面を作るたびに書き直さない。 */
+  var add=function(mark,rk,note){
+    if(p.done[mark])return;
+    p.done[mark]=1;ch=true;
+    if(start)return;
+    var r=ptRule(rk);if(!r)return;
+    p.total+=r.p;
+    p.log.push({at:todayISO(),n:(note||r.n),p:r.p});
+    if(p.log.length>50)p.log=p.log.slice(-50);
+  };
+  /* 出欠のご連絡 */
+  (stGet('absence_log',[])||[]).forEach(function(a){
+    if(!a)return;
+    add('att:'+a.childId+'|'+a.date+'|'+a.kind+'|'+a.at,'att',
+      String(a.date||'')+' の'+String(a.kind||'ご連絡'));
+  });
+  /* 園へのメッセージ（ご自身が書いたぶんだけ） */
+  var dm=stGet('dm_out',{})||{};
+  for(var cid in dm){
+    if(!dm.hasOwnProperty(cid))continue;
+    var arr=dm[cid];
+    if(Object.prototype.toString.call(arr)!=='[object Array]')continue;
+    arr.forEach(function(m,i){ if(m)add('msg:'+cid+'|'+(m.id||i),'msg'); });
+  }
+  /* 口コミ（商品・イベント） */
+  var pr=stGet('wa_prod_reviews',{})||{};
+  for(var pid in pr){
+    if(!pr.hasOwnProperty(pid))continue;
+    (pr[pid]||[]).forEach(function(r,i){ add('rvp:'+pid+'|'+i,'review'); });
+  }
+  var er=stGet('wa_ev_reviews',{})||{};
+  for(var eid in er){
+    if(!er.hasOwnProperty(eid))continue;
+    (er[eid]||[]).forEach(function(r,i){ add('rve:'+eid+'|'+i,'review'); });
+  }
+  /* ご購入・レンタル */
+  (waOrders()||[]).forEach(function(o){
+    if(!o)return;
+    add('ord:'+(o.id||'')+'|'+(o.at||''), o.rental?'rent':'buy', String(o.name||''));
+  });
+  /* イベントへのご参加 */
+  (stGet('wa_ev_joins',[])||[]).forEach(function(id){ add('join:'+id,'join'); });
+  /* 保存・お気に入り */
+  (stGet('wa_feed_save',[])||[]).forEach(function(id){ add('sv:'+id,'save'); });
+  (stGet('wa_feed_fav',[])||[]).forEach(function(id){ add('fv:'+id,'save'); });
+  if(!p.ready){p.ready=true;ch=true;}
+  if(ch)stSet('wa_points',b);
+  return p;
+}
+/* スクールガイドは開いた回数を記録していないので、開いたときにここで数える。
+   はじめの1回だけ入る。 */
+function ptGuideOpened(){
+  var b=ptBox(),p=b.parent;
+  if(!p.ready||p.done['guide'])return;   /* 1回目の読み込みでは数えない */
+  p.done['guide']=1;
+  var r=ptRule('guide');
+  p.total+=r.p;
+  p.log.push({at:todayISO(),n:r.n,p:r.p});
+  if(p.log.length>50)p.log=p.log.slice(-50);
+  stSet('wa_points',b);
+}
+/* ポイントの欄。何をすると入るかを、実際に足している点数のまま出す。 */
+function ptCardHTML(){
+  var p=ptSync();
+  return '<h2 class="sec sec-c">🏅 ポイント</h2>'
+    +'<div class="card petal-c">'
+    +'<div style="font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;">'+String(p.total)+'</div>'
+    +'<div class="muted" style="margin-top:4px;">'+PT_NOTE+'</div>'
+    +'<div style="font-weight:700;font-size:13px;margin-top:13px;">たまるとき</div>'
+    +PT_RULES.map(function(x){
+      return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06);">'
+        +'<div style="font-size:13px;">'+esc(x.n)+'</div>'
+        +'<div style="margin-left:auto;font-weight:800;font-size:13px;font-variant-numeric:tabular-nums;">+'
+        +x.p+'</div></div>';}).join('')
+    +'<div class="muted" style="margin-top:8px;">'
+      +'仕組みを入れる前のぶんはさかのぼって数えないので、0から始まります。</div>'
+    +(p.log.length
+      ? '<div style="font-weight:700;font-size:13px;margin-top:13px;">入ったぶん</div>'
+        +p.log.slice().reverse().slice(0,8).map(function(x){
+          return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06);">'
+            +'<div class="muted" style="width:92px;flex-shrink:0;">'+esc(x.at)+'</div>'
+            +'<div style="font-size:12.5px;min-width:0;word-break:break-all;">'+esc(x.n)+'</div>'
+            +'<div style="margin-left:auto;font-weight:800;font-size:12.5px;">+'+(+x.p||0)+'</div></div>';
+        }).join('')
+      : '<div class="muted" style="margin-top:10px;">まだ入っていません。上のことをすると、ここに出ます。</div>')
+    +'</div>';
+}
 function meHTML(c){
   var os=waOrders().filter(function(o){return !c||String(o.childId)===String(c.id);}).slice().reverse();
   var joins=(stGet('wa_ev_joindetail',[])||[]).slice().reverse();
@@ -2870,6 +3074,7 @@ function meHTML(c){
       +'<div class="chip" style="padding:3px 10px;font-size:10.5px;'
         +(past?'':'background:var(--c);color:#fff;border:none;')+'">'+(past?'終了':'申込ずみ')+'</div></div>';}).join('')
      :bloomEmpty('まだお申し込みはありません'));
+  h2+=ptCardHTML();
   if(c){
     var gd=guideDocs(),nf=gd.filter(function(g){return g.kind==='form';}).length;
     h2+='<h2 class="sec sec-b">📚 スクールガイド</h2>'
@@ -2898,7 +3103,11 @@ function consentCardHTML(){
   return '<div class="card" style="margin-top:14px;">'
     +'<div style="font-weight:800;font-size:13.5px;">利用規約・プライバシーポリシー</div>'
     +(r?'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
-        +esc(r.at)+' に同意（版 '+esc(r.ver)+'）<br>'+esc(r.dev||'')
+        +esc(r.at)+' に同意（規約の版 '+esc(r.ver)+'）<br>'
+        +'ご案内の版　'+(r.noticeVer
+            ? esc(r.noticeVer)+(r.noticeAt?'（'+esc(r.noticeAt)+' に確認）':'')
+            : '記録がありません')+'<br>'
+        +esc(r.dev||'')
         +((r.items&&r.items.length)?'<br>'+r.items.map(function(x){return '・'+esc(x);}).join('<br>'):'')
         +'<br>・スポンサー・キャンペーンのお知らせ　'
         +(stGet('wa_promo_ok',false)?'受け取る':'受け取らない')
@@ -2921,7 +3130,7 @@ function wireMe(c){
   document.querySelectorAll('[data-doc]').forEach(function(b){b.onclick=function(){
     openDoc(b.getAttribute('data-doc'),c);};});
   var gg=document.getElementById('goGuide');
-  if(gg)gg.onclick=function(){waGuideView=true;render();};
+  if(gg)gg.onclick=function(){waGuideView=true;ptGuideOpened();render();};
   /* ダウンロードは、押されたときだけサーバに取りにいく。
      開いただけでファイルを持ってくると、回数を知らないうちに使ってしまう。 */
   document.querySelectorAll('[data-dl]').forEach(function(b){b.onclick=function(){
@@ -3093,17 +3302,17 @@ var WA_EV_KINDS=['体験会','マルシェ','講演会','交流会','オンラ�
 var WA_EV_THEMES=['英語','工作','食育','運動'];
 var WA_COM_CATS=['子育て','英語','食育','発達','地域','年齢別','趣味','保育アイディア'];
 var WA_EVENTS=[
- {id:'ev1',target:'親子イベント',e:'🎪',k:'マルシェ',th:'工作',by:'morinotsukue',ages:['2歳児','3歳児','4歳児','5歳児'],t:'てづくりマルシェ 2026 夏',d:'保育者・保護者の手づくり作品が集まります。工作のワークショップも。',date:'2026-08-23',place:'さいたま新都心 けやきひろば',fee:'入場無料'},
- {id:'ev2',target:'子供向けイベント',e:'🔤',k:'体験会',th:'英語',by:'otoeigo',ages:['2歳児','3歳児','4歳児'],t:'はじめての英語であそぼう',d:'歌とゲームだけの45分。英語がはじめてのお子さま向けです。',date:'2026-08-30',place:'COCOAS KIDS 大宮与野校',fee:'￥0（先着20名）'},
+ {id:'ev1',target:'親子イベント',e:'🎪',k:'マルシェ',th:'工作',by:'morinotsukue',ages:['2歳児','3歳児','4歳児','5歳児'],t:'てづくりマルシェ 2026 夏',d:'保育者・保護者の手づくり作品が集まります。工作のワークショップも。',date:'2026-08-23',place:'駅前ひろば',fee:'入場無料'},
+ {id:'ev2',target:'子供向けイベント',e:'🔤',k:'体験会',th:'英語',by:'otoeigo',ages:['2歳児','3歳児','4歳児'],t:'はじめての英語であそぼう',d:'歌とゲームだけの45分。英語がはじめてのお子さま向けです。',date:'2026-08-30',place:'〔学校名〕',fee:'￥0（先着20名）'},
  {id:'ev3',target:'保護者向けイベント',e:'🥕',k:'講演会',th:'食育',by:'kodomoshoku',ages:['0歳児','1歳児','2歳児','3歳児'],t:'偏食とのつきあい方',d:'管理栄養士が、家庭でできる工夫をお話しします。質疑応答あり。',date:'2026-09-06',place:'オンライン（Zoom）',fee:'￥1,000'},
- {id:'ev4',target:'子供向けイベント',e:'🏃',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'かけっこ教室（秋の運動会にむけて）',d:'走り方のコツを、遊びながら身につけます。',date:'2026-09-13',place:'与野公園 多目的広場',fee:'￥1,500'},
- {id:'ev5',target:'保護者向けイベント',e:'💬',k:'交流会',th:'',by:'school',ages:['0歳児','1歳児'],t:'0・1歳のママパパ交流会',d:'同じ月齢の保護者どうしで、ゆるやかに話せる場です。保育士も同席します。',date:'2026-09-20',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
+ {id:'ev4',target:'子供向けイベント',e:'🏃',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'かけっこ教室（秋の運動会にむけて）',d:'走り方のコツを、遊びながら身につけます。',date:'2026-09-13',place:'市民公園 多目的広場',fee:'￥1,500'},
+ {id:'ev5',target:'保護者向けイベント',e:'💬',k:'交流会',th:'',by:'school',ages:['0歳児','1歳児'],t:'0・1歳のママパパ交流会',d:'同じ月齢の保護者どうしで、ゆるやかに話せる場です。保育士も同席します。',date:'2026-09-20',place:'〔学校名〕',fee:'￥0'},
  {id:'ev6',target:'親子イベント',e:'💻',k:'オンライン',th:'工作',by:'steamkids',ages:['3歳児','4歳児','5歳児','小学生以上'],t:'おうちで工作ライブ',d:'材料は家にあるものだけ。画面ごしに一緒に作ります。',date:'2026-09-27',place:'オンライン',fee:'￥500'},
- {id:'ev7',target:'親子イベント',e:'🍙',k:'マルシェ',th:'食育',by:'kodomoshoku',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'こども食堂マルシェ',d:'地域の農家さんの野菜と、こどもが作るおにぎりの会。',date:'2026-10-04',place:'与野本町 コミュニティセンター',fee:'￥300'},
+ {id:'ev7',target:'親子イベント',e:'🍙',k:'マルシェ',th:'食育',by:'kodomoshoku',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'こども食堂マルシェ',d:'地域の農家さんの野菜と、こどもが作るおにぎりの会。',date:'2026-10-04',place:'地域コミュニティセンター',fee:'￥300'},
  {id:'ev8',target:'保護者向けイベント',e:'🎓',k:'講演会',th:'',by:'hidamari',ages:['5歳児','小学生以上'],t:'小学校入学のまえに',d:'元小学校教諭が、入学前の1年で本当に必要なことをお話しします。',date:'2026-10-18',place:'オンライン（Zoom）',fee:'￥1,000'},
  /* 開催済み（募集中／開催済みの切りかえを見せるため） */
- {id:'ev9',target:'親子イベント',e:'🎋',k:'交流会',th:'',by:'school',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'七夕まつり 2026',d:'たんざくに願いごとを書いて、笹に飾りました。',date:'2026-07-05',place:'COCOAS KIDS 大宮与野校',fee:'￥0'},
- {id:'ev10',target:'子供向けイベント',e:'🌊',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'はじめての水あそび教室',d:'水がこわい子から参加できる、顔つけまでの3回コースでした。',date:'2026-06-21',place:'与野プール',fee:'￥2,000'}
+ {id:'ev9',target:'親子イベント',e:'🎋',k:'交流会',th:'',by:'school',ages:['1歳児','2歳児','3歳児','4歳児','5歳児'],t:'七夕まつり 2026',d:'たんざくに願いごとを書いて、笹に飾りました。',date:'2026-07-05',place:'〔学校名〕',fee:'￥0'},
+ {id:'ev10',target:'子供向けイベント',e:'🌊',k:'体験会',th:'運動',by:'school',ages:['3歳児','4歳児','5歳児'],t:'はじめての水あそび教室',d:'水がこわい子から参加できる、顔つけまでの3回コースでした。',date:'2026-06-21',place:'市民プール',fee:'￥2,000'}
 ];
 /* 対象者。creator.html の EV_TARGETS と同じ並びにしてある。 */
 var WA_EV_TARGETS=['親子イベント','保護者向けイベント','子供向けイベント'];
@@ -3128,7 +3337,13 @@ function waEvents(){
     add.push(waEventFromCreator(x));
   });
   var have={};add.forEach(function(x){have[String(x.id)]=1;});
-  return add.concat(WA_EVENTS.filter(function(x){return !have[String(x.id)];}));
+  /* 見本のイベントに書いた〔学校名〕は、園の設定の名前へ入れ替える（ある園の名前を持たないため） */
+  var base=WA_EVENTS.filter(function(x){return !have[String(x.id)];}).map(function(x){
+    if(x.place!=='〔学校名〕')return x;
+    var y={},k;for(k in x){if(Object.prototype.hasOwnProperty.call(x,k))y[k]=x[k];}
+    y.place=waSchoolName();return y;
+  });
+  return add.concat(base);
 }
 /* イベントの口コミ・レビュー（デモの初期値。投稿するとこの端末に足される） */
 var WA_EV_REVIEWS={
@@ -3151,7 +3366,7 @@ var WA_COMMUNITY=[
  {e:'🍚',cat:'食育',t:'白ごはんしか食べません',d:'おかずを混ぜると気づいて出します。時期がくれば食べますか？',by:'そうた父',n:31},
  {e:'🔤',cat:'英語',t:'おうち英語、いつやめどき？',d:'嫌がるようになったので一度止めました。再開のきっかけを知りたいです。',by:'みお母',n:12},
  {e:'🧩',cat:'発達',t:'言葉が遅いと言われました',d:'2歳半で単語のみ。健診で様子見と言われましたが、何かできることはありますか。',by:'匿名',n:47},
- {e:'📍',cat:'地域',t:'与野周辺の雨の日スポット',d:'室内で体を動かせる場所を探しています。おすすめがあれば。',by:'ひなた母',n:18},
+ {e:'📍',cat:'地域',t:'この辺りの雨の日スポット',d:'室内で体を動かせる場所を探しています。おすすめがあれば。',by:'ひなた母',n:18},
  {e:'👶',cat:'年齢別',t:'0歳クラスの持ち物、何を減らせましたか',d:'荷物が多すぎて毎朝しんどいです。省略できたものを知りたいです。',by:'れん母',n:9},
  {e:'🎨',cat:'趣味',t:'保護者の手づくり、交換しませんか',d:'名前つけワッペンを作っています。交換してくださる方いますか。',by:'あおい母',n:6},
  {e:'💡',cat:'保育アイディア',t:'雨の日の室内あそび、鉄板を教えてください',d:'現役保育士です。3歳児クラスで盛り上がった遊びを共有しませんか。',by:'保育士K',n:38},
@@ -3951,7 +4166,7 @@ function dmSend(c,tx){
     all[c.id].push({id:Date.now(),from:'parent',by:c.name,text:tx,at:dmNow()});
     stSet('dm_out',all);
     /* 園へ通知メール（返信URL付き）— 実送信はバックエンド接続後 */
-    var st=stGet('settings',{})||{},school=st.school||'COCOAS KIDS International School',sender=st.sender||'omiya@cocoas-kids.com';
+    var st=stGet('settings',{})||{},school=st.school||waSchoolName(),sender=st.sender||'';
     var hist=stGet('history',[])||[];
     hist.push({date:addDaysISO(0),time:dmNow().slice(5),tpl:'DM通知（園へ）',to:school,email:sender,from:c.email||'',
       subject:'【DM】'+c.name+' 様（'+esc(c.child||'')+'）よりメッセージが届いています',
