@@ -231,6 +231,12 @@
   .tklegend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
   .tkitem{border-bottom:1px solid var(--line2);}
   .tkitem:last-child{border-bottom:none;}
+  .tked{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
+  .tked:last-child{border-bottom:none;}
+  .tked .tkedn{flex:1;min-width:150px;font-size:13.5px;}
+  .tked .tkedw{font-size:11px;color:var(--tx3);width:100%;margin-left:2px;}
+  .tkadd{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;padding-top:13px;border-top:1px dashed var(--line2);}
+  .tkadd label{font-size:11px;font-weight:700;color:var(--tx3);display:block;margin-bottom:3px;}
   .tkhead{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;padding:11px 2px;font-size:13.5px;color:var(--tx);text-align:left;border-radius:8px;}
   .tkhead:hover{background:var(--bg);}
   .tkhead .tdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
@@ -920,7 +926,7 @@ var TOKEN_HELP=[
   {t:'〔請求月〕',d:'請求する月（数字だけ）'},
   {t:'〔対象月〕',d:'対象の月（〇月）'},
   {t:'〔配信日〕',d:'配信の画面で選んだ日（〇月〇日）'},
-  {t:'〔本日の活動〕',d:'その日の午前・午後の活動（月間カリキュラムから）'},
+  {t:'〔本日の活動〕',d:'その日の午前・午後の活動（カリキュラムから）'},
   {t:'〔担当者〕',d:'担当者の名乗り',set:1},
   {t:'〔送信元〕',d:'送信元のメール',set:1},
   {t:'〔電話〕',d:'園の電話番号',set:1},
@@ -1931,7 +1937,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','月間カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+var TITLES={home:['ホーム','EduGrow ホーム'],wastore:['配信','未来WA'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],shift:['記録・書類','シフト表'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報（閲覧のみ）'],enroll:['管理','生徒情報（契約・オプション）'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','年間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -2011,6 +2017,9 @@ function splitAtPeriod(el){
 }
 
 function go(page){
+  /* 生徒情報（enroll）は請求書発行（billing）に入れた。
+     覚えている行き先や、古い呼び出しが enroll のままでも止まらないよう、入口で読み替える。 */
+  if(page==='enroll')page='billing';
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page)){
     alert('この画面は、いまのアカウントでは開けません。園の管理者にご確認ください。');
     page='dashboard';
@@ -2048,7 +2057,7 @@ function go(page){
       if(wsec)wsec.hidden=false;
       renderWaOpen();
     })() :
-  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,kidsview:renderKidsView,enroll:renderEnroll,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,kidsview:renderKidsView,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -2231,7 +2240,7 @@ var EG_NAV=[
  ]},
  {cat:'カリキュラム・スケジュール',items:[
    {k:'tasks',      l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
-   {k:'curriculum', l:'月間カリキュラム', i:'ic:59',si:'book',      c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
+   {k:'curriculum', l:'カリキュラム', i:'ic:59',si:'book',      c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
    /* AI保育計画は Standard から（2026-08-17 決定）。
       料金表シート6行C/D列・EduGrow システム概要15〜20行に合わせている。 */
    {k:'aiplan',     l:'AI保育計画',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'standard'},
@@ -2246,7 +2255,7 @@ var EG_NAV=[
  ]},
  {cat:'顧客情報・料金管理',boss:true,items:[
    {k:'contacts', l:'連絡先',   i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
-   {k:'enroll',   l:'生徒情報', i:'ic:75',si:'idcard', c:'#3C3489', bg:'#EEEDFE', p:'enroll'},
+   /* 生徒情報は請求書発行の中に入れた。サイドバーには出さない。 */
    {k:'billing',  l:'請求書発行', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'}
  ]},
  {cat:'職員情報・運営関連',boss:true,items:[
@@ -3852,7 +3861,7 @@ var HOME_GROUPS=[
   ]},
   {t:'記録・書類',items:[
     {p:'guide',i:'book',l:'スクールガイド',c:'#123E6B',bg:'#E6F1FB'},
-    {p:'curriculum',i:'book',l:'月間カリキュラム',c:'#27500A',bg:'#EAF3DE'},
+    {p:'curriculum',i:'book',l:'カリキュラム',c:'#27500A',bg:'#EAF3DE'},
     {p:'drill',i:'shield',l:'避難訓練',c:'#123E6B',bg:'#E6F1FB'},
     {p:'bouka',i:'alert',l:'研修・訓練',c:'#854F0B',bg:'#FAEEDA'},
     {p:'docgen',i:'fileplus',l:'書類作成',c:'#3C3489',bg:'#EEEDFE'},
@@ -3863,8 +3872,7 @@ var HOME_GROUPS=[
   {t:'園児・保護者',items:[
     {p:'contacts',i:'users',l:'連絡先',c:'#0B5F8F',bg:'#E3F1F9'},
     {p:'roster',i:'idcard',l:'生徒台帳',c:'#3C3489',bg:'#EEEDFE'},
-    {p:'enroll',i:'yen',l:'生徒情報',c:'#854F0B',bg:'#FAEEDA'},
-    {p:'billing',i:'yen',l:'請求管理',c:'#27500A',bg:'#EAF3DE'},
+    {p:'billing',i:'yen',l:'請求書発行',c:'#27500A',bg:'#EAF3DE'},
     {p:'trial',i:'clipboard',l:'体験結果報告',c:'#A32D2D',bg:'#FCEBEB'},
     {p:'compose',i:'send',l:'個別メール',c:'#123E6B',bg:'#E6F1FB'},
     {p:'deliveries',i:'cal',l:'配信カレンダー',c:'#3C3489',bg:'#EEEDFE'},
@@ -4554,7 +4562,7 @@ function renderContacts(){
         var _fi=(c.kind==='enrolled')?feeInfo(c):null;
         var _feeTag=_fi?(_fi.src==='special'?' <span class="tag" style="background:#FAEEDA;color:#854F0B;">特別料金</span>'
           :(_fi.src==='old'?' <span class="tag" style="background:#FCEBEB;color:#A32D2D;">手入力のまま</span>':'')):'';
-        var right=c.kind==='enrolled'?(yen(_fi.amount)+_feeTag+' <span class="row-sub">/月 ・ '+c.withdrawDay+'日引落</span>'):c.kind==='withdrawn'?('<span class="row-sub">退園 '+(c.withdrawDate?fmt(c.withdrawDate):'—')+'</span>'):(c.date?fmt(c.date):'<span class="row-sub">―</span>');
+        var right=c.kind==='enrolled'?(yen(_fi.amount)+_feeTag+' <span class="row-sub">/月 ・ '+(c.withdrawDay||27)+'日引落</span>'):c.kind==='withdrawn'?('<span class="row-sub">退園 '+(c.withdrawDate?fmt(c.withdrawDate):'—')+'</span>'):(c.date?fmt(c.date):'<span class="row-sub">―</span>');
         var badge;
         if(c.kind==='enrolled')badge='<span class="pill st-在園">在園・'+esc(c.klass)+'</span>'
           +(c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;" title="登園シートには出しませんが、在籍児童として扱います">休園中</span>':'')
@@ -4811,7 +4819,7 @@ function rosterImportModal(){
     m.remove();
     renderContacts();
     alert(n+'名を登録しました。\n\n'
-      +'クラス・通園曜日・料金は、必要に応じて「生徒情報」から直してください。\n'
+      +'クラス・通園曜日は「連絡先」、料金は「請求書発行」から直してください。\n'
       +'保護者アカウントは、運営に発行を依頼してください。');
   };
 }
@@ -4865,31 +4873,17 @@ function contactModal(id){
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|lunch" style="width:auto;"'+(o.lunch?' checked':'')+(o.go?'':' disabled')+'></td>'
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|long" style="width:auto;"'+(o.long?' checked':'')+(o.go?'':' disabled')+'></td></tr>';}).join('')
       +'</tbody></table></div><div class="muted" style="margin-top:6px;font-size:11.5px;">「通園」にチェックした曜日だけ Lunch / Long を選べます。登園シートの初期値と、請求のランチ・ロング回数に反映されます。</div></div>';})()+
-    /* 手で入れる「月額（円）」の欄はやめた。同じ園児でも、一覧・メール・請求書で
-       金額が違うことが起きていたため。ここは自動計算を見せるだけにする。 */
+    /* お金の欄（特別料金・引落日）は請求書発行へ移した。入れる場所を2つにすると食い違うため。
+       ここは、いま使っている額と引落日を見せるだけにする。 */
     (function(){
       var _mk=feeMonthKey(),_auto=0;
       try{_auto=enrMonthly(enrOf(c,_mk));}catch(e){_auto=0;}
-      var _sp=feeSpecialOf(c),_old=+(c.feeAmount||0);
-      var _diff=(_sp==null&&_auto>0&&_old>0&&_old!==_auto);
-      /* 欄の名前が長いと、細い窓では下が切れる。金額は名前と値を1行に並べて出す。 */
-      return '<div style="background:#F7F9FC;border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:13px;">'
+      var _sp=feeSpecialOf(c);
+      return '<div style="background:#F7F9FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;line-height:1.9;">'
         +'月額（自動計算・'+(+_mk.split('-')[1])+'月分）　<b style="font-size:15px;">'+esc(yen(_auto))+'</b>'
         +(_sp!=null?'　<span class="tag" style="background:#FAEEDA;color:#854F0B;">特別料金 '+esc(yen(_sp))+' を使います</span>':'')
-        +'</div>'
-        +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
-        +'<div class="field"><label>特別料金（円）</label>'
-        +'<input type="number" id="f_special" value="'+esc(_sp==null?'':_sp)+'" placeholder="空欄で自動計算"></div>'
-        +'<div class="field"><label>引落日</label><input type="number" id="f_wd" value="'+esc((c.withdrawDay||27))+'" min="1" max="31"></div></div>'
-        +'<div class="muted" style="font-size:11.5px;line-height:1.9;margin:-2px 0 10px;">'
-        +'きょうだい割など、園で決めた額があるときだけ「特別料金」に入れてください。入っていれば、そちらの額を使います。<br>'
-        +'この月の請求書をもう作ってある子は、ここを直しても、その請求書の金額は変わりません。'
-        +'</div>'
-        +(_diff?('<div style="background:#FCEBEB;border:1px solid #F3C9C9;color:#A32D2D;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.9;margin-bottom:10px;">'
-          +'いま登録されている月額 '+esc(yen(_old))+' は、自動計算の '+esc(yen(_auto))+' と違います。<br>'
-          +'この額をこれからも使うときは <button type="button" class="btn btn-sm" id="f_specialTake">特別料金に入れる</button> を押してください。'
-          +'押さずに保存すると、自動計算の額になります。'
-          +'</div>'):'')
+        +'<br>引落日　<b>'+esc(String(c.withdrawDay||27))+'</b> 日'
+        +'<div class="muted" style="font-size:11.5px;margin-top:3px;">特別料金と引落日は「請求書発行」の上の表で直します。</div>'
         +'</div>';
     })()+
     '<div class="field"><label>メモ</label><input id="f_note" value="'+esc((c.note||''))+'"></div>'+
@@ -4909,12 +4903,6 @@ function contactModal(id){
     });
   };
   if($('#f_photoDel'))$('#f_photoDel').onclick=function(){pendingPhoto=null;photoCleared=true;$('#f_photoPrev').innerHTML='<span class="avatar" style="width:56px;height:56px;font-size:20px;">?</span>';$('#f_photoMsg').textContent='保存を押すと写真が削除されます';};
-  /* これまで手で入れていた額を、そのまま特別料金の欄へ写す。
-     押しただけでは保存しない（保存を押すまで、これまでの額は残る）。 */
-  if($('#f_specialTake'))$('#f_specialTake').onclick=function(){
-    var t=$('#f_special');if(!t)return;
-    t.value=String(+(c.feeAmount||0));t.focus();
-  };
   m.querySelectorAll('[data-dayo]').forEach(function(cb){cb.onchange=function(){
     var p=cb.getAttribute('data-dayo').split('|');
     if(p[1]!=='go')return;
@@ -4941,15 +4929,15 @@ function contactModal(id){
     if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.nextMethod=$('#f_nmethod').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
     else{nc.paused=!!($('#f_paused')&&$('#f_paused').checked);
       nc.klass=$('#f_klass').value;
-      /* 特別料金は「空欄＝決めていない」。0 は「0円と決めた」なので、空欄と分けて残す。 */
-      var _spv=($('#f_special')?String($('#f_special').value):'').replace(/[\s　]/g,'');
-      nc.specialFee=(_spv==='')?'':(+_spv||0);
-      nc.withdrawDay=+$('#f_wd').value;nc.admissionDate=$('#f_adm').value;var dop={};WEEK5.forEach(function(d){var g=m.querySelector('[data-dayo="'+d+'|go"]'),l=m.querySelector('[data-dayo="'+d+'|lunch"]'),lg=m.querySelector('[data-dayo="'+d+'|long"]');dop[d]={go:!!(g&&g.checked),lunch:!!(g&&g.checked&&l&&l.checked),long:!!(g&&g.checked&&lg&&lg.checked)};});
+      /* 特別料金と引落日は、請求書発行で直す。ここでは元の値をそのまま残す。
+         新しく足した連絡先だけ、引落日に園のふつうの日（27日）を入れておく。 */
+      if(nc.withdrawDay==null||nc.withdrawDay==='')nc.withdrawDay=27;
+      nc.admissionDate=$('#f_adm').value;var dop={};WEEK5.forEach(function(d){var g=m.querySelector('[data-dayo="'+d+'|go"]'),l=m.querySelector('[data-dayo="'+d+'|lunch"]'),lg=m.querySelector('[data-dayo="'+d+'|long"]');dop[d]={go:!!(g&&g.checked),lunch:!!(g&&g.checked&&l&&l.checked),long:!!(g&&g.checked&&lg&&lg.checked)};});
       nc.dayOpts=dop;nc.days=daysStrOf(dop);nc.lunch=dayCount(dop,'lunch')>0;nc.long=dayCount(dop,'long')>0;if(kind==='withdrawn')nc.withdrawDate=$('#f_wdate').value;
       /* 実際に使う額を、ここに写しておく。ご案内メールなど、ここを読む場所があるため。
          写さないと、請求書は正しいのにメールだけ古い額で届いてしまう。 */
       nc.feeAmount=feeUse(nc);
-      /* この窓で金額を確かめた印。生徒情報の「食い違いの一覧」から外れる。 */
+      /* 金額を一度確かめた印。これが付いた子は、契約を直すたびに月額を写し直す。 */
       nc.feeChecked=true;}
     if(!nc.name||!nc.email){alert('保護者名とメールアドレスは必須です');return;}
     if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
@@ -5148,13 +5136,13 @@ function renderBroadcast(){
   }
   function preview(){
     var e=buildEmail();$('#bPreview').textContent='件名: '+e.subject+'\n\n'+e.body;
-    /* 〔本日の活動〕と書いてあるのに、月間カリキュラムにその日の予定が無いときだけ、
+    /* 〔本日の活動〕と書いてあるのに、カリキュラムにその日の予定が無いときだけ、
        空になる理由を先生に伝える（送ってから気づくのを防ぐため） */
     var h=$('#bDayHint');
     if(h){
       var ctx=bCtx(),bd=$('#bBody')?$('#bBody').value:'';
       h.textContent=(bd.indexOf('〔本日の活動〕')>-1&&!ctx.dayText)
-        ?'この日の活動が、月間カリキュラムにまだありません。月間カリキュラムの「日別スケジュール」に入れると、〔本日の活動〕のところに入ります。':'';
+        ?'この日の活動が、カリキュラムにまだありません。カリキュラムの「日別スケジュール」に入れると、〔本日の活動〕のところに入ります。':'';
     }
   }
   /* 送り先。クラスで選ぶか、児童を選ぶかの切り替え。
@@ -5554,7 +5542,7 @@ function renderTemplates(){
 function actSplitKey(a){a=String(a||'');var i=a.lastIndexOf('|');return [a.slice(0,i),a.slice(i+1)];}
 var curClass='Pre',curWeek='W1',curTab='schedule';
 var curActEdit=false; /* 「活動内容を編集」を開いているか。描き直しても開いたままにする */
-/* MTGで紙に配るため、表示中クラスの月間カリキュラムを1つの資料にまとめて印刷する */
+/* MTGで紙に配るため、表示中クラスのカリキュラムを1つの資料にまとめて印刷する */
 function curPrintDoc(){
   var cls=curClass,types=actTypes(cls),wks=['W1','W2','W3','W4'];
   var y=+CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
@@ -5581,7 +5569,7 @@ function curPrintDoc(){
   }
   body+='<h2>日別スケジュール</h2><table style="table-layout:fixed;"><thead><tr><th style="width:44px;">日付</th><th style="width:28px;">曜</th><th>午前</th><th>午後</th><th style="width:40px;">託児</th><th style="width:110px;">メモ</th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="6">この月の予定はまだ登録されていません。</td></tr>')+'</tbody></table>';
-  printDoc('月間カリキュラム（'+y+'年'+mo+'月・'+cls+'）',body);
+  printDoc('カリキュラム（'+y+'年'+mo+'月・'+cls+'）',body);
 }
 /* 園によって活動の呼び方が違うので、この画面で種類を足す・直す・消すができるようにする。
    何に対する編集かが分かるよう、「アクティビティ別 月間のねらい・担当」のカードの
@@ -5612,7 +5600,7 @@ function renderCurriculum(){
   function v(x){return (x||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
   var types=actTypes(curClass);
   function actOpts(sel){return '<option value="">—</option>'+types.map(function(t){return '<option'+(t===sel?' selected':'')+'>'+esc(t)+'</option>';}).join('');}
-  var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'月間カリキュラム</h3>'+
+  var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'カリキュラム</h3>'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+esc(k)+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+esc(CUR.month)+'" style="width:150px;margin-left:auto;"></div>'+
     '<div class="chips" style="margin:0;">'+[['schedule','日別スケジュール'],['content','活動の内容（Week1-4）']].map(function(t){return '<span class="chip'+(t[0]===curTab?' on':'')+'" data-ctab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
   var bodyHtml;
@@ -5869,7 +5857,7 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal,'例：5,500')+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt,'例：6,600')+f('s_dcL','昼食（ランチ）料金',SET.daycareLunch,'例：550')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl,'例：https://（申込フォーム）')+f('s_survey','アンケートURL',SET.surveyUrl,'例：https://（アンケート）')+'</div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。ランチ・ロングステイなど、園に合わせて自由に追加・変更・削除できます。</div><div class="muted" style="margin-bottom:10px;font-size:11.5px;">「通園曜日から自動」にしたオプションは、登園シートでは変更できません（すでに記録がある日は、その日の記録がそのまま残ります）。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
-    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">月間カリキュラムの日別入力で使う種類です。園に合わせて足したり、名前を変えたりできます。</div><div id="actTypeBox"></div></div>'+
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">カリキュラムの日別入力で使う種類です。園に合わせて足したり、名前を変えたりできます。</div><div id="actTypeBox"></div></div>'+
     (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
       '<div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">コースプラン（月額）</div><div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+Object.keys(P.plans).map(function(k){return '<div class="field" style="margin:0 0 8px;"><label>'+k+'</label><input type="number" data-price="plans|'+k+'" value="'+esc(P.plans[k])+'"></div>';}).join('')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field" style="margin:0;"><label>ランチ/回</label><input type="number" data-price="lunch" value="'+esc(P.lunch)+'"></div><div class="field" style="margin:0;"><label>延長/回</label><input type="number" data-price="extended" value="'+esc(P.extended)+'"></div><div class="field" style="margin:0;"><label>教育関連費</label><input type="number" data-price="material" value="'+esc(P.material)+'"></div><div class="field" style="margin:0;"><label>入園金</label><input type="number" data-price="admission" value="'+esc(P.admission)+'"></div></div>'+
@@ -5944,12 +5932,12 @@ function renderSettings(){
       var cls=inp.getAttribute('data-atc'),list=actTypesOwn(cls),i=+inp.getAttribute('data-ati'),old=list[i],nv=inp.value.trim();
       if(!nv||nv===old){inp.value=old;return;}
       if(list.indexOf(nv)>-1){inp.value=old;alert('「'+nv+'」はすでにあります。別の名前にしてください。');return;}
-      /* 名前を変えても、月間カリキュラムに入れた内容が消えないように移し替える */
+      /* 名前を変えても、カリキュラムに入れた内容が消えないように移し替える */
       actRenameData(cls,old,nv);list[i]=nv;actTypesSave(cls,list);renderActTypes();};});
     $('#actTypeBox').querySelectorAll('[data-atd]').forEach(function(b){b.onclick=function(){
       var p=b.getAttribute('data-atd').split('|'),cls=p[0],list=actTypesOwn(cls),i=+p[1],nm=list[i];
       /* 入力ずみのものを黙って消さない。何が起きるかを先に伝える */
-      if(actHasData(cls,nm)&&!confirm('「'+nm+'」には、月間カリキュラムに入れた内容があります（週の内容・月間のねらい・担当）。\n一覧から消すと、この活動の入力欄は画面に出なくなります。日別スケジュールで選んでいた日は、空になります。\n入れた内容は消さずに残すので、同じ名前で足し直すと、また出てきます。\n消してよろしいですか？'))return;
+      if(actHasData(cls,nm)&&!confirm('「'+nm+'」には、カリキュラムに入れた内容があります（週の内容・月間のねらい・担当）。\n一覧から消すと、この活動の入力欄は画面に出なくなります。日別スケジュールで選んでいた日は、空になります。\n入れた内容は消さずに残すので、同じ名前で足し直すと、また出てきます。\n消してよろしいですか？'))return;
       actClearSched(cls,nm);list.splice(i,1);actTypesSave(cls,list);renderActTypes();};});
     $('#actTypeBox').querySelectorAll('[data-atadd]').forEach(function(b){b.onclick=function(){
       var cls=b.getAttribute('data-atadd'),inp=$('#actTypeBox').querySelector('[data-atnew="'+cls+'"]'),v=inp.value.trim();if(!v)return;
@@ -7349,7 +7337,7 @@ function edNippo(){
   var currText=dtext||('【Morning】'+wk.morning+'\n【Afternoon】'+wk.afternoon);
   var actualVal=d.actual||currText;
   $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
-    '<div class="field"><label>活動実績（月間カリキュラムの'+(dkey?('その日（Week'+wnum+' '+dkey+'・Pre）'):'今週')+'から自動反映・修正可）<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから再取込</button></label><textarea id="npoActual" rows="4">'+esc(actualVal)+'</textarea></div>'+
+    '<div class="field"><label>活動実績（カリキュラムの'+(dkey?('その日（Week'+wnum+' '+dkey+'・Pre）'):'今週')+'から自動反映・修正可）<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから再取込</button></label><textarea id="npoActual" rows="4">'+esc(actualVal)+'</textarea></div>'+
     '<div class="field"><label>クラスの様子・エピソード</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
       '<div class="field"><label>欠席</label><input id="npoAbsent" value="'+esc((d.absent||''))+'" placeholder="○○（発熱）"></div>'+
@@ -7487,7 +7475,7 @@ function nippoDayBody(dk,d){
   var wnum=weekOfMonth(dk),wk=CUR.weeks[wnum-1]||CUR.weeks[0]||{morning:'',afternoon:''};
   var p=String(dk).split('-'),jsD=new Date(+p[0],+p[1]-1,+p[2]).getDay(),dkey=['','Mon','Tue','Wed','Thu','Fri'][jsD]||'';
   var dtext=dkey?curDayText('Pre',dk):'';
-  /* 画面と同じで、活動実績が空のときは月間カリキュラムの内容を出す */
+  /* 画面と同じで、活動実績が空のときはカリキュラムの内容を出す */
   var actual=d.actual||dtext||('【Morning】'+wk.morning+'\n【Afternoon】'+wk.afternoon);
   return '<h2>活動実績</h2><p>'+esc(actual).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+esc(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+esc(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+esc(d.early||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+esc(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+esc(d.by||'')+'</td></tr></tbody></table>';
 }
@@ -8133,7 +8121,7 @@ function dgInvoice(){
   if(!st.plan)st.plan=Object.keys(P.plans||{})[0]||'週3';
   if(st.lunchN==null)st.lunchN=0;if(st.extN==null)st.extN=0;
   function save(){dgSave('invoice',st);}
-  /* 生徒情報（契約・オプション）から自動反映 */
+  /* 請求書発行の「契約とオプション」から自動反映 */
   function applyEnroll(id){
     var c=kids.filter(function(x){return x.id===id;})[0];if(!c||typeof enrOf!=='function')return;
     var o=enrOf(c);st.plan=o.plan||st.plan;st.lunchN=+o.lunchN||0;st.extN=+o.extN||0;st.material=!!o.material;save();
@@ -8930,7 +8918,7 @@ var ACCESS_PAGES=[
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},
   {p:'kidsview',label:'生徒情報（先生用・閲覧のみ）'},{p:'enroll',label:'生徒情報（契約・オプション）'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
-  {p:'curriculum',label:'月間カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
+  {p:'curriculum',label:'カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'年間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
      管理者がマネージャーへ渡すことができない。 */
@@ -9274,7 +9262,9 @@ function renderAccessSettings(s){
     var perms=rolePerms();
     html+='<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('shield')+'権限管理（役割ごとの閲覧範囲）</h3><div class="muted" style="margin-bottom:10px;">チェックした画面だけ、その役割の職員に表示されます。管理者は常に全画面。（例：一般スタッフは監査・請求書・設定を非表示に）</div>'
       +'<table><thead><tr><th style="min-width:150px;">画面</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+r+'</span></th>';}).join('')+'</tr></thead><tbody>'
-      +ACCESS_PAGES.map(function(pg){return '<tr><td>'+esc(pg.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||((perms[r]||[]).indexOf(pg.p)>-1);var dis=(r==='管理者'||pg.p==='dashboard')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-pm="'+esc(r+'|'+pg.p)+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
+      /* 生徒情報（enroll）は請求書発行（billing）の中に入れた。押しても何も変わらない行に
+         なるので、この表には出さない。保存のときは請求書発行と同じ扱いにしている（下の pmSave）。 */
+      +ACCESS_PAGES.filter(function(pg){return pg.p!=='enroll';}).map(function(pg){return '<tr><td>'+esc(pg.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||((perms[r]||[]).indexOf(pg.p)>-1);var dis=(r==='管理者'||pg.p==='dashboard')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-pm="'+esc(r+'|'+pg.p)+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
       +'</tbody></table><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="pmSave">'+ic('check')+'権限を保存</button> <span class="muted" id="pmMsg"></span></div></div>';
     var tp=tplPerms();
     function tplMatrix(kind,title,items){
@@ -9333,7 +9323,12 @@ function renderAccessSettings(s){
       stSet('tplPerms',np);stSet('tplPermsVersion',TPL_PERMS_VERSION);
       var msg=document.querySelector('[data-tpmmsg="'+kind+'"]');if(msg){msg.textContent='保存しました';setTimeout(function(){msg.textContent='';},1800);}
     };});
-    document.getElementById('pmSave').onclick=function(){var perms=rolePerms();STAFF_ROLES.forEach(function(r){if(r!=='管理者')perms[r]=['dashboard'];});document.querySelectorAll('[data-pm]').forEach(function(cb){if(cb.disabled)return;if(cb.checked){var pp=cb.getAttribute('data-pm').split('|');if(!perms[pp[0]])perms[pp[0]]=[];if(perms[pp[0]].indexOf(pp[1])<0)perms[pp[0]].push(pp[1]);}});saveRolePerms(perms);document.getElementById('pmMsg').textContent='保存しました。ナビに反映します。';applyPerms();};
+    document.getElementById('pmSave').onclick=function(){var perms=rolePerms();STAFF_ROLES.forEach(function(r){if(r!=='管理者')perms[r]=['dashboard'];});document.querySelectorAll('[data-pm]').forEach(function(cb){if(cb.disabled)return;if(cb.checked){var pp=cb.getAttribute('data-pm').split('|');if(!perms[pp[0]])perms[pp[0]]=[];if(perms[pp[0]].indexOf(pp[1])<0)perms[pp[0]].push(pp[1]);}});
+      /* 生徒情報（enroll）は表に出していないので、チェックからは拾えない。
+         請求書発行を見られる役職には、同じものとして付けておく。
+         付けないと、古い呼び出しが残っていたときに開けなくなる。 */
+      STAFF_ROLES.forEach(function(r){if(r==='管理者')return;var L=perms[r]||[];if(L.indexOf('billing')>-1&&L.indexOf('enroll')<0)L.push('enroll');perms[r]=L;});
+      saveRolePerms(perms);document.getElementById('pmMsg').textContent='保存しました。ナビに反映します。';applyPerms();};
   }
 }
 
@@ -9691,7 +9686,7 @@ var rosterSel=null, rosterTab='list', rosterMap=null, rosterPinSel=null;
    ・「姓フリガナ／名フリガナ／英語表記」は1つにまとめ、見出しを「振りがな・英語表記」にした。
    ・「入会日」は「入園日」に言い換えた（保存の鍵 joinDate はそのまま）。
    ・保護者情報は人数が決まらないので、この表ではなく guardians（配列）で持つ。
-   ・お支払いは「生徒情報（契約・オプション）」へ移した（修正依頼シート 21行）。
+   ・お支払いは「請求書発行」の「契約とオプション」へ移した（修正依頼シート 21行）。
      生徒台帳は先生やマネージャーも見る場所なので、お金の欄をここに置かない。 */
 var SP_GROUPS=[
   {g:'お子様のこと',f:[
@@ -9854,7 +9849,7 @@ function spAge(dob){if(!dob)return '';var d=new Date(dob),n=new Date();var a=n.g
    ここには編集できるところを一切置かない。
 
    出すもの
-   ・生徒情報から … 園児名／生年月日／クラス／通園曜日／コースプラン／ランチ／ロングステイ
+   ・請求書発行の「契約とオプション」から … 園児名／生年月日／クラス／通園曜日／コースプラン／ランチ／ロングステイ
    ・生徒台帳から … 緊急連絡先／健康情報 */
 var kidsKlass='すべて', kidsQ='';
 
@@ -9938,7 +9933,7 @@ function renderKidsView(){
     +'</div>'
     /* 画面の説明は2行だけ。残りは「?」（HELP_DATA.kidsview）へ移した */
     +'<div class="muted" style="font-size:12px;margin-top:10px;line-height:1.9;">'
-    +'内容を直すときは、園長・管理者に「生徒台帳」または「生徒情報（契約・オプション）」からお願いしてください。'
+    +'内容を直すときは、園長・管理者に「生徒台帳」または「請求書発行」からお願いしてください。'
     +'</div></div>';
 
   if(!rows.length){
@@ -10262,7 +10257,8 @@ function wireRosterMap(kids){
   });
 }
 
-/* ========== 生徒情報（契約・オプション） ==========
+/* ========== 契約とオプション（請求書発行の上に置く） ==========
+   もとは「生徒情報」という別の画面だった。安田さんの決めで請求書発行に入れた。
    園児ごとのコースプラン／ランチ／ロングステイ（延長）／教育関連費などを管理し、請求書に自動反映する。
    データ: enrollOptions = { childId:{plan,material,admission,note} }
    ランチ・ロングステイはここに保存しない。連絡先の通園曜日から毎回出す。 */
@@ -10310,7 +10306,7 @@ function enrMonthly(o){
    これからは、金額を出すところはすべてこの下の関数を通す。 */
 
 /* 金額を出すときの「対象の月」。請求書は翌月ぶんを作るので、
-   生徒情報の月額も、連絡先の一覧も、ご案内メールも、同じ翌月ぶんで出す。
+   「契約とオプション」の月額も、連絡先の一覧も、ご案内メールも、同じ翌月ぶんで出す。
    ここがずれると、メールに書いた額と請求書の額が食い違う。
    請求管理でほかの月を選んでいても、ここは影響を受けないようにしている。 */
 function feeMonthKey(){
@@ -10365,66 +10361,45 @@ function enrPayAllowed(){
   var role=null;
   try{ if(typeof currentRole==='function')role=currentRole(); }catch(e){ role=null; }
   var notIppan=(role==null)?true:(role!=='一般');
-  var ok=(typeof canView==='function')?canView('enroll'):true;
+  /* 生徒情報を請求書発行に入れたので、見てよいかどうかも請求書発行で見る。 */
+  var ok=(typeof canView==='function')?canView('billing'):true;
   return notIppan&&ok;
 }
-function renderEnroll(){
-  var s=$('section[data-page="enroll"]');
-  /* 請求書は翌月ぶんを作るので、この画面の月額も翌月ぶんで出す。
-     ここが今月ぶんのままだと、この画面の金額と請求書の金額が食い違う。 */
-  var kids=enrolled(),mk=feeMonthKey();
+/* ── 契約とオプション（もとの「生徒情報」）─────────────────
+   安田さんの決めで、生徒情報は請求書発行に入れた。お金の話は、この画面ひとつにまとめる。
+   ここに置くのは、コースプラン・ランチ・ロングステイ・教育関連費・特別料金・引落日・
+   お支払い方法・月額。
+   通園曜日だけは連絡先が持ち場なので、ここでは見せるだけにする。
+   持ち場を2つにすると、曜日と契約が食い違うため。 */
+function billContractHTML(kids,mk){
   /* お支払い方法を見てよい人にだけ列を作る。作らなければ、そもそも触れない。 */
   var canPay=enrPayAllowed();
   var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
   var planKeys=Object.keys(P.plans||{});
-  if(!kids.length){s.innerHTML='<div class="empty">在園児が登録されていません</div>';return;}
-  /* 料金設定に単価が入っているか。1つも入っていないと自動計算は0円になる。 */
+  /* 料金設定に単価が1つも入っていないと、自動計算は0円になる。
+     0円のまま出すと「無料」と伝わってしまうので、先に出しておく。 */
   var priceSet=(function(){var t=0;Object.keys(P.plans||{}).forEach(function(k){t+=+P.plans[k]||0;});return t>0;})();
-  /* これまで手で入れていた月額と、自動計算が食い違う園児。
-     黙って自動計算に置き換えると、きょうだい割などで決めた額が消えてしまうので、
-     園長が1人ずつ確かめてから移せるように、ここに出す。 */
-  var gaps=!priceSet?[]:kids.filter(function(c){
-    if(c.feeChecked)return false;
-    if(feeSpecialOf(c)!=null)return false;
-    var old=+(c.feeAmount||0);if(!old)return false;
-    var a=0;try{a=enrMonthly(enrOf(c,mk));}catch(e){a=0;}
-    return a>0&&old!==a;
-  });
-  var gapHTML='';
-  if(!priceSet){
-    gapHTML='<div class="card" style="margin-bottom:14px;border-color:#F3C9C9;"><h3 style="color:#A32D2D;">'+ic('alert')+'料金設定がまだ入っていません</h3>'
-      +'<div style="font-size:12.5px;line-height:1.9;">コースプランの単価が0円のため、自動計算は0円になります。'
-      +'「設定 → 料金設定」で単価を入れてください。<br>'
-      +'入るまでは、連絡先の一覧とご案内メールには、前に手で入れていた月額をそのまま出します（0円で届かないようにするためです）。</div></div>';
-  }else if(gaps.length){
-    gapHTML='<div class="card" style="margin-bottom:14px;border-color:#F3C9C9;"><h3 style="color:#A32D2D;">'+ic('alert')+'これまでの月額と自動計算が違う園児（'+gaps.length+'名）</h3>'
-      +'<div class="muted" style="font-size:12px;line-height:1.9;margin-bottom:10px;">'
-      +'これまでの額は消していません。1人ずつ確かめて、どちらを使うか選んでください。<br>'
-      +'「自動計算にする」＝料金設定から計算した額を使う。<br>'
-      +'「特別料金にする」＝これまでの額を、園で決めた額として残す。</div>'
-      +'<div class="scrollx"><table><thead><tr><th>園児</th><th style="text-align:right;">これまでの月額</th><th style="text-align:right;">自動計算（'+(+mk.split('-')[1])+'月分）</th><th></th></tr></thead><tbody>'
-      +gaps.map(function(c){var a=enrMonthly(enrOf(c,mk));
-        return '<tr><td class="row-name">'+esc(childFullName(c))+'</td>'
-          +'<td style="text-align:right;">'+yen(c.feeAmount)+'</td>'
-          +'<td style="text-align:right;font-weight:600;">'+yen(a)+'</td>'
-          +'<td style="text-align:right;white-space:nowrap;">'
-          +'<button class="btn btn-sm" data-feeauto="'+esc(c.id)+'">自動計算にする</button> '
-          +'<button class="btn btn-sm" data-feekeep="'+esc(c.id)+'">特別料金にする</button></td></tr>';}).join('')
-      +'</tbody></table></div></div>';
-  }
-  /* 説明が4行あって表が下へ押し出されていた。長い説明は「?」（HELP_MORE.enroll）で読める形にし、
-     画面にはいちばん要る1行だけ残す。単価は文章ではなく、その列の見出しの下に数字で出す。 */
-  s.innerHTML=gapHTML+'<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'生徒情報（契約・オプション）</h3>'
-    +'<div class="muted" style="margin-bottom:12px;">月額は、下の内容と料金設定から自動で出ます。きょうだい割など決めた額がある子は、連絡先の「特別料金」へ。</div>'
+  var warn=priceSet?'':'<div class="card" style="margin-bottom:14px;border-color:#F3C9C9;"><h3 style="color:#A32D2D;">'+ic('alert')+'料金設定がまだ入っていません</h3>'
+    +'<div style="font-size:12.5px;line-height:1.9;">コースプランの単価が0円のため、自動計算は0円になります。'
+    +'「設定 → 料金設定」で単価を入れてください。<br>'
+    +'入るまでは、連絡先の一覧とご案内メールには、前に手で入れていた月額をそのまま出します（0円で届かないようにするためです）。</div></div>';
+  if(!kids.length)return warn;
+  return warn+'<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'契約とオプション</h3>'
+    +'<div class="muted" style="margin-bottom:12px;">月額は、下の内容と料金設定から自動で出ます。きょうだい割など決めた額は「特別料金」へ。</div>'
     +'<div class="scrollx"><table class="enrtbl"><thead><tr>'
-      +'<th>園児</th><th style="width:62px;">クラス</th><th style="width:96px;">通園曜日</th><th style="width:104px;">コースプラン</th>'
+      +'<th>園児</th><th style="width:62px;">クラス</th>'
+      /* 通園曜日はここでは直せない。持ち場は連絡先なので、それを見出しに書く */
+      +'<th style="width:104px;">通園曜日<div class="enrunit">連絡先で直す</div></th>'
+      +'<th style="width:104px;">コースプラン</th>'
       /* あり・なしは連絡先の通園曜日から出る。ここでは選べないので、出どころを見出しに書く */
       +'<th style="width:86px;">ランチ<div class="enrunit">'+yen(P.lunch)+'/回</div><div class="enrunit">曜日から</div></th>'
       +'<th style="width:96px;">ロングステイ<div class="enrunit">'+yen(P.extended)+'/回</div><div class="enrunit">曜日から</div></th>'
       +'<th style="width:72px;text-align:center;">教育関連費<div class="enrunit">'+yen(P.material)+'</div></th>'
+      +'<th style="width:88px;">特別料金<div class="enrunit">空欄で自動計算</div></th>'
+      +'<th style="width:60px;">引落日</th>'
       +'<th style="width:108px;text-align:right;">月額<div class="enrunit">'+(+mk.split('-')[1])+'月分</div></th>'
-      +(canPay?'<th style="width:96px;">お支払い</th>':'')+'<th style="width:82px;"></th></tr></thead><tbody>'
-    +kids.map(function(c){var o=enrOf(c,mk),dop=dayOptsOf(c);
+      +(canPay?'<th style="width:96px;">お支払い</th>':'')+'</tr></thead><tbody>'
+    +kids.map(function(c){var o=enrOf(c,mk),dop=dayOptsOf(c),fi=feeInfo(c,mk),sp=feeSpecialOf(c);
       /* あり・なしは通園曜日から決まるので、ここでは選べない。
          選べる欄を残すと、曜日を外した子に「ランチあり」と出したまま、
          先生の画面と厨房へ持っていく用紙まで食い違ってしまう。
@@ -10435,25 +10410,35 @@ function renderEnroll(){
         return '<td><div style="font-size:12.5px;font-weight:600;">あり</div>'
           +'<div class="row-sub" style="font-size:11px;">'+cnt+'回/月</div></td>';
       }
-      return '<tr><td class="row-name">'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td class="row-sub">'+esc(c.days||'—')+'</td>'
-        +'<td><select data-en="'+c.id+'|plan" style="width:92px;">'+planKeys.map(function(k){return '<option'+(k===o.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></td>'
+      return '<tr><td class="row-name">'+esc(childFullName(c))
+        +(c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中</span>':'')
+        +'</td><td>'+esc(c.klass||'')+'</td>'
+        /* 押すと、曜日を直せる場所（連絡先）へ行く。行き先が分からないまま止まらないため */
+        +'<td><button class="btn btn-sm btn-ghost" data-endays="'+esc(c.id)+'" style="font-size:12px;padding:2px 4px;color:var(--teal-d);text-decoration:underline;text-underline-offset:3px;" title="連絡先を開きます">'+esc(c.days||'—')+'</button></td>'
+        +'<td><select data-en="'+c.id+'|plan" style="width:84px;">'+planKeys.map(function(k){return '<option'+(k===o.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></td>'
         +optCell('lunch',o.lunchN)
         +optCell('long',o.extN)
         +'<td style="text-align:center;"><input type="checkbox" data-en="'+c.id+'|material"'+(o.material?' checked':'')+' style="width:auto;"></td>'
-        +(function(){var fi=feeInfo(c,mk);
-          return '<td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;" id="enTot'+c.id+'">'+yen(fi.amount)
-            +(fi.src==='special'?'<div class="row-sub" style="font-size:11px;color:#854F0B;">特別料金</div>':'')
-            +(fi.src==='old'?'<div class="row-sub" style="font-size:11px;color:#A32D2D;">手入力のまま</div>':'')
-            +'</td>';})()
+        +'<td><input type="number" data-enfee="'+esc(c.id)+'" value="'+esc(sp==null?'':sp)+'" placeholder="自動" style="width:82px;padding:8px 8px;"></td>'
+        +'<td><input type="number" min="1" max="31" data-enwd="'+esc(c.id)+'" value="'+esc(c.withdrawDay||27)+'" style="width:54px;padding:8px 6px;"></td>'
+        +'<td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">'+yen(fi.amount)
+          +(fi.src==='special'?'<div class="row-sub" style="font-size:11px;color:#854F0B;">特別料金</div>':'')
+          +(fi.src==='old'?'<div class="row-sub" style="font-size:11px;color:#A32D2D;">手入力のまま</div>':'')
+          +'</td>'
         /* 欄が「支払い方法」の1つだけになったので、別の窓は開かず、この表の中で選ぶ。 */
         +(canPay?(function(){var pm=spGet(c.id).payMethod||'';
           var opts=(SP_PAY[0]&&SP_PAY[0].opts)||['','口座振替','口座振込'];
           return '<td><select data-enpay="'+esc(c.id)+'" style="width:92px;">'
             +opts.map(function(op){return '<option value="'+esc(op)+'"'+(String(pm)===op?' selected':'')+'>'+esc(op||'未設定')+'</option>';}).join('')
             +'</select></td>';})():'')
-        +'<td><button class="btn btn-sm" data-eninv="'+esc(c.id)+'">'+ic('yen')+'請求書</button></td></tr>';}).join('')
+        +'</tr>';}).join('')
     +'</tbody></table></div>'
-    +'</div>';
+    +'<div class="muted" style="font-size:11.5px;line-height:1.9;margin-top:8px;">'
+    +'この月の請求書をもう作ってある子は、ここを直しても、その請求書の金額は変わりません。<br>'
+    +'ランチ・ロングステイの回数は、連絡先の通園曜日から出ます。この表では選べません。'
+    +'</div></div>';
+}
+function billContractBind(s,kids,mk){
   s.querySelectorAll('[data-en]').forEach(function(el){
     el.onchange=function(){
       var p=el.getAttribute('data-en').split('|'),id=+p[0],key=p[1];
@@ -10464,46 +10449,48 @@ function renderEnroll(){
       /* 契約が変わったら、連絡先に写してある月額も書き直す。
          写さないと、請求書は新しいのにご案内メールだけ古い額で届いてしまう。 */
       try{feeSyncContact(id);}catch(e){}
-      renderEnroll();
+      renderBilling();
     };
   });
-  s.querySelectorAll('[data-eninv]').forEach(function(b){b.onclick=function(){
-    var id=+b.getAttribute('data-eninv');
-    go('billing');setTimeout(function(){invModal(invMonthCur(),id);},60);
+  /* 通園曜日の持ち場は連絡先。ここは、その場所へ連れていくだけ。 */
+  s.querySelectorAll('[data-endays]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-endays');
+    go('contacts');setTimeout(function(){contactModal(id);},60);
+  };});
+  /* 特別料金（きょうだい割など、園が決めた額）。
+     空欄は「決めていない」。0 は「0円と決めた」なので、空欄とは分けて残す。 */
+  s.querySelectorAll('[data-enfee]').forEach(function(inp){inp.onchange=function(){
+    var id=+inp.getAttribute('data-enfee');
+    var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
+    var v=String(inp.value).replace(/[\s　]/g,'');
+    c.specialFee=(v==='')?'':(+v||0);
+    /* 実際に使う額を連絡先にも写す。ご案内メールなど、ここを読む場所があるため。 */
+    /* 写す額は、連絡先の一覧やご案内メールと同じ「翌月ぶん」でそろえる。
+       この画面で先の月を選んでいても、そこはずらさない。 */
+    c.feeChecked=true;c.feeAmount=feeUse(c);
+    DB.contacts=arr;renderBilling();
+  };});
+  /* 引落日。金額は変わらないので、画面は作り直さない（打っている途中で飛ばないため）。 */
+  s.querySelectorAll('[data-enwd]').forEach(function(inp){inp.onchange=function(){
+    var id=+inp.getAttribute('data-enwd');
+    var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
+    var v=+inp.value||0;
+    if(v<1||v>31){alert('引落日は 1〜31 で入れてください。');inp.value=c.withdrawDay||27;return;}
+    c.withdrawDay=v;DB.contacts=arr;
   };});
   s.querySelectorAll('[data-enpay]').forEach(function(sel){sel.onchange=function(){
     /* 画面を作るときだけで守っていると、ほかから触られたときに素通りする。
        保存の直前にも、もう一度だけ役職を確かめる。 */
-    if(!enrPayAllowed()){alert('お支払い方法は、園長・マネージャー・管理者だけが変えられます。');renderEnroll();return;}
+    if(!enrPayAllowed()){alert('お支払い方法は、園長・マネージャー・管理者だけが変えられます。');renderBilling();return;}
     var id=+sel.getAttribute('data-enpay');
     var obj=spGet(id);obj.payMethod=sel.value;spSet(id,obj);
   };});
-  /* これまでの月額を、自動計算に合わせる */
-  s.querySelectorAll('[data-feeauto]').forEach(function(b){b.onclick=function(){
-    var id=+b.getAttribute('data-feeauto');
-    var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
-    var a=0;try{a=enrMonthly(enrOf(c,mk));}catch(e){a=0;}
-    if(!confirm(childFullName(c)+' さんの月額を、自動計算の '+yen(a)+' にします。\n\n'
-      +'これまでの '+yen(c.feeAmount)+' は使わなくなります。よろしいですか？'))return;
-    c.specialFee='';c.feeChecked=true;c.feeAmount=feeUse(c,mk);
-    DB.contacts=arr;renderEnroll();
-  };});
-  /* これまでの月額を、特別料金として残す */
-  s.querySelectorAll('[data-feekeep]').forEach(function(b){b.onclick=function(){
-    var id=+b.getAttribute('data-feekeep');
-    var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
-    var v=+(c.feeAmount||0);
-    if(!confirm(childFullName(c)+' さんの '+yen(v)+' を、特別料金として残します。\n\n'
-      +'これからも、この額で請求します。よろしいですか？'))return;
-    c.specialFee=v;c.feeChecked=true;c.feeAmount=v;
-    DB.contacts=arr;renderEnroll();
-  };});
 }
 /* お支払いの別窓（enrPayModal）は、欄が「支払い方法」の1つだけになったのでやめた。
-   いまは生徒情報（契約・オプション）の表の中で、そのまま選ぶ。 */
+   いまは請求書発行の「契約とオプション」の表の中で、そのまま選ぶ。 */
 
 /* ========== 請求書発行（作成 → 発行 → 送付 → 入金確認を一本の流れで） ==========
-   金額は「生徒情報（契約・オプション）」＋「設定→料金設定」から自動計算。月ごとに個別調整も可能。
+   金額は上の「契約とオプション」＋「設定→料金設定」から自動計算。月ごとに個別調整も可能。
    データ: invoices = { 'YYYY-MM': { childId:{plan,lunchN,extN,material,admission,discount,discountNote,due,status,issuedAt,sentAt,paidAt,total} } } */
 var invMonth=null,INV_STATUS=['未発行','発行済','送付済','入金済'];
 function invStatusColor(s){return {'未発行':{bg:'#F1EFE8',fg:'#5F5E5A'},'発行済':{bg:'#E6F1FB',fg:'#123E6B'},'送付済':{bg:'#FAEEDA',fg:'#854F0B'},'入金済':{bg:'#EAF3DE',fg:'#27500A'}}[s]||{bg:'#F1EFE8',fg:'#5F5E5A'};}
@@ -10593,12 +10580,15 @@ function renderBilling(){
      ただし混ざっていることが分かるよう、人数を上の札に出す。 */
   var pausedN=rows.filter(function(x){return !!x.c.paused;}).length;
   var P=SET.pricing||{};
-  s.innerHTML='<div class="card" style="margin-bottom:14px;">'+recHead('請求書発行（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
+  /* 上が契約とオプション（もとの生徒情報）、下が請求書の一覧と作成。
+     お金の話を1つの画面にまとめる、という安田さんの決め。 */
+  s.innerHTML=billContractHTML(kids,mk)
+    +'<div class="card" style="margin-bottom:14px;">'+recHead('請求書発行（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
       '<input type="month" id="ivMonth" value="'+esc(mk)+'" style="width:160px;">'
       +'<button class="btn btn-sm" id="ivIssueAll">'+ic('check')+'一括で発行</button>'
       +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'発行済をまとめて送付</button>'
       +'<button class="btn btn-sm" id="ivPrintAll">'+ic('printer')+'全員分を印刷</button>')
-    +'<div class="muted" style="margin-bottom:10px;">金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動で出ます。休園中の園児も一覧に出ます。金額は「明細」で決められます。</div>'
+    +'<div class="muted" style="margin-bottom:10px;">金額は、上の「契約とオプション」と「設定 → 料金設定」から自動で出ます。休園中の園児も一覧に出ます。金額は「明細」で決められます。</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
     +(pausedN?'<span class="tag" style="background:#F1EFE8;color:#5B6875;" title="休園中の園児も請求書を作れます">休園中 '+pausedN+'名</span>':'')
     +'<span style="flex:1;"></span><span style="font-weight:700;font-size:15px;">今月の請求合計 '+yen(sum)+'</span></div></div>'
@@ -10652,6 +10642,8 @@ function renderBilling(){
     if(!confirm(childFullName(c)+'の保護者へ請求書を送付します。よろしいですか？'))return;invSend(mk,c,r);renderBilling();};});
   s.querySelectorAll('[data-ivpaid]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivpaid'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);r.status='入金済';r.paidAt=todayISO();invSaveRow(mk,id,r);renderBilling();};});
   s.querySelectorAll('[data-ivprint]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivprint'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);printDoc('保育料 請求書（'+mk+'・'+childFullName(c)+'）',invHTML(mk,c,r));};});
+  /* 上の「契約とオプション」の欄を動くようにする */
+  billContractBind(s,kids,mk);
 }
 function invModal(mk,id){
   var c=enrolled().filter(function(x){return x.id===id;})[0];if(!c)return;
@@ -10679,7 +10671,7 @@ function invModal(mk,id){
         +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_adm" style="width:auto;"'+(r.admission?' checked':'')+'>入園金（初回）</label></div>'
       +'<div class="field"><label>特別料金（この月だけ）</label>'
         +'<input type="number" id="im_special" value="'+esc((r.special==null?'':r.special))+'" placeholder="空欄＝プラン・ランチ・ロングステイから自動計算">'
-        +'<div class="muted" style="font-size:11.5px;line-height:1.8;margin-top:4px;">連絡先の「特別料金」が入っている園児は、ここに入った状態で開きます。'
+        +'<div class="muted" style="font-size:11.5px;line-height:1.8;margin-top:4px;">上の「契約とオプション」で特別料金が入っている園児は、ここに入った状態で開きます。'
         +'入っているときは、プラン・教育関連費・ランチ・ロングステイのかわりに、この額ひとつで請求します（入園金・その他の項目・割引は別に足し引きします）。</div></div>'
       +'<div class="grid" style="grid-template-columns:1fr 2fr;">'
         +'<div class="field"><label>割引額</label><input type="number" min="0" id="im_disc" value="'+esc((+r.discount||0))+'"></div>'
@@ -11392,22 +11384,84 @@ function renderFacility(){
    画面は月のカレンダー＋題名だけの一覧（押すと説明が開く）で見せる。
    データ: taskDone = { 'YYYY-MM|タスク名': true }（終わった印。これまでのままで変えていない）
          taskDay  = { 'YYYY-MM|タスク名': 日 }（園で決めたやる日。決めたものだけ入る新しい記録） */
-var ANNUAL_TASKS=[{"name": "避難訓練（火災・地震）", "month": "毎月", "when": "各月に必ず1回。実施日は月の初めに決め、記録は月内に仕上げる", "page": "避難訓練", "why": "児童福祉施設の設備及び運営に関する基準では、避難及び消火の訓練を少なくとも毎月1回行うこととされている。指導監査では、回数のほか、想定する災害が偏っていないか、記録に日時・参加児童数・避難に要した時間・反省点が書かれているかが見られる。"}, {"name": "消防用設備等の自主点検", "month": "毎月", "when": "消火器、誘導灯、避難経路のふさがりを目で確かめ、月内に済ませる", "page": "研修・訓練", "why": "消防法上、防火管理者の業務には日々の火気の管理と設備の維持が含まれる。資格者による法定点検とは別に、毎月の自主点検の記録を残しておくと、消防の査察や監査のときに管理の実態を示す裏づけになる。"}, {"name": "身体測定", "month": "毎月", "when": "月内の決まった週（たとえば第1週）に、全員分を測る", "page": "身体測定", "why": "発育の様子を続けてつかみ、健康管理に生かすため。測定値は健康の記録として保管し、監査では記録が途切れていないか、保護者へ伝えているかが見られる。"}, {"name": "月案の作成", "month": "毎月", "when": "翌月分を、前の月の末までに用意する", "page": "月間カリキュラム", "why": "保育所保育指針では、全体的な計画に沿って指導計画を立てることとされている。計画と日誌の記録が食い違っていないかは、指導監査で最初に見られるところ。"}, {"name": "月末のふりかえり", "month": "毎月", "when": "その月の末に、計画の評価と反省を書き入れる", "page": "月間カリキュラム", "why": "保育所保育指針では、立てた指導計画について自己評価を行うこととされている。ふりかえりの記録は次の月の計画のよりどころになり、指導監査でも計画とあわせて見られる。"}, {"name": "登降園の締めと在籍数の確定", "month": "毎月", "when": "月が替わって3営業日ほどで前の月分を締め、請求を出す前に数字を固める", "page": "登園（出席）", "why": "施設型給付費や委託費などを計算する根拠になる。出席簿と請求の中身が合っていないと、過って請求したものとして返還を求められることがあるため、締めと突き合わせは欠かせない。"}, {"name": "出勤簿の月締め", "month": "毎月", "when": "月の終わりから翌月の初めにかけて、給与計算の締め日に合わせて固める", "page": "出勤簿", "why": "職員の配置基準を満たしていたことを示す客観的な資料になる。常勤換算の計算や処遇改善等加算の要件を確かめる際にも、勤務実績と賃金台帳が合っているかが見られる。"}, {"name": "翌月のシフト作成", "month": "毎月", "when": "前の月の中頃から下旬までに決め、職員へ知らせる", "page": "シフト表", "why": "開所している間はいつでも、年齢ごとの職員配置基準を満たしていなければならない。基準を欠くことは指導監査で重く見られるため、シフト表は事前に基準を満たせるか確かめるための資料になる。"}, {"name": "公費請求と保育料の徴収", "month": "毎月", "when": "自治体が決めた締切（多くは月の初め）まで。保護者への請求も同じ時期に行う", "page": "請求書発行", "why": "在籍と出席の状況に応じた公費の請求、保護者から受け取る保育料や実費の処理を適正に行う必要がある。徴収の根拠（重要事項説明書と同意）と実際に受け取った額が合っているかは、会計監査で確かめられる。"}, {"name": "経費・小口現金の月締め", "month": "毎月", "when": "月末で締め、翌月10日ごろまでに帳簿へ反映させる", "page": "経費管理", "why": "会計基準にそった経理処理が求められる。領収書などの証憑と帳簿・預金の残高が合っているか、お金の使いみちが適正かが、会計監査と指導監査の双方で確かめられる。"}, {"name": "ヒヤリハット・事故のとりまとめ", "month": "毎月", "when": "月末の職員会議までにまとめ、決めた対策を書き残す", "page": "書類作成", "why": "重大事故の防止に関するガイドラインでは、事故やヒヤリハットの事例を集めて分析し、園として改善していくことが求められている。積み重ねた記録と改善の履歴が、安全管理の体制が実際に働いていることを示す資料になる。"}, {"name": "調理職員の検便", "month": "毎月", "when": "月に1回。検査機関の集荷日に合わせて出す", "page": "職員管理", "why": "大量調理施設衛生管理マニュアルなどにそった調理従事者の衛生管理として、定期的な検便が求められる。実施した記録は保健所の指導や監査で確かめられる。"}, {"name": "年間計画・行事計画の作成", "month": "4月", "when": "3月のうちに案を用意し、4月の初めまでに決める", "page": "月間カリキュラム", "why": "保育所保育指針では、全体的な計画と、それにもとづく各指導計画を作ることとされている。年間の計画が整っていない、あるいは月案と合っていない場合は監査で指摘を受ける。"}, {"name": "職員名簿・資格証・契約書の更新", "month": "4月", "when": "年度の初めに行う。新しく採る職員の書類は、着任の前までにそろえる", "page": "職員管理", "why": "職員の配置基準と資格の要件を満たしているかを確かめるため。保育士証などの資格証の写し、雇用契約書、履歴書、健康診断の結果は、指導監査で必ず出すよう求められる基本の書類。"}, {"name": "児童票・緊急連絡先・健康情報の更新", "month": "4月", "when": "新しく入る子は入園の前に、在園の子は年度初めにまとめて新しくする", "page": "生徒個人発達記録", "why": "入園時の重要事項の説明と同意、子どもと家庭の状況の把握は運営基準上の要件。緊急時の対応やアレルギー対応の前提になる情報であり、監査では内容が最新かどうかが確かめられる。"}, {"name": "処遇改善等加算の計画書提出", "month": "4月", "when": "自治体が示す年度当初の提出期限まで", "page": "提出書類ナビ", "why": "加算を受けるには、賃金の改善計画をあらかじめ出しておくことが要件になる。計画と実績が離れていると返還の対象になり得るため、計算の根拠になる賃金のデータを整えておく。"}, {"name": "決算・事業報告", "month": "5月", "when": "年度が終わったあと、所轄庁が定める提出期限に間に合うようにまとめる", "page": "経費管理", "why": "運営する法人は毎年度、計算書類と事業報告を作り、監事の監査や理事会など所定の機関の承認を経て所轄庁へ出す必要がある（手続きは法人の種類により異なる）。会計監査の中心になる資料であり、期限に遅れると指導事項になる。"}, {"name": "現況報告書の提出", "month": "6月", "when": "前年度の実績をまとめ、所轄庁が示す提出期限までに出す", "page": "提出書類ナビ", "why": "法人と施設の運営の状況を所轄庁へ知らせる、年に一度の義務。内容は公表されることもあり、出していない、書き漏れがあるといった場合は指導監査での指摘につながる。"}, {"name": "園児の定期健康診断", "month": "6月", "when": "年度の前半に1回、後半にもう1回（回数は施設の定めによる）", "page": "健康チェック", "why": "学校保健安全法に準じた定期健康診断の実施と、嘱託医を置くことが求められる。実施の記録、結果を保護者へ知らせたこと、経過を見る必要がある子への対応の記録が監査で確かめられる。"}, {"name": "職員の定期健康診断", "month": "6月", "when": "1年に1回行う。雇入時の健診は、採用のときに別に行う", "page": "職員管理", "why": "労働安全衛生法にもとづく事業者の義務。実施の記録と結果の保管の状況は、労働基準監督署の調査でも指導監査でも確かめられる。"}, {"name": "プール開始前の安全確認", "month": "7月", "when": "始める2週間前までに、計画と見守り担当の配置を決め、職員へ知らせる", "page": "安全点検", "why": "水遊び中の溺れは重大事故に直結するため、見守りだけを行う職員を置くこと、事前に安全計画を立てること、緊急時の手順を確かめておくことがガイドラインで求められている。実施した記録も残す。"}, {"name": "発達の記録（期ごと）", "month": "4月・7月・10月・1月", "when": "期の終わりまでに担任が書き、主任と園長が目を通す", "page": "生徒個人発達記録", "why": "3歳未満の子などについては、個別の指導計画と、定期的な発達の記録が求められる。記録が数か月抜けている、全員分そろっていないという状態は、監査で指摘されやすい。"}, {"name": "消防用設備等の法定点検・報告", "month": "9月", "when": "機器点検と総合点検を年間の予定にそって行い、報告は消防署が示す期限までに出す", "page": "研修・訓練", "why": "消防法により、資格を持つ者による点検と、その結果を消防機関へ報告することが義務づけられている。行っていない、報告していないと是正の指導を受け、監査でも点検結果報告書を保管しているかが確かめられる。"}, {"name": "年末調整の事務", "month": "12月", "when": "11月のうちに申告書を集め、12月の給与を支払うまでに処理を終える", "page": "職員管理", "why": "給与を支払う者に課された税務上の義務。賃金台帳や源泉徴収簿を整えておくと、処遇改善などの実績報告で賃金の水準を示すときの基礎資料にもなる。"}, {"name": "自己評価と公表", "month": "2月", "when": "年度が終わるまでに、職員一人ひとりの自己評価を集め、施設としての評価にまとめる", "page": "書類作成", "why": "保育所保育指針では、保育士等の自己評価と、保育所としての自己評価を行い、その結果を公表するよう努めることとされている。実施の記録と、どのように公表したかが監査で確かめられる。"}, {"name": "保育所児童保育要録の作成と送付", "month": "3月", "when": "卒園する子について3月のうちに作り、進学先へ送る", "page": "生徒個人発達記録", "why": "小学校へなめらかにつなぐため、指針にもとづき最終年度の記録を作り、進学先へ送ることとされている。作成と送付の記録、および写しの保管が必要。"}, {"name": "翌年度の事業計画・予算", "month": "3月", "when": "年度が始まる前の3月のうちに、理事会など所定の機関の承認を得て決める", "page": "書類作成", "why": "翌年度の運営体制、職員の配置、行事、研修の計画のよりどころになる基本の文書。定められた手続き（理事会・評議員会など、法人の種類に応じた機関）を経て決めたことがわかる記録が、法人の監査で確かめられる。"}];
-var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'生徒個人発達記録':['carerec','生徒個人発達記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'月間カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
+var ANNUAL_TASKS_BASE=[{"name": "避難訓練", "month": "毎月", "when": "各月に必ず1回。実施日は月の初めに決め、記録は月内に仕上げる", "page": "避難訓練", "why": "児童福祉施設の設備及び運営に関する基準では、避難及び消火の訓練を少なくとも毎月1回行うこととされている。指導監査では、回数のほか、想定する災害が偏っていないか、記録に日時・参加児童数・避難に要した時間・反省点が書かれているかが見られる。"}, {"name": "消防用設備等の自主点検", "month": "毎月", "when": "消火器、誘導灯、避難経路のふさがりを目で確かめ、月内に済ませる", "page": "研修・訓練", "why": "消防法上、防火管理者の業務には日々の火気の管理と設備の維持が含まれる。資格者による法定点検とは別に、毎月の自主点検の記録を残しておくと、消防の査察や監査のときに管理の実態を示す裏づけになる。"}, {"name": "身体測定", "month": "毎月", "when": "月内の決まった週（たとえば第1週）に、全員分を測る", "page": "身体測定", "why": "発育の様子を続けてつかみ、健康管理に生かすため。測定値は健康の記録として保管し、監査では記録が途切れていないか、保護者へ伝えているかが見られる。"}, {"name": "月案の作成", "month": "毎月", "when": "翌月分を、前の月の末までに用意する", "page": "カリキュラム", "why": "保育所保育指針では、全体的な計画に沿って指導計画を立てることとされている。計画と日誌の記録が食い違っていないかは、指導監査で最初に見られるところ。"}, {"name": "月末のふりかえり", "month": "毎月", "when": "その月の末に、計画の評価と反省を書き入れる", "page": "カリキュラム", "why": "保育所保育指針では、立てた指導計画について自己評価を行うこととされている。ふりかえりの記録は次の月の計画のよりどころになり、指導監査でも計画とあわせて見られる。"}, {"name": "登降園の締めと在籍数の確定", "month": "毎月", "when": "月が替わって3営業日ほどで前の月分を締め、請求を出す前に数字を固める", "page": "登園（出席）", "why": "施設型給付費や委託費などを計算する根拠になる。出席簿と請求の中身が合っていないと、過って請求したものとして返還を求められることがあるため、締めと突き合わせは欠かせない。"}, {"name": "出勤簿の月締め", "month": "毎月", "when": "月の終わりから翌月の初めにかけて、給与計算の締め日に合わせて固める", "page": "出勤簿", "why": "職員の配置基準を満たしていたことを示す客観的な資料になる。常勤換算の計算や処遇改善等加算の要件を確かめる際にも、勤務実績と賃金台帳が合っているかが見られる。"}, {"name": "翌月のシフト作成", "month": "毎月", "when": "前の月の中頃から下旬までに決め、職員へ知らせる", "page": "シフト表", "why": "開所している間はいつでも、年齢ごとの職員配置基準を満たしていなければならない。基準を欠くことは指導監査で重く見られるため、シフト表は事前に基準を満たせるか確かめるための資料になる。"}, {"name": "保育料請求書の作成", "month": "毎月", "when": "自治体が決めた締切（多くは月の初め）まで。保護者への請求も同じ時期に行う", "page": "請求書発行", "why": "在籍と出席の状況に応じた公費の請求、保護者から受け取る保育料や実費の処理を適正に行う必要がある。徴収の根拠（重要事項説明書と同意）と実際に受け取った額が合っているかは、会計監査で確かめられる。"}, {"name": "経費・小口現金の月締め", "month": "毎月", "when": "月末で締め、翌月10日ごろまでに帳簿へ反映させる", "page": "経費管理", "why": "会計基準にそった経理処理が求められる。領収書などの証憑と帳簿・預金の残高が合っているか、お金の使いみちが適正かが、会計監査と指導監査の双方で確かめられる。"}, {"name": "ヒヤリハット・事故のとりまとめ", "month": "毎月", "when": "月末の職員会議までにまとめ、決めた対策を書き残す", "page": "書類作成", "why": "重大事故の防止に関するガイドラインでは、事故やヒヤリハットの事例を集めて分析し、園として改善していくことが求められている。積み重ねた記録と改善の履歴が、安全管理の体制が実際に働いていることを示す資料になる。"}, {"name": "調理職員の検便", "month": "毎月", "when": "月に1回。検査機関の集荷日に合わせて出す", "page": "職員管理", "why": "大量調理施設衛生管理マニュアルなどにそった調理従事者の衛生管理として、定期的な検便が求められる。実施した記録は保健所の指導や監査で確かめられる。"}, {"name": "年間計画・行事計画の作成", "month": "4月", "when": "3月のうちに案を用意し、4月の初めまでに決める", "page": "カリキュラム", "why": "保育所保育指針では、全体的な計画と、それにもとづく各指導計画を作ることとされている。年間の計画が整っていない、あるいは月案と合っていない場合は監査で指摘を受ける。"}, {"name": "職員名簿・資格証・契約書の更新", "month": "4月", "when": "年度の初めに行う。新しく採る職員の書類は、着任の前までにそろえる", "page": "職員管理", "why": "職員の配置基準と資格の要件を満たしているかを確かめるため。保育士証などの資格証の写し、雇用契約書、履歴書、健康診断の結果は、指導監査で必ず出すよう求められる基本の書類。"}, {"name": "児童票・緊急連絡先・健康情報の更新", "month": "4月", "when": "新しく入る子は入園の前に、在園の子は年度初めにまとめて新しくする", "page": "生徒個人発達記録", "why": "入園時の重要事項の説明と同意、子どもと家庭の状況の把握は運営基準上の要件。緊急時の対応やアレルギー対応の前提になる情報であり、監査では内容が最新かどうかが確かめられる。"}, {"name": "処遇改善等加算の計画書提出", "month": "4月", "when": "自治体が示す年度当初の提出期限まで", "page": "提出書類ナビ", "why": "加算を受けるには、賃金の改善計画をあらかじめ出しておくことが要件になる。計画と実績が離れていると返還の対象になり得るため、計算の根拠になる賃金のデータを整えておく。"}, {"name": "決算・事業報告", "month": "5月", "when": "年度が終わったあと、所轄庁が定める提出期限に間に合うようにまとめる", "page": "経費管理", "why": "運営する法人は毎年度、計算書類と事業報告を作り、監事の監査や理事会など所定の機関の承認を経て所轄庁へ出す必要がある（手続きは法人の種類により異なる）。会計監査の中心になる資料であり、期限に遅れると指導事項になる。"}, {"name": "現況報告書の提出", "month": "6月", "when": "前年度の実績をまとめ、所轄庁が示す提出期限までに出す", "page": "提出書類ナビ", "why": "法人と施設の運営の状況を所轄庁へ知らせる、年に一度の義務。内容は公表されることもあり、出していない、書き漏れがあるといった場合は指導監査での指摘につながる。"}, {"name": "園児の定期健康診断", "month": "6月", "when": "年度の前半に1回、後半にもう1回（回数は施設の定めによる）", "page": "健康チェック", "why": "学校保健安全法に準じた定期健康診断の実施と、嘱託医を置くことが求められる。実施の記録、結果を保護者へ知らせたこと、経過を見る必要がある子への対応の記録が監査で確かめられる。"}, {"name": "職員の定期健康診断", "month": "6月", "when": "1年に1回行う。雇入時の健診は、採用のときに別に行う", "page": "職員管理", "why": "労働安全衛生法にもとづく事業者の義務。実施の記録と結果の保管の状況は、労働基準監督署の調査でも指導監査でも確かめられる。"}, {"name": "プール開始前の安全確認", "month": "7月", "when": "始める2週間前までに、計画と見守り担当の配置を決め、職員へ知らせる", "page": "安全点検", "why": "水遊び中の溺れは重大事故に直結するため、見守りだけを行う職員を置くこと、事前に安全計画を立てること、緊急時の手順を確かめておくことがガイドラインで求められている。実施した記録も残す。"}, {"name": "発達の記録", "month": "4月・7月・10月・1月", "when": "期の終わりまでに担任が書き、主任と園長が目を通す", "page": "生徒個人発達記録", "why": "3歳未満の子などについては、個別の指導計画と、定期的な発達の記録が求められる。記録が数か月抜けている、全員分そろっていないという状態は、監査で指摘されやすい。"}, {"name": "消防用設備等の法定点検・報告", "month": "9月", "when": "機器点検と総合点検を年間の予定にそって行い、報告は消防署が示す期限までに出す", "page": "研修・訓練", "why": "消防法により、資格を持つ者による点検と、その結果を消防機関へ報告することが義務づけられている。行っていない、報告していないと是正の指導を受け、監査でも点検結果報告書を保管しているかが確かめられる。"}, {"name": "年末調整の事務", "month": "12月", "when": "11月のうちに申告書を集め、12月の給与を支払うまでに処理を終える", "page": "職員管理", "why": "給与を支払う者に課された税務上の義務。賃金台帳や源泉徴収簿を整えておくと、処遇改善などの実績報告で賃金の水準を示すときの基礎資料にもなる。"}, {"name": "自己評価と公表", "month": "2月", "when": "年度が終わるまでに、職員一人ひとりの自己評価を集め、施設としての評価にまとめる", "page": "書類作成", "why": "保育所保育指針では、保育士等の自己評価と、保育所としての自己評価を行い、その結果を公表するよう努めることとされている。実施の記録と、どのように公表したかが監査で確かめられる。"}, {"name": "保育所児童保育要録の作成と送付", "month": "3月", "when": "卒園する子について3月のうちに作り、進学先へ送る", "page": "生徒個人発達記録", "why": "小学校へなめらかにつなぐため、指針にもとづき最終年度の記録を作り、進学先へ送ることとされている。作成と送付の記録、および写しの保管が必要。"}, {"name": "翌年度の事業計画・予算", "month": "3月", "when": "年度が始まる前の3月のうちに、理事会など所定の機関の承認を得て決める", "page": "書類作成", "why": "翌年度の運営体制、職員の配置、行事、研修の計画のよりどころになる基本の文書。定められた手続き（理事会・評議員会など、法人の種類に応じた機関）を経て決めたことがわかる記録が、法人の監査で確かめられる。"}];
+/* ========== 園ごとに やることを 足す・消す ==========
+   やることは園によって違う。外部搬入で給食を作らない園に検便は要らないし、
+   プールをやらない園にプール前の確認は要らない。
+   ただし、法令ではっきり決まっているものまで消せてしまうと監査で困るので、
+   下の一覧に入れたものだけは消せないようにしている。 */
+var TASK_REQUIRED=['避難訓練','消防用設備等の法定点検・報告','出勤簿の月締め','職員の定期健康診断','園児の定期健康診断','児童票・緊急連絡先・健康情報の更新','年間計画・行事計画の作成','保育所児童保育要録の作成と送付','発達の記録','年末調整の事務'];
+/* 消せない理由。「なぜ消せないのか」が分からないと、園は不信に思うため */
+var TASK_REQ_WHY={
+ '避難訓練':'児童福祉施設の設備及び運営に関する基準（毎月1回以上）',
+ '消防用設備等の法定点検・報告':'消防法（点検と消防署への報告）',
+ '出勤簿の月締め':'労働基準法（賃金台帳・労働時間の把握）',
+ '職員の定期健康診断':'労働安全衛生法（年1回以上）',
+ '園児の定期健康診断':'児童福祉施設の設備及び運営に関する基準（年2回）',
+ '児童票・緊急連絡先・健康情報の更新':'児童福祉施設の設備及び運営に関する基準（記録の備付け）',
+ '年間計画・行事計画の作成':'保育所保育指針（全体的な計画）',
+ '保育所児童保育要録の作成と送付':'保育所保育指針（小学校への送付）',
+ '発達の記録':'保育所保育指針（一人ひとりの育ちの記録）',
+ '年末調整の事務':'所得税法'};
+function taskRequired(n){return TASK_REQUIRED.indexOf(n)>-1;}
+function taskIsArr(a){return Object.prototype.toString.call(a)==='[object Array]';}
+function taskHideAll(){var a=stGet('taskHide',[]);return taskIsArr(a)?a:[];}
+function taskAddAll(){var a=stGet('taskAdd',[]);return taskIsArr(a)?a:[];}
+/* いま出す一覧＝もとの一覧から園が消したものを外し、園が足したものを後ろに付ける */
+function taskBuild(){
+  var hide=taskHideAll(),out=[],i,t;
+  for(i=0;i<ANNUAL_TASKS_BASE.length;i++){
+    t=ANNUAL_TASKS_BASE[i];
+    if(taskRequired(t.name)||hide.indexOf(t.name)<0)out.push(t);
+  }
+  var ad=taskAddAll();
+  for(i=0;i<ad.length;i++){
+    t=ad[i];
+    out.push({name:t.name,month:t.month||'毎月',when:t.when||'',page:t.page||'',why:t.why||'',own:true});
+  }
+  return out;
+}
+var ANNUAL_TASKS=taskBuild();
+function taskHideSet(name,v){
+  if(taskRequired(name))return;
+  var a=taskHideAll(),i=a.indexOf(name);
+  if(v){if(i<0)a.push(name);}else if(i>-1)a.splice(i,1);
+  stSet('taskHide',a);ANNUAL_TASKS=taskBuild();
+}
+function taskAddNew(t){var a=taskAddAll();a.push(t);stSet('taskAdd',a);ANNUAL_TASKS=taskBuild();}
+function taskAddDel(name){var a=taskAddAll(),i;
+  for(i=a.length-1;i>=0;i--){if(a[i].name===name)a.splice(i,1);}
+  stSet('taskAdd',a);ANNUAL_TASKS=taskBuild();}
+/* 名前がぶつかると「済」の鍵もぶつかるので、足すときに確かめる */
+function taskNameUsed(n){var i;
+  for(i=0;i<ANNUAL_TASKS.length;i++){if(ANNUAL_TASKS[i].name===n)return true;}
+  return false;}
+var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'生徒個人発達記録':['carerec','生徒個人発達記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
 function taskDoneAll(){return stGet('taskDone',{});}
 function taskKey(mk,name){return mk+'|'+name;}
 /* 「済」や「やる日」は題名を鍵にして保存している。題名を短くしたので、
    短くする前の題名で保存されたものも読めるようにしておく（新→旧の対応表）。
    これを入れておかないと、これまでに付けた「済」が消えてしまう。 */
-var TASK_OLD_NAME={"ヒヤリハット・事故のとりまとめ": "ヒヤリハットと事故報告のとりまとめ、再発防止の話し合い", "児童票・緊急連絡先・健康情報の更新": "児童票、緊急連絡先、アレルギー・既往歴の年に一度の更新", "プール開始前の安全確認": "プール・水遊びを始める前の安全計画と見守り体制の確認", "発達の記録（期ごと）": "一人ひとりの発達の記録（経過記録）を期ごとにまとめる", "公費請求と保育料の徴収": "公費（給付費・委託費）の請求と、保育料・実費の徴収", "翌月のシフト作成": "翌月の勤務割（シフト）づくりと、配置基準の確かめ", "年間計画・行事計画の作成": "全体的な計画、年間の指導計画・行事計画をそろえる", "職員名簿・資格証・契約書の更新": "職員名簿・資格証の写し・雇用契約書の点検と更新", "保育所児童保育要録の作成と送付": "保育所児童保育要録を作り、進学先の小学校へ送る", "消防用設備等の法定点検・報告": "消防用設備等の法定点検と、消防署への結果報告", "消防用設備等の自主点検": "消防用設備等を職員の目で確かめる自主点検", "登降園の締めと在籍数の確定": "登園・降園の記録の締めと、在籍人数の確定", "経費・小口現金の月締め": "経費と小口現金の月締め、領収書などの整理", "処遇改善等加算の計画書提出": "処遇改善等加算にかかる計画書の作成と提出", "避難訓練（火災・地震）": "火災・地震を想定した避難訓練とその記録", "調理職員の検便": "調理に関わる職員の検便（腸内細菌検査）", "決算・事業報告": "決算と事業報告の作成、承認を得る手続き", "現況報告書の提出": "現況報告書（運営状況の報告）の提出", "自己評価と公表": "園としての自己評価と、その結果の公表", "園児の定期健康診断": "嘱託医による在園児の定期健康診断", "翌年度の事業計画・予算": "翌年度の事業計画と予算を決める", "身体測定": "在園児の身長・体重の測定", "出勤簿の月締め": "出勤簿と勤務実績の月締め", "職員の定期健康診断": "働く職員の定期健康診断", "月案の作成": "月案（月間指導計画）の作成と、月末のふりかえり", "月末のふりかえり": "月案（月間指導計画）の作成と、月末のふりかえり"};
-function taskOldKey(mk,name){var o=TASK_OLD_NAME[name];return o?taskKey(mk,o):null;}
+var TASK_OLD_NAME={"ヒヤリハット・事故のとりまとめ": "ヒヤリハットと事故報告のとりまとめ、再発防止の話し合い", "児童票・緊急連絡先・健康情報の更新": "児童票、緊急連絡先、アレルギー・既往歴の年に一度の更新", "プール開始前の安全確認": "プール・水遊びを始める前の安全計画と見守り体制の確認", "発達の記録": ["一人ひとりの発達の記録（経過記録）を期ごとにまとめる", "発達の記録（期ごと）"], "保育料請求書の作成": ["公費（給付費・委託費）の請求と、保育料・実費の徴収", "公費請求と保育料の徴収"], "翌月のシフト作成": "翌月の勤務割（シフト）づくりと、配置基準の確かめ", "年間計画・行事計画の作成": "全体的な計画、年間の指導計画・行事計画をそろえる", "職員名簿・資格証・契約書の更新": "職員名簿・資格証の写し・雇用契約書の点検と更新", "保育所児童保育要録の作成と送付": "保育所児童保育要録を作り、進学先の小学校へ送る", "消防用設備等の法定点検・報告": "消防用設備等の法定点検と、消防署への結果報告", "消防用設備等の自主点検": "消防用設備等を職員の目で確かめる自主点検", "登降園の締めと在籍数の確定": "登園・降園の記録の締めと、在籍人数の確定", "経費・小口現金の月締め": "経費と小口現金の月締め、領収書などの整理", "処遇改善等加算の計画書提出": "処遇改善等加算にかかる計画書の作成と提出", "避難訓練": ["火災・地震を想定した避難訓練とその記録", "避難訓練（火災・地震）"], "調理職員の検便": "調理に関わる職員の検便（腸内細菌検査）", "決算・事業報告": "決算と事業報告の作成、承認を得る手続き", "現況報告書の提出": "現況報告書（運営状況の報告）の提出", "自己評価と公表": "園としての自己評価と、その結果の公表", "園児の定期健康診断": "嘱託医による在園児の定期健康診断", "翌年度の事業計画・予算": "翌年度の事業計画と予算を決める", "身体測定": "在園児の身長・体重の測定", "出勤簿の月締め": "出勤簿と勤務実績の月締め", "職員の定期健康診断": "働く職員の定期健康診断", "月案の作成": "月案（月間指導計画）の作成と、月末のふりかえり", "月末のふりかえり": "月案（月間指導計画）の作成と、月末のふりかえり"};
+/* 旧の題名は1つとはかぎらない（二度名前を変えたものがある）。
+   文字でも一覧でも受け取れるようにして、どれかで保存されていれば拾う */
+function taskOldNames(name){var o=TASK_OLD_NAME[name];
+  if(!o)return [];
+  return (Object.prototype.toString.call(o)==='[object Array]')?o:[o];}
+function taskOldKeys(mk,name){var r=[],a=taskOldNames(name),i;
+  for(i=0;i<a.length;i++)r.push(taskKey(mk,a[i]));
+  return r;}
+function taskOldKey(mk,name){var a=taskOldKeys(mk,name);return a.length?a[0]:null;}
 function taskIsDone(mk,name){var a=taskDoneAll(),k=taskKey(mk,name);
   if(a[k]!==undefined)return !!a[k];
-  var o=taskOldKey(mk,name);return o?!!a[o]:false;}
+  var ks=taskOldKeys(mk,name),i;
+  for(i=0;i<ks.length;i++){if(a[ks[i]]!==undefined)return !!a[ks[i]];}
+  return false;}
 /* 外すときは、古い題名の「済」が残っていると また済に戻ってしまう。
    その場合だけ false を書いて「終わっていない」と分かるようにする */
-function taskSetDone(mk,name,v){var a=taskDoneAll(),k=taskKey(mk,name),o=taskOldKey(mk,name);
-  if(v)a[k]=true;else if(o&&a[o])a[k]=false;else delete a[k];
+function taskSetDone(mk,name,v){var a=taskDoneAll(),k=taskKey(mk,name),ks=taskOldKeys(mk,name),i,had=false;
+  for(i=0;i<ks.length;i++){if(a[ks[i]])had=true;}
+  if(v)a[k]=true;else if(had)a[k]=false;else delete a[k];
   stSet('taskDone',a);}
 /* システム内の記録から自動判定できるものは自動で「済」にする */
 function taskAutoDone(t,mk){
@@ -11418,7 +11472,7 @@ function taskAutoDone(t,mk){
     /* 左の並びに合わせて「研修・訓練」に名前を変えた。園の端末に前の名前が残っていても
        自動で「済」になるように、どちらの名前でも見るようにしている */
     if(p==='研修・訓練'||p==='防火管理台帳・消火訓練'){var fy=(+mk.slice(5,7)>=4)?+mk.slice(0,4):+mk.slice(0,4)-1;var bd=boukaGet(fy);return BOUKA_MONTHS.some(function(mo){var r=bd.rows[mo];return r&&r.date&&r.date.slice(0,7)===mk;});}
-    if(p==='月間カリキュラム')return (CUR.month===mk);
+    if(p==='カリキュラム')return (CUR.month===mk);
     if(p==='シフト表'||p==='出勤簿')return !!stGet('shifts',{})[mk];
     if(p==='経費管理'){var ex=stGet('expenses',{})[mk];return !!(ex&&(ex.rows||[]).length);}
     if(p==='請求書発行'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
@@ -11429,10 +11483,15 @@ function taskAutoDone(t,mk){
 function taskStatus(t,mk){return taskIsDone(mk,t.name)||taskAutoDone(t,mk);}
 /* 一般（先生）に出すのは、先生が手を動かす4つだけ。
    お金・届出・職員のことまで並ぶと、自分がやるものが分からなくなるため。 */
-var TASK_IPPAN=['身体測定','避難訓練（火災・地震）','月案の作成','月末のふりかえり'];
+var TASK_IPPAN=['身体測定','避難訓練','月案の作成','月末のふりかえり'];
 function taskIppan(){return (typeof currentRole==='function'&&currentRole()==='一般');}
 function tasksVisible(list){if(!taskIppan())return list;
   return list.filter(function(t){return TASK_IPPAN.indexOf(t.name)>-1;});}
+/* 年間の一覧に出すぶん。毎月やることは上のカードに出しているので、ここでは外す */
+function tasksYearOnly(){
+  return tasksVisible(ANNUAL_TASKS).filter(function(t){
+    return String(t.month||'').indexOf('毎月')<0;});
+}
 function tasksForMonth(mk){
   var mo=+mk.slice(5,7);
   return tasksVisible(ANNUAL_TASKS.filter(function(t){
@@ -11445,6 +11504,8 @@ var taskMonth=null;
 function taskMonthCur(){if(!taskMonth)taskMonth=todayISO().slice(0,7);return taskMonth;}
 /* 開いている説明をおぼえておく。チェックを入れて画面を作り直しても、開いたままにするため */
 var taskOpen={};
+/* 「やることを直す」を押しているかどうか */
+var taskEdit=false;
 /* 年間の一覧の開け閉め。上の「毎月やること」（taskOpen）と同じ持ち方にする */
 var annOpen={};
 /* その月の日数 */
@@ -11454,11 +11515,11 @@ function taskMonthLen(mk){return new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDa
 function taskDayAll(){return stGet('taskDay',{});}
 /* 園が決めた「やる日」。短くする前の題名で保存されたものも読む */
 function taskDaySaved(mk,name){var a=taskDayAll(),d=a[taskKey(mk,name)];
-  if(!d){var o=taskOldKey(mk,name);if(o)d=a[o];}
+  if(!d){var ks=taskOldKeys(mk,name),i;for(i=0;i<ks.length&&!d;i++)d=a[ks[i]];}
   return d;}
-function taskDaySet(mk,name,d){var a=taskDayAll(),o=taskOldKey(mk,name);
+function taskDaySet(mk,name,d){var a=taskDayAll(),ks=taskOldKeys(mk,name),i;
   if(d)a[taskKey(mk,name)]=d;else delete a[taskKey(mk,name)];
-  if(o)delete a[o];
+  for(i=0;i<ks.length;i++)delete a[ks[i]];
   stSet('taskDay',a);}
 /* 「いつ」の書き方から、カレンダーに置く日の目安を決める。
    ・月末に締めるものは月の最後の日、月の初めのものは5日、前の月の中ごろのものは20日
@@ -11505,6 +11566,46 @@ function renderTasks(){
     cells+='<div class="day'+(d===today?' today':'')+'"><div class="dn">'+d+(d===today?' <span style="color:var(--teal-l);">今日</span>':'')+'</div>'
       +(byDay[d]||[]).map(function(t){return chip(t,false);}).join('')+'</div>';
   }
+  /* 「やることを直す」を押したときに出す欄。
+     消せないもの（法令で決まっているもの）は、消す代わりに理由を出す */
+  function editBox(mlabel,list){
+    var sfx=(mlabel==='毎月')?'M':'S',h='',i,t,own=taskAddAll();
+    function isOwn(n){var j;for(j=0;j<own.length;j++){if(own[j].name===n)return true;}return false;}
+    for(i=0;i<list.length;i++){
+      t=list[i];
+      h+='<div class="tked"><span class="tkedn">'+esc(t.name)+'</span>'
+        +(taskRequired(t.name)
+          ?'<span class="pill" style="background:var(--bg);color:var(--tx3);">消せません</span>'
+           +'<span class="tkedw">'+esc(TASK_REQ_WHY[t.name]||'')+'</span>'
+          :'<button class="btn btn-sm" data-tkdel="'+esc(t.name)+'">消す</button>')
+        +'</div>';
+    }
+    if(!list.length)h='<div class="empty">ありません</div>';
+    /* 消したものを、あとで戻せるようにする */
+    var hid=taskHideAll(),hh='',j,b;
+    for(j=0;j<ANNUAL_TASKS_BASE.length;j++){
+      b=ANNUAL_TASKS_BASE[j];
+      if(hid.indexOf(b.name)<0)continue;
+      if(String(b.month||'').indexOf(mlabel)<0)continue;
+      hh+='<div class="tked"><span class="tkedn" style="color:var(--tx3);text-decoration:line-through;">'+esc(b.name)+'</span>'
+        +'<button class="btn btn-sm" data-tkback="'+esc(b.name)+'">もどす</button></div>';
+    }
+    if(hh)h+='<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line2);">'
+      +'<div class="tkq" style="margin-bottom:4px;">消したもの</div>'+hh+'</div>';
+    /* 足す欄 */
+    var mopt='<option value="毎月"'+(mlabel==='毎月'?' selected':'')+'>毎月</option>',k;
+    for(k=1;k<=12;k++)mopt+='<option value="'+k+'月"'+(mlabel===(k+'月')?' selected':'')+'>'+k+'月</option>';
+    var pg='<option value="">なし</option>',key;
+    for(key in TASK_PAGE){if(TASK_PAGE.hasOwnProperty(key))pg+='<option value="'+esc(key)+'">'+esc(key)+'</option>';}
+    h+='<div class="tkadd">'
+      +'<div style="flex:2;min-width:170px;"><label>やること</label><input id="tkAN'+sfx+'" placeholder="例：園庭の遊具の点検"></div>'
+      +'<div style="min-width:96px;"><label>いつ</label><select id="tkAM'+sfx+'">'+mopt+'</select></div>'
+      +'<div style="flex:2;min-width:170px;"><label>目安（いつやるか）</label><input id="tkAW'+sfx+'" placeholder="例：月の初めまでに"></div>'
+      +'<div style="min-width:140px;"><label>使う画面</label><select id="tkAP'+sfx+'">'+pg+'</select></div>'
+      +'<button class="btn btn-sm btn-primary" data-tkaddgo="'+sfx+'">足す</button>'
+      +'</div>';
+    return h;
+  }
   /* 題名だけの一覧。題名を押すと、その下に詳しい内容が開く */
   function item(t){
     var i=ANNUAL_TASKS.indexOf(t),ok=taskStatus(t,mk),auto=taskAutoDone(t,mk),g=TASK_PAGE[t.page],op=!!taskOpen[i];
@@ -11518,9 +11619,6 @@ function renderTasks(){
       +(ok?'<span class="pill" style="background:var(--green-b);color:var(--green-t);">'+(auto?'記録あり':'済')+'</span>':'')
       +'<span class="tkarw">'+(op?'▲':'▼')+'</span></button>'
       +'<div class="tkbody" data-tkbody="'+i+'"'+(op?'':' style="display:none;"')+'>'
-      +'<div class="tkq">いつやるか</div><div class="tka">'+esc(t.when||'')+'</div>'
-      +'<div class="tkq">なぜ必要か</div><div class="tka">'+esc(t.why||'')+'</div>'
-      +'<div class="tkq">どの画面でやるか</div><div class="tka">'+esc(t.page||'—')+'</div>'
       +'<div class="tkrow">'
       +(g?'<button class="btn btn-sm'+(ok?'':' btn-primary')+'" data-tkgo="'+esc(t.page)+'">この画面を開く</button>':'')
       +(auto?'<span class="muted">記録があるので、自動で済みになります</span>':'<label class="tkchk"><input type="checkbox" data-tkchk="'+i+'"'+(ok?' checked':'')+' style="width:auto;">終わった</label>')
@@ -11538,13 +11636,23 @@ function renderTasks(){
     +(daily.length?'<div class="card" style="margin-bottom:14px;"><h3>'+ic('clock')+'毎日つづけること（'+daily.length+'）</h3>'
       +'<div class="muted" style="margin-bottom:9px;">日が1つに決まらないので、カレンダーには置いていません。</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'+daily.map(function(t){return chip(t,true);}).join('')+'</div></div>':'')
-    +'<div class="card" style="margin-bottom:14px;"><h3>'+ic('clock')+'毎月やること（'+monthly.length+'）</h3>'
+    +'<div class="card" style="margin-bottom:14px;">'
+    +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;"><h3 style="margin:0;">'+ic('clock')+'毎月やること（'+monthly.length+'）</h3><span style="flex:1;"></span>'
+    +(taskIppan()?'':'<button class="btn btn-sm'+(taskEdit?' btn-primary':'')+'" data-tkedit="1">'+(taskEdit?'直すのをやめる':'やることを直す')+'</button>')+'</div>'
     +'<div class="muted" style="margin-bottom:9px;">午睡・保育日誌・検食・安全点検など毎日のものは、日常チェック（毎日）の画面で見ています。ここには出していません。</div>'
-    +(monthly.length?monthly.map(item).join(''):'<div class="empty">ありません</div>')+'</div>'
-    +'<div class="card" style="margin-bottom:14px;"><h3>'+ic('cal')+mo+'月だけやること（'+special.length+'）</h3>'
-    +(special.length?special.map(item).join(''):'<div class="empty">この月だけのやることはありません</div>')+'</div>'
-    +'<div class="card">'+recHead('年間の一覧','<button class="btn btn-sm btn-primary" id="tkPrintY">'+ic('printer')+'一覧を印刷</button>')+'<div class="scrollx"><table><thead><tr><th style="width:70px;">時期</th><th>やること</th><th style="width:250px;">目安</th><th style="width:160px;">使う画面</th></tr></thead><tbody>'
-    +tasksVisible(ANNUAL_TASKS).map(function(t){
+    +(taskEdit
+      ?'<div class="muted" style="margin-bottom:9px;">園に合わない やることは消せます。法令で決まっているものは消せません。</div>'+editBox('毎月',monthly)
+      :(monthly.length?monthly.map(item).join(''):'<div class="empty">ありません</div>'))+'</div>'
+    +'<div class="card" style="margin-bottom:14px;">'
+    +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;"><h3 style="margin:0;">'+ic('cal')+mo+'月だけやること（'+special.length+'）</h3><span style="flex:1;"></span>'
+    +(taskIppan()?'':'<button class="btn btn-sm'+(taskEdit?' btn-primary':'')+'" data-tkedit="1">'+(taskEdit?'直すのをやめる':'やることを直す')+'</button>')+'</div>'
+    +(taskEdit
+      ?editBox(mo+'月',special)
+      :(special.length?special.map(item).join(''):'<div class="empty">この月だけのやることはありません</div>'))+'</div>'
+    +'<div class="card">'+recHead('年間の一覧','<button class="btn btn-sm btn-primary" id="tkPrintY">'+ic('printer')+'一覧を印刷</button>')
+    +'<div class="muted" style="margin-bottom:9px;">毎月やることは上のカードにまとめているので、ここには出していません。印刷すると毎月のぶんも一緒に出ます。</div>'
+    +'<div class="scrollx"><table><thead><tr><th style="width:70px;">時期</th><th>やること</th><th style="width:250px;">目安</th><th style="width:160px;">使う画面</th></tr></thead><tbody>'
+    +tasksYearOnly().map(function(t){
       /* 題名だけを出し、押すと「なぜ必要か」が開く。上の「毎月やること」と同じ動きにそろえる */
       var ai=ANNUAL_TASKS.indexOf(t),ao=!!annOpen[ai],wy=t.why||'';
       return '<tr><td class="row-sub">'+esc(t.month)+'</td>'
@@ -11562,6 +11670,27 @@ function renderTasks(){
     taskDaySet(mk,ANNUAL_TASKS[+sel.getAttribute('data-tkday')].name,sel.value?+sel.value:0);renderTasks();};});
   s.querySelectorAll('[data-tkgo]').forEach(function(b){b.onclick=function(){
     var g=TASK_PAGE[b.getAttribute('data-tkgo')];if(!g)return;if(g[1])recType=g[1];go(g[0]);};});
+  s.querySelectorAll('[data-tkedit]').forEach(function(b){b.onclick=function(){
+    taskEdit=!taskEdit;taskOpen={};renderTasks();};});
+  s.querySelectorAll('[data-tkdel]').forEach(function(b){b.onclick=function(){
+    var n=b.getAttribute('data-tkdel'),ad=taskAddAll(),i,own=false;
+    for(i=0;i<ad.length;i++){if(ad[i].name===n)own=true;}
+    if(!confirm('「'+n+'」を、この園のやることから消します。よろしいですか。'))return;
+    if(own)taskAddDel(n);else taskHideSet(n,true);
+    renderTasks();};});
+  s.querySelectorAll('[data-tkback]').forEach(function(b){b.onclick=function(){
+    taskHideSet(b.getAttribute('data-tkback'),false);renderTasks();};});
+  s.querySelectorAll('[data-tkaddgo]').forEach(function(b){b.onclick=function(){
+    var sfx=b.getAttribute('data-tkaddgo'),el=$('#tkAN'+sfx);
+    var n=el?String(el.value||'').replace(/^\s+|\s+$/g,''):'';
+    if(!n){alert('やることの名前を入れてください。');if(el)el.focus();return;}
+    if(taskNameUsed(n)){alert('「'+n+'」は もうあります。ちがう名前にしてください。');return;}
+    taskAddNew({name:n,
+      month:$('#tkAM'+sfx).value,
+      when:String($('#tkAW'+sfx).value||'').replace(/^\s+|\s+$/g,''),
+      page:$('#tkAP'+sfx).value,
+      why:'園で決めたやることです。'});
+    renderTasks();};});
   /* 開け閉めは画面を作り直さずに行う（見ている場所が動かないように） */
   s.querySelectorAll('[data-tkhead]').forEach(function(b){b.onclick=function(){
     var i=b.getAttribute('data-tkhead'),bd=s.querySelector('[data-tkbody="'+i+'"]');if(!bd)return;
@@ -11591,7 +11720,7 @@ function renderTasks(){
 /* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========
    種別×自治体プロフィールから「出すべき書類・証明書」を提示。データは保守的な暫定シード。
    将来：バックエンド+AIが公式情報から最新要件を自動取得してREQ_DATAを更新する設計。 */
-var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。当システムの書類自動生成に対応。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。当システムの書類自動生成機能に対応。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "月間カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムの月間カリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "業務日報・保育日誌", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの業務日報・保育日誌に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}]}]};
+var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。当システムの書類自動生成に対応。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。当システムの書類自動生成機能に対応。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムのカリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "業務日報・保育日誌", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの業務日報・保育日誌に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}]}]};
 var REQ_ASOF='2026-07';
 var REQ_CATCOLOR={'設置・認可':'#185FA5','運営体制':'#0B5F8F','日常記録':'#854F0B','届出・報告':'#3C3489','証明書・資格':'#72243E','安全・衛生':'#27500A'};
 var REQ_STATUSES=['未着手','準備中','完了'];
@@ -11663,9 +11792,9 @@ var LOG_MAX=800, SNAP_MAX=7, LOG_SKIP={'cocoas_eventLog':1,'cocoas_snapshots':1,
 var LOG_LABEL={
   'cocoas_rec_登園シート':'登園（出席）','cocoas_rec_安全点検':'安全点検','cocoas_rec_午睡チェック':'午睡チェック',
   'cocoas_rec_健康チェック':'健康チェック','cocoas_rec_身体測定':'身体測定','cocoas_rec_hiyari':'ヒヤリハット・怪我',
-  'cocoas_rec_発達':'生徒個人発達記録','cocoas_rec_日報':'業務日報・保育日誌','cocoas_curriculum':'月間カリキュラム',
+  'cocoas_rec_発達':'生徒個人発達記録','cocoas_rec_日報':'業務日報・保育日誌','cocoas_curriculum':'カリキュラム',
   'cocoas_drills3':'避難訓練','cocoas_drill_proc_by_kind':'避難訓練の手順','cocoas_shifts':'シフト表',
-  'cocoas_contacts':'連絡先','cocoas_staff':'職員','cocoas_studentProfiles':'生徒台帳','cocoas_enrollOptions':'生徒情報（契約・オプション）',
+  'cocoas_contacts':'連絡先','cocoas_staff':'職員','cocoas_studentProfiles':'生徒台帳','cocoas_enrollOptions':'請求書発行（契約・オプション）',
   'cocoas_history':'送信履歴','cocoas_dmThreads':'保護者DM','cocoas_docgen':'書類作成','cocoas_docs':'書類格納',
   'cocoas_settings':'設定','cocoas_rolePerms':'権限設定','cocoas_staffAccounts':'職員アカウント','cocoas_tplPerms':'テンプレート権限','cocoas_tplUser':'メールのひな形',
   'cocoas_audit':'監査対応','cocoas_reqStatus':'提出書類ナビ','cocoas_scheduled':'配信予約','cocoas_hospitals':'緊急連絡先',
@@ -11923,7 +12052,7 @@ function renderBackupSettings(s){
 
 /* ========== 使い方ヘルプ（各ページの「?」→ その場で説明・AIにも聞ける） ==========
    動画を作らなくても、画面ごとの説明と右下のAIアシスタントで使い方が分かるようにする。 */
-var HELP_DATA={"dashboard": {"summary": "ダッシュボードは、園の今の状況をひと目で確認できるホーム画面です。在園児数、本日の記録の入力もれ、本日のタスク、監査準備の進み具合、問い合わせ・体験・入退園の件数、やり取り中の連絡リストを表示し、押すとそれぞれの画面へ移動できます。", "steps": ["上の数字のカードで、在園児数と今月の状況を確認します。", "「本日の記録」の帯を見て、赤い「未」の項目を探します。", "「記録する」を押して、その場で本日分を入力します。", "「本日のタスク」を上から順に片づけていきます。", "「やり取り中の連絡リスト」の行を押して、内容を更新します。"], "tips": ["「未」は赤、「済」は緑です。帰るまでに赤をなくすことを目安にしてください。", "在園児カードのクラス名を押すと、そのクラスの男女の人数と比率が出ます。", "数字のカードを押すと、関係する画面（連絡先管理や記録など）へそのまま移動できます。", "「リード内訳」は「全期間・年度・月」を切り替えて見られます（受付日をもとに集計します）。", "一般スタッフの画面は本日のタスク中心です。問い合わせや入退園の数値は表示されません。"], "faq": [{"q": "数字が実際の人数と合っていない気がします。どこで直せますか。", "a": "ダッシュボードは各画面に入力された内容を集計して表示しています。連絡先管理や登園シートなど、もとの画面の内容をご確認ください。直すと数字も自動で変わります。"}, {"q": "問い合わせや体験の件数が私の画面には出てきません。故障でしょうか。", "a": "故障ではありません。一般スタッフの権限では運営の数値は表示されない設定です。本日のタスクと在園児・本日の出席が中心の画面になります。表示が必要な場合は管理者にご相談ください。"}, {"q": "「やり取り中の連絡リスト」に、あの保護者の名前が出てきません。", "a": "「長期見込み」「連絡不通」「入園 確定」「NG」の方は、このリストには表示されません。連絡先管理の画面からお探しください。"}]}, "compose": {"summary": "この画面では、連絡先から相手を1人選び、テンプレートを使って個別にメールを送れます。あとで送る「送信予約」や、送ったメールの確認もできます。", "steps": ["連絡先の一覧から、メールを送りたい相手を選びます。", "使いたいテンプレートを選んで、本文に読み込みます。", "件名と本文を読み、名前や日付などを書き直します。", "すぐ送るときは送信、あとで送るときは日時を決めて予約します。", "送信済みの一覧を開いて、きちんと送れたかを確かめます。"], "tips": ["テンプレートの名前・日付・時間は、そのままになりがちです。送る前に声に出して読み直すと安心です。", "宛先のお名前は必ずご確認ください。似たお名前の方がいる場合は特にご注意ください。", "急ぎでなければ送信予約が便利です。書いてすぐ送らず、時間を置いて見直せます。", "お返事がほしいときは、いつまでにお返事いただきたいかを本文に書いておくと伝わりやすくなります。"], "faq": [{"q": "送ったあとに間違いに気づきました。取り消せますか？", "a": "送信が終わったメールは取り消せません。おわびと訂正の内容を、あらためてお送りください。送信予約にしておくと、送られる前に内容を見直すことができます。"}, {"q": "送りたい方が一覧に出てきません。", "a": "連絡先に登録されていない可能性があります。お名前の一部で探しても見つからないときは、連絡先の登録内容をご確認ください。"}, {"q": "何人かの保護者に同じ内容を送りたいのですが。", "a": "この画面は1対1で送るためのものです。お一人ずつ選んで送っていただく形になります。同じテンプレートを使えば、毎回書き直さずに済みます。"}]}, "broadcast": {"summary": "この画面では、クラスや児童を選んで保護者へお知らせを一斉に送れます。左の欄で件名と本文を直すと、右の「保護者に届く見え方」がすぐ変わります。ひな形はどの園でも使える骨組みなので、園のことばに書き直してお使いください。", "steps": ["上の「ひな形」で、送るお知らせを選びます。", "左の欄で件名と本文を直します。〇〇のところに、園の時間・持ち物・日にちを入れてください。", "右の「保護者に届く見え方」で、届く文章を確かめます。", "「送り先」で、クラスで選ぶか、児童を選ぶかを決めます。", "見直してから「この内容で送る」を押します。日時を決めて「予約」もできます。"], "tips": ["左の欄での書き足しは、この1回だけに効きます。ひな形そのものを直すときは「メールテンプレート」の画面で直してください。", "デイリーメールの本文に〔本日の活動〕と書いておくと、月間カリキュラムのその日の午前・午後が入ります。", "〇〇のまま送ると、そのまま保護者に届きます。送る前に右の見え方を必ずお読みください。", "園全体へのお知らせは、クラスの選び漏れがないかご注意ください。"], "faq": [{"q": "クラスを間違えて送ってしまいました。どうすればいいですか？", "a": "おわびと正しい内容を、あらためて対象のクラスへ配信してください。送信済みのお知らせの取り扱いについては、園の管理担当者にご確認ください。"}, {"q": "〔本日の活動〕のところが空になります。", "a": "月間カリキュラムの「日別スケジュール」に、その日の午前・午後がまだ入っていません。入れると、ここに入ります。"}, {"q": "毎回おなじ直しをしています。ひな形そのものを変えられますか？", "a": "変えられます。「メールテンプレート」の画面で「題名と文章を直す」を押してください。園ごとの文章として残ります。"}, {"q": "同じお知らせを複数のクラスに送れますか？", "a": "送れます。配信先で送りたいクラスをまとめて選べば、同じ内容を一度に配信できます。"}]}, "dm": {"summary": "この画面では、ご家庭ごとに個別のメッセージをやりとりできます。送信すると保護者に通知メールが届き、メール内の返信URLからお返事をいただけます。", "steps": ["一覧から、メッセージを送りたいご家庭を選びます。", "これまでのやりとりを読み、用件を確かめます。", "入力欄に、伝えたい内容をわかりやすく書きます。", "宛先のお名前と本文を、もう一度見直します。", "「送信」を押すと、保護者へ通知メールが届きます。"], "tips": ["送信すると、すぐに保護者へメールが届きます。押す前に必ず読み返してください。", "よく似たお名前のご家庭があります。送信前に宛先のお名前をご確認ください。", "けがや発熱など急ぎのご連絡は、お電話が確実です。DMは気づくまで時間がかかります。", "長い文章より、短い文を分けて書くほうが、保護者に伝わりやすくなります。"], "faq": [{"q": "保護者には、どのように届くのですか？", "a": "送信すると、保護者へ通知メールが届きます。メールの中の返信URLを開くと、その場でお返事を書いていただけます。"}, {"q": "保護者からのお返事は、どこで見られますか？", "a": "この画面の、同じご家庭のやりとりの中に表示されます。ご家庭を選んで、内容をご確認ください。"}, {"q": "文章をまちがえて送ってしまいました。どうすればよいですか？", "a": "あわてず、続けて訂正のメッセージをお送りください。「先ほどの連絡を訂正します」と一言添えると、保護者に伝わりやすくなります。"}]}, "trial": {"summary": "体験を担当した先生が、その日の結果を入力する画面です。保存すると、連絡先の進捗と生徒台帳に自動で反映されます。", "steps": ["一覧から、報告したい体験の記録を選びます。", "お子さまのお名前と体験日が合っているか確認します。", "体験の結果を、表示されている選択肢から選びます。", "当日の様子や気づいたことをメモに入力します。", "入力内容を見直し、保存ボタンを押します。"], "tips": ["体験が終わったその日のうちに入力すると、様子を思い出しやすく正確に残せます。", "メモは次に対応する先生が読むものです。「〇〇が好きそうだった」など短く具体的に書くと伝わります。", "保存すると連絡先の進捗と生徒台帳に反映されます。同じ内容を別の画面で入力し直す必要はありません。", "保存を押す前に、お名前と体験日を必ずもう一度ご確認ください。別のお子さまに反映されるのを防げます。"], "faq": [{"q": "保存したあと、連絡先の進捗も自分で直さないといけませんか？", "a": "いいえ、必要ありません。保存すると連絡先の進捗と生徒台帳に自動で反映されますので、そのままで大丈夫です。"}, {"q": "入力を間違えて保存してしまいました。どうすればいいですか？", "a": "他の画面にも反映されていますので、気づいた時点で園の管理担当の先生にお伝えください。早めにご連絡いただくと安心です。"}, {"q": "体験を担当していない先生が代わりに入力してもいいですか？", "a": "基本は担当した先生の入力をおすすめします。代わりに入力する場合は、当日の様子を担当の先生に確認してから入力してください。"}]}, "deliveries": {"summary": "「配信カレンダー」は、デイリーメールや請求書などの定期配信の次回予定と、体験・説明会の予定をまとめて確認できる画面です。園の予定をカレンダー用のファイルに書き出して、ふだんお使いのカレンダーに取り込むこともできます。", "steps": ["左のメニューから「配信カレンダー」を開きます。", "「定期配信スケジュール」で次回の予定を確認します。", "送りたい配信の行にある「作成」を押します。", "下の「体験・説明会の予定」で今後の日程を確認します。", "「カレンダーに取り込む」→「カレンダー用ファイルを書き出す」を押します。"], "tips": ["「次回予定」に「本日」と出ている配信は、その日に送るものです。朝のうちにご確認ください。", "上に出る「予約済み配信」は今のところ予約の記録だけで、時間になっても自動では送られません。行を押すと内容を確認でき、ごみ箱のボタンで取り消せます。", "体験・説明会の予定にある「メール作成」を押すと、その方の状況に合った文面が自動で選ばれた状態でメール画面に進みます。", "書き出したファイルは、Googleカレンダーの「他のカレンダー → インポート」から取り込めます。AppleカレンダーやOutlookでも同じように取り込めます。"], "faq": [{"q": "予約した配信は、時間になったら自動で送られますか？", "a": "いいえ。今は予約を記録しておくだけで、自動送信はまだ行われません。当日はお手数ですが、配信画面から送信をお願いします。"}, {"q": "体験の予定が一覧に出てきません。", "a": "体験日が登録されていない方や、日付が過ぎた方は表示されません。連絡先の情報に体験日が入っているかご確認ください。鉛筆のボタンからその場で直せます。"}, {"q": "書き出したファイルは、どうすればカレンダーに入りますか？", "a": "パソコンにファイルが保存されますので、Googleカレンダーの「他のカレンダー → インポート」でそのファイルを選んでください。予定がそのまま入ります。"}]}, "records": {"summary": "この画面では、登園（出席）・安全点検・午睡チェック・健康チェック・業務日報を、その日ごとにまとめて記録できます。毎日の記録が1か所に残るので、あとから見返したり引き継いだりするときに役立ちます。", "steps": ["画面上部の日付を見て、今日の日付になっているか確認します。", "記録したい項目（登園・安全点検・午睡・健康・日報）を選びます。", "クラスやお子さまごとに、当てはまる内容を選んで入力します。", "気になったことがあれば、メモ欄に短いことばで書きます。", "入力が終わったら保存を押して、記録を確定します。"], "tips": ["午睡チェックは、決められた時間ごとにその場で入力すると、書き忘れを防げます。", "気になる様子は「いつ・どこで・どうしたか」を短く書くと、あとの人にも伝わりやすいです。", "入力の途中でも、こまめに保存しておくと安心です。", "登園は朝のうち、日報は帰る前など、記録する時間を決めておくと習慣になります。"], "faq": [{"q": "入力をまちがえました。直せますか？", "a": "同じ項目をもう一度開いて、正しい内容に入力し直し、保存してください。気づいたときにその日のうちに直しておくと安心です。"}, {"q": "お休みのお子さんは、どう記録すればいいですか？", "a": "登園の記録で、お休み（欠席）として記録してください。理由が分かっていれば、メモ欄に短く書いておくと共有しやすくなります。"}, {"q": "途中まで入力して、あとから続きを入力してもいいですか？", "a": "大丈夫です。入力できたところまで保存しておき、あとで同じ画面を開いて続きを入力してください。"}]}, "carerec": {"summary": "毎月の身体測定、その都度のヒヤリハット・怪我、3ヶ月ごとの生徒個人発達記録を、この画面でまとめて記録できます。記録した内容は印刷したり、控えとして保存したりできます。", "steps": ["画面の上にある3つのタブから、記録したい種類を選びます。", "身体測定は、月とクラスを選び、身長と体重を入力します。", "ヒヤリハット・怪我は「記録を追加」を押し、入力後に保存を押します。", "生徒個人発達記録は、園児と期間を選び、項目ごとに当てはまるものを選びます。", "必要に応じて「出力」で印刷し、「データ保存」で控えを残します。"], "tips": ["身長と体重を入力すると、カウプ指数は自動で計算されます。目安は15〜17です。", "「保護者へ測定結果を送信」を押すと、各ご家庭にはお子様ご本人の記録だけが届きます。ほかのお子様の記録は見えませんので、ご安心ください。", "ヒヤリハット・怪我では、人型のイラストをタップすると、けがの場所を前と後ろで残せます。まちがえたときは「クリア」でやり直せます。", "生徒個人発達記録は監査でも確認される書類です。「記録者」のお名前も入れておくと安心です。"], "faq": [{"q": "先月の身体測定を直したいのですが、どうすればよいですか？", "a": "画面上の月の欄を、直したい月に選び直してください。その月の記録が表示され、そのまま入力し直せます。"}, {"q": "入力したのに、保存ボタンが見当たりません。消えてしまいませんか？", "a": "身体測定と生徒個人発達記録は、入力するとその場で自動的に保存されます。ヒヤリハット・怪我だけ、最後に「保存」を押してください。"}, {"q": "まちがえて記録してしまいました。消せますか？", "a": "ヒヤリハット・怪我は、一覧の右にあるごみ箱のマークから削除できます。身体測定と生徒個人発達記録は、数値や選択を入れ直すと上書きされます。"}]}, "curriculum": {"summary": "クラスごとに、その月のカリキュラムをまとめて作れる画面です。日ごとの予定と、週ごとの活動内容を、1つの画面で入力・保存できます。", "steps": ["画面の上で、対象のクラスと年月を選びます", "「活動の内容」で、活動ごとのねらいと担当を入力します", "日別スケジュールに、日ごとの予定を書き入れます", "週ごとの欄に、その週の活動内容を入力します", "入力が終わったら、保存ボタンを押します"], "tips": ["先に活動ごとのねらいを決めてから、週・日を埋めると書きやすいです", "全部を一度に書かず、途中でこまめに保存すると安心です", "クラスと年月が合っているか、入力前にもう一度ご確認ください", "行事や園庭開放など、動きやすい予定は日別スケジュールにまとめると見やすくなります"], "faq": [{"q": "書きかけのまま、あとで続きを書いてもいいですか？", "a": "はい、大丈夫です。保存しておけば、次に同じクラス・同じ月を開いたときに、続きから入力できます。"}, {"q": "入力した内容をあとから直せますか？", "a": "はい。同じクラス・同じ月を開いて、直したい欄を書き換えて保存し直してください。"}, {"q": "クラスが違う分も作りたいのですが、どうすればいいですか？", "a": "画面の上でクラスを切り替えてから、そのクラスの内容を入力してください。クラスごとに別々に保存されます。"}]}, "drill": {"summary": "年間14回の避難訓練について、いつ・どんな内容で行うかの計画と、実施したあとの記録をまとめて管理できる画面です。参加者名簿や年間記録表を出力して、印刷や書類の確認にも使えます。", "steps": ["画面の上で、記録したい年度を選びます。", "一覧から、今回あつかう訓練の回を選んで開きます。", "日時や想定する災害など、計画の内容を入力します。", "訓練が終わったら、実施した内容と参加者を記録して保存します。", "出力ボタンから、参加者名簿や年間記録表を出します。"], "tips": ["年度のはじめに14回分の計画をまとめて入れておくと、あとがぐっと楽になります。", "実施した内容は当日のうちに記録すると、記憶が新しいまま正確に残せます。", "参加者名簿は訓練の前に出しておくと、当日の点呼の確認に使えます。", "年間記録表は書類の提出や確認をもとめられたときに使えるので、記録の入れ忘れがないか時々見直しましょう。"], "faq": [{"q": "訓練の日にちが変わったのですが、どうすればいいですか？", "a": "その回を開いて、日付を新しいものに直してから保存してください。内容が上書きされます。"}, {"q": "14回すべてを一度に入力しないといけませんか？", "a": "いいえ。年間14回分の枠が用意されているだけですので、計画や実施の記録は、できるところから順に入れていただいて大丈夫です。"}, {"q": "あとから記録を直すことはできますか？", "a": "できます。直したい回を開いて内容を書き直し、保存すれば更新されます。"}]}, "bouka": {"summary": "研修と訓練の記録を1つにまとめた画面です。毎月の防火・安全設備の点検（消火器・救急箱・AED・防火扉・避難グッズ）、消火訓練、園でおこなった保育研修を、1年度分（4月〜3月）まとめて残せます。入力した内容は、そのまま台帳・訓練記録・研修記録の形で印刷できます。", "steps": ["画面の上にある選択欄から、記録したい年度を選びます。", "「防火管理台帳」を押し、実施した月の行に日付と内容を入力します。", "①〜⑤の点検項目のうち、確認できたものにチェックを入れます。", "「消火訓練 手順・記録」を押し、実施場所・タイム（所要時間・分）・概要を入力します。", "右上の「台帳を出力」または「記録を出力」を押して、印刷します。"], "tips": ["保存ボタンはありません。入力するとその場で自動的に保存されます。", "①〜⑤が何の点検かは、表のすぐ上に書いてあります（①消火器 ②救急箱 ③AED・自動火災報知設備 ④防火扉 ⑤避難グッズ）。", "画面上部の「実施済 ○/12」で、その年度の記録の抜けがひと目で分かります。", "「内容」の欄には例文があらかじめ入っています。実際に行った内容に合わせて書き直してください。"], "faq": [{"q": "保存ボタンが見当たりません。入力した内容は消えてしまいませんか？", "a": "消えません。日付やチェックを入れた時点で自動的に保存されます。年度を切り替えたり、別の画面に移ったりしても、入力した内容はそのまま残ります。"}, {"q": "先月の分を書き忘れてしまいました。あとから入力できますか？", "a": "できます。4月から3月までのどの月でも、いつでも入力・修正できます。日付を入れると「実施済」の数にも反映されます。"}, {"q": "「防火管理台帳」と「消火訓練」で、日付を2回入れないといけませんか？", "a": "いいえ。日付と内容は両方で共通です。どちらかで入力すれば、もう一方にも同じ内容が表示されます。"}]}, "shift": {"summary": "翌月の勤務表（シフト）を作り、実際の出勤・退勤を出勤簿に記録できる画面です。勤務時間と時間外は自動で計算され、そのまま印刷して提出用の書類にできます。", "steps": ["上部のタブで「勤務表（シフト予定）」を選びます。", "右上の月の欄で、作りたい翌月を選びます。", "早番・日勤・遅番の勤務時間と休憩時間を確認します。", "名前と日付が交わるマスを押し、早・日・遅・休を切り替えます。", "打刻は「出勤簿」タブで職員を選び、出勤と退勤を入れます。"], "tips": ["「基本シフト一括反映」を押すと、平日は各職員の基本シフト、土日は休で一度に埋まります。すでに入れた内容は上書きされるので、細かい調整をする前に押してください（基本シフトは職員管理で設定します）。", "出勤簿の「シフトから一括入力」を使うと、シフトの予定時刻がまとめて入ります。すでに打刻した日はそのまま残るので、違う日だけ直せば大丈夫です。", "勤務時間は「退勤−出勤−休憩」で自動計算されます。時間外（所定の8時間を超えた分）は赤い字で表示されるので、多い日は理由を確認しておくと安心です。", "遅刻・早退・有給などは備考欄に書いておくと、印刷した出勤簿にもそのまま残ります。印刷は「この職員を出力」「全員分を出力」から選べます。"], "faq": [{"q": "保存ボタンが見当たりません。入力が消えてしまいませんか？", "a": "入力するとその場で自動保存されますので、保存ボタンを押す必要はありません。ただし記録はお使いの端末に保存されるため、別の端末では表示されません。同じ端末で入力・確認をお願いします。"}, {"q": "シフトのマスを押し間違えました。空欄に戻せますか？", "a": "同じマスを押すたびに、早 → 日 → 遅 → 休 → 空欄 の順に変わります。何回か続けて押していただくと、元の空欄に戻ります。"}, {"q": "早番の時間が園の実際と違います。変えられますか？", "a": "表の上にある「早・日・遅」の横の時刻の欄を書き換えてください。休憩時間も同じ場所で直せます。変更した時刻は、印刷した勤務表や出勤簿の一括入力にも反映されます。"}]}, "expense": {"summary": "この画面では、月ごとの経費精算表を作成し、印刷や書き出しができます。あわせて、手元の現金を数えて記録する金種表（お札や硬貨の枚数をまとめた表）も作成できます。", "steps": ["画面の上にある年月から、作成したい月を選びます。", "経費精算表に、日付・支払先・内容・科目・金額を入力します。", "現金を数えて、金種表にお札と硬貨の枚数を入力します。", "金種表で、数えた現金とあるべき残高の差額を確かめます。", "出力（印刷）を押して、精算表と金種表を出します。"], "tips": ["領収書を日付順に並べてから入力すると、抜けや二重入力に気づきやすくなります。", "金種表は、現金を数えたその場で入力すると数え直しが減ります。", "数えた現金とあるべき残高に差が出たときは、理由を1行ずつ残してください。理由で埋まらない分は「理由が分からない差額」として紙に出ます。", "月末にまとめて入力するより、こまめに入力しておくと、あとから直す手間が減ります。"], "faq": [{"q": "入力をまちがえました。あとから直せますか？", "a": "はい。その月をもう一度開いて、まちがえた欄を入力し直してください。直したあとに、合計金額をもう一度確かめると安心です。"}, {"q": "現金の金額が少し合いません。どうすればよいですか？", "a": "まず領収書の入れ忘れ、次に金額の打ちまちがい、最後に現金の数えまちがいの順で確かめてください。それでも合わないときは、そのままにせず園長先生や事務担当の方にご相談ください。"}, {"q": "金種表は毎月作らないといけませんか？", "a": "園のきまりによりますが、現金を数えたときに作っておくと、あとで「いくらあったか」をすぐ確認できます。作成した月の分はこの画面から出力できます。"}]}, "docgen": {"summary": "危機管理マニュアル・運営状況報告書・保育安全計画の3つの書類を、園の情報を入力するだけで作れる画面です。右側のプレビューで仕上がりを見ながら直し、そのまま印刷やPDF保存ができます。", "steps": ["画面の上にあるボタンで、作りたい書類を1つ選びます。", "危機管理マニュアルは「施設固有情報」を開き、園名や連絡先を入力します。", "左側の入力欄や本文を、園の内容に合わせて直します。", "右側のプレビューで、書類の仕上がりを確かめます。", "「出力」ボタンを押して、印刷またはPDF保存をします。"], "tips": ["入力した内容は自動で保存されます。保存ボタンを押す必要はありません。", "プレビューの赤い〔未入力〕は、施設固有情報がまだ空の場所です。入力すると消えます。", "本文を直しすぎたときは「既定に戻す」で元の文章にもどせます。直した項目には✎が付きます。", "運営状況報告書の児童数と職員は、システムの名簿から自動で入ります。手で数え直す必要はありません。"], "faq": [{"q": "「出力」を押したら印刷の画面が出ました。PDFで保存できますか？", "a": "はい。印刷画面の「送信先」や「プリンター」の欄で「PDFに保存」を選ぶと、PDFとして残せます。"}, {"q": "危機管理マニュアルを、全部まとめて1冊で印刷できますか？", "a": "できます。左上の「全編を出力（表紙・目次つき）」を押すと、表紙と目次が付いた状態でまとめて出せます。"}, {"q": "入力した園の情報は、ほかの先生のパソコンでも見られますか？", "a": "いいえ。入力した内容はお使いの端末の中に保存されます。別の端末で使うときは、あらためて入力をお願いします。"}]}, "reqnav": {"summary": "園の施設種別を選ぶと、行政に提出・整備する書類の一覧が表示される画面です。書類ごとに「未着手・準備中・完了」で進み具合を記録でき、この中で作れる書類は作成画面へそのまま移動できます。", "steps": ["画面の一番上で、園に当てはまる「施設種別」を選びます。", "必要に応じて「自治体（市区町村）」と「定員」を入力します。", "一覧で、書類名・根拠・提出先・頻度・説明を確認します。", "書類ごとに右側で「未着手」「準備中」「完了」を選びます。", "「このシステムで作る」がある書類は、押すと作成画面に移ります。"], "tips": ["一覧が切り替わるのは「施設種別」を選んだときです。まず種別を正しく選んでください。", "一覧の上に「完了 ○/○」と出ます。今どこまで進んでいるかの目安にしてください。", "橙色の「要確認」が付いた書類は、自治体によって様式や頻度が変わりやすいものです。市区町村の公式情報でご確認ください。", "この一覧は確認日時点の暫定の内容です。制度の変更もあるため、最終的な判断は必ず自治体の案内に合わせてください。", "選んだ種別や進み具合は、お使いのパソコン・タブレットの中に自動で保存されます。別の端末には引き継がれません。"], "faq": [{"q": "施設種別を変えたら、今まで入れた進み具合は消えてしまいますか？", "a": "消えません。進み具合は種別ごとに分けて記録しています。元の種別に戻せば、前に選んだ「準備中」「完了」がそのまま表示されます。"}, {"q": "「要確認」と付いている書類は、出さなくてもよいということですか？", "a": "いいえ、不要という意味ではありません。必要かどうかや、様式・提出の頻度が自治体で違いやすい書類という印です。園のある市区町村の窓口や公式ページでご確認ください。"}, {"q": "「このシステムで作る」のボタンが出ていない書類は、どうすればよいですか？", "a": "その書類は「システム外で用意」と表示されます。園で別に作成したり、自治体の様式をお使いください。用意ができたら、この画面で「完了」に変えておくと分かりやすくなります。"}]}, "docs": {"summary": "契約書や保険証書などの書類をGoogle Driveに保存し、そのURLをこの画面に登録しておける画面です。登録すると状態が「格納済み」に変わり、監査のときにすぐ書類を開いて確認できます。", "steps": ["先にGoogle Driveへ書類を保存し、その共有URLをコピーします。", "一覧から登録したい書類名を探し、URL欄に貼り付けます。", "必要に応じて、メモ欄に有効期限や補足を書き添えます。", "「保存」を押すと、状態が「格納済み」に変わります。", "一覧にない書類は、下の「書類を追加」に名前を入れて「追加」を押します。"], "tips": ["この画面はファイルそのものを預かる場所ではありません。ファイルはDriveに置き、ここにはURLだけを登録してください。", "URLを貼っただけでは記録されません。最後に必ず「保存」を押してください。", "Driveの共有設定もご確認ください。園の関係者が開けないURLだと、監査のときに表示できません。", "書類名の文字をクリックすると、園でお使いの呼び方に書き換えられます。", "病院などの緊急連絡先は、この画面ではなく「施設管理 → 提携医療機関」で管理します。"], "faq": [{"q": "赤い「未格納」の表示が消えません。どうすればよいですか？", "a": "URL欄が空のままだと「未格納」と表示されます。DriveのURLを貼り付けて「保存」を押していただくと、緑色の「格納済み」に変わります。"}, {"q": "一覧にない書類も登録できますか？", "a": "はい、できます。表の下にある「書類を追加」に書類名を入れて「追加」を押すと、新しい行が増えます。URLは後からでも入力できます。"}, {"q": "追加した書類を削除すると、Driveのファイルも消えてしまいますか？", "a": "いいえ、Drive内のファイルはそのまま残ります。消えるのは、この画面に登録したURLとメモだけです。なお削除ボタンは、ご自身で追加した書類にのみ表示されます。"}]}, "facility": {"summary": "園の基本情報や認可・届出の内容、かかりつけ医などの提携医療機関、給食・清掃などの取引先を、この画面ひとつにまとめて登録できます。登録した内容は、緊急連絡先の壁掲示用や施設情報の一覧として印刷することもできます。", "steps": ["左のメニューの「管理」から「施設管理」を選びます。", "「園の基本情報」「認可・届出」の各欄に入力します。", "「提携医療機関」の「追加」を押し、病院名や電話番号を入れます。", "「提携先・取引先」の「追加」を押し、種別と会社名を入れます。", "「壁掲示用に出力」を押すと、緊急連絡先を印刷できます。"], "tips": ["入力した内容は、ほかの欄に移った時点で自動的に保存されます。保存ボタンはありません。", "「目標物（緊急通報用）」に建物の目印を入れておくと、119番のときに場所を伝えやすくなります。", "決まった欄にない情報は、一番下の「その他の情報（自由記載）」で見出しと内容を追加して残せます。", "表の右はしのゴミ箱を押すと、その行はすぐに消えます。確認の画面は出ませんのでご注意ください。"], "faq": [{"q": "保存ボタンが見つかりません。入力したものは消えてしまいませんか？", "a": "入力したあと、ほかの欄をクリックした時点で自動的に保存されます。保存ボタンはありませんので、そのまま画面を移っていただいて大丈夫です。"}, {"q": "病院の連絡先を、事務室の壁に貼っておきたいのですが。", "a": "「提携医療機関」の右上にある「壁掲示用に出力」を押すと印刷の画面が開きます。電話番号が大きく印刷され、消防・救急（119）と警察（110）も一緒に載ります。"}, {"q": "ここに入れた内容は、ほかの先生のパソコンでも見られますか？", "a": "いまはお使いの端末のブラウザの中に保存されるしくみのため、ほかの端末では表示されません。共有したいときは「施設情報を出力」で印刷してお渡しください。控えの保存は「設定」画面のバックアップから行えます。"}]}, "contacts": {"summary": "見学・体験のお問い合わせをいただいたご家庭（リード）と、在園児・退園児の連絡先をまとめて管理する画面です。進捗フェーズや懸念点、次回アクションの日を記録して、対応もれを防げます。", "steps": ["「すべて」「リード」「在園児」「退園児」を押して表示を絞ります", "探したい方は、上の検索欄に保護者名やお子様のお名前を入れます", "新しく登録するときは、右上の「連絡先を追加」を押します", "区分を選び、保護者名とメールアドレスなど必要な項目を入力します", "内容を直すときは行の右の鉛筆マークを押し、最後に「保存」を押します"], "tips": ["保護者名とメールアドレスは必ず必要です。ほかの項目は後から少しずつ足していけます。", "並べ替えを「次回アクションが近い順」にすると、早く連絡すべきご家庭が上に並びます。", "体験でうかがった心配ごとは「懸念点・要望」に書いておくと、一覧に赤色で表示されます。", "監査のときは「監査用に出力」から、児童名簿・緊急連絡票・健康アレルギー一覧・入退園一覧を印刷できます。"], "faq": [{"q": "「リード」って何のことですか？", "a": "見学や体験のお問い合わせをいただいた、まだ入園前のご家庭のことです。進捗フェーズで今どの段階かを管理します。"}, {"q": "入園が決まったら、どうしたらいいですか？", "a": "その方の鉛筆マークを押して編集画面を開き、区分を「在園児」に切り替えてください。クラス・入園日・通園曜日を入れて保存します。月額を手で入れる欄はありません。「生徒情報（契約・オプション）」の内容と「設定 → 料金設定」の単価から自動で計算されます。きょうだい割など園で決めた額があるときだけ、「特別料金」に入れてください。"}, {"q": "ごきょうだいを、同じメールアドレスで登録できますか？", "a": "できます。お一人ずつ別の連絡先として登録してください。名簿の取り込みでも、同じメールアドレスのお子様は飛ばしません。同じ保護者名とお子様名の組み合わせが二重になっているときだけ、取り込みを飛ばします。"}, {"q": "退園したお子様は削除したほうがいいですか？", "a": "削除せず、区分を「退園児」にして退園日を入れてください。監査で使う入退園一覧に必要です。ゴミ箱で消すと元に戻せませんのでご注意ください。"}]}, "roster": {"summary": "園児一人ひとりの情報（基本情報・ご家族・緊急連絡先・健康情報・お支払い）を1か所にまとめて登録・確認できる画面です。地図上に園児のご自宅と園・避難場所を表示でき、一覧は名簿として印刷もできます。", "steps": ["左のメニューで「生徒台帳」を開き、「一覧」タブを選びます。", "見たい園児の行の「開く」を押し、個別プロフィールを表示します。", "各項目を入力したら、右上の「保存」を押して内容を確定します。", "「自宅マップ」タブで園児を選び、地図のご自宅の位置を押します。", "「一覧」タブの「名簿を出力」を押すと、印刷用の名簿が出ます。"], "tips": ["赤い「必須」マークの項目（住所・緊急連絡先1と2・健康情報など）が空のままだと保存できません。", "アレルギーやかかりつけ医がない園児も、空欄にせず「なし」と入力してください。", "個別プロフィールの「この子を地図で見る」を押すと、その園児のご自宅の位置へすぐ移動します。", "自宅マップはインターネットに接続しているときだけ表示されます。地図が出ないときは接続を確かめ、画面を開き直してください。"], "faq": [{"q": "探している園児の名前が一覧に出てきません。", "a": "一覧に表示されるのは在園中の園児だけです。「連絡先」の画面で、その園児が在園として登録されているかをご確認ください。"}, {"q": "住所を入力すれば、地図にご自宅のピンが自動で付きますか？", "a": "自動では付きません。住所を外部に送らないようにしているためです。「自宅マップ」タブで園児を選び、地図のご自宅の場所を押してピンを置いてください。置き直しや削除もできます。"}, {"q": "入力した内容は、他の先生のパソコンでも見られますか？", "a": "見られません。入力した情報は、今お使いの端末のブラウザの中だけに保存されます。別の端末で見たい場合は、その端末で改めて入力が必要です。"}]}, "enroll": {"summary": "園児ごとのコースプランと、ランチ・ロングステイ・教育関連費の有無をまとめて設定できる画面です。設定した内容から月額が自動で計算され、そのまま請求書づくりに引き継がれます。", "steps": ["左のメニューから「生徒情報（契約・オプション）」を選びます。", "一覧から園児の行を探し、「コースプラン」を選びます。", "ランチ・ロングステイを使う園児は「あり」にチェックを入れます。", "教育関連費がかかる園児は、その列のチェックを入れます。", "右端の「月額（自動）」を確かめ、「請求書」を押します。"], "tips": ["チェックや選びなおしは、その場ですぐ保存されます。保存ボタンはありません。", "ランチ・ロングステイの下に赤い字で「曜日が未設定」と出たときは、回数が0回のままです。「連絡先」で通園曜日とオプションを設定してください。", "「月額（自動）」はその月の曜日の数で計算されるため、月によって金額が変わることがあります。", "ランチなどの単価は「設定」の「料金設定」で変えられます。入園金は請求書の画面でチェックを入れて加えます。"], "faq": [{"q": "ランチの回数は、この画面で直接入力できますか？", "a": "この画面では「あり」「なし」だけを決めます。回数は「連絡先」の曜日ごとの設定と、その月の曜日の数から自動で計算されます。今月だけ回数を変えたいときは、「請求書」ボタンから開く請求書の画面で直せます。"}, {"q": "名前が一覧に出てこない園児がいます。", "a": "この画面には在園児として登録されている園児だけが表示されます。「連絡先」でその園児の区分が「在園児」になっているかご確認ください。"}, {"q": "変えた内容は、いつ請求に反映されますか？", "a": "変更するとすぐ保存され、次に作る請求書に反映されます。すでに作成済みの月の請求書には自動では反映されませんので、「請求書発行」でその月の内容をご確認ください。"}]}, "billing": {"summary": "月ごとの保育料の請求書を、内容の確認から発行・保護者への送付・入金の確認まで、この画面だけで進められます。金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動で計算されます。", "steps": ["右上の月を選んで、その月の請求一覧を表示します", "園児ごとに「明細」を押し、回数や割引、支払期日を確かめます", "内容がよければ上の「一括で発行」を押します", "「発行済をまとめて送付」を押し、保護者へお送りします", "入金を確認できたら、その行の「入金済」を押します"], "tips": ["この画面を開くと、はじめは翌月分が表示されます。前の月を見たいときは、右上の月を変えてください。", "金額は自動で計算されます。その月だけ回数を変えたい・割引を付けたいときは、その子の行の「明細」から直します。", "「明細」で「保存」を押すと、状態が「未発行」から「発行済」に変わります。まだ発行したくないときは「閉じる」を押してください。", "紙でお渡しするときは「全員分を印刷」、1人分だけなら行の右にあるプリンターのマークを押します。", "休園中の園児も一覧に出ます。名前の横と、印刷した請求書に「休園中」と出ます。"], "faq": [{"q": "金額がちがうのですが、どこで直せますか？", "a": "その子の行の「明細」を押すと、コースプラン・ランチやロングステイの回数・教育関連費・割引・支払期日を直せます。全員に共通する単価そのものを変えたいときは「設定 → 料金設定」で変更してください。"}, {"q": "まちがえて送ってしまいました。取り消せますか？", "a": "送ったものを取り消すことはできません。「明細」で正しい内容に直してから「再送」を押し、保護者の方にはひとことお詫びとご連絡を添えてください。"}, {"q": "休園中の園児にも請求書を出せますか？", "a": "出せます。ほかの園児と同じ一覧に出ますので、いつもと同じ流れで発行できます。金額は自動で計算されるため、通っていた月と同じ額が出ます。休んでいる月の額に直すときは、その子の行の「明細」を開き、「特別料金（この月だけ）」に決めた額を入れてください。プランやランチの計算のかわりに、その額で請求します。"}, {"q": "入金がまだのご家庭は、どこを見れば分かりますか？", "a": "状態が「送付済」のままの行が、まだ入金を確認できていないご家庭です。画面上部のタグで「送付済」「入金済」の件数が分かり、支払期日は一覧の「支払期日」の列で確認できます。"}]}, "templates": {"summary": "「メールテンプレート」は、配信でよく使う定型の文面を一覧で見られる画面です。保護者への個別メールと、クラス全体へのお知らせ配信の見本を確認して、そのまま送信画面へ持っていけます。", "steps": ["上が個別メール、下が全体周知・お知らせの一覧です。使いたい文面を探します", "カードに出ている件名と本文の見本を読み、内容を確かめます", "カードの下の「対象」を見て、送りたい相手と合うか確認します", "そのまま送るときは「この文面で送信」（全体周知・お知らせは「この文面で配信」）を押します", "ひな形そのものを園のことばに直すときは「題名と文章を直す」を押します"], "tips": ["ひな形の中身は、この画面の「題名と文章を直す」で書き直せます。直した内容は園ごとの文章として残り、「はじめの内容に戻す」で元に戻せます", "送信画面で直した文面は、その送信だけに使われます。見本はそのまま残るので、次の方にもきれいな状態から始められます", "〔お名前〕〔お子様〕などのカッコは、送るときに宛先ごとの名前に自動で入れ替わります。そのまま残しておいて大丈夫です", "「〇月〇日」「〇曜日」のような〇印は自動では入りません。送る前に必ずご自身で書き直してください"], "faq": [{"q": "文面を直したいのですが、この画面で書き換えられますか？", "a": "この画面では書き換えられません。「この文面で送信」を押して移った画面で、件名と本文を自由に直せます。直した内容はその送信にだけ使われ、こちらの見本は変わりません。"}, {"q": "〔お名前〕と書いてありますが、このまま送られてしまいませんか？", "a": "大丈夫です。送信するときに、宛先の保護者様のお名前へ自動で入れ替わります。送信画面のプレビューで、実際に送られる文面を確かめられます。"}, {"q": "どの文面を使えばよいか分かりません。", "a": "各カードの下に「対象」が書かれています。体験前の方、在園児の保護者様など、送りたい相手に合うものをお選びください。迷ったときはマネージャーにご確認ください。"}]}, "staff": {"summary": "職員の名簿（役職・保有資格・入社日と勤続年数・健康診断日）をまとめて管理できる画面です。健康診断の期限をお知らせしたり、身分証や資格証の控えを保管したり、システムにログインするアカウントを発行したりできます。", "steps": ["左のメニューから「職員管理」を選びます。", "「職員を追加」を押し、氏名・役職・保有資格・入社日を入れて保存します。", "一覧のえんぴつマークを押し、直近の健康診断日を入れます。", "同じ画面の「身分証・証明書の保管」で、画像またはURLを追加します。", "ログインが必要な方は「アカウント作成」を押し、ID・パスワード・役割を決めます。"], "tips": ["健康診断日を入れると、その1年後が次回期限として自動で表示されます。期限の30日前から黄色の「要更新」、過ぎると赤の「期限切れ」になり、画面のいちばん上にもお知らせが出ます。", "「身分証・証明書の保管」の欄は、いったん保存したあと一覧のえんぴつマークから開くと出てきます。新しく追加する画面には出ませんので、まず保存してください。", "登録した画像は、今お使いの端末の中だけに保存されます。別のパソコンやスマホからは見えませんので、園で使う端末を決めておくと安心です。", "監査や提出の前は「労働者名簿を出力」を押すと、全職員の一覧を印刷できます。", "編集画面で「基本シフト（早・日・遅）」を選んでおくと、シフト表で一括して反映できます。"], "faq": [{"q": "健康診断のところに出る「要更新」って、どういう意味ですか？", "a": "前回の健診日から1年が近づいたときに出る印です。期限の30日前から黄色の「要更新」、期限を過ぎると赤の「期限切れ」になります。新しい健診日を入れていただくと、元の緑の表示に戻ります。"}, {"q": "資格証や免許証の写真を入れても大丈夫でしょうか？", "a": "登録した画像はこの端末の中だけに保存され、外部には送られません。ただし共有の端末や持ち出しにはご注意ください。Googleドライブに保管している場合は、画像の代わりにURLを貼り付けることもできます。"}, {"q": "職員が退職したときは、削除したほうがいいですか？", "a": "削除ではなく、えんぴつマークから「退職日」を入れることをおすすめします。名簿に残るので、勤続年数などの記録も残せます。ゴミ箱マークを押すと、その職員の情報は消えてしまいます。"}]}, "audit": {"summary": "監査で必要な書類を「①児童関係」から「⑤給食」まで一覧で確認し、書類ごとに準備状況（未・対応中・済）を記録できる画面です。それぞれの書類を作る画面へその場で移動でき、最後に最終チェックリストとして印刷できます。", "steps": ["一番上の「○○年度」で年度を選びます。状態・監査日・準備状況・出力は、選んだ年度のものです", "上の「監査日」に日程が決まったら入力し、残り日数を確認します", "①〜⑤の一覧から書類を探し、左の欄で「未・対応中・済」を選びます", "システムで作る書類は、右のボタンを押してその画面へ移動します", "書類名の下の「保管：」欄に、園での置き場所を入力します", "最後に「監査パッケージ（最終チェックリスト）を出力」を押して印刷します"], "tips": ["年度ごとに残ります。去年の年度を選べば、去年の状態がそのまま出ます", "「システム内データ」の件数は、年度で分けていません", "書類名の横の青い「年度前」は3〜4月に整えるもの、オレンジの「運営中」は毎日の記録で溜まっていくものです", "現場監査は5〜11月に予告なく来ます。日々の記録を毎日つけておけば、そのまま提示できます", "緑色の「システム内データ」は、その書類のデータがどれくらい溜まっているかの目安です。「未格納」と出たらまだ登録されていません", "状態や保管先は、選んだり入力したりした時点で自動で保存されます。保存ボタンを押す必要はありません", "一番下の「虐待防止チェックシート」は3ヶ月に1回。監査でも確認されるので、実施日と実施者まで入れておきましょう"], "faq": [{"q": "「未」「対応中」「済」は、どう使い分ければいいですか？", "a": "まだ手をつけていないものは「未」、作りかけ・確認中のものは「対応中」、監査でそのまま出せる状態になったら「済」を選んでください。システムで作れる書類は、はじめから「対応中」になっています。"}, {"q": "監査の日程がまだ決まっていないのですが、空欄のままでいいですか？", "a": "はい、空欄のままで大丈夫です。書類監査の日程は自治体から連絡が入ってから確定しますので、決まってから入力すると残り日数が表示されます。現場監査は予告なしのため、日々の記録は続けてください。"}, {"q": "印刷した最終チェックリストには、何が載りますか？", "a": "①〜⑤すべての書類名と、状態・保管場所・「年度前／運営中」の区分・システム内のデータ量が一覧で出ます。提出漏れがないかの最終確認にお使いください。"}]}, "settings": {"summary": "送信設定・振込先口座・料金設定・請求書の体裁に加え、職員のログインアカウントの発行、役割ごとの権限、テンプレートの表示権限、データのバックアップと変更ログを管理する画面です。", "steps": ["送信元アドレスやBCC、園名などの送信設定を入力します。", "振込先口座・料金設定・請求書の体裁を必要に応じて入力します。", "「保存」を押して、入力した内容を確定します。", "職員アカウントの表で、ログインIDと役割を発行します。", "権限管理の表で、役割ごとに見せる画面をチェックします。"], "tips": ["送信設定・振込口座・請求書の体裁は、一番下の「保存」を押すまで反映されません。料金や登園オプションの追加は、入力したその場で保存されます。", "「職員アカウント」と「権限管理」は、管理者としてログインしているときだけ表示されます。ご自身の役割は画面左下のお名前の下に出ています。", "権限管理でチェックを外した画面は、その役割の先生のメニューから見えなくなります。まず一人で試してから、全体に反映すると安心です。", "データはお使いの端末の中に保存されます。月に一度は「バックアップをダウンロード」を押して、ファイルをパソコンに保管してください。"], "faq": [{"q": "「職員アカウント」や「権限管理」のところが見当たりません。", "a": "この2つは、役割が「管理者」の方でログインしたときだけ表示されます。画面左下にご自身の役割が出ていますので、ご確認のうえ、管理者の先生にお願いしてください。"}, {"q": "口座番号を入れても大丈夫ですか。", "a": "入力した口座情報はお使いの端末の中だけに保存され、外部に公開されることはありません。ただし共用の端末をお使いのときは、使い終わったらログアウトしてください。"}, {"q": "別のパソコンで開いたら、設定が空になっていました。", "a": "設定は端末ごとに保存されるため、そのままでは引き継がれません。前の端末で「バックアップをダウンロード」したファイルを、新しい端末の「バックアップから復元」で読み込んでください。"}]}, "tasks": {"summary": "その月にやることを自動で表示する画面です。システムに記録があるものは自動で「記録あり」になり、それ以外はチェックで完了にできます。年間の一覧も確認できます。", "steps": ["画面の上で、確認したい月を選びます。", "「毎月やること」を上から順に確認します。", "その月だけのタスクを右側で確認します。", "「開く」を押して、その記録の画面へ移動します。", "終わったものはチェックを入れて完了にします。"], "tips": ["身体測定や避難訓練など、システムに記録があるものは自動で「記録あり」になります。手作業でのチェックは不要です。", "月初にこの画面を開いて、その月にやることをひととおり見ておくと、提出忘れを防げます。", "「なぜ必要か」の一文に、監査での位置づけが書いてあります。判断に迷ったときの参考にしてください。", "下の年間一覧で、来月以降の予定も先に確認できます。"], "faq": [{"q": "チェックを入れ忘れると、どうなりますか。", "a": "未完了として赤い印のまま残ります。ダッシュボードの監査カードにも未了として表示されますので、気づいたときにチェックしてください。"}, {"q": "自動で「記録あり」になる条件は何ですか。", "a": "その月の記録がシステムに保存されているかを見ています。たとえば身体測定はその月の測定記録、避難訓練はその月の実施記録があるかどうかで判定します。"}, {"q": "園独自のタスクを追加できますか。", "a": "現在は決まった一覧の表示のみです。追加が必要な場合は、開発担当にご相談ください。"}]}};
+var HELP_DATA={"dashboard": {"summary": "ダッシュボードは、園の今の状況をひと目で確認できるホーム画面です。在園児数、本日の記録の入力もれ、本日のタスク、監査準備の進み具合、問い合わせ・体験・入退園の件数、やり取り中の連絡リストを表示し、押すとそれぞれの画面へ移動できます。", "steps": ["上の数字のカードで、在園児数と今月の状況を確認します。", "「本日の記録」の帯を見て、赤い「未」の項目を探します。", "「記録する」を押して、その場で本日分を入力します。", "「本日のタスク」を上から順に片づけていきます。", "「やり取り中の連絡リスト」の行を押して、内容を更新します。"], "tips": ["「未」は赤、「済」は緑です。帰るまでに赤をなくすことを目安にしてください。", "在園児カードのクラス名を押すと、そのクラスの男女の人数と比率が出ます。", "数字のカードを押すと、関係する画面（連絡先管理や記録など）へそのまま移動できます。", "「リード内訳」は「全期間・年度・月」を切り替えて見られます（受付日をもとに集計します）。", "一般スタッフの画面は本日のタスク中心です。問い合わせや入退園の数値は表示されません。"], "faq": [{"q": "数字が実際の人数と合っていない気がします。どこで直せますか。", "a": "ダッシュボードは各画面に入力された内容を集計して表示しています。連絡先管理や登園シートなど、もとの画面の内容をご確認ください。直すと数字も自動で変わります。"}, {"q": "問い合わせや体験の件数が私の画面には出てきません。故障でしょうか。", "a": "故障ではありません。一般スタッフの権限では運営の数値は表示されない設定です。本日のタスクと在園児・本日の出席が中心の画面になります。表示が必要な場合は管理者にご相談ください。"}, {"q": "「やり取り中の連絡リスト」に、あの保護者の名前が出てきません。", "a": "「長期見込み」「連絡不通」「入園 確定」「NG」の方は、このリストには表示されません。連絡先管理の画面からお探しください。"}]}, "compose": {"summary": "この画面では、連絡先から相手を1人選び、テンプレートを使って個別にメールを送れます。あとで送る「送信予約」や、送ったメールの確認もできます。", "steps": ["連絡先の一覧から、メールを送りたい相手を選びます。", "使いたいテンプレートを選んで、本文に読み込みます。", "件名と本文を読み、名前や日付などを書き直します。", "すぐ送るときは送信、あとで送るときは日時を決めて予約します。", "送信済みの一覧を開いて、きちんと送れたかを確かめます。"], "tips": ["テンプレートの名前・日付・時間は、そのままになりがちです。送る前に声に出して読み直すと安心です。", "宛先のお名前は必ずご確認ください。似たお名前の方がいる場合は特にご注意ください。", "急ぎでなければ送信予約が便利です。書いてすぐ送らず、時間を置いて見直せます。", "お返事がほしいときは、いつまでにお返事いただきたいかを本文に書いておくと伝わりやすくなります。"], "faq": [{"q": "送ったあとに間違いに気づきました。取り消せますか？", "a": "送信が終わったメールは取り消せません。おわびと訂正の内容を、あらためてお送りください。送信予約にしておくと、送られる前に内容を見直すことができます。"}, {"q": "送りたい方が一覧に出てきません。", "a": "連絡先に登録されていない可能性があります。お名前の一部で探しても見つからないときは、連絡先の登録内容をご確認ください。"}, {"q": "何人かの保護者に同じ内容を送りたいのですが。", "a": "この画面は1対1で送るためのものです。お一人ずつ選んで送っていただく形になります。同じテンプレートを使えば、毎回書き直さずに済みます。"}]}, "broadcast": {"summary": "この画面では、クラスや児童を選んで保護者へお知らせを一斉に送れます。左の欄で件名と本文を直すと、右の「保護者に届く見え方」がすぐ変わります。ひな形はどの園でも使える骨組みなので、園のことばに書き直してお使いください。", "steps": ["上の「ひな形」で、送るお知らせを選びます。", "左の欄で件名と本文を直します。〇〇のところに、園の時間・持ち物・日にちを入れてください。", "右の「保護者に届く見え方」で、届く文章を確かめます。", "「送り先」で、クラスで選ぶか、児童を選ぶかを決めます。", "見直してから「この内容で送る」を押します。日時を決めて「予約」もできます。"], "tips": ["左の欄での書き足しは、この1回だけに効きます。ひな形そのものを直すときは「メールテンプレート」の画面で直してください。", "デイリーメールの本文に〔本日の活動〕と書いておくと、カリキュラムのその日の午前・午後が入ります。", "〇〇のまま送ると、そのまま保護者に届きます。送る前に右の見え方を必ずお読みください。", "園全体へのお知らせは、クラスの選び漏れがないかご注意ください。"], "faq": [{"q": "クラスを間違えて送ってしまいました。どうすればいいですか？", "a": "おわびと正しい内容を、あらためて対象のクラスへ配信してください。送信済みのお知らせの取り扱いについては、園の管理担当者にご確認ください。"}, {"q": "〔本日の活動〕のところが空になります。", "a": "カリキュラムの「日別スケジュール」に、その日の午前・午後がまだ入っていません。入れると、ここに入ります。"}, {"q": "毎回おなじ直しをしています。ひな形そのものを変えられますか？", "a": "変えられます。「メールテンプレート」の画面で「題名と文章を直す」を押してください。園ごとの文章として残ります。"}, {"q": "同じお知らせを複数のクラスに送れますか？", "a": "送れます。配信先で送りたいクラスをまとめて選べば、同じ内容を一度に配信できます。"}]}, "dm": {"summary": "この画面では、ご家庭ごとに個別のメッセージをやりとりできます。送信すると保護者に通知メールが届き、メール内の返信URLからお返事をいただけます。", "steps": ["一覧から、メッセージを送りたいご家庭を選びます。", "これまでのやりとりを読み、用件を確かめます。", "入力欄に、伝えたい内容をわかりやすく書きます。", "宛先のお名前と本文を、もう一度見直します。", "「送信」を押すと、保護者へ通知メールが届きます。"], "tips": ["送信すると、すぐに保護者へメールが届きます。押す前に必ず読み返してください。", "よく似たお名前のご家庭があります。送信前に宛先のお名前をご確認ください。", "けがや発熱など急ぎのご連絡は、お電話が確実です。DMは気づくまで時間がかかります。", "長い文章より、短い文を分けて書くほうが、保護者に伝わりやすくなります。"], "faq": [{"q": "保護者には、どのように届くのですか？", "a": "送信すると、保護者へ通知メールが届きます。メールの中の返信URLを開くと、その場でお返事を書いていただけます。"}, {"q": "保護者からのお返事は、どこで見られますか？", "a": "この画面の、同じご家庭のやりとりの中に表示されます。ご家庭を選んで、内容をご確認ください。"}, {"q": "文章をまちがえて送ってしまいました。どうすればよいですか？", "a": "あわてず、続けて訂正のメッセージをお送りください。「先ほどの連絡を訂正します」と一言添えると、保護者に伝わりやすくなります。"}]}, "trial": {"summary": "体験を担当した先生が、その日の結果を入力する画面です。保存すると、連絡先の進捗と生徒台帳に自動で反映されます。", "steps": ["一覧から、報告したい体験の記録を選びます。", "お子さまのお名前と体験日が合っているか確認します。", "体験の結果を、表示されている選択肢から選びます。", "当日の様子や気づいたことをメモに入力します。", "入力内容を見直し、保存ボタンを押します。"], "tips": ["体験が終わったその日のうちに入力すると、様子を思い出しやすく正確に残せます。", "メモは次に対応する先生が読むものです。「〇〇が好きそうだった」など短く具体的に書くと伝わります。", "保存すると連絡先の進捗と生徒台帳に反映されます。同じ内容を別の画面で入力し直す必要はありません。", "保存を押す前に、お名前と体験日を必ずもう一度ご確認ください。別のお子さまに反映されるのを防げます。"], "faq": [{"q": "保存したあと、連絡先の進捗も自分で直さないといけませんか？", "a": "いいえ、必要ありません。保存すると連絡先の進捗と生徒台帳に自動で反映されますので、そのままで大丈夫です。"}, {"q": "入力を間違えて保存してしまいました。どうすればいいですか？", "a": "他の画面にも反映されていますので、気づいた時点で園の管理担当の先生にお伝えください。早めにご連絡いただくと安心です。"}, {"q": "体験を担当していない先生が代わりに入力してもいいですか？", "a": "基本は担当した先生の入力をおすすめします。代わりに入力する場合は、当日の様子を担当の先生に確認してから入力してください。"}]}, "deliveries": {"summary": "「配信カレンダー」は、デイリーメールや請求書などの定期配信の次回予定と、体験・説明会の予定をまとめて確認できる画面です。園の予定をカレンダー用のファイルに書き出して、ふだんお使いのカレンダーに取り込むこともできます。", "steps": ["左のメニューから「配信カレンダー」を開きます。", "「定期配信スケジュール」で次回の予定を確認します。", "送りたい配信の行にある「作成」を押します。", "下の「体験・説明会の予定」で今後の日程を確認します。", "「カレンダーに取り込む」→「カレンダー用ファイルを書き出す」を押します。"], "tips": ["「次回予定」に「本日」と出ている配信は、その日に送るものです。朝のうちにご確認ください。", "上に出る「予約済み配信」は今のところ予約の記録だけで、時間になっても自動では送られません。行を押すと内容を確認でき、ごみ箱のボタンで取り消せます。", "体験・説明会の予定にある「メール作成」を押すと、その方の状況に合った文面が自動で選ばれた状態でメール画面に進みます。", "書き出したファイルは、Googleカレンダーの「他のカレンダー → インポート」から取り込めます。AppleカレンダーやOutlookでも同じように取り込めます。"], "faq": [{"q": "予約した配信は、時間になったら自動で送られますか？", "a": "いいえ。今は予約を記録しておくだけで、自動送信はまだ行われません。当日はお手数ですが、配信画面から送信をお願いします。"}, {"q": "体験の予定が一覧に出てきません。", "a": "体験日が登録されていない方や、日付が過ぎた方は表示されません。連絡先の情報に体験日が入っているかご確認ください。鉛筆のボタンからその場で直せます。"}, {"q": "書き出したファイルは、どうすればカレンダーに入りますか？", "a": "パソコンにファイルが保存されますので、Googleカレンダーの「他のカレンダー → インポート」でそのファイルを選んでください。予定がそのまま入ります。"}]}, "records": {"summary": "この画面では、登園（出席）・安全点検・午睡チェック・健康チェック・業務日報を、その日ごとにまとめて記録できます。毎日の記録が1か所に残るので、あとから見返したり引き継いだりするときに役立ちます。", "steps": ["画面上部の日付を見て、今日の日付になっているか確認します。", "記録したい項目（登園・安全点検・午睡・健康・日報）を選びます。", "クラスやお子さまごとに、当てはまる内容を選んで入力します。", "気になったことがあれば、メモ欄に短いことばで書きます。", "入力が終わったら保存を押して、記録を確定します。"], "tips": ["午睡チェックは、決められた時間ごとにその場で入力すると、書き忘れを防げます。", "気になる様子は「いつ・どこで・どうしたか」を短く書くと、あとの人にも伝わりやすいです。", "入力の途中でも、こまめに保存しておくと安心です。", "登園は朝のうち、日報は帰る前など、記録する時間を決めておくと習慣になります。"], "faq": [{"q": "入力をまちがえました。直せますか？", "a": "同じ項目をもう一度開いて、正しい内容に入力し直し、保存してください。気づいたときにその日のうちに直しておくと安心です。"}, {"q": "お休みのお子さんは、どう記録すればいいですか？", "a": "登園の記録で、お休み（欠席）として記録してください。理由が分かっていれば、メモ欄に短く書いておくと共有しやすくなります。"}, {"q": "途中まで入力して、あとから続きを入力してもいいですか？", "a": "大丈夫です。入力できたところまで保存しておき、あとで同じ画面を開いて続きを入力してください。"}]}, "carerec": {"summary": "毎月の身体測定、その都度のヒヤリハット・怪我、3ヶ月ごとの生徒個人発達記録を、この画面でまとめて記録できます。記録した内容は印刷したり、控えとして保存したりできます。", "steps": ["画面の上にある3つのタブから、記録したい種類を選びます。", "身体測定は、月とクラスを選び、身長と体重を入力します。", "ヒヤリハット・怪我は「記録を追加」を押し、入力後に保存を押します。", "生徒個人発達記録は、園児と期間を選び、項目ごとに当てはまるものを選びます。", "必要に応じて「出力」で印刷し、「データ保存」で控えを残します。"], "tips": ["身長と体重を入力すると、カウプ指数は自動で計算されます。目安は15〜17です。", "「保護者へ測定結果を送信」を押すと、各ご家庭にはお子様ご本人の記録だけが届きます。ほかのお子様の記録は見えませんので、ご安心ください。", "ヒヤリハット・怪我では、人型のイラストをタップすると、けがの場所を前と後ろで残せます。まちがえたときは「クリア」でやり直せます。", "生徒個人発達記録は監査でも確認される書類です。「記録者」のお名前も入れておくと安心です。"], "faq": [{"q": "先月の身体測定を直したいのですが、どうすればよいですか？", "a": "画面上の月の欄を、直したい月に選び直してください。その月の記録が表示され、そのまま入力し直せます。"}, {"q": "入力したのに、保存ボタンが見当たりません。消えてしまいませんか？", "a": "身体測定と生徒個人発達記録は、入力するとその場で自動的に保存されます。ヒヤリハット・怪我だけ、最後に「保存」を押してください。"}, {"q": "まちがえて記録してしまいました。消せますか？", "a": "ヒヤリハット・怪我は、一覧の右にあるごみ箱のマークから削除できます。身体測定と生徒個人発達記録は、数値や選択を入れ直すと上書きされます。"}]}, "curriculum": {"summary": "クラスごとに、その月のカリキュラムをまとめて作れる画面です。日ごとの予定と、週ごとの活動内容を、1つの画面で入力・保存できます。", "steps": ["画面の上で、対象のクラスと年月を選びます", "「活動の内容」で、活動ごとのねらいと担当を入力します", "日別スケジュールに、日ごとの予定を書き入れます", "週ごとの欄に、その週の活動内容を入力します", "入力が終わったら、保存ボタンを押します"], "tips": ["先に活動ごとのねらいを決めてから、週・日を埋めると書きやすいです", "全部を一度に書かず、途中でこまめに保存すると安心です", "クラスと年月が合っているか、入力前にもう一度ご確認ください", "行事や園庭開放など、動きやすい予定は日別スケジュールにまとめると見やすくなります"], "faq": [{"q": "書きかけのまま、あとで続きを書いてもいいですか？", "a": "はい、大丈夫です。保存しておけば、次に同じクラス・同じ月を開いたときに、続きから入力できます。"}, {"q": "入力した内容をあとから直せますか？", "a": "はい。同じクラス・同じ月を開いて、直したい欄を書き換えて保存し直してください。"}, {"q": "クラスが違う分も作りたいのですが、どうすればいいですか？", "a": "画面の上でクラスを切り替えてから、そのクラスの内容を入力してください。クラスごとに別々に保存されます。"}]}, "drill": {"summary": "年間14回の避難訓練について、いつ・どんな内容で行うかの計画と、実施したあとの記録をまとめて管理できる画面です。参加者名簿や年間記録表を出力して、印刷や書類の確認にも使えます。", "steps": ["画面の上で、記録したい年度を選びます。", "一覧から、今回あつかう訓練の回を選んで開きます。", "日時や想定する災害など、計画の内容を入力します。", "訓練が終わったら、実施した内容と参加者を記録して保存します。", "出力ボタンから、参加者名簿や年間記録表を出します。"], "tips": ["年度のはじめに14回分の計画をまとめて入れておくと、あとがぐっと楽になります。", "実施した内容は当日のうちに記録すると、記憶が新しいまま正確に残せます。", "参加者名簿は訓練の前に出しておくと、当日の点呼の確認に使えます。", "年間記録表は書類の提出や確認をもとめられたときに使えるので、記録の入れ忘れがないか時々見直しましょう。"], "faq": [{"q": "訓練の日にちが変わったのですが、どうすればいいですか？", "a": "その回を開いて、日付を新しいものに直してから保存してください。内容が上書きされます。"}, {"q": "14回すべてを一度に入力しないといけませんか？", "a": "いいえ。年間14回分の枠が用意されているだけですので、計画や実施の記録は、できるところから順に入れていただいて大丈夫です。"}, {"q": "あとから記録を直すことはできますか？", "a": "できます。直したい回を開いて内容を書き直し、保存すれば更新されます。"}]}, "bouka": {"summary": "研修と訓練の記録を1つにまとめた画面です。毎月の防火・安全設備の点検（消火器・救急箱・AED・防火扉・避難グッズ）、消火訓練、園でおこなった保育研修を、1年度分（4月〜3月）まとめて残せます。入力した内容は、そのまま台帳・訓練記録・研修記録の形で印刷できます。", "steps": ["画面の上にある選択欄から、記録したい年度を選びます。", "「防火管理台帳」を押し、実施した月の行に日付と内容を入力します。", "①〜⑤の点検項目のうち、確認できたものにチェックを入れます。", "「消火訓練 手順・記録」を押し、実施場所・タイム（所要時間・分）・概要を入力します。", "右上の「台帳を出力」または「記録を出力」を押して、印刷します。"], "tips": ["保存ボタンはありません。入力するとその場で自動的に保存されます。", "①〜⑤が何の点検かは、表のすぐ上に書いてあります（①消火器 ②救急箱 ③AED・自動火災報知設備 ④防火扉 ⑤避難グッズ）。", "画面上部の「実施済 ○/12」で、その年度の記録の抜けがひと目で分かります。", "「内容」の欄には例文があらかじめ入っています。実際に行った内容に合わせて書き直してください。"], "faq": [{"q": "保存ボタンが見当たりません。入力した内容は消えてしまいませんか？", "a": "消えません。日付やチェックを入れた時点で自動的に保存されます。年度を切り替えたり、別の画面に移ったりしても、入力した内容はそのまま残ります。"}, {"q": "先月の分を書き忘れてしまいました。あとから入力できますか？", "a": "できます。4月から3月までのどの月でも、いつでも入力・修正できます。日付を入れると「実施済」の数にも反映されます。"}, {"q": "「防火管理台帳」と「消火訓練」で、日付を2回入れないといけませんか？", "a": "いいえ。日付と内容は両方で共通です。どちらかで入力すれば、もう一方にも同じ内容が表示されます。"}]}, "shift": {"summary": "翌月の勤務表（シフト）を作り、実際の出勤・退勤を出勤簿に記録できる画面です。勤務時間と時間外は自動で計算され、そのまま印刷して提出用の書類にできます。", "steps": ["上部のタブで「勤務表（シフト予定）」を選びます。", "右上の月の欄で、作りたい翌月を選びます。", "早番・日勤・遅番の勤務時間と休憩時間を確認します。", "名前と日付が交わるマスを押し、早・日・遅・休を切り替えます。", "打刻は「出勤簿」タブで職員を選び、出勤と退勤を入れます。"], "tips": ["「基本シフト一括反映」を押すと、平日は各職員の基本シフト、土日は休で一度に埋まります。すでに入れた内容は上書きされるので、細かい調整をする前に押してください（基本シフトは職員管理で設定します）。", "出勤簿の「シフトから一括入力」を使うと、シフトの予定時刻がまとめて入ります。すでに打刻した日はそのまま残るので、違う日だけ直せば大丈夫です。", "勤務時間は「退勤−出勤−休憩」で自動計算されます。時間外（所定の8時間を超えた分）は赤い字で表示されるので、多い日は理由を確認しておくと安心です。", "遅刻・早退・有給などは備考欄に書いておくと、印刷した出勤簿にもそのまま残ります。印刷は「この職員を出力」「全員分を出力」から選べます。"], "faq": [{"q": "保存ボタンが見当たりません。入力が消えてしまいませんか？", "a": "入力するとその場で自動保存されますので、保存ボタンを押す必要はありません。ただし記録はお使いの端末に保存されるため、別の端末では表示されません。同じ端末で入力・確認をお願いします。"}, {"q": "シフトのマスを押し間違えました。空欄に戻せますか？", "a": "同じマスを押すたびに、早 → 日 → 遅 → 休 → 空欄 の順に変わります。何回か続けて押していただくと、元の空欄に戻ります。"}, {"q": "早番の時間が園の実際と違います。変えられますか？", "a": "表の上にある「早・日・遅」の横の時刻の欄を書き換えてください。休憩時間も同じ場所で直せます。変更した時刻は、印刷した勤務表や出勤簿の一括入力にも反映されます。"}]}, "expense": {"summary": "この画面では、月ごとの経費精算表を作成し、印刷や書き出しができます。あわせて、手元の現金を数えて記録する金種表（お札や硬貨の枚数をまとめた表）も作成できます。", "steps": ["画面の上にある年月から、作成したい月を選びます。", "経費精算表に、日付・支払先・内容・科目・金額を入力します。", "現金を数えて、金種表にお札と硬貨の枚数を入力します。", "金種表で、数えた現金とあるべき残高の差額を確かめます。", "出力（印刷）を押して、精算表と金種表を出します。"], "tips": ["領収書を日付順に並べてから入力すると、抜けや二重入力に気づきやすくなります。", "金種表は、現金を数えたその場で入力すると数え直しが減ります。", "数えた現金とあるべき残高に差が出たときは、理由を1行ずつ残してください。理由で埋まらない分は「理由が分からない差額」として紙に出ます。", "月末にまとめて入力するより、こまめに入力しておくと、あとから直す手間が減ります。"], "faq": [{"q": "入力をまちがえました。あとから直せますか？", "a": "はい。その月をもう一度開いて、まちがえた欄を入力し直してください。直したあとに、合計金額をもう一度確かめると安心です。"}, {"q": "現金の金額が少し合いません。どうすればよいですか？", "a": "まず領収書の入れ忘れ、次に金額の打ちまちがい、最後に現金の数えまちがいの順で確かめてください。それでも合わないときは、そのままにせず園長先生や事務担当の方にご相談ください。"}, {"q": "金種表は毎月作らないといけませんか？", "a": "園のきまりによりますが、現金を数えたときに作っておくと、あとで「いくらあったか」をすぐ確認できます。作成した月の分はこの画面から出力できます。"}]}, "docgen": {"summary": "危機管理マニュアル・運営状況報告書・保育安全計画の3つの書類を、園の情報を入力するだけで作れる画面です。右側のプレビューで仕上がりを見ながら直し、そのまま印刷やPDF保存ができます。", "steps": ["画面の上にあるボタンで、作りたい書類を1つ選びます。", "危機管理マニュアルは「施設固有情報」を開き、園名や連絡先を入力します。", "左側の入力欄や本文を、園の内容に合わせて直します。", "右側のプレビューで、書類の仕上がりを確かめます。", "「出力」ボタンを押して、印刷またはPDF保存をします。"], "tips": ["入力した内容は自動で保存されます。保存ボタンを押す必要はありません。", "プレビューの赤い〔未入力〕は、施設固有情報がまだ空の場所です。入力すると消えます。", "本文を直しすぎたときは「既定に戻す」で元の文章にもどせます。直した項目には✎が付きます。", "運営状況報告書の児童数と職員は、システムの名簿から自動で入ります。手で数え直す必要はありません。"], "faq": [{"q": "「出力」を押したら印刷の画面が出ました。PDFで保存できますか？", "a": "はい。印刷画面の「送信先」や「プリンター」の欄で「PDFに保存」を選ぶと、PDFとして残せます。"}, {"q": "危機管理マニュアルを、全部まとめて1冊で印刷できますか？", "a": "できます。左上の「全編を出力（表紙・目次つき）」を押すと、表紙と目次が付いた状態でまとめて出せます。"}, {"q": "入力した園の情報は、ほかの先生のパソコンでも見られますか？", "a": "いいえ。入力した内容はお使いの端末の中に保存されます。別の端末で使うときは、あらためて入力をお願いします。"}]}, "reqnav": {"summary": "園の施設種別を選ぶと、行政に提出・整備する書類の一覧が表示される画面です。書類ごとに「未着手・準備中・完了」で進み具合を記録でき、この中で作れる書類は作成画面へそのまま移動できます。", "steps": ["画面の一番上で、園に当てはまる「施設種別」を選びます。", "必要に応じて「自治体（市区町村）」と「定員」を入力します。", "一覧で、書類名・根拠・提出先・頻度・説明を確認します。", "書類ごとに右側で「未着手」「準備中」「完了」を選びます。", "「このシステムで作る」がある書類は、押すと作成画面に移ります。"], "tips": ["一覧が切り替わるのは「施設種別」を選んだときです。まず種別を正しく選んでください。", "一覧の上に「完了 ○/○」と出ます。今どこまで進んでいるかの目安にしてください。", "橙色の「要確認」が付いた書類は、自治体によって様式や頻度が変わりやすいものです。市区町村の公式情報でご確認ください。", "この一覧は確認日時点の暫定の内容です。制度の変更もあるため、最終的な判断は必ず自治体の案内に合わせてください。", "選んだ種別や進み具合は、お使いのパソコン・タブレットの中に自動で保存されます。別の端末には引き継がれません。"], "faq": [{"q": "施設種別を変えたら、今まで入れた進み具合は消えてしまいますか？", "a": "消えません。進み具合は種別ごとに分けて記録しています。元の種別に戻せば、前に選んだ「準備中」「完了」がそのまま表示されます。"}, {"q": "「要確認」と付いている書類は、出さなくてもよいということですか？", "a": "いいえ、不要という意味ではありません。必要かどうかや、様式・提出の頻度が自治体で違いやすい書類という印です。園のある市区町村の窓口や公式ページでご確認ください。"}, {"q": "「このシステムで作る」のボタンが出ていない書類は、どうすればよいですか？", "a": "その書類は「システム外で用意」と表示されます。園で別に作成したり、自治体の様式をお使いください。用意ができたら、この画面で「完了」に変えておくと分かりやすくなります。"}]}, "docs": {"summary": "契約書や保険証書などの書類をGoogle Driveに保存し、そのURLをこの画面に登録しておける画面です。登録すると状態が「格納済み」に変わり、監査のときにすぐ書類を開いて確認できます。", "steps": ["先にGoogle Driveへ書類を保存し、その共有URLをコピーします。", "一覧から登録したい書類名を探し、URL欄に貼り付けます。", "必要に応じて、メモ欄に有効期限や補足を書き添えます。", "「保存」を押すと、状態が「格納済み」に変わります。", "一覧にない書類は、下の「書類を追加」に名前を入れて「追加」を押します。"], "tips": ["この画面はファイルそのものを預かる場所ではありません。ファイルはDriveに置き、ここにはURLだけを登録してください。", "URLを貼っただけでは記録されません。最後に必ず「保存」を押してください。", "Driveの共有設定もご確認ください。園の関係者が開けないURLだと、監査のときに表示できません。", "書類名の文字をクリックすると、園でお使いの呼び方に書き換えられます。", "病院などの緊急連絡先は、この画面ではなく「施設管理 → 提携医療機関」で管理します。"], "faq": [{"q": "赤い「未格納」の表示が消えません。どうすればよいですか？", "a": "URL欄が空のままだと「未格納」と表示されます。DriveのURLを貼り付けて「保存」を押していただくと、緑色の「格納済み」に変わります。"}, {"q": "一覧にない書類も登録できますか？", "a": "はい、できます。表の下にある「書類を追加」に書類名を入れて「追加」を押すと、新しい行が増えます。URLは後からでも入力できます。"}, {"q": "追加した書類を削除すると、Driveのファイルも消えてしまいますか？", "a": "いいえ、Drive内のファイルはそのまま残ります。消えるのは、この画面に登録したURLとメモだけです。なお削除ボタンは、ご自身で追加した書類にのみ表示されます。"}]}, "facility": {"summary": "園の基本情報や認可・届出の内容、かかりつけ医などの提携医療機関、給食・清掃などの取引先を、この画面ひとつにまとめて登録できます。登録した内容は、緊急連絡先の壁掲示用や施設情報の一覧として印刷することもできます。", "steps": ["左のメニューの「管理」から「施設管理」を選びます。", "「園の基本情報」「認可・届出」の各欄に入力します。", "「提携医療機関」の「追加」を押し、病院名や電話番号を入れます。", "「提携先・取引先」の「追加」を押し、種別と会社名を入れます。", "「壁掲示用に出力」を押すと、緊急連絡先を印刷できます。"], "tips": ["入力した内容は、ほかの欄に移った時点で自動的に保存されます。保存ボタンはありません。", "「目標物（緊急通報用）」に建物の目印を入れておくと、119番のときに場所を伝えやすくなります。", "決まった欄にない情報は、一番下の「その他の情報（自由記載）」で見出しと内容を追加して残せます。", "表の右はしのゴミ箱を押すと、その行はすぐに消えます。確認の画面は出ませんのでご注意ください。"], "faq": [{"q": "保存ボタンが見つかりません。入力したものは消えてしまいませんか？", "a": "入力したあと、ほかの欄をクリックした時点で自動的に保存されます。保存ボタンはありませんので、そのまま画面を移っていただいて大丈夫です。"}, {"q": "病院の連絡先を、事務室の壁に貼っておきたいのですが。", "a": "「提携医療機関」の右上にある「壁掲示用に出力」を押すと印刷の画面が開きます。電話番号が大きく印刷され、消防・救急（119）と警察（110）も一緒に載ります。"}, {"q": "ここに入れた内容は、ほかの先生のパソコンでも見られますか？", "a": "いまはお使いの端末のブラウザの中に保存されるしくみのため、ほかの端末では表示されません。共有したいときは「施設情報を出力」で印刷してお渡しください。控えの保存は「設定」画面のバックアップから行えます。"}]}, "contacts": {"summary": "見学・体験のお問い合わせをいただいたご家庭（リード）と、在園児・退園児の連絡先をまとめて管理する画面です。進捗フェーズや懸念点、次回アクションの日を記録して、対応もれを防げます。", "steps": ["「すべて」「リード」「在園児」「退園児」を押して表示を絞ります", "探したい方は、上の検索欄に保護者名やお子様のお名前を入れます", "新しく登録するときは、右上の「連絡先を追加」を押します", "区分を選び、保護者名とメールアドレスなど必要な項目を入力します", "内容を直すときは行の右の鉛筆マークを押し、最後に「保存」を押します"], "tips": ["保護者名とメールアドレスは必ず必要です。ほかの項目は後から少しずつ足していけます。", "並べ替えを「次回アクションが近い順」にすると、早く連絡すべきご家庭が上に並びます。", "体験でうかがった心配ごとは「懸念点・要望」に書いておくと、一覧に赤色で表示されます。", "監査のときは「監査用に出力」から、児童名簿・緊急連絡票・健康アレルギー一覧・入退園一覧を印刷できます。"], "faq": [{"q": "「リード」って何のことですか？", "a": "見学や体験のお問い合わせをいただいた、まだ入園前のご家庭のことです。進捗フェーズで今どの段階かを管理します。"}, {"q": "入園が決まったら、どうしたらいいですか？", "a": "その方の鉛筆マークを押して編集画面を開き、区分を「在園児」に切り替えてください。クラス・入園日・通園曜日を入れて保存します。月額を手で入れる欄はありません。「生徒情報（契約・オプション）」の内容と「設定 → 料金設定」の単価から自動で計算されます。きょうだい割など園で決めた額があるときだけ、「特別料金」に入れてください。"}, {"q": "ごきょうだいを、同じメールアドレスで登録できますか？", "a": "できます。お一人ずつ別の連絡先として登録してください。名簿の取り込みでも、同じメールアドレスのお子様は飛ばしません。同じ保護者名とお子様名の組み合わせが二重になっているときだけ、取り込みを飛ばします。"}, {"q": "退園したお子様は削除したほうがいいですか？", "a": "削除せず、区分を「退園児」にして退園日を入れてください。監査で使う入退園一覧に必要です。ゴミ箱で消すと元に戻せませんのでご注意ください。"}]}, "roster": {"summary": "園児一人ひとりの情報（基本情報・ご家族・緊急連絡先・健康情報・お支払い）を1か所にまとめて登録・確認できる画面です。地図上に園児のご自宅と園・避難場所を表示でき、一覧は名簿として印刷もできます。", "steps": ["左のメニューで「生徒台帳」を開き、「一覧」タブを選びます。", "見たい園児の行の「開く」を押し、個別プロフィールを表示します。", "各項目を入力したら、右上の「保存」を押して内容を確定します。", "「自宅マップ」タブで園児を選び、地図のご自宅の位置を押します。", "「一覧」タブの「名簿を出力」を押すと、印刷用の名簿が出ます。"], "tips": ["赤い「必須」マークの項目（住所・緊急連絡先1と2・健康情報など）が空のままだと保存できません。", "アレルギーやかかりつけ医がない園児も、空欄にせず「なし」と入力してください。", "個別プロフィールの「この子を地図で見る」を押すと、その園児のご自宅の位置へすぐ移動します。", "自宅マップはインターネットに接続しているときだけ表示されます。地図が出ないときは接続を確かめ、画面を開き直してください。"], "faq": [{"q": "探している園児の名前が一覧に出てきません。", "a": "一覧に表示されるのは在園中の園児だけです。「連絡先」の画面で、その園児が在園として登録されているかをご確認ください。"}, {"q": "住所を入力すれば、地図にご自宅のピンが自動で付きますか？", "a": "自動では付きません。住所を外部に送らないようにしているためです。「自宅マップ」タブで園児を選び、地図のご自宅の場所を押してピンを置いてください。置き直しや削除もできます。"}, {"q": "入力した内容は、他の先生のパソコンでも見られますか？", "a": "見られません。入力した情報は、今お使いの端末のブラウザの中だけに保存されます。別の端末で見たい場合は、その端末で改めて入力が必要です。"}]}, "enroll": {"summary": "園児ごとのコースプランと、ランチ・ロングステイ・教育関連費の有無をまとめて設定できる画面です。設定した内容から月額が自動で計算され、そのまま請求書づくりに引き継がれます。", "steps": ["左のメニューから「生徒情報（契約・オプション）」を選びます。", "一覧から園児の行を探し、「コースプラン」を選びます。", "ランチ・ロングステイを使う園児は「あり」にチェックを入れます。", "教育関連費がかかる園児は、その列のチェックを入れます。", "右端の「月額（自動）」を確かめ、「請求書」を押します。"], "tips": ["チェックや選びなおしは、その場ですぐ保存されます。保存ボタンはありません。", "ランチ・ロングステイの下に赤い字で「曜日が未設定」と出たときは、回数が0回のままです。「連絡先」で通園曜日とオプションを設定してください。", "「月額（自動）」はその月の曜日の数で計算されるため、月によって金額が変わることがあります。", "ランチなどの単価は「設定」の「料金設定」で変えられます。入園金は請求書の画面でチェックを入れて加えます。"], "faq": [{"q": "ランチの回数は、この画面で直接入力できますか？", "a": "この画面では「あり」「なし」だけを決めます。回数は「連絡先」の曜日ごとの設定と、その月の曜日の数から自動で計算されます。今月だけ回数を変えたいときは、「請求書」ボタンから開く請求書の画面で直せます。"}, {"q": "名前が一覧に出てこない園児がいます。", "a": "この画面には在園児として登録されている園児だけが表示されます。「連絡先」でその園児の区分が「在園児」になっているかご確認ください。"}, {"q": "変えた内容は、いつ請求に反映されますか？", "a": "変更するとすぐ保存され、次に作る請求書に反映されます。すでに作成済みの月の請求書には自動では反映されませんので、「請求書発行」でその月の内容をご確認ください。"}]}, "billing": {"summary": "月ごとの保育料の請求書を、内容の確認から発行・保護者への送付・入金の確認まで、この画面だけで進められます。金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動で計算されます。", "steps": ["右上の月を選んで、その月の請求一覧を表示します", "園児ごとに「明細」を押し、回数や割引、支払期日を確かめます", "内容がよければ上の「一括で発行」を押します", "「発行済をまとめて送付」を押し、保護者へお送りします", "入金を確認できたら、その行の「入金済」を押します"], "tips": ["この画面を開くと、はじめは翌月分が表示されます。前の月を見たいときは、右上の月を変えてください。", "金額は自動で計算されます。その月だけ回数を変えたい・割引を付けたいときは、その子の行の「明細」から直します。", "「明細」で「保存」を押すと、状態が「未発行」から「発行済」に変わります。まだ発行したくないときは「閉じる」を押してください。", "紙でお渡しするときは「全員分を印刷」、1人分だけなら行の右にあるプリンターのマークを押します。", "休園中の園児も一覧に出ます。名前の横と、印刷した請求書に「休園中」と出ます。"], "faq": [{"q": "金額がちがうのですが、どこで直せますか？", "a": "その子の行の「明細」を押すと、コースプラン・ランチやロングステイの回数・教育関連費・割引・支払期日を直せます。全員に共通する単価そのものを変えたいときは「設定 → 料金設定」で変更してください。"}, {"q": "まちがえて送ってしまいました。取り消せますか？", "a": "送ったものを取り消すことはできません。「明細」で正しい内容に直してから「再送」を押し、保護者の方にはひとことお詫びとご連絡を添えてください。"}, {"q": "休園中の園児にも請求書を出せますか？", "a": "出せます。ほかの園児と同じ一覧に出ますので、いつもと同じ流れで発行できます。金額は自動で計算されるため、通っていた月と同じ額が出ます。休んでいる月の額に直すときは、その子の行の「明細」を開き、「特別料金（この月だけ）」に決めた額を入れてください。プランやランチの計算のかわりに、その額で請求します。"}, {"q": "入金がまだのご家庭は、どこを見れば分かりますか？", "a": "状態が「送付済」のままの行が、まだ入金を確認できていないご家庭です。画面上部のタグで「送付済」「入金済」の件数が分かり、支払期日は一覧の「支払期日」の列で確認できます。"}]}, "templates": {"summary": "「メールテンプレート」は、配信でよく使う定型の文面を一覧で見られる画面です。保護者への個別メールと、クラス全体へのお知らせ配信の見本を確認して、そのまま送信画面へ持っていけます。", "steps": ["上が個別メール、下が全体周知・お知らせの一覧です。使いたい文面を探します", "カードに出ている件名と本文の見本を読み、内容を確かめます", "カードの下の「対象」を見て、送りたい相手と合うか確認します", "そのまま送るときは「この文面で送信」（全体周知・お知らせは「この文面で配信」）を押します", "ひな形そのものを園のことばに直すときは「題名と文章を直す」を押します"], "tips": ["ひな形の中身は、この画面の「題名と文章を直す」で書き直せます。直した内容は園ごとの文章として残り、「はじめの内容に戻す」で元に戻せます", "送信画面で直した文面は、その送信だけに使われます。見本はそのまま残るので、次の方にもきれいな状態から始められます", "〔お名前〕〔お子様〕などのカッコは、送るときに宛先ごとの名前に自動で入れ替わります。そのまま残しておいて大丈夫です", "「〇月〇日」「〇曜日」のような〇印は自動では入りません。送る前に必ずご自身で書き直してください"], "faq": [{"q": "文面を直したいのですが、この画面で書き換えられますか？", "a": "この画面では書き換えられません。「この文面で送信」を押して移った画面で、件名と本文を自由に直せます。直した内容はその送信にだけ使われ、こちらの見本は変わりません。"}, {"q": "〔お名前〕と書いてありますが、このまま送られてしまいませんか？", "a": "大丈夫です。送信するときに、宛先の保護者様のお名前へ自動で入れ替わります。送信画面のプレビューで、実際に送られる文面を確かめられます。"}, {"q": "どの文面を使えばよいか分かりません。", "a": "各カードの下に「対象」が書かれています。体験前の方、在園児の保護者様など、送りたい相手に合うものをお選びください。迷ったときはマネージャーにご確認ください。"}]}, "staff": {"summary": "職員の名簿（役職・保有資格・入社日と勤続年数・健康診断日）をまとめて管理できる画面です。健康診断の期限をお知らせしたり、身分証や資格証の控えを保管したり、システムにログインするアカウントを発行したりできます。", "steps": ["左のメニューから「職員管理」を選びます。", "「職員を追加」を押し、氏名・役職・保有資格・入社日を入れて保存します。", "一覧のえんぴつマークを押し、直近の健康診断日を入れます。", "同じ画面の「身分証・証明書の保管」で、画像またはURLを追加します。", "ログインが必要な方は「アカウント作成」を押し、ID・パスワード・役割を決めます。"], "tips": ["健康診断日を入れると、その1年後が次回期限として自動で表示されます。期限の30日前から黄色の「要更新」、過ぎると赤の「期限切れ」になり、画面のいちばん上にもお知らせが出ます。", "「身分証・証明書の保管」の欄は、いったん保存したあと一覧のえんぴつマークから開くと出てきます。新しく追加する画面には出ませんので、まず保存してください。", "登録した画像は、今お使いの端末の中だけに保存されます。別のパソコンやスマホからは見えませんので、園で使う端末を決めておくと安心です。", "監査や提出の前は「労働者名簿を出力」を押すと、全職員の一覧を印刷できます。", "編集画面で「基本シフト（早・日・遅）」を選んでおくと、シフト表で一括して反映できます。"], "faq": [{"q": "健康診断のところに出る「要更新」って、どういう意味ですか？", "a": "前回の健診日から1年が近づいたときに出る印です。期限の30日前から黄色の「要更新」、期限を過ぎると赤の「期限切れ」になります。新しい健診日を入れていただくと、元の緑の表示に戻ります。"}, {"q": "資格証や免許証の写真を入れても大丈夫でしょうか？", "a": "登録した画像はこの端末の中だけに保存され、外部には送られません。ただし共有の端末や持ち出しにはご注意ください。Googleドライブに保管している場合は、画像の代わりにURLを貼り付けることもできます。"}, {"q": "職員が退職したときは、削除したほうがいいですか？", "a": "削除ではなく、えんぴつマークから「退職日」を入れることをおすすめします。名簿に残るので、勤続年数などの記録も残せます。ゴミ箱マークを押すと、その職員の情報は消えてしまいます。"}]}, "audit": {"summary": "監査で必要な書類を「①児童関係」から「⑤給食」まで一覧で確認し、書類ごとに準備状況（未・対応中・済）を記録できる画面です。それぞれの書類を作る画面へその場で移動でき、最後に最終チェックリストとして印刷できます。", "steps": ["一番上の「○○年度」で年度を選びます。状態・監査日・準備状況・出力は、選んだ年度のものです", "上の「監査日」に日程が決まったら入力し、残り日数を確認します", "①〜⑤の一覧から書類を探し、左の欄で「未・対応中・済」を選びます", "システムで作る書類は、右のボタンを押してその画面へ移動します", "書類名の下の「保管：」欄に、園での置き場所を入力します", "最後に「監査パッケージ（最終チェックリスト）を出力」を押して印刷します"], "tips": ["年度ごとに残ります。去年の年度を選べば、去年の状態がそのまま出ます", "「システム内データ」の件数は、年度で分けていません", "書類名の横の青い「年度前」は3〜4月に整えるもの、オレンジの「運営中」は毎日の記録で溜まっていくものです", "現場監査は5〜11月に予告なく来ます。日々の記録を毎日つけておけば、そのまま提示できます", "緑色の「システム内データ」は、その書類のデータがどれくらい溜まっているかの目安です。「未格納」と出たらまだ登録されていません", "状態や保管先は、選んだり入力したりした時点で自動で保存されます。保存ボタンを押す必要はありません", "一番下の「虐待防止チェックシート」は3ヶ月に1回。監査でも確認されるので、実施日と実施者まで入れておきましょう"], "faq": [{"q": "「未」「対応中」「済」は、どう使い分ければいいですか？", "a": "まだ手をつけていないものは「未」、作りかけ・確認中のものは「対応中」、監査でそのまま出せる状態になったら「済」を選んでください。システムで作れる書類は、はじめから「対応中」になっています。"}, {"q": "監査の日程がまだ決まっていないのですが、空欄のままでいいですか？", "a": "はい、空欄のままで大丈夫です。書類監査の日程は自治体から連絡が入ってから確定しますので、決まってから入力すると残り日数が表示されます。現場監査は予告なしのため、日々の記録は続けてください。"}, {"q": "印刷した最終チェックリストには、何が載りますか？", "a": "①〜⑤すべての書類名と、状態・保管場所・「年度前／運営中」の区分・システム内のデータ量が一覧で出ます。提出漏れがないかの最終確認にお使いください。"}]}, "settings": {"summary": "送信設定・振込先口座・料金設定・請求書の体裁に加え、職員のログインアカウントの発行、役割ごとの権限、テンプレートの表示権限、データのバックアップと変更ログを管理する画面です。", "steps": ["送信元アドレスやBCC、園名などの送信設定を入力します。", "振込先口座・料金設定・請求書の体裁を必要に応じて入力します。", "「保存」を押して、入力した内容を確定します。", "職員アカウントの表で、ログインIDと役割を発行します。", "権限管理の表で、役割ごとに見せる画面をチェックします。"], "tips": ["送信設定・振込口座・請求書の体裁は、一番下の「保存」を押すまで反映されません。料金や登園オプションの追加は、入力したその場で保存されます。", "「職員アカウント」と「権限管理」は、管理者としてログインしているときだけ表示されます。ご自身の役割は画面左下のお名前の下に出ています。", "権限管理でチェックを外した画面は、その役割の先生のメニューから見えなくなります。まず一人で試してから、全体に反映すると安心です。", "データはお使いの端末の中に保存されます。月に一度は「バックアップをダウンロード」を押して、ファイルをパソコンに保管してください。"], "faq": [{"q": "「職員アカウント」や「権限管理」のところが見当たりません。", "a": "この2つは、役割が「管理者」の方でログインしたときだけ表示されます。画面左下にご自身の役割が出ていますので、ご確認のうえ、管理者の先生にお願いしてください。"}, {"q": "口座番号を入れても大丈夫ですか。", "a": "入力した口座情報はお使いの端末の中だけに保存され、外部に公開されることはありません。ただし共用の端末をお使いのときは、使い終わったらログアウトしてください。"}, {"q": "別のパソコンで開いたら、設定が空になっていました。", "a": "設定は端末ごとに保存されるため、そのままでは引き継がれません。前の端末で「バックアップをダウンロード」したファイルを、新しい端末の「バックアップから復元」で読み込んでください。"}]}, "tasks": {"summary": "その月にやることを自動で表示する画面です。システムに記録があるものは自動で「記録あり」になり、それ以外はチェックで完了にできます。年間の一覧も確認できます。", "steps": ["画面の上で、確認したい月を選びます。", "「毎月やること」を上から順に確認します。", "その月だけのタスクを右側で確認します。", "「開く」を押して、その記録の画面へ移動します。", "終わったものはチェックを入れて完了にします。"], "tips": ["身体測定や避難訓練など、システムに記録があるものは自動で「記録あり」になります。手作業でのチェックは不要です。", "月初にこの画面を開いて、その月にやることをひととおり見ておくと、提出忘れを防げます。", "「なぜ必要か」の一文に、監査での位置づけが書いてあります。判断に迷ったときの参考にしてください。", "下の年間一覧で、来月以降の予定も先に確認できます。"], "faq": [{"q": "チェックを入れ忘れると、どうなりますか。", "a": "未完了として赤い印のまま残ります。ダッシュボードの監査カードにも未了として表示されますので、気づいたときにチェックしてください。"}, {"q": "自動で「記録あり」になる条件は何ですか。", "a": "その月の記録がシステムに保存されているかを見ています。たとえば身体測定はその月の測定記録、避難訓練はその月の実施記録があるかどうかで判定します。"}, {"q": "園独自のタスクを追加できますか。", "a": "現在は決まった一覧の表示のみです。追加が必要な場合は、開発担当にご相談ください。"}]}};
 /* 生徒情報（閲覧のみ）の「?」。画面に出していた5行のうち3行をここへ移した。
    HELP_DATA は1行の大きな塊なので、そこは書き換えずに後ろで足す。 */
 HELP_DATA.kidsview={
@@ -11934,9 +12063,9 @@ HELP_DATA.kidsview={
   '「印刷する」で、いま出ている園児の一覧を紙に出せます。'],
  tips:['携帯番号を押すと、その番号に電話をかけられます（電話のかけられる端末のとき）。',
   'この画面は見るだけです。番号や内容を直すことはできません。',
-  '直すときは、園長・管理者に「生徒台帳」または「生徒情報（契約・オプション）」からお願いしてください。'],
+  '直すときは、園長・管理者に「生徒台帳」または「請求書発行」からお願いしてください。'],
  faq:[{q:'内容が古いようです。私が直せますか。',
-   a:'この画面からは直せません。園長・管理者が「生徒台帳」または「生徒情報（契約・オプション）」で直すと、この画面にも反映されます。'},
+   a:'この画面からは直せません。園長・管理者が「生徒台帳」または「請求書発行」で直すと、この画面にも反映されます。'},
   {q:'緊急連絡先が赤く「未登録」と出ています。',
    a:'その園児の緊急連絡先が、まだ登録されていません。園長・管理者に生徒台帳への登録をお願いしてください。'},
   {q:'ランチ・ロングステイの曜日は、どこから出ていますか。',
@@ -11959,6 +12088,24 @@ HELP_DATA.wastore={
    a:'いいえ。おたよりは EduGrow の「全体周知・お知らせ」から送ります。未来WA の画面は、商品・イベント・売上のためのものです。'},
   {q:'「未来WA を開く」を押しても開きません。',
    a:'ブラウザが別のタブを止めていることがあります。この画面のボタンをもう一度押してください。'}]};
+/* 生徒情報を請求書発行に入れたので、請求書発行の「?」も上下2つぶんにする。
+   HELP_DATA は1行の大きな塊なので、そこは書き換えず、あとから直す。 */
+(function(){
+  var b=HELP_DATA.billing;if(!b)return;
+  b.summary='月ごとの保育料を、契約の確認から発行・送付・入金の確認まで、この画面だけで進められます。'
+    +'上が「契約とオプション」、下が請求書の一覧と作成です。金額は、上の内容と「設定 → 料金設定」から自動で計算されます。';
+  b.steps=['上の「契約とオプション」で、園児ごとのコースプランと教育関連費を確かめます',
+    'きょうだい割など園で決めた額がある子は、「特別料金」の欄に入れます',
+    '引落日とお支払い方法を確かめます',
+    '下の一覧で月を選び、園児ごとに「明細」を押して、回数や割引、支払期日を確かめます',
+    '内容がよければ「一括で発行」を押し、つづけて「発行済をまとめて送付」を押します',
+    '入金を確認できたら、その行の「入金済」を押します'];
+  b.faq=(b.faq||[]).concat([
+    {q:'通園曜日を直したいのですが、上の表では選べません。',
+     a:'通園曜日は「連絡先」で直します。上の表の曜日を押すと、その園児の連絡先が開きます。曜日を直すと、ランチとロングステイの回数、月額もその場で変わります。'},
+    {q:'「生徒情報」の画面が見当たりません。',
+     a:'この画面の上に入りました。コースプラン・ランチ・ロングステイ・教育関連費・特別料金・引落日・お支払い方法は、上の「契約とオプション」で決めます。'}]);
+})();
 var helpOpen=false;
 /* ══ 画面から外した説明の置き場 ═══════════════════════════
    画面の説明が多すぎて、かえって読まれなくなっていた。
@@ -11996,19 +12143,6 @@ var HELP_MORE={
   '生徒個人発達記録は、毎月記録します。監査で見られる書類です。「前回の記録を反映」で、いちばん近い前の記録を写してから、変わったところだけ直せます。']},
  roster:{tips:[
   '自宅マップの「学校 → 避難場所」の道すじは、監査のときにも使えます。']},
- enroll:{tips:[
-  'ここで決めた内容は、請求書作成にそのまま入ります。単価は「設定 → 料金設定」で変えられます。',
-  'ランチ・ロングステイの「あり／なし」と回数は、連絡先の「通園曜日とオプション」から出ます。この画面では選べません。持ち場を2つにすると、契約の欄と曜日が食い違うためです。',
-  '曜日で Lunch にチェックが1つも入っていない子は「なし」です。ランチを足すときは、連絡先でその曜日にチェックを入れてください。',
-  '先生の「生徒情報（閲覧のみ）」の画面と、そこから印刷する用紙も、同じ曜日から出ます。',
-  '「請求書」を押すと、その園児の内容で請求書作成が開きます。金額は自動で計算されます。',
-  'この画面の月額は、翌月ぶん（次に作る請求書と同じ月）で出しています。月によって曜日の数が違うので、金額も変わります。',
-  '月額の手入力はできません（同じ子で、画面によって違う額が出ていたため）。きょうだい割など園で決めた額があるときは、連絡先の窓の「特別料金」に入れてください。入れると、そちらの額を使います。',
-  '請求書は、作った時点の金額のままです。あとから契約を直しても変わりません。作り直すときは、請求書発行でその子の請求書を消してから、もう一度作ってください。',
-  '「これまでの月額と自動計算が違う園児」が出たときは、1人ずつ確かめて「自動計算にする」か「特別料金にする」を選んでください。選ぶまで、これまでの額は消えません。',
-  '園児ごとの口座は登録できません。園から直接の引き落としはしないためです。この画面で選ぶのは、支払い方法（口座振替／口座振込）だけです。',
-  'すでに入っていた園児ごとの口座の内容も、この端末から消しています。',
-  '支払い方法は、園長・マネージャー・管理者だけが見られます。一般の先生の画面には出ません。']},
  bouka:{tips:[
   '上のタブは3つです。防火管理台帳／消火訓練 手順・記録／保育研修。どれも同じ画面の中で行き来します。',
   '「保育研修」には、園でおこなった研修と、外部の研修に参加した記録を残せます。「研修を追加」で行が増えます。',
@@ -12024,7 +12158,20 @@ var HELP_MORE={
   'Freee などの勤怠データは、右上のボタンから CSV で取り込めます。',
   '実際の打刻は「出勤簿」のタブに記録します。']},
  billing:{tips:[
+  'この画面は上下に分かれています。上が「契約とオプション」、下が請求書の一覧と作成です。',
+  '上で決めた内容は、下の請求書にそのまま入ります。単価は「設定 → 料金設定」で変えられます。',
+  '月額は、上で選んでいる月ぶんで出ます。月によって曜日の数が違うので、金額も変わります。',
+  'ランチ・ロングステイの「あり／なし」と回数は、連絡先の「通園曜日とオプション」から出ます。この表では選べません。持ち場を2つにすると、契約の欄と曜日が食い違うためです。',
+  '曜日で Lunch にチェックが1つも入っていない子は「なし」です。ランチを足すときは、連絡先でその曜日にチェックを入れてください。',
+  '通園曜日を押すと、連絡先が開きます。曜日はそこで直します。',
+  '先生の「生徒情報（閲覧のみ）」の画面と、そこから印刷する用紙も、同じ曜日から出ます。',
+  '特別料金と引落日は、この画面で直します。連絡先では見るだけです。',
+  '月額の手入力はできません（同じ子で、画面によって違う額が出ていたため）。きょうだい割など園で決めた額は「特別料金」に入れてください。入れると、そちらの額を使います。',
+  '園児ごとの口座は登録できません。園から直接の引き落としはしないためです。ここで選ぶのは、支払い方法（口座振替／口座振込）だけです。',
+  'すでに入っていた園児ごとの口座の内容も、この端末から消しています。',
+  '支払い方法は、園長・マネージャー・管理者だけが見られます。一般の先生の画面には出ません。',
   '行の「明細」で、その月だけの調整（回数・教育関連費・割引・支払期日）ができます。',
+  '請求書は、作った時点の金額のままです。あとから契約を直しても変わりません。その請求書の金額を変えるときは、行の「明細」から直してください。',
   '流れは、①内容を確認 → ②発行 → ③送付（メール＋保護者ページ） → ④入金確認 です。']},
  expense:{tips:[
   '領収書は、1か月ぶんを日付順に A4 用紙へ貼り、精算表と金種表と一緒に出してください。同じ案内は、印刷した精算表にも入ります。']},
@@ -12068,8 +12215,8 @@ var HELP_NEW={
     a:'出せません。下書きです。先生が読んで直し、「承認する」を押してからお使いください。'},
    {q:'質問に答えないと使えませんか。',
     a:'使えます。「後で行う（そのまま使う）」を押してください。答えたほうが、クラスに近い内容になります。'},
-   {q:'月間カリキュラムの画面と、どう違いますか。',
-    a:'月間カリキュラムは、園が決めた予定を書き込む画面です。この画面は下書きをつくるところで、つくったものは「AI記録管理」の「つくった計画」に残ります。'},
+   {q:'カリキュラムの画面と、どう違いますか。',
+    a:'カリキュラムは、園が決めた予定を書き込む画面です。この画面は下書きをつくるところで、つくったものは「AI記録管理」の「つくった計画」に残ります。'},
    {q:'けがや体調の判断も相談できますか。',
     a:'AIの答えは下書きです。医療・保育の専門的な判断や、緊急時の対応に代わるものではありません。'}]},
  guide:{
@@ -12106,7 +12253,7 @@ var HELP_NEW={
    '「営業分析」の数字は、この画面の内容から出ます。離脱の理由には、連絡先の「メモ」に書いた文が使われます。',
    '一般の先生の画面には、この画面は出ません。'],
   faq:[{q:'入園が決まった方は、どうすればよいですか。',
-    a:'その方の鉛筆を押して、区分を「在園児」に変えてください。連絡先管理と生徒情報に出るようになります。'},
+    a:'その方の鉛筆を押して、区分を「在園児」に変えてください。連絡先管理と請求書発行に出るようになります。'},
    {q:'ここに登録すると、保護者アプリを使えますか。',
     a:'使えません。保護者アカウントの発行は、運営にご依頼ください。'},
    {q:'間違えて登録しました。消せますか。',
@@ -12263,7 +12410,7 @@ var HELP_KB={
   tips:['上に「実施済 ◯/12」が出ます。年度末に数え直す必要はありません。'],
   out:'防火管理台帳・消火訓練の記録・保育研修の記録を、それぞれ印刷できます。'},
 
- curriculum:{t:'月間カリキュラム',kw:'カリキュラム 月案 週案 日案 指導計画 月間 活動 アクティビティ ねらい デイリー',role:['マネージャー','管理者'],
+ curriculum:{t:'カリキュラム',kw:'カリキュラム 月案 週案 日案 指導計画 月間 活動 アクティビティ ねらい デイリー',role:['マネージャー','管理者'],
   can:'クラスと月を選んで月案を作ります。日別スケジュールと、活動ごとの内容です。',
   steps:['「活動の内容」タブで、活動ごとの「アクティビティ別 月間のねらい・担当」を入れます。',
    '活動の種類は「活動内容を編集」から、園に合わせて足したり、名前を変えたり、消したりできます。名前を変えても、入れた内容は残ります。',
