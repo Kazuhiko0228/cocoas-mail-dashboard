@@ -857,12 +857,21 @@ function orders(){
    ============================================================ */
 /* 貯まり方。画面に出す一覧と、実際に足す点数を1か所にまとめる。
    2か所に書くと、書いてある点数と足す点数がずれる。 */
+/* 並びはシート「未来WA システム概要」31〜35行の出品者側の順
+   （初期段階 → あそぶ・学ぶ → ショップ → イベント）。
+   はじめの一歩は1回だけ、そのあとは件数ごとに入る。 */
 var PT_RULES=[
+  {k:'profile',    n:'プロフィールをすべて埋める', p:50},
   {k:'first_post', n:'はじめての投稿',             p:50},
   {k:'first_shop', n:'はじめての出品',             p:50},
   {k:'first_event',n:'はじめてのイベント開催',     p:50},
-  {k:'sale',       n:'販売が1件成立したとき',      p:10},
+  /* 「保存してもらった」「お気に入りに入れてもらった」は、いまの作りでは数えられない。
+     保護者が押した保存・お気に入りは wa_feed_save / wa_feed_fav に入るだけで、
+     投稿の stats には戻らない（サーバとの受け渡しが無いため）。
+     入らない行動を一覧に並べると「貯まるはずなのに増えない」ことになるので、
+     数えられるようになってから足す。 */
   {k:'review',     n:'口コミをもらったとき',       p:15},
+  {k:'sale',       n:'販売が1件成立したとき',      p:10},
   {k:'event',      n:'イベントを開催したとき',     p:30},
   {k:'comm',       n:'コミュニティを運営したとき', p:20}
 ];
@@ -926,9 +935,54 @@ function ptSync(){
     if(s.log.length>50)s.log=s.log.slice(-50);
   }
   if(s.rev!==rev){s.rev=rev;ch=true;}
+
+  /* 保存された数・お気に入りに入れられた数も、口コミと同じく増えたぶんだけ足す。
+     この数え方はあとから足したので、はじめて見た数は「もう数えた」ことにする。
+     0 から数えはじめると、前からある数がさかのぼって全部入ってしまう。 */
+  var sav=0,lik=0;
+  eP.concat(eE).concat(eC).concat(ePR).forEach(function(x){
+    var st=x.stats||{};
+    sav+=(+st.save||0); lik+=(+st.like||0);
+  });
+  var bump=function(cur,key,rk,word){
+    if(typeof s[key]!=='number'||isNaN(s[key])){s[key]=cur;ch=true;return;}
+    if(!start&&cur>s[key]){
+      var r2=ptRule(rk),d2=cur-s[key];
+      if(r2){
+        s.total+=r2.p*d2;
+        s.log.push({at:todayISO(),n:word+' '+d2+'件',p:r2.p*d2});
+        if(s.log.length>50)s.log=s.log.slice(-50);
+      }
+    }
+    if(s[key]!==cur){s[key]=cur;ch=true;}
+  };
+  bump(sav,'sav','saved','保存してもらった');
+  bump(lik,'lik','liked','お気に入りに入れてもらった');
+
   if(!s.ready){s.ready=true;ch=true;}
   if(ch)stSet('wa_points',b);
   return s;
+}
+
+/* プロフィールは「埋めた」ことを記録していないので、保存を押したときにここで数える。
+   すべての欄が埋まっているときだけ、はじめの1回だけ入る。 */
+function ptProfileFilled(){
+  var M=me(),b=M.biz||{};
+  var v=[M.name,M.dob,M.email,M.tel,M.addr,b.name,b.regNo,b.tel,b.addr,b.email];
+  for(var i=0;i<v.length;i++){ if(!String(v[i]==null?'':v[i]).replace(/^\s+|\s+$/g,''))return false; }
+  return true;
+}
+function ptProfileSaved(){
+  var b=ptBox(),s=b.creator;
+  if(!s.ready||s.done['profile'])return;   /* 1回目の読み込みでは数えない */
+  if(!ptProfileFilled())return;
+  s.done['profile']=1;
+  var r=ptRule('profile');
+  if(!r)return;
+  s.total+=r.p;
+  s.log.push({at:todayISO(),n:r.n,p:r.p});
+  if(s.log.length>50)s.log=s.log.slice(-50);
+  stSet('wa_points',b);
 }
 
 /* ---- ランクの計算 ----
@@ -1846,7 +1900,7 @@ function meHTML(){
           +'<div style="font-size:13px;">'+esc(x.n)+'</div>'
           +'<div style="margin-left:auto;font-weight:800;font-size:13px;font-variant-numeric:tabular-nums;">+'
             +x.p+'</div></div>';}).join('')
-      +'<div class="mini" style="margin-top:8px;">はじめの3つは、1回だけ入ります。'
+      +'<div class="mini" style="margin-top:8px;">はじめの4つは、1回だけ入ります。'
         +'仕組みを入れる前のぶんはさかのぼって数えないので、0から始まります。</div>'
       +(PT.log.length
         ? '<div class="lbl" style="margin-top:13px;">入ったぶん</div>'
@@ -2731,7 +2785,10 @@ function wire(){
     M.name=g('m_name');M.dob=g('m_dob');M.email=g('m_email');M.tel=g('m_tel');M.addr=g('m_addr');
     M.biz.name=g('b_name');M.biz.regNo=g('b_reg');M.biz.tel=g('b_tel');
     M.biz.addr=g('b_addr');M.biz.email=g('b_email');
-    saveMe(M);toast('保存しました');render();};
+    saveMe(M);
+    /* 全部うまったときだけ、はじめの1回ぶんが入る */
+    try{ptProfileSaved();}catch(e){}
+    toast('保存しました');render();};
 
   wireRental();
   wireSchool();

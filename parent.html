@@ -376,6 +376,8 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
   .empty{text-align:center;color:var(--tx3);padding:26px 10px;font-size:13.5px;}
   .info{background:#E6F1FB;color:#0C447C;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.6;}
+  /* 急ぎのご連絡は電話、と伝える帯。青い案内と並ぶので色と左線で分ける */
+  .info-urg{background:#FCEBEB;color:#A32D2D;border-radius:12px;padding:11px 13px;font-size:13px;font-weight:700;line-height:1.6;border-left:4px solid #D45B5B;}
 </style>
 </head>
 <body>
@@ -983,9 +985,9 @@ var WA_TERMS_VER='2026-08-15.ai';
    規約の版を上げると、もう一度ご同意をいただく形になる。
    こちらを上げても、ご同意はやり直さない。やり直すと
    「スポンサー・キャンペーンのお知らせを受け取る」の設定が黙って消えるため。 */
-var WA_NOTICE_VER='2026-08-17';
+var WA_NOTICE_VER='2026-08-19.2';
 /* 版を上げたときに、次に開いた方へ一度だけお出しする文。 */
-var WA_NOTICE_TEXT='ご案内の書き方を変えました（園の預かり先にも保存する旨を書き足しています）。';
+var WA_NOTICE_TEXT='ご案内の書き方を変えました（園の預かり先にも保存する旨を書き足しています）。緊急のご連絡の案内は、出欠・連絡の画面に移しました。未来WAの説明は、園からお届けするものを先に書く形にしました。';
 var WA_OPERATOR='株式会社BIM JAPAN';
 /* 保有個人データについて、事業者の名称・所在地・代表者名を
    お客さまが知り得る状態に置く必要がある（個人情報保護法32条）。
@@ -1144,10 +1146,13 @@ function consentHTML(){
 
     +'<div class="card" style="margin-top:4px;">'
       +'<div style="font-size:13.5px;line-height:1.9;">'
-      +'未来WAは、お子さまに合わせた教育・育児コンテンツ、ショップ、イベント、コミュニティを'
-      +'ご閲覧・ご利用いただける保育コミュニティサービスです。<br><br>'
-      +'また、未来WAとの提携園にご通園のご家庭には、園からのお知らせ、出欠・連絡、成長記録が'
-      +'提携園から共有され、連絡を取ることができます。</div></div>'
+      +'未来WAは、園から保護者の方へお届けするための保育コミュニティサービスです。<br><br>'
+      +'提携園にご通園のご家庭には、園からのおたより、園からの個人メッセージ、'
+      +'出欠・連絡、成長の記録、スクールガイド、イベントのお知らせが、提携園から共有されます。'
+      +'出欠・連絡は、この画面から園へお送りいただけます。<br><br>'
+      +'あわせて、お子さまに合わせた教育・育児コンテンツ、ショップ（ご購入・レンタル）、'
+      +'イベント、コミュニティをご利用いただけます。'
+      +'園とつながっていない方も、この部分はお使いいただけます。</div></div>'
     /* 「緊急のご連絡には使えません」の枠は、ご依頼により外した（2026-08-17）。
        規約 第3条2項には同じ内容が残っている（本文は変えていない）。 */
 
@@ -2599,8 +2604,10 @@ function linkHTML(){
     +'<div class="card petal-b"><div style="font-weight:700;font-size:15px;">園からアカウントをお受け取りください</div>'
     +'<div class="muted" style="margin-top:6px;line-height:1.7;">つながると、こんなことができます。</div>'
     +'<div style="margin-top:12px;display:flex;flex-direction:column;gap:9px;">'
-    +[['📮','園からの毎日の連絡が届く'],['📅','欠席・遅刻をアプリから連絡できる'],['🌱','身長・体重の記録が見られる'],
-      ['💬','先生と直接やりとりできる'],['🛍️','先生が選んだ教材と、園指定の用品が買える']]
+    +[['📮','園からのおたより・デイリーメールが届く'],['💬','先生と直接やりとりできる'],
+      ['📅','欠席・遅刻・送迎時間の変更をアプリから連絡できる'],['🌱','身長・体重の記録が見られる'],
+      ['📚','スクールガイド（入園のときの一式）がいつでも見られる'],['🎪','園のイベントのお知らせが届く'],
+      ['🛍️','先生が選んだ教材と、園指定の用品が買える']]
       .map(function(x){return '<div style="display:flex;gap:10px;align-items:center;font-size:13.5px;">'
         +'<span style="font-size:19px;">'+x[0]+'</span>'+esc(x[1])+'</div>';}).join('')
     +'</div>'
@@ -2901,15 +2908,22 @@ function wireGuide(c){
    置き場は出品者の画面（creator.html）と同じ wa_points。
    保護者のぶん（parent）だけを書き換え、出品者のぶん（creator）には触らない。
    ============================================================ */
+/* 並びはシート「未来WA システム概要」31〜35行の順（初期段階 → あそぶ・学ぶ →
+   ショップ → イベント）。はじめの一歩は1回だけ、そのあとは件数ごとに入る。 */
 var PT_RULES=[
   {k:'att',   n:'出欠のご連絡',                     p:20},
   {k:'msg',   n:'園へのメッセージ',                 p:20},
   {k:'guide', n:'スクールガイドを開く（はじめの1回）',p:10},
+  /* 園と未来WAのSNSは、押した回数を記録していないので、はじめの1回だけ数える */
+  {k:'sns',   n:'園のSNSを開く（はじめの1回）',     p:10},
+  {k:'save',  n:'保存・お気に入り',                 p:5},
   {k:'review',n:'口コミを書く',                     p:15},
+  {k:'cmt',   n:'記事にコメントを書く',             p:10},
   {k:'buy',   n:'ご購入',                           p:10},
   {k:'rent',  n:'レンタルのお申し込み',             p:10},
-  {k:'join',  n:'イベントへのご参加',               p:15},
-  {k:'save',  n:'保存・お気に入り',                 p:5}
+  /* 申込と参加は別に数える。参加は開催日をむかえた申込のことを指す。 */
+  {k:'join',  n:'イベントのお申し込み',             p:15},
+  {k:'joined',n:'イベントの開催日をむかえたとき',   p:15}
 ];
 var PT_NOTE='ポイントは、ランクを上げるための持ち点です。お金やお買い物には使えません。';
 function ptRule(k){
@@ -2976,6 +2990,42 @@ function ptSync(){
   /* 保存・お気に入り */
   (stGet('wa_feed_save',[])||[]).forEach(function(id){ add('sv:'+id,'save'); });
   (stGet('wa_feed_fav',[])||[]).forEach(function(id){ add('fv:'+id,'save'); });
+
+  /* あとから足した貯まり方は、足した日にすでにある記録を「もう数えた」ことにする。
+     add() の start は「はじめてこの画面を開いたとき」しか見ていないため、
+     これをやらないと、前から残っている記録がさかのぼって入ってしまう。 */
+  var LATER=['joined','cmt'];
+  var wasOld={};
+  LATER.forEach(function(k){ wasOld[k]=!p.done['rdy_'+k]; });
+  var addLater=function(rk,mark,note){
+    if(p.done[mark])return;
+    p.done[mark]=1;ch=true;
+    if(start||wasOld[rk])return;
+    var r=ptRule(rk);if(!r)return;
+    p.total+=r.p;
+    p.log.push({at:todayISO(),n:(note||r.n),p:r.p});
+    if(p.log.length>50)p.log=p.log.slice(-50);
+  };
+  /* イベントの参加。申し込んだ回のうち、開催日をむかえたものを1件ずつ数える。
+     出欠を取る仕組みが無いので、「参加した」ではなく「開催日をむかえた」と書く。 */
+  (stGet('wa_ev_joindetail',[])||[]).forEach(function(j){
+    if(!j||!j.date)return;
+    if(String(j.date)>todayISO())return;
+    addLater('joined','joined:'+String(j.id||'')+'|'+String(j.date),
+      '「'+String(j.title||'')+'」の開催日');
+  });
+  /* 記事へのコメント。wa_feed_comment に入るのはご自身が書いたぶんだけ。 */
+  var cmAll=stGet('wa_feed_comment',{})||{};
+  for(var fid in cmAll){
+    if(!cmAll.hasOwnProperty(fid))continue;
+    var ca=cmAll[fid];
+    if(Object.prototype.toString.call(ca)!=='[object Array]')continue;
+    (function(k){ ca.forEach(function(m,i){
+      if(m)addLater('cmt','cmt:'+k+'|'+String(m.id||i));
+    }); })(fid);
+  }
+  LATER.forEach(function(k){ if(!p.done['rdy_'+k]){p.done['rdy_'+k]=1;ch=true;} });
+
   if(!p.ready){p.ready=true;ch=true;}
   if(ch)stSet('wa_points',b);
   return p;
@@ -2987,6 +3037,19 @@ function ptGuideOpened(){
   if(!p.ready||p.done['guide'])return;   /* 1回目の読み込みでは数えない */
   p.done['guide']=1;
   var r=ptRule('guide');
+  p.total+=r.p;
+  p.log.push({at:todayISO(),n:r.n,p:r.p});
+  if(p.log.length>50)p.log=p.log.slice(-50);
+  stSet('wa_points',b);
+}
+/* SNSも開いた回数を記録していないので、押したときにここで数える。
+   はじめの1回だけ入る。 */
+function ptSnsOpened(){
+  var b=ptBox(),p=b.parent;
+  if(!p.ready||p.done['sns'])return;   /* 1回目の読み込みでは数えない */
+  p.done['sns']=1;
+  var r=ptRule('sns');
+  if(!r)return;
   p.total+=r.p;
   p.log.push({at:todayISO(),n:r.n,p:r.p});
   if(p.log.length>50)p.log=p.log.slice(-50);
@@ -3802,7 +3865,11 @@ function allPosts(){
   hist.forEach(function(x,i){
     if(!x||!x.body)return;
     var tpl=String(x.tpl||'');
-    if(!(tpl.indexOf('デイリー')>-1||tpl.indexOf('配信')>-1||tpl.indexOf('お知らせ')>-1))return;
+    /* 園が「全体周知・お知らせ」で送ったものには kind:'broadcast' の印が付く。
+       印を見て拾う。印の無い古い記録だけ、これまでどおり名前で拾う
+       （名前で当てていたころは「新年度のご挨拶」が届いていなかった）。 */
+    var isB=(x.kind==='broadcast')||(!x.kind&&(tpl.indexOf('デイリー')>-1||tpl.indexOf('配信')>-1||tpl.indexOf('お知らせ')>-1));
+    if(!isB)return;
     var to=String(x.email||'').toLowerCase();
     if(myMail&&to&&to!==myMail)return;           /* 他の家庭あては出さない */
     var d=(x.date||todayISO()).slice(0,10);
@@ -3855,9 +3922,9 @@ function snsHTML(){
   var posts=allPosts();var seen=seenPosts();
   var newSns=posts.some(function(p){return p.type==='sns'&&seen.indexOf(p.id)<0;});
   return '<div class="card"><h2 class="sec sec-p">🔗 '+esc(waSchoolName())+'の SNS・最新情報</h2><div class="sns-row">'
-    +'<a class="sns-btn ig" href="'+escUrl(s.instagram)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.instagram+'</span><span class="l">Instagram</span>'+(newSns?'<span class="dot"></span>':'')+'</a>'
-    +'<a class="sns-btn ln" href="'+escUrl(s.line)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.line+'</span><span class="l">LINE</span></a>'
-    +'<a class="sns-btn yt" href="'+escUrl(s.youtube)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.youtube+'</span><span class="l">YouTube</span></a>'
+    +'<a class="sns-btn ig" data-snspt="1" href="'+escUrl(s.instagram)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.instagram+'</span><span class="l">Instagram</span>'+(newSns?'<span class="dot"></span>':'')+'</a>'
+    +'<a class="sns-btn ln" data-snspt="1" href="'+escUrl(s.line)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.line+'</span><span class="l">LINE</span></a>'
+    +'<a class="sns-btn yt" data-snspt="1" href="'+escUrl(s.youtube)+'" target="_blank" rel="noopener noreferrer"><span class="e">'+SNS_ICON.youtube+'</span><span class="l">YouTube</span></a>'
     +'</div>'+(newSns?'<div class="muted" style="margin-top:10px;">📷 Instagramに新しい投稿があります。</div>':'')+'</div>';
 }
 
@@ -3920,6 +3987,13 @@ function wireCommon(c){
   };});
   var tk=document.getElementById('trackOk');
   if(tk)tk.onclick=function(){stSet('wa_track_ok',true);render();};
+  /* SNSを開いたら、はじめの1回だけポイントに入れる。
+     onclick を上書きせず addEventListener にするのは、リンクをそのまま開かせるため。 */
+  document.querySelectorAll('[data-snspt]').forEach(function(a){
+    if(a.getAttribute('data-snsw'))return;      /* 二重に付けない */
+    a.setAttribute('data-snsw','1');
+    a.addEventListener('click',function(){ try{ptSnsOpened();}catch(e){} });
+  });
   document.querySelectorAll('[data-cta],[data-open]').forEach(function(b){b.onclick=function(){var u=b.getAttribute('data-cta')||b.getAttribute('data-open');if(u&&u!=='#')window.open(u,'_blank','noopener');else toast('リンク先はデモのため未設定です');};});
 }
 
@@ -3966,7 +4040,10 @@ function attHTML(c){
      遅刻・早退は送迎時間変更と中身が同じなので置かない。 */
   var absSub=(typeof attSub!=='undefined')?attSub:'病欠';
   return '<div class="card"><h2 class="sec sec-o">📅 出欠・連絡</h2>'
-    +'<div class="info" style="margin-bottom:14px;">送信すると、園の出欠記録にすぐ反映されます。前日までのご連絡にご協力ください。</div>'
+    +'<div class="info" style="margin-bottom:8px;">送信すると、園のホームにすぐ届きます。登園シートには園の先生が書き写します。前日までのご連絡にご協力ください。</div>'
+    /* この画面は園の記録に入るまで時間差がない前提だが、見るのは職員が画面を開いたとき。
+       急を要するものは電話でないと届かないため、送信欄の手前で必ず目に入るところに置く */
+    +'<div class="info-urg" style="margin-bottom:14px;">☎️ 急なご連絡（体調の急変・けが）は、お電話でお願いします。</div>'
     +'<div class="field"><label>日付</label><input id="at_date" type="date" value="'+esc(addDaysISO(1))+'" min="'+todayISO()+'"></div>'
     +'<div class="field"><label>区分</label><div class="seg" id="at_seg">'
       +['欠席','送迎時間変更'].map(function(k){return '<button data-k="'+esc(k)+'" class="'+(k===attKind?'on':'')+'">'+esc(k)+'</button>';}).join('')+'</div></div>'
@@ -4202,7 +4279,8 @@ var WA_HELP={
    '送迎時間変更をえらぶと、登園とお迎えの時刻を入れられます。',
    '伝えたいことを書いて「この内容を送信する」を押します。',
    '送ったあとは、同じ枠の下にある「連絡の履歴」で確認できます。'],
-  tips:['送った内容は、その場で園の出欠記録に入ります。お電話は不要です。',
+  tips:['送った内容は、その場で園のホームに届きます。登園シートへは園の先生が書き写します。',
+        '急なご連絡（体調の急変・けが）は、お電話でお願いします。',
         '園からのメッセージは、1件ずつ「既読」を押してください。「返信する」から返事も書けます。']},
 
  store:{t:'ストア',
