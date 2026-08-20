@@ -1093,6 +1093,259 @@ function curEff(cls,wk,type){
 function curDayActivities(cls,date){var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));function txt(t){if(!t)return '';if(t==='Daycare')return '1日託児保育（Daycare）';var e=curEff(cls,wk,t);var d=e.plan||e.theme||'';return t+(d?'：'+d:'');}if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:''};return {morning:txt(sc.am),afternoon:txt(sc.pm)};}
 function curDayText(cls,date){var a=curDayActivities(cls,date);return [a.morning?'【午前】'+a.morning:'',a.afternoon?'【午後】'+a.afternoon:''].filter(Boolean).join('\n');}
 
+/* ========== 日案（日別スケジュールの「詳細」） ==========
+   紙の日案と同じ形にしている。上の欄・時間ごとの流れ・環境構成の図。
+   環境構成は手で描くのではなく、机や椅子などの部品を置いて作る。
+   誰が作っても読める形になり、印刷したときもつぶれないため。 */
+var NICHI_PARTS=[
+  {k:'机',      w:64,h:34,c:'#FAC775',t:'#412402',r:2},
+  {k:'椅子',    w:22,h:22,c:'#F5C4B3',t:'#4A1B0C',r:2},
+  {k:'ロッカー',w:84,h:26,c:'#D3D1C7',t:'#2C2C2A',r:2},
+  {k:'棚',      w:28,h:62,c:'#D3D1C7',t:'#2C2C2A',r:2},
+  {k:'ピアノ',  w:54,h:30,c:'#B5D4F4',t:'#042C53',r:2},
+  {k:'マット',  w:84,h:58,c:'#C0DD97',t:'#173404',r:2},
+  {k:'コーナー',w:70,h:50,c:'#EEEDFE',t:'#26215C',r:2},
+  {k:'こども',  w:18,h:18,c:'#F4C0D1',t:'#4B1528',r:9},
+  {k:'保育者',  w:22,h:22,c:'#CECBF6',t:'#26215C',r:9},
+  {k:'出入口',  w:46,h:14,c:'#F7C1C1',t:'#501313',r:2},
+  {k:'水道',    w:40,h:18,c:'#9FE1CB',t:'#04342C',r:2},
+  {k:'トイレ',  w:40,h:26,c:'#9FE1CB',t:'#04342C',r:2}
+];
+var NICHI_W=720, NICHI_H=340;
+function nichiPart(k){var i;for(i=0;i<NICHI_PARTS.length;i++){if(NICHI_PARTS[i].k===k)return NICHI_PARTS[i];}return null;}
+function curDaily(){if(!CUR.daily)CUR.daily={};return CUR.daily;}
+function curDailyGet(cls,date){
+  var d=curDaily(),o=((d[cls]||{})[date]);
+  if(!o)o={};
+  return {weather:o.weather||'', sugata:o.sugata||'', junbi:o.junbi||'',
+          katsudo:o.katsudo||'', nerai:o.nerai||'',
+          rows:(o.rows&&o.rows.length)?o.rows:[],
+          env:(o.env&&o.env.length)?o.env:[]};
+}
+function curDailySet(cls,date,o){var d=curDaily();d[cls]=d[cls]||{};d[cls][date]=o;DB.curriculum=CUR;}
+/* 日案が1文字でも書かれているか。日別スケジュールの「詳細」に印を出すため */
+function curDailyHas(cls,date){
+  var o=curDailyGet(cls,date);
+  return !!(o.weather||o.sugata||o.junbi||o.katsudo||o.nerai||o.rows.length||o.env.length);
+}
+/* クラスの在籍と男女の数。園児の性別は生徒台帳から取る（入っていなければ空欄） */
+function nichiHeads(cls){
+  var en=(typeof enrolled==='function')?enrolled():[];
+  var sp=(typeof spStore==='function')?spStore():{};
+  var n=0,b=0,g=0;
+  en.forEach(function(c){
+    if(cls&&c.klass!==cls)return;
+    n++;
+    var sx=(sp[c.id]||{}).sex||'';
+    if(sx.indexOf('男')>-1)b++; else if(sx.indexOf('女')>-1)g++;
+  });
+  return {n:n,boy:b,girl:g};
+}
+/* 何歳児かは生徒台帳の生年月日から。ばらつくときは「〇〜〇歳児」 */
+function nichiAgeLabel(cls){
+  var en=(typeof enrolled==='function')?enrolled():[],lo=null,hi=null;
+  en.forEach(function(c){
+    if(cls&&c.klass!==cls)return;
+    if(!c.dob)return;
+    var a=Math.floor((new Date()-new Date(c.dob))/31557600000);
+    if(a<0||a>12)return;
+    if(lo===null||a<lo)lo=a; if(hi===null||a>hi)hi=a;
+  });
+  if(lo===null)return '';
+  return (lo===hi)?(lo+'歳児'):(lo+'〜'+hi+'歳児');
+}
+
+/* 環境構成の図を、置いてある部品から組み立てる。
+   画面でも紙でも同じものを使う（scale で紙のときだけ縮める）*/
+function nichiEnvHTML(env,scale,edit){
+  var sc=scale||1,h='',i,it,p;
+  for(i=0;i<env.length;i++){
+    it=env[i]; p=nichiPart(it.k); if(!p)continue;
+    h+='<div'+(edit?' data-envi="'+i+'"':'')+' style="position:absolute;'
+      +'left:'+Math.round(it.x*sc)+'px;top:'+Math.round(it.y*sc)+'px;'
+      +'width:'+Math.round(p.w*sc)+'px;height:'+Math.round(p.h*sc)+'px;'
+      +'background:'+p.c+';color:'+p.t+';border:1px solid '+p.t+';'
+      +'border-radius:'+p.r+'px;display:flex;align-items:center;justify-content:center;'
+      +'font-size:'+Math.max(7,Math.round(10*sc))+'px;line-height:1;'
+      +(edit?'cursor:grab;':'')+'user-select:none;overflow:hidden;">'
+      +esc(it.k==='こども'?'':(it.k==='保育者'?'T':it.k))+'</div>';
+  }
+  return h;
+}
+
+var NICHI={cls:null,date:null,env:[],rows:[]};
+function nichiModal(cls,date){
+  var o=curDailyGet(cls,date);
+  NICHI.cls=cls; NICHI.date=date;
+  NICHI.env=o.env.slice();
+  NICHI.rows=o.rows.length?o.rows.slice():[{t:'',c:'',h:''}];
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  var hd=nichiHeads(cls),age=nichiAgeLabel(cls);
+  var d=new Date(date+'T00:00:00'),WDJ=['日','月','火','水','木','金','土'];
+  var act=curDayActivities(cls,date);
+  var wOpts=['','晴れ','くもり','雨','雪'].map(function(x){
+    return '<option'+(x===o.weather?' selected':'')+'>'+x+'</option>';}).join('');
+
+  function fld(id,label,val,rows){
+    return '<div class="field"><label>'+label+'</label>'
+      +'<textarea id="'+id+'" rows="'+(rows||3)+'">'+esc(val||'')+'</textarea></div>';
+  }
+  m.innerHTML='<div class="modal" style="width:860px;">'
+    +'<h2>'+ic('book')+'日案　'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+WDJ[d.getDay()]+'）</h2>'
+    +'<div class="muted" style="margin:-8px 0 14px;font-size:12.5px;">'
+      +esc(cls)+(age?'・'+esc(age):'')+'　'+hd.n+'名'
+      +((hd.boy||hd.girl)?'（男児 '+hd.boy+'名 / 女児 '+hd.girl+'名）':'')
+      +'　※人数と日付は在籍から入れています</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+      +'<button class="btn btn-sm" id="niAI">'+ic('sparkles')+'AIで下書き</button>'
+      +'<button class="btn btn-sm" id="niPrint">'+ic('printer')+'印刷</button>'
+      +'<span style="flex:1;"></span>'
+      +'<div style="display:flex;align-items:center;gap:6px;"><span class="muted" style="font-size:12px;">天気</span>'
+      +'<select id="niW" style="width:100px;">'+wOpts+'</select></div>'
+    +'</div>'
+    +'<div id="niMsg" class="muted" style="font-size:12.5px;margin-bottom:10px;display:none;"></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">'
+      +fld('niSugata','子どもの姿',o.sugata)
+      +fld('niJunbi','準備・材料',o.junbi)
+      +fld('niKatsudo','主な活動',o.katsudo||[act.morning,act.afternoon].filter(Boolean).join(' / '),2)
+      +fld('niNerai','ねらい',o.nerai,2)
+    +'</div>'
+    +'<div class="field"><label>一日の流れ</label>'
+      +'<div class="scrollx"><table id="niTbl"><thead><tr>'
+      +'<th style="width:96px;">時間</th><th>子どもの姿</th><th>保育士の配慮・援助</th><th style="width:58px;"></th>'
+      +'</tr></thead><tbody id="niRows"></tbody></table></div>'
+      +'<button class="btn btn-sm" id="niAdd" style="margin-top:8px;">'+ic('plus')+'行を足す</button></div>'
+    +'<div class="field"><label>環境構成</label>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:6px;">部品を押すと図に置かれます。ドラッグで動かし、ダブルクリックで消えます。</div>'
+      +'<div id="niPal" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>'
+      +'<div class="scrollx"><div id="niCanv" style="position:relative;width:'+NICHI_W+'px;height:'+NICHI_H+'px;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none;"></div></div>'
+      +'<button class="btn btn-sm" id="niClr" style="margin-top:8px;">図を全部消す</button></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">'
+      +'<button class="btn" id="niCancel">閉じる</button>'
+      +'<button class="btn btn-primary" id="niSave">保存</button></div>'
+    +'</div>';
+
+  function drawRows(){
+    var h='',i;
+    for(i=0;i<NICHI.rows.length;i++){
+      var r=NICHI.rows[i];
+      h+='<tr><td><input data-nit="'+i+'" value="'+esc(r.t||'')+'" placeholder="9:30"></td>'
+        +'<td><textarea data-nic="'+i+'" rows="2">'+esc(r.c||'')+'</textarea></td>'
+        +'<td><textarea data-nih="'+i+'" rows="2">'+esc(r.h||'')+'</textarea></td>'
+        +'<td style="text-align:center;"><button class="btn btn-sm" data-nidel="'+i+'" style="white-space:nowrap;padding:4px 8px;">消す</button></td></tr>';
+    }
+    $('#niRows').innerHTML=h;
+    $('#niRows').querySelectorAll('[data-nit]').forEach(function(x){x.oninput=function(){NICHI.rows[+x.getAttribute('data-nit')].t=x.value;};});
+    $('#niRows').querySelectorAll('[data-nic]').forEach(function(x){x.oninput=function(){NICHI.rows[+x.getAttribute('data-nic')].c=x.value;};});
+    $('#niRows').querySelectorAll('[data-nih]').forEach(function(x){x.oninput=function(){NICHI.rows[+x.getAttribute('data-nih')].h=x.value;};});
+    $('#niRows').querySelectorAll('[data-nidel]').forEach(function(x){x.onclick=function(){
+      NICHI.rows.splice(+x.getAttribute('data-nidel'),1);
+      if(!NICHI.rows.length)NICHI.rows=[{t:'',c:'',h:''}];
+      drawRows();};});
+  }
+  function drawEnv(){
+    var canv=$('#niCanv');
+    canv.innerHTML=nichiEnvHTML(NICHI.env,1,true);
+    canv.querySelectorAll('[data-envi]').forEach(function(d){
+      var i=+d.getAttribute('data-envi'),p=nichiPart(NICHI.env[i].k),sx,sy,ox,oy,drag=false,moved=false;
+      d.ondblclick=function(){NICHI.env.splice(i,1);drawEnv();};
+      d.onpointerdown=function(e){drag=true;moved=false;d.setPointerCapture(e.pointerId);
+        sx=e.clientX;sy=e.clientY;ox=NICHI.env[i].x;oy=NICHI.env[i].y;d.style.cursor='grabbing';};
+      d.onpointermove=function(e){ if(!drag)return; moved=true;
+        var nx=Math.max(0,Math.min(NICHI_W-p.w,ox+e.clientX-sx));
+        var ny=Math.max(0,Math.min(NICHI_H-p.h,oy+e.clientY-sy));
+        nx=Math.round(nx/4)*4; ny=Math.round(ny/4)*4;
+        NICHI.env[i].x=nx; NICHI.env[i].y=ny;
+        d.style.left=nx+'px'; d.style.top=ny+'px';};
+      d.onpointerup=function(){drag=false;d.style.cursor='grab';};
+    });
+  }
+  var pal='',pi;
+  for(pi=0;pi<NICHI_PARTS.length;pi++){
+    pal+='<button class="btn btn-sm" data-nip="'+esc(NICHI_PARTS[pi].k)+'">'+esc(NICHI_PARTS[pi].k)+'</button>';
+  }
+  $('#niPal').innerHTML=pal;
+  $('#niPal').querySelectorAll('[data-nip]').forEach(function(b){b.onclick=function(){
+    var k=b.getAttribute('data-nip'),p=nichiPart(k);
+    NICHI.env.push({k:k,x:Math.round((NICHI_W-p.w)/2/4)*4,y:Math.round((NICHI_H-p.h)/2/4)*4});
+    drawEnv();};});
+  $('#niClr').onclick=function(){ if(!NICHI.env.length)return;
+    if(!confirm('図に置いたものを全部消します。よろしいですか。'))return;
+    NICHI.env=[];drawEnv();};
+  $('#niAdd').onclick=function(){NICHI.rows.push({t:'',c:'',h:''});drawRows();};
+  drawRows(); drawEnv();
+
+  function collect(){
+    return {weather:$('#niW').value, sugata:$('#niSugata').value, junbi:$('#niJunbi').value,
+      katsudo:$('#niKatsudo').value, nerai:$('#niNerai').value,
+      rows:NICHI.rows.filter(function(r){return (r.t||r.c||r.h);}),
+      env:NICHI.env.slice()};
+  }
+  function msg(t){var e=$('#niMsg');e.textContent=t;e.style.display=t?'':'none';}
+
+  $('#niAI').onclick=function(){
+    var b=$('#niAI'); b.disabled=true; msg('下書きを作っています…');
+    /* まずこの端末の中で下書きを作る。サーバに繋がらなくても必ず何か出る */
+    /* aiPlanGen と aiAskServer が待っているのは「8月」の形。
+       CUR.month（2026-08）を渡すと季節が引けず、文が「に触れながら」で始まってしまう */
+    var mLab=(+date.slice(5,7))+'月';
+    var base=aiPlanGen(cls,'day',mLab);
+    function fill(g){
+      if(!$('#niSugata').value && g.expect && g.expect.length)$('#niSugata').value=g.expect.join('\n');
+      if(!$('#niJunbi').value && g.prep && g.prep.length)$('#niJunbi').value=g.prep.join('\n');
+      if(!$('#niNerai').value && g.aim)$('#niNerai').value=g.aim;
+      var t=g.times||[];
+      if(t.length && NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length===0){
+        NICHI.rows=t.map(function(x){return {t:x.t||'',c:x.a||'',h:x.e||''};});
+        drawRows();
+      }
+    }
+    fill(base);
+    if(!aiCanServer()){ b.disabled=false; msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。'); return; }
+    aiAskServer('day',cls,mLab).then(function(got){
+      b.disabled=false;
+      if(got){ fill(aiMerge(JSON.parse(JSON.stringify(base)),got,['aim','expect','prep','help','times'])); 
+        msg('下書きができました。文章は必ず先生が直してください。'); }
+      else msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。');
+    })['catch'](function(){ b.disabled=false;
+      msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。'); });
+  };
+  $('#niPrint').onclick=function(){ nichiPrint(cls,date,collect()); };
+  $('#niCancel').onclick=function(){m.remove();};
+  $('#niSave').onclick=function(){
+    curDailySet(cls,date,collect());
+    if(typeof saveAll==='function')saveAll();
+    m.remove();
+    if(typeof renderCurriculum==='function')renderCurriculum();
+  };
+}
+
+/* 紙の日案。学校で使われている様式にそろえている */
+function nichiPrint(cls,date,o){
+  var hd=nichiHeads(cls),age=nichiAgeLabel(cls);
+  var d=new Date(date+'T00:00:00'),WDJ=['日','月','火','水','木','金','土'];
+  var rows=(o.rows||[]).map(function(r){
+    return '<tr><td style="width:60px;text-align:center;">'+esc(r.t||'')+'</td>'
+      +'<td>'+esc(r.c||'').replace(/\n/g,'<br>')+'</td>'
+      +'<td>'+esc(r.h||'').replace(/\n/g,'<br>')+'</td></tr>';}).join('');
+  if(!rows)rows='<tr><td colspan="3" style="text-align:center;color:#888;">まだ入っていません</td></tr>';
+  var env='<div style="position:relative;width:'+Math.round(NICHI_W*0.62)+'px;height:'+Math.round(NICHI_H*0.62)+'px;border:1px solid #999;">'
+    +nichiEnvHTML(o.env||[],0.62,false)+'</div>';
+  var body='<table style="margin-bottom:8px;"><tr>'
+    +'<td style="width:56%;">'+esc(cls)+(age?'　'+esc(age):'')+'　'+hd.n+'名'
+      +((hd.boy||hd.girl)?'（男児 '+hd.boy+'名 / 女児 '+hd.girl+'名）':'')+'</td>'
+    +'<td>'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+WDJ[d.getDay()]+'）　天気：'+esc(o.weather||'')+'</td></tr></table>'
+    +'<table style="margin-bottom:8px;"><tr>'
+    +'<td style="width:50%;vertical-align:top;"><b>子どもの姿</b><div>'+esc(o.sugata||'').replace(/\n/g,'<br>')+'</div></td>'
+    +'<td style="vertical-align:top;"><b>準備・材料</b><div>'+esc(o.junbi||'').replace(/\n/g,'<br>')+'</div></td></tr>'
+    +'<tr><td style="vertical-align:top;"><b>主な活動</b><div>'+esc(o.katsudo||'').replace(/\n/g,'<br>')+'</div></td>'
+    +'<td style="vertical-align:top;"><b>ねらい</b><div>'+esc(o.nerai||'').replace(/\n/g,'<br>')+'</div></td></tr></table>'
+    +'<table style="margin-bottom:8px;"><thead><tr><th style="width:60px;">時間</th><th>子どもの姿</th><th>保育士の配慮・援助</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div><b>環境構成</b></div>'+env;
+  printDoc('日案（'+cls+'　'+(d.getMonth()+1)+'月'+d.getDate()+'日）',body);
+}
+
 /* recurring delivery schedule */
 var DELIVERIES=[
   {key:'daily',label:'デイリーメール',when:'毎日 17:00',rule:'daily',to:'全クラス',go:['broadcast','dailyPre']},
@@ -5606,8 +5859,8 @@ function renderCurriculum(){
   var bodyHtml;
   if(curTab==='schedule'){
     var dim=new Date(y,mo,0).getDate(),rows='';
-    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
-    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
+    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:76px;">日案</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   } else {
     bodyHtml='<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間のねらい・担当（'+curClass+'・月に1回登録）</div>'+
       types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+esc(t)+'</span><input data-actm="'+esc(t)+'|goal" value="'+esc(v(m.goal))+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+esc(t)+'|teacher" value="'+esc(v(m.teacher))+'" placeholder="担当" style="width:110px;"></div>';}).join('')+
@@ -5639,6 +5892,8 @@ function renderCurriculum(){
   s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-sdc]').forEach(function(cb){cb.onchange=function(){var d=cb.getAttribute('data-sdc'),sc=curSchedGet(curClass,d);sc.daycare=cb.checked;curSchedSet(curClass,d,sc);renderCurriculum();};});
   s.querySelectorAll('[data-smemo]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-smemo'),sc=curSchedGet(curClass,d);sc.memo=inp.value;curSchedSet(curClass,d,sc);};});
+    s.querySelectorAll('[data-nichi]').forEach(function(b){b.onclick=function(){
+      nichiModal(curClass,b.getAttribute('data-nichi'));};});
   s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-cont')),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
   s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-actm')),m=curActMGet(curClass,p[0]);m[p[1]]=inp.value;curActMSet(curClass,p[0],m);renderCurriculum();};});
   s.querySelectorAll('[data-creset]').forEach(function(b){b.onclick=function(){
