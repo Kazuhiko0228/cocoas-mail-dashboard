@@ -106,6 +106,9 @@
      1列にしてもカードが枠からはみ出したまま横スクロールになる。 */
   .grid-2col{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);}
   @media(max-width:900px){.grid-2col{grid-template-columns:minmax(0,1fr);}}
+  /* 全体周知・お知らせの2段組み。左の書く欄を少し広めにして、せまい画面では上下に折り返す。 */
+  .grid-2col.bcast{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);}
+  @media(max-width:900px){.grid-2col.bcast{grid-template-columns:minmax(0,1fr);}}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;}
   .card h3{font-size:14.5px;font-weight:600;margin:0 0 16px;display:flex;align-items:center;gap:8px;}
   .card h3 svg{width:17px;height:17px;color:var(--teal);}
@@ -280,10 +283,10 @@
      1つずつ指定すると付け忘れるので、見出しはまとめて折り返さない。
      中身（緊急連絡先・健康に関すること）は長いので、折り返してよい。 */
   table.kvtbl th{white-space:nowrap;}
-  /* 保護者名・携帯番号の列を足したぶん、ランチ・ロングステイの曜日が
+  /* 保護者名の列を足したぶん、ランチ・ロングステイの曜日が
      「月／火／水」と縦に切れていた。表の最小のはばを決めて、
      はばがたりないときは表ごと横に動かす（親は .scrollx）。 */
-  table.kvtbl{min-width:1180px;}
+  table.kvtbl{min-width:1080px;}
   table.enrtbl .btn{white-space:nowrap;}
   .napcell{min-width:34px;height:30px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11.5px;cursor:pointer;padding:0;}
   .napcell.v仰{background:#EAF3DE;color:#27500A;}
@@ -1720,6 +1723,9 @@ function sentMailGroups(filter){
   });
   return order.map(function(k){return map[k];}).sort(function(a,b){return String(a.time||'').localeCompare(String(b.time||''));});
 }
+/* 送信済みメールに出すのは、園から出したぶんだけ。
+   保護者から届いたぶん（DM通知（園へ））は、保護者DMの画面で読める。 */
+function sentFromSchool(x){return x.tpl!=='DM通知（園へ）';}
 function sentMailCard(title,filter){
   var groups=sentMailGroups(filter).slice(-20).reverse();
   return '<div class="card" style="margin-top:16px;"><h3>'+ic('mail')+(title||'送信済みメール')+'</h3>'+
@@ -1874,7 +1880,7 @@ function fillTokens(text,c,ctx){
     '〔所在地〕':SET.address||'（設定で入力）',
     '〔アクセス〕':SET.access||'（設定で入力）',
     /* 差出人の名乗り。園ごとに違うので、設定の担当者名から作る。 */
-    '〔担当者〕':(SET.manager?('スクールマネージャー　'+SET.manager):'')
+    '〔担当者〕':(ctx.manager?ctx.manager:(SET.manager?('スクールマネージャー　'+SET.manager):''))
   };
   return text.replace(/〔[^〕]+〕/g,function(m){return (m in map)?map[m]:m;});
 }
@@ -2283,6 +2289,7 @@ function go(page){
   }
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
+  if(page!=='roster')rosterTab='list';   /* 生徒台帳は、別の画面へ行って戻ったら必ず一覧から始める */
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   var navOn=navActiveOf(page);
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===navOn);});
@@ -2861,13 +2868,14 @@ function thFlowStart(child){
   clearInterval(THF.timer); clearTimeout(THF.undoTimer);
   THERMO.cb=function(v,final){
     if(!THF.open||THF.state!=='wait')return;
-    if(!final){ THF.temp=v; thFlowRender(); return; }   /* 測定中は表示だけ */
+    if(!final){ THF.temp=v; thFlowLive(); return; }   /* 測定中は数字だけ書き換える */
     thFlowGot(v);
   };
   THF.timer=setInterval(function(){
     THF.left--;
-    if(THF.left<=0){ clearInterval(THF.timer); THF.state='timeout'; }
-    thFlowRender();
+    /* 時間切れのときだけ画面を作り直す。普段は残り秒とバーだけ更新する */
+    if(THF.left<=0){ clearInterval(THF.timer); THF.state='timeout'; thFlowRender(); return; }
+    thFlowTick();
   },1000);
   thFlowRender();
 }
@@ -2904,7 +2912,9 @@ function thFlowUndo(){
   THF.state='wait'; THF.temp=null; THF.left=TH_WAIT;
   clearInterval(THF.timer);
   THF.timer=setInterval(function(){
-    THF.left--; if(THF.left<=0){clearInterval(THF.timer);THF.state='timeout';} thFlowRender();
+    THF.left--;
+    if(THF.left<=0){ clearInterval(THF.timer); THF.state='timeout'; thFlowRender(); return; }
+    thFlowTick();
   },1000);
   thFlowRender();
 }
@@ -2912,6 +2922,21 @@ function thFlowClose(){
   THF.open=false; THERMO.cb=null;
   clearInterval(THF.timer); clearInterval(THF.undoTimer);
   var el=document.getElementById('thFlow'); if(el)el.remove();
+}
+
+/* 画面を丸ごと作り直すと、手入力の欄に打った字が毎秒消えてしまう。
+   そこで、時間で変わるところだけを差し替えられるように分けておく */
+function thValHTML(){
+  return '<div style="font-size:46px;font-weight:800;letter-spacing:-.03em;margin:18px 0 4px;color:'
+    +(THF.temp?'#0B5F8F':'#C9CDD3')+';">'+(THF.temp?THF.temp.toFixed(1)+'<span style="font-size:22px;">℃</span>':'—.—')+'</div>'
+    +(THF.temp?'<div style="font-size:12px;color:#A26A12;">測定中の値です。確定するまでお待ちください</div>':'');
+}
+function thFlowTick(){
+  var a=document.getElementById('thLeft'); if(a)a.innerHTML=String(THF.left);
+  var b=document.getElementById('thBar'); if(b)b.style.width=Math.round(THF.left/TH_WAIT*100)+'%';
+}
+function thFlowLive(){
+  var v=document.getElementById('thVal'); if(v)v.innerHTML=thValHTML();
 }
 
 function thFlowRender(){
@@ -2937,14 +2962,12 @@ function thFlowRender(){
       +'<div style="font-size:13px;color:#6C7686;line-height:1.85;">'
       +(conn?'体温計で測ると、この画面に自動で入ります。'
             :'体温計につないでいないため、下に手で入力してください。')+'</div>'
-      +'<div style="font-size:46px;font-weight:800;letter-spacing:-.03em;margin:18px 0 4px;color:'
-      +(THF.temp?'#0B5F8F':'#C9CDD3')+';">'+(THF.temp?THF.temp.toFixed(1)+'<span style="font-size:22px;">℃</span>':'—.—')+'</div>'
-      +(THF.temp?'<div style="font-size:12px;color:#A26A12;">測定中の値です。確定するまでお待ちください</div>':'')
+      +'<div id="thVal">'+thValHTML()+'</div>'
       +'<div style="margin-top:14px;height:6px;background:#EEF0F3;border-radius:6px;overflow:hidden;">'
-      +'<div style="height:6px;background:#0B5F8F;width:'+Math.round(THF.left/TH_WAIT*100)+'%;transition:width .9s linear;"></div></div>'
-      +'<div style="font-size:12px;color:#6C7686;margin-top:6px;">測定待ち　残り '+THF.left+' 秒</div>'
+      +'<div id="thBar" style="height:6px;background:#0B5F8F;width:'+Math.round(THF.left/TH_WAIT*100)+'%;transition:width .9s linear;"></div></div>'
+      +'<div style="font-size:12px;color:#6C7686;margin-top:6px;">測定待ち　残り <span id="thLeft">'+THF.left+'</span> 秒</div>'
       +(conn?'':'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">'
-        +'<input id="thMan" type="number" step="0.1" placeholder="36.5" '
+        +'<input id="thMan" type="number" inputmode="decimal" step="0.1" placeholder="36.5" '
         +'style="width:120px;padding:10px;border:1px solid #E2E5EA;border-radius:9px;font-size:17px;text-align:center;">'
         +'<button class="btn" id="thManOK">入力する</button></div>')
       +'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'
@@ -2957,7 +2980,7 @@ function thFlowRender(){
       +'<div style="font-size:13.5px;color:#A26A12;line-height:1.85;">'
       +'時間内に測定できませんでした。もう一度測るか、手で入力してください。</div>'
       +'<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">'
-      +'<input id="thMan" type="number" step="0.1" placeholder="36.5" '
+      +'<input id="thMan" type="number" inputmode="decimal" step="0.1" placeholder="36.5" '
       +'style="width:120px;padding:10px;border:1px solid #E2E5EA;border-radius:9px;font-size:17px;text-align:center;">'
       +'<button class="btn" id="thManOK">入力する</button></div>'
       +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:center;">'
@@ -2978,7 +3001,12 @@ function thFlowRender(){
       +'<button class="btn btn-primary btn-sm" id="thDone">つぎへ</button></div>'
     );
   }
+  /* 作り直す前に、打ちかけの手入力を控えておいて、あとで戻す */
+  var mOld=document.getElementById('thMan');
+  var mKeep=mOld?mOld.value:'',mHadFocus=!!(mOld&&document.activeElement===mOld);
   el.innerHTML=html;
+  var mNew=document.getElementById('thMan');
+  if(mNew&&mKeep){ mNew.value=mKeep; if(mHadFocus){ try{ mNew.focus(); }catch(err){} } }
 
   var $$=function(id){return document.getElementById(id);};
   if($$('thSkip'))$$('thSkip').onclick=thFlowClose;
@@ -4210,10 +4238,27 @@ function homeTodayRows(absN,unread){
   }).join('');
 }
 var egOpen=null;   /* ホームで、いまひらいているマス */
+/* 保護者から連絡が届いた時刻。at は保護者の端末で作られた文字列（例「2026/8/20 9:15:32」）なので、
+   日付ごと読み取らず、時と分だけを取り出す。 */
+function absAtTime(s){var m=String(s||'').match(/(\d{1,2}):(\d{2})/);return m?(('0'+m[1]).slice(-2)+':'+m[2]):'';}
 function renderHome(){
   var s=$('section[data-page="home"]'),en=enrolled();
   var unread=0;try{unread=dmUnreadTotal();}catch(e){}
   var wd=WD[new Date().getDay()];
+  var pT=todayISO().split('-');   /* きょうの日付。年・月・日をそのまま出すために分けておく */
+  /* クラスごとの在園児の人数。en を 1 回だけ回して数える。
+     クラスの名前は設定から取るので、園ごとに変えてもそのまま出る。 */
+  var clsList=CLASSES,clsHtml='';
+  if(clsList&&typeof clsList.forEach==='function'&&clsList.length){
+    var clsCnt={},clsNone=0;
+    clsList.forEach(function(k){clsCnt[k]=0;});
+    en.forEach(function(c){
+      var k=String((c&&c.klass)||'');
+      if(clsList.indexOf(k)>=0)clsCnt[k]++;else clsNone++;
+    });
+    clsHtml=clsList.map(function(k){return '<b>'+esc(k)+' '+clsCnt[k]+'名</b>';}).join('');
+    if(clsNone)clsHtml+='<b>クラス未設定 '+clsNone+'名</b>';
+  }
   /* 保護者から届いた欠席・遅刻の連絡。きょう以降の分だけ、日付の近い順に出す。
      帯の右にも件数を出すので、帯を組み立てる前に数えておく。 */
   var abs=PSTATE.list('absence_log').filter(function(a){return a&&a.date&&a.date>=todayISO();})
@@ -4221,8 +4266,8 @@ function renderHome(){
   /* 帯の右がわ。ずっと空いていたので、いま手が空いていないものをここに出す。 */
   var tdRows='';try{tdRows=homeTodayRows(abs.length,unread);}catch(e){}
   var html='<div class="hhero"><div class="hhl"><div class="hh"><h2>'+esc(SET.school||'')+'</h2>'
-    +'<p>'+esc(fmt(todayISO()))+'　きょうは'+esc(wd)+'曜日です。使いたい機能を選んでください。</p></div>'
-    +'<div class="hstat"><b>在園児 '+en.length+'名</b></div></div>'
+    +'<p>'+(+pT[0])+'年 '+(+pT[1])+'月'+(+pT[2])+'日 '+esc(wd)+'曜日</p></div>'
+    +'<div class="hstat"><b>在園児 '+en.length+'名</b>'+clsHtml+'</div></div>'
     +'<div class="htoday"><div class="ht">きょう見ておくこと</div>'
     +(tdRows||'<div class="row"><span class="tx">数を出せませんでした<small>記録が読み取れないため、ここには出しません</small></span></div>')
     +'<div class="src">数は、この画面の記録と保護者から届いた連絡から出しています。</div>'
@@ -4235,7 +4280,9 @@ function renderHome(){
         var c=DB.contacts.filter(function(x){return String(x.id)===String(a.childId);})[0];
         return '<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);">'
           +'<span style="font-weight:600;min-width:104px;">'+esc(fmt(a.date))+'</span>'
+          +'<span class="muted" style="min-width:52px;font-size:12px;">'+esc(absAtTime(a.at)||'—')+'</span>'
           +'<span style="min-width:96px;">'+esc(c?childFullName(c):'（登録のない園児）')+'</span>'
+          +'<span class="tag" style="background:#E6F1FB;color:#123E6B;border-color:#C6DEF4;">'+esc((c&&c.klass)||'クラス未設定')+'</span>'
           +'<span class="tag">'+esc(a.kind||'欠席')+'</span>'
           +'<span class="muted" style="flex:1;">'+esc(a.reason||'')+'</span></div>';
       }).join('')
@@ -5257,7 +5304,7 @@ function renderCompose(){
   $('#cmpSend').onclick=function(){sendSeq(selC(),mailTpl(composeTpl).label,$('#cmpSubject').value,$('#cmpBody').value,ctx(),$('#cmpSend'),$('#cmpLog'),$('#cmpBar'),true);};
   $('#cmpSched').onclick=function(){var when=$('#cmpSchedAt').value;var sc=selC();if(!when){alert('予約日時を選んでください');return;}if(!sc.length){alert('送信先を選択してください');return;}var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'個別メール',label:mailTpl(composeTpl).label,count:sc.length,names:sc.map(function(c){return (c.child?c.child+'（'+c.name+' 様）':c.name+' 様');}),to:sc.map(function(c){return c.name;}).join('・'),subject:$('#cmpSubject').value,body:$('#cmpBody').value});stSet('scheduled',q);$('#cmpLog').innerHTML='<div class="li"><span style="color:#0B5F8F;font-weight:600;">'+when.replace('T',' ')+' に '+sc.length+'件の配信を予約しました（配信カレンダーで確認）</span></div>';};
   chips();loadTpl();list();
-  var _cs=$('section[data-page="compose"]');_cs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（個別メール）'));wireSentMail(_cs);
+  var _cs=$('section[data-page="compose"]');_cs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（個別メール）',sentFromSchool));wireSentMail(_cs);
   if(typeof expMailDraftRender==='function')expMailDraftRender(_cs);
 }
 
@@ -5266,15 +5313,17 @@ function renderCompose(){
    ひな形の名前に「デイリー」「配信」「お知らせ」が入っているかで当てていた。
    そのため「新年度のご挨拶」だけが保護者に届かなかった。
    送るときに印（kind）を付けて、名前で当てるのをやめる。 */
-function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind){
+function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind,bcc){
+  /* bcc は、その1回だけの控えの送り先。空なら設定のBCCを使う */
+  var useBcc=String(bcc||SET.bcc||'');
   if(!list.length){log.innerHTML='<div class="li" style="color:#A32D2D;">送信先が選択されていません。</div>';return;}
   btn.disabled=true;log.innerHTML='';bar.style.width='0%';
   var i=0,now=new Date(),stamp=pad(now.getHours())+':'+pad(now.getMinutes());
   function step(){
     if(i>=list.length){
       btn.disabled=false;
-      var done=el('div',{class:'li'},ic('check')+'<span style="color:#0B5F8F;font-weight:600;">'+list.length+'件の送信が完了しました（BCC: '+SET.bcc+'）</span>');done.querySelector('svg').style.cssText='width:16px;height:16px;color:#0C84B4;';log.appendChild(done);
-      var h=DB.history;list.forEach(function(c){h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:tplLabel,kind:(kind||''),to:c.name+' 様',email:c.email,from:SET.sender,subject:perPerson?fillTokens(subjectTpl,c,ctx):subjectTpl,body:perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl});});DB.history=h;
+      var done=el('div',{class:'li'},ic('check')+'<span style="color:#0B5F8F;font-weight:600;">'+list.length+'件の送信が完了しました（BCC: '+useBcc+'）</span>');done.querySelector('svg').style.cssText='width:16px;height:16px;color:#0C84B4;';log.appendChild(done);
+      var h=DB.history;list.forEach(function(c){h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:tplLabel,kind:(kind||''),to:c.name+' 様',email:c.email,from:SET.sender,bcc:useBcc,subject:perPerson?fillTokens(subjectTpl,c,ctx):subjectTpl,body:perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl});});DB.history=h;
       return;
     }
     var c=list[i];
@@ -5291,7 +5340,7 @@ function sentMailModal(h){
     '<div class="muted" style="margin-bottom:10px;">'+(h.time||'')+' ・ '+(h.tpl||'')+'</div>'+
     '<table style="width:100%;font-size:13px;margin-bottom:10px;"><tbody>'+
     '<tr><td style="color:var(--tx2);width:64px;">宛先</td><td>'+(h.to||'')+(h.email?'（'+h.email+'）':'')+'</td></tr>'+
-    '<tr><td style="color:var(--tx2);">送信元</td><td>'+(h.from||'')+'　BCC：'+SET.bcc+'</td></tr>'+
+    '<tr><td style="color:var(--tx2);">送信元</td><td>'+(h.from||'')+'　BCC：'+(h.bcc||SET.bcc)+'</td></tr>'+
     '<tr><td style="color:var(--tx2);">件名</td><td>'+(h.subject||'（記録なし）')+'</td></tr></tbody></table>'+
     '<div class="preview" style="max-height:360px;">'+((h.body||'（本文の記録がありません。旧バージョンで送信された履歴です）')).replace(/</g,'&lt;')+'</div>'+
     '<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn btn-primary" id="sm_close">閉じる</button></div></div>';
@@ -5302,6 +5351,8 @@ function sentMailModal(h){
 
 /* ---------- broadcast ---------- */
 var broadcastPreset=null,bTpl='dailyPre',bSel=null,bTodayOnly=false;
+/* この配信だけの担当者（職員名。空なら設定の担当者）と、この配信だけのBCC（null なら設定のBCC） */
+var bMgrName='',bBccVal=null;
 /* テンプレートごとの表示権限（役割別）。管理者が設定→テンプレートの表示権限で調整可 */
 var TPL_PERMS_VERSION=2;
 function tplPermsDefault(){
@@ -5337,13 +5388,8 @@ function renderBroadcast(){
   if(!bSel){bSel={};(def.cls||['Pre','Kinder']).forEach(function(k){bSel[k]=true;});}
   var s=$('section[data-page="broadcast"]');
   s.innerHTML=
-    senderNoteHTML()+
     '<div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><div style="display:flex;gap:8px;align-items:center;"><span class="muted">ひな形</span><select id="bTpl" style="max-width:280px;">'+avail.map(function(x){return '<option value="'+esc(x.key)+'"'+(x.key===bTpl?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div><span class="muted" style="margin-left:auto;">'+(avail.length<bcastAll().length?'デイリーメールのみ編集できます。':'')+'</span></div>'+
-    '<div class="grid" style="grid-template-columns:1.2fr 1fr;align-items:start;">'+
-      '<div class="card" id="bEditor"></div>'+
-      '<div class="card"><h3>'+ic('mail')+'保護者に届く見え方</h3><div class="muted" style="margin:-4px 0 8px;">送ると、この文章がそのまま保護者に届きます。この欄は直せません。左（画面が細いときは上）の欄を直してください。</div><div class="preview" id="bPreview"></div></div>'+
-    '</div>'+
-    '<div class="card" style="margin-top:16px;"><h3>'+ic('cast')+'送り先を選んで送る</h3>'+
+    '<div class="card" style="margin-bottom:16px;"><h3>'+ic('cast')+'送り先を選択</h3>'+
       '<label>配信先</label>'+
       '<div class="chips" style="margin:6px 0 10px;">'+
         '<span class="chip'+(bMode==='kids'?'':' on')+'" data-bmode="class">クラスで選ぶ</span>'+
@@ -5352,7 +5398,14 @@ function renderBroadcast(){
       '<div class="chips" id="bChips" style="margin-top:6px;"></div>'+
       (bMode==='kids'?'':
         '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin:2px 0 6px;"><input type="checkbox" id="bToday" style="width:auto;">本日登園した児童のみに配信（日常記録「登園（出席）」の出席●から自動抽出）</label>')+
-      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'この内容で送る</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
+      '<div class="field" style="margin:10px 0 0;max-width:460px;"><label>BCC（控えの送り先。この配信のあいだだけ変えられます）</label><input id="bBcc" value="'+esc(bBccVal==null?SET.bcc:bBccVal)+'" placeholder="控えを受け取るメールアドレス"></div>'+
+    '</div>'+
+    '<div class="grid grid-2col bcast" style="align-items:start;">'+
+      '<div class="card" id="bEditor"></div>'+
+      '<div class="card"><h3>'+ic('mail')+'プレビュー</h3><div class="muted" style="margin:-4px 0 8px;">送ると、この文章がそのまま保護者に届きます。この欄は直せません。</div><div class="preview" id="bPreview"></div></div>'+
+    '</div>'+
+    '<div class="card" style="margin-top:16px;">'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'この内容で送る</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
       '<div class="pbar"><div id="bBar"></div></div><div class="send-log" id="bLog"></div></div>';
   $('#bTpl').onchange=function(e){bTpl=e.target.value;bSel=null;renderBroadcast();};
   /* クラスで選ぶ／児童を選ぶ の切り替え。
@@ -5367,21 +5420,31 @@ function renderBroadcast(){
     var bb=bcastBody(def.key); /* 園が書き直した題名・本文があれば、そちらを出す */
     /* 左の欄＝ここを直す。デイリーメールだけ配信日を選べるようにしてある。
        〔配信日〕〔本日の活動〕の差し込みが、この日付をもとに入れ替わるため。 */
-    e.innerHTML='<h3>'+ic(def.daily?'report':'doc')+'入力する欄（'+esc(def.label)+'）</h3>'
-      +'<div class="muted" style="margin:-4px 0 10px;">ここでの書き足しは、この1回だけに効きます。</div>'
+    e.innerHTML='<h3>'+ic(def.daily?'report':'doc')+'編集（'+esc(def.label)+'）</h3>'
       +(def.daily?'<div class="field"><label>配信日</label><input type="date" id="bDate" value="'+esc(todayISO())+'"></div>':'')
+      +'<div class="field"><label>担当者（本文の〔担当者〕のところに入ります）</label><select id="bMgr"><option value="">設定の担当者（'+esc(SET.manager||'未設定')+'）</option>'+(DB.staff||[]).map(function(st){return '<option'+(st.name===bMgrName?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select></div>'
       +'<div class="field"><label>件名</label><input id="bSubject" value="'+bb.subject.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'
       +'<div class="field"><label>本文（自由に編集・追記できます。〔 〕は送るときに入れ替わります）</label><textarea id="bBody" rows="16">'+esc(bb.body)+'</textarea></div>'
       +(def.daily?'<div class="muted" id="bDayHint" style="margin:-6px 0 0;"></div>':'');
     e.querySelectorAll('input,textarea').forEach(function(x){x.oninput=preview;x.onchange=preview;});
+    var mg=$('#bMgr');if(mg)mg.onchange=function(){bMgrName=mg.value;preview();};
+  }
+  /* 名乗り。職員管理に入っている役職を名前の前に付ける（役職が空なら名前だけ） */
+  function bMgrSign(){
+    if(!bMgrName)return '';
+    var st=(DB.staff||[]).filter(function(x){return x.name===bMgrName;})[0];
+    return (st&&st.role)?(st.role+'　'+st.name):bMgrName;
   }
   /* 差し込みに渡す値。デイリーメールのときだけ、選んだ日から作る */
   function bCtx(){
-    if(!def.daily)return {};
+    var o={},sign=bMgrSign();
+    if(sign)o.manager=sign;
+    if(!def.daily)return o;
     var d=$('#bDate')?$('#bDate').value:todayISO();
-    if(!d)return {};
+    if(!d)return o;
     var p=String(d).split('-');
-    return {sendDate:(+p[1])+'月'+(+p[2])+'日',dayText:curDayText(def.daily,d)};
+    o.sendDate=(+p[1])+'月'+(+p[2])+'日';o.dayText=curDayText(def.daily,d);
+    return o;
   }
   function buildEmail(){
     var ctx=bCtx();
@@ -5551,9 +5614,10 @@ function renderBroadcast(){
     box.querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-c');bSel[k]=!bSel[k];chips();count();};});
   }
   var bt=$('#bToday');if(bt){bt.checked=bTodayOnly;bt.onchange=function(){bTodayOnly=bt.checked;count();};}
-  $('#bSend').onclick=function(){var e=buildEmail();sendSeq(recip(),def.label,e.subject,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false,'broadcast');};
+  var bbc=$('#bBcc');if(bbc)bbc.oninput=function(){bBccVal=bbc.value;};
+  $('#bSend').onclick=function(){var e=buildEmail();sendSeq(recip(),def.label,e.subject,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false,'broadcast',bBccVal);};
   var bs=$('#bSched');if(bs)bs.onclick=function(){var when=$('#bSchedAt').value,rc=recip();if(!when){alert('予約日時を選んでください');return;}if(!rc.length){alert('配信先がありません');return;}var e=buildEmail();var q=stGet('scheduled',[]);q.push({id:Date.now(),when:when,kind:'全体周知・お知らせ',label:def.label,count:rc.length,names:rc.map(function(c){return childFullName(c)+'（'+c.name+' 様）';}),group:Object.keys(bSel).filter(function(k){return bSel[k];}).join('・'),to:rc.map(function(c){return childFullName(c);}).join('・'),subject:e.subject,body:e.body});stSet('scheduled',q);$('#bLog').innerHTML='<div class="li"><span style="color:#0B5F8F;font-weight:600;">'+when.replace('T',' ')+' に '+rc.length+'名への配信を予約しました（配信カレンダーで確認）</span></div>';};
-  var _bs=$('section[data-page="broadcast"]');_bs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（全体周知・デイリー）'));wireSentMail(_bs);
+  var _bs=$('section[data-page="broadcast"]');_bs.insertAdjacentHTML('beforeend',sentMailCard('送信済みメール（全体周知・デイリー）',sentFromSchool));wireSentMail(_bs);
 }
 
 /* ---------- templates ---------- */
@@ -5767,10 +5831,7 @@ function renderTemplates(){
   }).join('');
   s.innerHTML=
     senderNoteHTML()+
-    '<div class="card" style="margin-bottom:16px;"><h3>'+ic('doc')+'メールのひな形</h3>'
-      +'<div class="muted" style="margin-bottom:12px;">題名と文章は、園ごとに書き直せます。新しく作ることもできます。</div>'
-      +'<button class="btn btn-primary" id="tplNew">'+ic('plus')+'テンプレートを作成する</button></div>'
-    +'<div class="card" style="margin-bottom:22px;"><h3>'+ic('doc')+'本文に使える差し込み</h3>'+tokenHelpHtml()+'</div>'
+    '<div style="margin-bottom:20px;"><button class="btn btn-primary" id="tplNew">'+ic('plus')+'メールテンプレートを作成する</button></div>'
     +'<div style="font-size:13px;font-weight:600;margin:0 0 10px;color:var(--tx2);">個別メール（1:1）</div><div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:22px;">'+(indiv||'<div class="empty">表示できるひな形がありません。</div>')+'</div>'
     +'<div style="font-size:13px;font-weight:600;margin:0 0 10px;color:var(--tx2);">全体周知・お知らせ</div><div class="grid" style="grid-template-columns:1fr 1fr;">'+(bc||'<div class="empty">表示できるひな形がありません。</div>')+'</div>';
   wireTokenHelp(s);
@@ -6457,7 +6518,7 @@ function renderAudit(){
     if(v==='staff:qual'){staffFocus='qual';go('staff');return;}
     if(v==='staff:kenshin'){staffFocus='kenshin';go('staff');return;}
     if(v==='timecard'){shiftTab='time';go('shift');return;}
-    if(v==='roster'){rosterTab='profile';go('roster');return;}
+    if(v==='roster'){go('roster');rosterTab='profile';renderRoster();return;}
     staffFocus=null;go(v);
   };});
   $('#auPrint').onclick=function(){
@@ -6494,6 +6555,23 @@ function childFullName(c){
   if(!fn)fn=c.child?childName(c):'';
   var full=((ln?ln+' ':'')+fn).trim();
   return full||(c.child?childName(c):(c.name||''));
+}
+/* 生徒台帳の一覧で使う、ちゃん・くん つきの呼び名。
+   連絡先のお子様名（例：心春ちゃん）に入っていればそれを使い、
+   入っていなければ生徒台帳の性別から付ける。
+   ★名簿の書き出しや書類は childFullName（敬称なし）のままにすること。 */
+function childFullNameHon(c){
+  if(!c)return '';
+  var cd=String(c.child||''),s='';
+  if(cd.indexOf('くん')>-1)s='くん';
+  else if(cd.indexOf('ちゃん')>-1)s='ちゃん';
+  if(!s){
+    var p={};
+    try{p=(typeof spStore==='function'?spStore():{})[c.id]||{};}catch(e){p={};}
+    var sx=String(p.sex||'');
+    s=sx.indexOf('男')>-1?'くん':(sx.indexOf('女')>-1?'ちゃん':'');
+  }
+  return childFullName(c)+s;
 }
 /* 歳児ごとの色。登園シート・名簿シートなどで使い回すためグローバルに置く。
    0・1・2歳児は淡い色、3・4・5歳児は蛍光色。印刷しても文字が読める濃さにしている。 */
@@ -6896,16 +6974,19 @@ function blankFormBody(type,date,qr){
     var mon=new Date(bd.getFullYear(),bd.getMonth(),bd.getDate()+off);
     var wdays=[];for(var wi=0;wi<5;wi++){var dt2=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+wi);wdays.push(dt2);}
     function fmtD(d2){return d2.getFullYear()+'/'+pad(d2.getMonth()+1)+'/'+pad(d2.getDate());}
-    body='<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">'+lb2('週の予定','Weekly Plan')+'　'+fmtD(wdays[0])+' 〜 '+fmtD(wdays[4])+'</div>'
+    body='<div style="font-size:13px;font-weight:700;margin:6px 0 4px;">'+lb2('1週間の記録（月〜金）','Weekly Record')+'　'+fmtD(wdays[0])+' 〜 '+fmtD(wdays[4])+'</div>'
       +'<table class="blankform"><thead><tr><th style="width:74px;font-size:9px;">（曜日）</th>'
       /* ここは組（日本語, English）の一覧。esc() に組をそのまま渡していたため、
          紙に「活動内容（午前）,Morning Activity」とカンマ付きで出ていた。
          ほかの用紙と同じ lb2() を通す（英語は設定が入のときだけ小さく添う）。 */
-      +[['活動内容（午前）','Morning Activity'],['活動内容（午後）','Afternoon Activity'],['使った絵本や玩具','Story Book'],['クラスの様子・エピソード',''],['引き継ぎ・特記事項','']].map(function(l){return '<th style="font-size:9px;">'+lb2(l[0],l[1])+'</th>';}).join('')
+      /* 並びと言い方は画面（業務日報・保育日誌）と同じにしてある。
+         欠席・早退・記録者は画面にしか無く、紙と突き合わせができなかったので足した。
+         この3つは書く量が少ないので幅を細くし、活動内容の欄を広く残す。 */
+      +[['活動内容（午前）','Morning Activity',0],['活動内容（午後）','Afternoon Activity',0],['使った絵本や玩具','Story Book',0],['クラスの様子・エピソード','',0],['欠席','Absent',58],['早退','Early Leave',58],['引き継ぎ・特記事項','',0],['記録者','Recorded by',58]].map(function(l){return '<th style="'+(l[2]?'width:'+l[2]+'px;':'')+'font-size:9px;">'+lb2(l[0],l[1])+'</th>';}).join('')
       +'</tr></thead><tbody>'
       +wdays.map(function(d2){return '<tr><td style="font-size:9px;">'+WD[d2.getDay()]+'曜日<div style="font-size:8px;">'+((d2.getMonth()+1)+'/'+d2.getDate())+'</div></td>'
-        /* 見出しは（曜日）＋5列＝6列。中身が7列あって1つ多く、表がずれていた */
-        +'<td style="height:74px;"></td><td></td><td></td><td></td><td></td></tr>';}).join('')
+        /* 見出しは（曜日）＋8列＝9列。中身の数もここに合わせる（数が違うと表がずれる） */
+        +'<td style="height:74px;"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';}).join('')
       +'</tbody></table>';
   }else if(type==='ヒヤリハット・怪我'){
     body='<table><tbody>'
@@ -7017,7 +7098,7 @@ function renderRecGroup(page,list,note){
   var other=$('section[data-page="'+(page==='records'?'carerec':'records')+'"]');
   if(other)other.innerHTML='';
   var s=$('section[data-page="'+page+'"]');
-  s.innerHTML='<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="chips" style="margin:0;flex:1;" id="recChips">'+list.map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+esc(t)+'">'+t+'</span>';}).join('')+'</div><button class="btn btn-sm" id="recExportBtn" title="この記録をExcel/スプレッドシートで開ける形式でダウンロード">'+ic('folder')+'データ保存</button></div>'
+  s.innerHTML='<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><div class="chips" style="margin:0;flex:1;" id="recChips">'+list.map(function(t){return '<span class="chip'+(t===recType?' on':'')+'" data-rt="'+esc(t)+'">'+t+'</span>';}).join('')+'</div><button class="btn btn-sm" id="recExportBtn" title="いま開いている記録を、Excelで開ける形にして書き出します">'+ic('folder')+'Excelで書き出す</button></div>'
     +(note?'<div class="muted" style="margin:-8px 2px 12px;font-size:12px;">'+note+'</div>':'')+'<div id="recBody"></div>'
     +(page==='records'?'<div id="recPeriodBox"></div>':'');
   s.querySelectorAll('[data-rt]').forEach(function(b){b.onclick=function(){recType=b.getAttribute('data-rt');renderRecGroup(page,list,note);};});
@@ -7076,25 +7157,19 @@ function edTouen(){
   /* ランチ・ロングステイは連絡先の通園曜日設定から「その日にまだ記録が無いときの初期値」としてだけ入れる。
      一度記録された値は、あとから通園曜日の設定を変えても書き換えない（過去日の実績が塗り替わらないようにする）。 */
   function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
-  /* 自動表示以外のオプション（設定で追加したもの）はこれまでどおりタップで切替 */
-  var freeOpts=opts.filter(function(op){return !isAutoAttendOpt(op);});
   var autoOpts=opts.filter(function(op){return isAutoAttendOpt(op);});
-  /* --- 案内文ここから：いま表示している列だけを説明する。1行1件で並べる --- */
-  var noteLines=['この曜日に通園予定の園児のみ表示します。先生が記録するのは <b>出欠・体温</b> の2つだけです。',
-    '出欠はタップで切替わります：<b>●</b>出席 → <b>早</b>早退 → <b>遅</b>遅刻 → <b>休</b>欠席'];
-  if(autoOpts.length)noteLines.push('<b>'+autoOpts.map(function(op){return esc(op);}).join('・')+'</b>（点線のグレー表示）は通園曜日の設定から自動で表示します。この画面では変更できません。すでに記録がある日は、あとから通園曜日を変えてもその日の記録はそのまま残ります。');
-  if(freeOpts.length)noteLines.push('<b>'+freeOpts.map(function(op){return esc(op);}).join('・')+'</b> はタップで選べます。');
-  noteLines.push('オプションの追加・名前の変更は「設定 → 登園記録のオプション」で園ごとに行えます。');
-  var noteHtml=noteLines.map(function(t,i){return '<div style="'+(i?'margin-top:5px;':'')+(i===noteLines.length-1?'color:#085041;':'')+'">'+t+'</div>';}).join('');
-  /* --- 案内文ここまで --- */
+  /* 天気は「晴」「曇」「雨」から選ぶ。
+     これまでに入れた文言（「晴れ」など）がある日は、その文言も選択肢に残して消さない */
+  var WOPT=['','晴','曇','雨'],wNow=d.weather||'',wList=WOPT;
+  if(wNow&&WOPT.indexOf(wNow)<0)wList=WOPT.concat([wNow]);
+  var wOptHtml=wList.map(function(x){return '<option value="'+esc(x)+'"'+(x===wNow?' selected':'')+'>'+esc(x)+'</option>';}).join('');
   $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
-    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:420px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><input id="tsWeather" value="'+esc((d.weather||''))+'" placeholder="晴れ"></div><div class="field" style="margin:0;"><label>室温（℃）</label><input id="tsTemp" value="'+esc((d.temp||''))+'"></div><div class="field" style="margin:0;"><label>湿度（%）</label><input id="tsHum" value="'+esc((d.hum||''))+'"></div></div>'+
-    '<div style="display:flex;gap:10px;align-items:flex-start;background:#E3F1F9;border:1px solid #9FE1CB;border-radius:10px;padding:10px 14px;margin-bottom:12px;"><span style="color:#0B5F8F;flex-shrink:0;width:18px;height:18px;display:inline-block;margin-top:1px;">'+ic('report')+'</span><div class="note" style="flex:1;min-width:0;font-size:12.5px;color:#0B5F8F;line-height:1.6;">'+noteHtml+'</div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
-      '<td><button class="btn btn-sm" data-ta="'+esc(c.id)+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
-      '<td><input data-tt="'+esc(c.id)+'" type="number" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
+      '<td><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
+      '<td><input data-tt="'+esc(c.id)+'" type="number" inputmode="decimal" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
       opts.map(function(op,oi){var on=!!r.opts[op];
         /* ランチ・ロングステイはその日の予定を読み取り専用で表示する。
            押しても反応しないので、点線の枠とグレーでタップできるボタンと見分けられるようにする */
@@ -7105,7 +7180,7 @@ function edTouen(){
     '<div class="field" style="margin-top:12px;"><label>MEMO</label><input id="tsMemo" value="'+esc((d.memo||''))+'"></div>'+
     /* 自動列は記録済みの値を勝手に書き換えない（監査記録のため）。ただし当日の入力ミスは直せる必要があるので、
        ここから明示的に「今の通園曜日の設定に合わせ直す」操作ができるようにする。 */
-    (autoOpts.length?'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;"><span class="muted" style="font-size:12px;">'+esc(autoOpts.join('・'))+'が実際と違う場合はここから直せます。</span><button class="btn btn-sm" id="tsResync">通園曜日の設定に合わせ直す</button></div>':'')+
+    (autoOpts.length?'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-sm" id="tsResync" title="この日の「'+esc(autoOpts.join('・'))+'」を、いまの通園曜日の設定に合わせ直します">更新</button></div>':'')+
     '</div>';
   function save(){data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
@@ -7313,20 +7388,32 @@ function edBody(){
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
   var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select><button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'+(d.locked?'<button class="btn btn-sm" id="bmEdit">'+ic('edit')+'編集する</button>':'<button class="btn btn-sm btn-primary" id="bmSave">'+ic('check')+'保存する</button>')+'<button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+    (d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>')+
     '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
       return '<tr><td class="row-name">'+esc(childFullName(c))+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+esc(c.klass)+'</td>'+
-      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"></td>'+
-      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"></td>'+
+      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(d.locked?' disabled':'')+'></td>'+
+      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(d.locked?' disabled':'')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   function save(){data[recMonth]=d;stSet(K,data);}
   $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
-  document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
+  if(!d.locked)document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
+  /* 打っているあいだは自動で残る。「保存する」を押したら、その月の数字は直せないようにする */
+  if($('#bmSave'))$('#bmSave').onclick=function(){
+    var filled=Object.keys(d.rows).filter(function(id){var r=d.rows[id]||{};return r.h||r.w;});
+    if(!filled.length){alert('身長・体重がまだ入っていません。数字を入れてから「保存する」を押してください。');return;}
+    if(!confirm(recMonth.replace('-','年')+'月の身体測定を保存します。\n保存すると、この月の身長・体重は直せなくなります。\n直したいときは「編集する」を押します。\n\nよろしいですか？'))return;
+    d.locked=true;save();edBody();
+  };
+  if($('#bmEdit'))$('#bmEdit').onclick=function(){
+    if(!confirm(recMonth.replace('-','年')+'月の身体測定を、もう一度直せるようにします。\n保存したあとに直したときは、園長先生にも伝えてください。\n\nよろしいですか？'))return;
+    d.locked=false;save();edBody();
+  };
   $('#bmPrint').onclick=function(){
     var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass)+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
@@ -7552,7 +7639,8 @@ function edDev(){
     /* 写せる記録が無いときは押せないようにする。押しても何も起きない、をやらないため */
     '<button class="btn btn-sm" id="dvPrev"'+(prevKey?'':' disabled')+' title="'+esc(prevKey?devPeriodLabel(prevKey)+'の記録を写します':'写せる前の記録がありません')+'">'+ic('clipboard')+'前回の記録を反映</button>'+
     '<button class="btn btn-sm" id="dvPrint">'+ic('printer')+'選択児童を出力</button>'+
-    '<button class="btn btn-sm btn-primary" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>')+
+    '<button class="btn btn-sm" id="dvPrintAll">'+ic('printer')+'全員分を一括出力</button>'+
+    (cur?'<button class="btn btn-sm btn-primary" id="dvSave">'+ic('check')+'保存する</button>':''))+
     (cur?'<div class="muted" style="margin-bottom:10px;">いま開いているのは <b>'+esc(childFullName(cur))+'</b> さんの '+esc(devPeriodLabel(recDevMonth))+' の記録です。毎月記録します。監査書類（生徒個人発達記録）に対応します。'
         +(prevKey?'<br>「前回の記録を反映」を押すと、'+esc(devPeriodLabel(prevKey))+'の記録を写せます。':'<br>この園児には、写せる前の記録がありません。そのため「前回の記録を反映」は押せません。')
         +'</div>':'<div class="empty">'+(devCls==='すべて'?'在園児がいません':'このクラスに在園児がいません')+'</div>')+
@@ -7583,6 +7671,15 @@ function edDev(){
   document.querySelectorAll('[data-dv]').forEach(function(sl){sl.onchange=function(){rec.items[sl.getAttribute('data-dv')]=sl.value;save();};});
   if($('#dvMemo'))$('#dvMemo').onchange=function(e){rec.memo=e.target.value;save();};
   if($('#dvBy'))$('#dvBy').onchange=function(e){rec.by=e.target.value;save();};
+  /* メモや記録者の欄から離れないまま押しても取りこぼさないよう、押したときに読み直す */
+  if($('#dvSave'))$('#dvSave').onclick=function(){
+    if(!cur)return;
+    if($('#dvMemo'))rec.memo=$('#dvMemo').value;
+    if($('#dvBy'))rec.by=$('#dvBy').value;
+    if(!devHasItems(rec)&&!rec.memo&&!rec.by){alert('まだ何も入っていません。項目を選ぶか、メモを書いてから「保存する」を押してください。');return;}
+    save();
+    alert(childFullName(cur)+' さんの '+devPeriodLabel(recDevMonth)+' の記録を保存しました。');
+  };
   $('#dvPrint').onclick=function(){
     var body='<p>'+(cur?esc(childFullName(cur))+'（'+ageClassOf(cur)+'）':'')+'　記録：'+esc(devPeriodLabel(recDevMonth))+'　記録者：'+esc(rec.by||'')+'</p>'+
       DEV_CATS.map(function(c,ci){return '<h3>'+c.cat+'</h3><table><tbody>'+c.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rec.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+
@@ -7602,7 +7699,7 @@ function edNippo(){
   var wnum=weekOfMonth(recDate),wk=CUR.weeks[wnum-1]||CUR.weeks[0];
   var dp2=recDate.split('-'),jsD=new Date(+dp2[0],+dp2[1]-1,+dp2[2]).getDay(),dkey=['','Mon','Tue','Wed','Thu','Fri'][jsD]||'';
   var dtext=dkey?curDayText('Pre',recDate):'';
-  var currText=dtext||('【Morning】'+wk.morning+'\n【Afternoon】'+wk.afternoon);
+  var currText=dtext||('【午前】'+wk.morning+'\n【午後】'+wk.afternoon);
   var actualVal=d.actual||currText;
   $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     '<div class="field"><label>活動内容<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから取り込む</button></label><textarea id="npoActual" rows="4">'+esc(actualVal)+'</textarea></div>'+
@@ -7744,9 +7841,9 @@ function nippoDayBody(dk,d){
   var wnum=weekOfMonth(dk),wk=CUR.weeks[wnum-1]||CUR.weeks[0]||{morning:'',afternoon:''};
   var p=String(dk).split('-'),jsD=new Date(+p[0],+p[1]-1,+p[2]).getDay(),dkey=['','Mon','Tue','Wed','Thu','Fri'][jsD]||'';
   var dtext=dkey?curDayText('Pre',dk):'';
-  /* 画面と同じで、活動実績が空のときはカリキュラムの内容を出す */
-  var actual=d.actual||dtext||('【Morning】'+wk.morning+'\n【Afternoon】'+wk.afternoon);
-  return '<h2>活動内容</h2><p>'+esc(actual).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+esc(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>業務日報</h2><table><tbody><tr><th>欠席</th><td>'+esc(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+esc(d.early||'なし')+'</td></tr><tr><th>引き継ぎ</th><td>'+esc(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+esc(d.by||'')+'</td></tr></tbody></table>';
+  /* 画面と同じで、活動内容が空のときはカリキュラムの内容を出す */
+  var actual=d.actual||dtext||('【午前】'+wk.morning+'\n【午後】'+wk.afternoon);
+  return '<h2>活動内容</h2><p>'+esc(actual).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+esc(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>欠席・早退・引き継ぎ</h2><table><tbody><tr><th>欠席</th><td>'+esc(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+esc(d.early||'なし')+'</td></tr><tr><th>引き継ぎ・特記事項</th><td>'+esc(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+esc(d.by||'')+'</td></tr></tbody></table>';
 }
 
 /* --- 期間の指定 --- */
@@ -9950,27 +10047,42 @@ function trialModal(id){
    拡張プロフィールは studentProfiles（この端末のブラウザ内のみ）に保存。
    ★実在の氏名・住所・口座番号などは公開ソースに入れない（サンプルのみ／口座欄は空）。将来は認証つきバックエンドで管理。 */
 var rosterSel=null, rosterTab='list', rosterMap=null, rosterPinSel=null;
+/* 自宅マップの絞り込み。はじめは「在園生のみ」「クラス：すべて」。 */
+var rosterMapScope='enrolled', rosterMapKlass='すべて';
+function rosterMapKids(){
+  var a=(rosterMapScope==='all')
+      ? DB.contacts.filter(function(c){return c.kind==='enrolled'||c.kind==='withdrawn';})
+      : enrolled();
+  if(rosterMapKlass&&rosterMapKlass!=='すべて')
+    a=a.filter(function(c){return (spGet(c.id).klass||c.klass||'')===rosterMapKlass;});
+  return a;
+}
 /* 生徒台帳に置く項目（修正依頼シート 19行）。
    ・生徒番号・スクールタイプは使わないので欄ごと外した（古いデータは消さず、画面に出さないだけ）。
-   ・「姓フリガナ／名フリガナ／英語表記」は1つにまとめ、見出しを「振りがな・英語表記」にした。
+   ・ふりがなは「姓」と「名」に分け、英語表記は別の欄にした。
+     1つにまとめてあった古い欄（kana）は残し、保存のたびに同じ内容を書き戻している。
    ・「入会日」は「入園日」に言い換えた（保存の鍵 joinDate はそのまま）。
    ・保護者情報は人数が決まらないので、この表ではなく guardians（配列）で持つ。
    ・お支払いは「請求書発行」の「契約とオプション」へ移した（修正依頼シート 21行）。
      生徒台帳は先生やマネージャーも見る場所なので、お金の欄をここに置かない。 */
 var SP_GROUPS=[
-  {g:'お子様のこと',f:[
+  {g:'生徒情報',f:[
     {k:'lastName',label:'お名前（姓）'},{k:'firstName',label:'お名前（名）'},
-    {k:'kana',label:'振りがな・英語表記',wide:true,ph:'例：たかはし こころ ／ Kokoro Takahashi'},
-    {k:'dob',label:'生年月日',type:'date'},{k:'sex',label:'性別',opts:['','男の子','女の子']},
+    {k:'lastKana',label:'ふりがな（姓）',ph:'例：たかはし'},{k:'firstKana',label:'ふりがな（名）',ph:'例：こころ'},
+    {k:'romaji',label:'英語表記',wide:true,ph:'例：Kokoro Takahashi'},
+    {k:'dob',label:'生年月日',type:'date'},
+    {k:'ageClass',label:'何歳児',opts:['','0歳児','1歳児','2歳児','3歳児','4歳児','5歳児']},
+    {k:'sex',label:'性別',opts:['','男の子','女の子']},
     {k:'blood',label:'血液型',opts:['','不明','A','B','O','AB']},
     {k:'klass',label:'配属クラス',opts:['','Pre','Kinder','一般']},
-    {k:'joinDate',label:'入園日',type:'date'}
+    {k:'joinDate',label:'入園日',type:'date'},
+    {k:'leaveDate',label:'退園日',type:'date'}
   ]},
   {g:'ご自宅',f:[
     {k:'zip',label:'郵便番号',req:true},{k:'address',label:'住所',wide:true,req:true},
     {k:'telHome',label:'自宅の電話'}
   ]},
-  {g:'そのほか',f:[
+  {g:'その他',f:[
     {k:'applyDate',label:'お申し込み日',type:'date'},
     {k:'schoolMail',label:'園からのお知らせ 送り先メール'},
     {k:'parentNote',label:'保護者からの連絡事項',type:'textarea',wide:true}
@@ -10042,13 +10154,30 @@ function spSeed(){var s=stGet('studentProfiles',null);if(!s){stSet('studentProfi
 function spStore(){return stGet('studentProfiles',{});}
 function mapCfg(){return stGet('mapConfig',DEFAULT_MAP);}
 function spDefaults(c){var nm=(c.name||'').split(/[\s　]+/);return {klass:c.klass||'',grade:c.klass||'',lastName:nm[0]||'',firstName:childName(c),dob:c.dob||'',joinDate:c.admissionDate||'',schoolMail:c.email||'',mName:c.name||'',mTel:c.phone||'',mMail:c.email||'',history:'無',hospital:'無',febrile:'無',respiratory:'無'};}
-/* 振りがな・英語表記は1つの欄にまとめた。
-   古い形（姓フリガナ／名フリガナ／英語表記が別々）で入っている行も読めるよう、ここで組み立てる。 */
+/* 一覧や名簿に出す「ふりがな・英語表記」の1行。
+   ふりがな（姓）・ふりがな（名）・英語表記から組み立てる。
+   まだ1つの欄（kana）にまとめて入っている行も、そのまま読めるようにしておく。 */
 function spKanaText(p){
   if(!p)return '';
-  if(p.kana)return p.kana;
   var kn=[p.lastKana,p.firstKana].filter(Boolean).join(' ');
-  return [kn,p.romaji].filter(Boolean).join(' ／ ');
+  var t=[kn,p.romaji].filter(Boolean).join(' ／ ');
+  return t||p.kana||'';
+}
+/* 1つの欄にまとめて入っているふりがなを、姓・名・英語表記に仮に割って画面に出す。
+   保存を押すまで、しまってある中身は書き換えない。 */
+function spKanaSplit(p){
+  if(!p)return p;
+  if(p.lastKana||p.firstKana||p.romaji)return p;
+  var t=String(p.kana||'').replace(/　/g,' ');
+  if(!t)return p;
+  var a=t.split('／');
+  if(a.length<2)a=t.split('/');
+  var kn=String(a[0]||'').replace(/^\s+|\s+$/g,''),rm=String(a[1]||'').replace(/^\s+|\s+$/g,'');
+  var w=kn?kn.split(/\s+/):[];
+  p.lastKana=w[0]||'';
+  p.firstKana=w.slice(1).join(' ');
+  p.romaji=rm;
+  return p;
 }
 /* 保護者情報を配列で取り出す。
    まだ新しい形（guardians）で保存していない行は、古い「お父様／お母様」の欄と
@@ -10104,6 +10233,8 @@ function spGet(id){
   var c=DB.contacts.filter(function(x){return x.id===id;})[0]||{};
   var o=Object.assign({},spDefaults(c),spStore()[id]||{});
   if(!o.kana)o.kana=spKanaText(o);
+  /* 何歳児は、生年月日から出した年度の歳児をはじめに入れておく。あとから手で直せる。 */
+  if(!o.ageClass&&o.dob)o.ageClass=ageClassOf({dob:o.dob});
   return o;
 }
 function spSet(id,obj){var s=spStore();s[id]=obj;stSet('studentProfiles',s);}
@@ -10134,9 +10265,10 @@ function kidsHealthText(p){
   if(p.doctor&&p.doctor!=='なし')a.push('かかりつけ：'+p.doctor);
   return a.join(' ／ ');
 }
-/* 先生の画面に出す、保護者のお名前と携帯番号。
+/* 先生の画面に出す、保護者のお名前。
    連絡先に入っているものをそのまま使い、空のときだけ生徒台帳の保護者から借りる。
-   ここは見るだけの画面なので、書き換えはしない。 */
+   ここは見るだけの画面なので、書き換えはしない。
+   携帯番号は緊急連絡先と同じ番号になることが多いので、表には出していない。 */
 function kidsGuardian(c,p){
   var nm=(c&&c.name)||'', tel=(c&&c.phone)||'';
   if(nm&&tel)return {name:nm,tel:tel};
@@ -10162,9 +10294,12 @@ function telLinkHtml(t){
 function kidsEmgList(p){
   if(!p)return [];
   var a=[];
-  if(p.emg1)a.push({rel:p.emg1rel||'第1',tel:p.emg1});
-  if(p.emg2)a.push({rel:p.emg2rel||'第2',tel:p.emg2});
-  if(p.telHome)a.push({rel:'自宅',tel:p.telHome});
+  /* かける順番が一目で分かるように①②③を付ける。並びは生徒台帳と同じ。
+     自宅は順番の外なので番号を付けず、いちばん後ろに置く。 */
+  if(p.emg1)a.push({no:'\u2460',rel:p.emg1rel||'',tel:p.emg1});
+  if(p.emg2)a.push({no:'\u2461',rel:p.emg2rel||'',tel:p.emg2});
+  if(p.emg3)a.push({no:'\u2462',rel:p.emg3rel||'',tel:p.emg3});
+  if(p.telHome)a.push({no:'',rel:'自宅',tel:p.telHome});
   return a;
 }
 function kidsRows(){
@@ -10189,8 +10324,7 @@ function renderKidsView(){
   var klasses=['すべて'].concat(CLASSES);
 
   var head='<div class="card" style="margin-bottom:14px;">'
-    +recHead('生徒情報（閲覧のみ）',
-      '<span class="tag" style="background:#EAF3DE;color:#27500A;border-color:#C7DFA6;">編集できません</span>')
+    +recHead('生徒情報（閲覧のみ）')
     +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">'
     +'<div class="field" style="margin:0;"><label>クラス</label>'
       +'<select id="kvK" style="width:130px;">'
@@ -10215,13 +10349,13 @@ function renderKidsView(){
     +'<th>園児</th><th>歳児</th><th>クラス</th>'
     +'<th>通園曜日</th><th>コース</th>'
     +'<th>ランチ</th><th>ロングステイ</th>'
-    +'<th>保護者名</th><th>携帯番号</th><th>緊急連絡先</th><th>健康に関すること</th>'
+    +'<th>保護者名</th><th>緊急連絡先</th><th>健康に関すること</th>'
     +'</tr></thead><tbody>'
     +rows.map(function(c){
       var p=sp[c.id]||{}, o=enrOf(c), dop=dayOptsOf(c);
       var lunchDays=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].lunch;});
       var longDays =WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].long;});
-      var gd=kidsGuardian(c,p);   /* 保護者のお名前と携帯番号 */
+      var gd=kidsGuardian(c,p);   /* 保護者のお名前 */
       var al=ageClassOf(c), ac=ageColor(al);
       var hl=kidsHealthText(p);
       var emg=kidsEmgList(c.id?p:null);
@@ -10234,12 +10368,10 @@ function renderKidsView(){
         +'<td>'+esc(o.plan||'—')+'</td>'
         +'<td class="row-sub" style="white-space:nowrap;">'+(lunchDays.length?esc(lunchDays.join('・')):'—')+'</td>'
         +'<td class="row-sub" style="white-space:nowrap;">'+(longDays.length?esc(longDays.join('・')):'—')+'</td>'
-        +'<td class="row-sub" style="white-space:nowrap;">'+(gd.name?esc(gd.name):'—')+'</td>'
-        +'<td class="row-sub" style="white-space:nowrap;">'
-          +(gd.tel?telLinkHtml(gd.tel):'<span style="color:#A32D2D;">未登録</span>')+'</td>'
+        +'<td class="row-sub" style="white-space:nowrap;">'+(gd.name?esc(gd.name)+' 様':'—')+'</td>'
         +'<td class="row-sub" style="white-space:nowrap;">'
           +(emg.length?emg.map(function(e){
-            return esc(e.rel)+'　'+esc(e.tel);}).join('<br>'):'<span style="color:#A32D2D;">未登録</span>')+'</td>'
+            return (e.no?e.no+' ':'')+(e.rel?esc(e.rel)+'　':'')+telLinkHtml(e.tel);}).join('<br>'):'<span style="color:#A32D2D;">未登録</span>')+'</td>'
         +'<td class="row-sub">'+(hl
             ? (/アレルギー/.test(hl)
                 ? '<span style="color:#A32D2D;font-weight:600;">'+esc(hl)+'</span>'
@@ -10266,20 +10398,20 @@ function wireKidsView(){
     var body='<p>'+esc(SET.school||'')+'　'+esc(kidsKlass)+'　'+fmt(todayISO())+'</p>'
       +'<table><thead><tr><th>園児</th><th>生年月日</th><th>歳児</th><th>クラス</th><th>通園曜日</th>'
       +'<th>コース</th><th>ランチ</th><th>ロングステイ</th>'
-      +'<th>保護者名</th><th>携帯番号</th><th>緊急連絡先</th><th>健康に関すること</th>'
+      +'<th>保護者名</th><th>緊急連絡先</th><th>健康に関すること</th>'
       +'</tr></thead><tbody>'
       +rows.map(function(c){
         var p=sp[c.id]||{}, o=enrOf(c), dop=dayOptsOf(c);
         var lunchDays=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].lunch;});
         var longDays =WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].long;});
+        var gd=kidsGuardian(c,p);   /* 保護者のお名前 */
         return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.dob||'')+'</td>'
           +'<td>'+esc(ageClassOf(c))+'</td><td>'+esc(c.klass||'')+'</td>'
           +'<td>'+esc(c.days||'')+'</td><td>'+esc(o.plan||'')+'</td>'
           +'<td>'+esc(lunchDays.join('・'))+'</td>'
           +'<td>'+esc(longDays.join('・'))+'</td>'
-          +'<td>'+esc(kidsGuardian(c,p).name)+'</td>'
-          +'<td>'+esc(kidsGuardian(c,p).tel)+'</td>'
-          +'<td>'+esc(kidsEmgList(p).map(function(e){return e.rel+' '+e.tel;}).join(' ／ '))+'</td>'
+          +'<td>'+(gd.name?esc(gd.name)+' 様':'')+'</td>'
+          +'<td>'+esc(kidsEmgList(p).map(function(e){return (e.no?e.no+' ':'')+(e.rel?e.rel+' ':'')+e.tel;}).join(' ／ '))+'</td>'
           +'<td>'+esc(kidsHealthText(p))+'</td></tr>';
       }).join('')
       +'</tbody></table>'
@@ -10301,24 +10433,24 @@ function renderRoster(){
     +'<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:10px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12px;color:#6b3f08;line-height:1.55;">氏名・住所・健康などの生徒情報は<b>この端末の中だけ</b>に保存されます。ほかの端末には出ません。いま出ているのは見本です。</div></div>';
   if(rosterTab==='list')h+=rosterList(kids);
   else if(rosterTab==='profile')h+=rosterProfile(kids);
-  else h+=rosterMapHtml(kids);
+  else h+=rosterMapHtml(rosterMapKids());
   s.innerHTML=h;
   s.querySelectorAll('[data-rtab]').forEach(function(b){b.onclick=function(){rosterTab=b.getAttribute('data-rtab');renderRoster();};});
   if(rosterTab==='list')wireRosterList();
   else if(rosterTab==='profile')wireRosterProfile();
-  else wireRosterMap(kids);
+  else wireRosterMap(rosterMapKids());
 }
 function rosterList(kids){
   return '<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
     +'<table><thead><tr><th>お子様</th><th>ふりがな・英語</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
-    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childFullName(c))+'</span></td><td class="row-sub">'+esc(spKanaText(p)||'—')+'</td><td class="row-sub">'+(p.dob?fmt(p.dob):'—')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+esc(c.id)+'">開く</button></td></tr>';}).join('')
+    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childFullNameHon(c))+'</span></td><td class="row-sub">'+esc(spKanaText(p)||'—')+'</td><td class="row-sub">'+(p.dob?pdMd(p.dob,true):'—')+'</td><td>'+spAge(p.dob)+(p.dob?' <span class="muted">（'+esc(ageClassOf({dob:p.dob,klass:p.klass||c.klass}))+'）</span>':'')+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+esc(c.id)+'">開く</button></td></tr>';}).join('')
     +'</tbody></table></div>';
 }
 function wireRosterList(){
   if($('#rosterPrint'))$('#rosterPrint').onclick=function(){
     var kids=enrolled();
     var body='<table><thead><tr><th>お子様</th><th>振りがな・英語表記</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
-      +kids.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(spKanaText(p))+'</td><td>'+(p.dob?fmt(p.dob):'')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(p.klass||'')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
+      +kids.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(spKanaText(p))+'</td><td>'+(p.dob?pdMd(p.dob,true):'')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(p.klass||'')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('生徒名簿',body);
   };
   document.querySelectorAll('[data-rprof]').forEach(function(b){b.onclick=function(){rosterSel=+b.getAttribute('data-rprof');rosterTab='profile';renderRoster();};});
@@ -10331,7 +10463,7 @@ function spFieldHTML(f,p){
   else if(f.type==='textarea')inp='<textarea data-rp="'+esc(f.k)+'" rows="2">'+esc(v)+'</textarea>';
   else inp='<input data-rp="'+esc(f.k)+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末の中だけ）"':(f.ph?' placeholder="'+esc(f.ph)+'"':''))+'>';
   var reqTag=f.req?' <span style="background:#FCEBEB;color:#A32D2D;border-radius:4px;padding:0 5px;font-size:10px;font-weight:700;">必須</span>':'';
-  return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+reqTag+(f.k==='dob'&&p.dob?'　<span class="muted">'+spAge(p.dob)+'</span>':'')+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
+  return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+reqTag+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
 }
 function spCardHTML(grp,p){
   return '<div class="card" style="margin-bottom:12px;"><h3 style="font-size:14px;">'+esc(grp.g)+'</h3>'
@@ -10396,7 +10528,7 @@ function rpHealthCard(p){
 }
 function rosterProfile(kids){
   if(!rosterSel)return '<div class="empty">在園の生徒がいません</div>';
-  var p=spGet(rosterSel);
+  var p=spKanaSplit(spGet(rosterSel));
   rpGuards=spGuardians(p);
   var sel='<select id="rpSel" style="width:200px;">'+kids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===rosterSel?' selected':'')+'>'+esc(childFullName(c))+'（'+esc(c.klass)+'）</option>';}).join('')+'</select>';
   var h='<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><h3 style="margin:0;">'+ic('idcard')+'個別プロフィール</h3>'+sel+'<span style="flex:1;"></span><button class="btn btn-sm" id="rpMapBtn">'+ic('pin')+'この子を地図で見る</button><button class="btn btn-primary btn-sm" id="rpSave">'+ic('check')+'保存</button> <span class="muted" id="rpMsg"></span></div>';
@@ -10439,6 +10571,8 @@ function wireRosterProfile(){
       return ['name','kana','tel','mail','job','work','workAddr','workTel'].some(function(k){return String(g[k]||'').trim();});
     });
     spSyncEmg(obj);
+    /* ふりがなは、1つにまとめてある古い欄にも同じ内容を書き戻して、一覧と名簿の出方をそろえる */
+    obj.kana=spKanaText({lastKana:obj.lastKana,firstKana:obj.firstKana,romaji:obj.romaji});
     /* 入れてほしい項目のチェック */
     var missing=[];
     function chk(f){if(f.req&&!String(obj[f.k]||'').trim())missing.push(f);}
@@ -10459,6 +10593,13 @@ function wireRosterProfile(){
       arr.forEach(function(x){if(x.id===rosterSel&&x.admissionDate!==obj.joinDate){x.admissionDate=obj.joinDate;ch=true;}});
       if(ch)DB.contacts=arr;
     }
+    /* 退園日も、連絡先管理の退園日と1つにそろえる。
+       ★区分（在園児／退園児）はここでは変えない。区分を退園児にするのは連絡先管理で行う。 */
+    if(obj.leaveDate){
+      var arr2=DB.contacts,ch2=false;
+      arr2.forEach(function(x){if(x.id===rosterSel&&x.withdrawDate!==obj.leaveDate){x.withdrawDate=obj.leaveDate;ch2=true;}});
+      if(ch2)DB.contacts=arr2;
+    }
     spSet(rosterSel,obj);rpGuards=obj.guardians;
     $('#rpMsg').textContent='保存しました';setTimeout(function(){if($('#rpMsg'))$('#rpMsg').textContent='';},1500);
   };
@@ -10467,11 +10608,14 @@ function rosterMapHtml(kids){
   var noloc=kids.filter(function(c){return spGet(c.id).lat==null;}).length;
   return '<div class="card" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
     +'<span style="font-weight:700;">'+ic('map')+'自宅マップ</span>'
-    +'<span class="muted" style="font-size:12px;">🏫 スクール　🏠 生徒自宅　🚩 避難場所</span><span style="flex:1;"></span>'
+    +'<span class="muted" style="font-size:12px;">🏫 スクール　🏠 生徒自宅　🚩 避難場所</span>'
+    +'<select id="rmScope" style="width:150px;"><option value="enrolled"'+(rosterMapScope==='enrolled'?' selected':'')+'>在園生のみ表示</option><option value="all"'+(rosterMapScope==='all'?' selected':'')+'>退園児も表示</option></select>'
+    +'<select id="rmKlass" style="width:140px;">'+['すべて','Pre','Kinder','一般'].map(function(k){return '<option value="'+esc(k)+'"'+(rosterMapKlass===k?' selected':'')+'>'+esc('クラス：'+k)+'</option>';}).join('')+'</select>'
+    +'<span style="flex:1;"></span>'
     +'<span class="muted" style="font-size:12px;">自宅ピン設定：</span><select id="rmPinSel" style="width:170px;"><option value="">（生徒を選ぶ）</option>'+kids.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(childFullName(c))+'</option>';}).join('')+'</select>'
     +'<button class="btn btn-sm" id="rmPinDel" style="display:none;">'+ic('trash')+'ピンを削除</button>'
     +'<button class="btn btn-sm" id="rmClearPin">選択解除</button></div>'
-    +'<div class="muted" style="font-size:12px;margin:-4px 2px 10px;">'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' 生徒を選んで地図をクリックすると自宅ピンを置けます（住所を外部に送信しません）。'+(noloc?'　未設定：'+noloc+'名':'')+'</div>'
+    +'<div class="muted" style="font-size:12px;margin:-4px 2px 10px;">'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' 生徒を選んで地図をクリックすると自宅ピンを置けます（住所を外部に送信しません）。'+(noloc?'　未設定：'+noloc+'名':'')+((rosterMapScope!=='enrolled'||rosterMapKlass!=='すべて')?'　いま出していない子のピンも消えていません。':'')+'</div>'
     +'<div id="rosterMap" style="height:500px;width:100%;border-radius:14px;border:1px solid var(--line);z-index:0;"></div>'
     +'<div id="rmPinMsg" class="muted" style="font-size:12px;margin-top:8px;"></div>';
 }
@@ -10492,6 +10636,10 @@ function wireRosterMap(kids){
   setTimeout(function(){map.invalidateSize();if(bounds.length>1)map.fitBounds(bounds,{padding:[45,45],maxZoom:16});else map.setView([cfg.school.lat,cfg.school.lng],15);},160);
   var sel=$('#rmPinSel');
   if(sel&&rosterPinSel)sel.value=String(rosterPinSel);
+  var sc=$('#rmScope');
+  if(sc){sc.value=rosterMapScope;sc.onchange=function(){rosterMapScope=sc.value;rosterPinSel=null;renderRoster();};}
+  var kl=$('#rmKlass');
+  if(kl){kl.value=rosterMapKlass;kl.onchange=function(){rosterMapKlass=kl.value;rosterPinSel=null;renderRoster();};}
   function nameOf(id){var c=DB.contacts.filter(function(x){return x.id===+id;})[0];return c?childFullName(c):'';}
   function updateSelUI(){
     var id=sel?sel.value:'';
@@ -10513,7 +10661,7 @@ function wireRosterMap(kids){
     var id=sel?sel.value:'';if(!id)return;
     if(!confirm(nameOf(id)+'の自宅ピンを削除しますか？'))return;
     var obj=spGet(+id);delete obj.lat;delete obj.lng;spSet(+id,obj);
-    wireRosterMap(enrolled());
+    wireRosterMap(rosterMapKids());
     if($('#rmPinMsg'))$('#rmPinMsg').textContent=nameOf(id)+'の自宅ピンを削除しました。';
   };
   map.on('click',function(e){
@@ -10521,7 +10669,7 @@ function wireRosterMap(kids){
     if(!id){$('#rmPinMsg').innerHTML='<span style="color:#A32D2D;font-weight:600;">先に上で生徒を選んでください。</span>';return;}
     id=+id;var obj=spGet(id);obj.lat=+e.latlng.lat.toFixed(6);obj.lng=+e.latlng.lng.toFixed(6);spSet(id,obj);
     rosterPinSel=id;
-    wireRosterMap(enrolled());
+    wireRosterMap(rosterMapKids());
     if($('#rmPinMsg'))$('#rmPinMsg').innerHTML='<span style="color:#0B5F8F;font-weight:600;">'+esc(nameOf(id))+' の自宅ピンを設定しました。</span>';
   });
 }
@@ -12325,12 +12473,12 @@ var HELP_DATA={"dashboard": {"summary": "ダッシュボードは、園の今の
 /* 生徒情報（閲覧のみ）の「?」。画面に出していた5行のうち3行をここへ移した。
    HELP_DATA は1行の大きな塊なので、そこは書き換えずに後ろで足す。 */
 HELP_DATA.kidsview={
- summary:'保育に必要な情報だけを、見るための画面です。通園曜日・コース・保護者の連絡先・緊急連絡先・健康に関することを一覧で見られます。',
+ summary:'保育に必要な情報だけを、見るための画面です。通園曜日・コース・保護者名・緊急連絡先・健康に関することを一覧で見られます。',
  steps:['「クラス」を選ぶと、そのクラスの園児だけになります。',
   '「さがす」にお名前やアレルギーのことばを入れると、さらにしぼりこめます。',
-  '表を横に動かすと、保護者名・携帯番号・緊急連絡先・健康に関することまで見られます。',
+  '表を横に動かすと、保護者名・緊急連絡先・健康に関することまで見られます。',
   '「印刷する」で、いま出ている園児の一覧を紙に出せます。'],
- tips:['携帯番号を押すと、その番号に電話をかけられます（電話のかけられる端末のとき）。',
+ tips:['緊急連絡先の番号を押すと、その番号に電話をかけられます（電話のかけられる端末のとき）。',
   'この画面は見るだけです。番号や内容を直すことはできません。',
   '直すときは、園長・管理者に「生徒台帳」または「請求書発行」からお願いしてください。'],
  faq:[{q:'内容が古いようです。私が直せますか。',
@@ -12637,16 +12785,17 @@ var HELP_KB={
    '症状のある子だけ「症状を記録」を押します。ほかは「全員症状なしを記録」で一度に済みます。'],
   tips:['登園シートを先に入れてください。入れていないと健康チェックに体温が入りません。',
         'オプションの列（ランチ・預かり）は通園曜日の設定から自動で入ります。直したいときは「通園曜日の設定に合わせ直す」を押してください。'],
-  out:'登園シート／安全点検の月間表／午睡チェック表／健康チェック記録／業務日報を、それぞれA4横で印刷できます。右上の「データ保存」でExcelでも出せます。',
+  out:'登園シート／安全点検の月間表／午睡チェック表／健康チェック記録／業務日報を、それぞれA4横で印刷できます。右上の「Excelで書き出す」でExcelでも出せます。',
   paper:'紙で書きたい日は、下の「紙の記録を取り込む」からQR付きの用紙を印刷し、書いたあとに撮影すると同じ日付の記録として残ります。'},
 
  carerec:{t:'保育記録',kw:'身体測定 身長 体重 カウプ ヒヤリハット 怪我 けが 発達記録 個人記録 毎月 月ごと measurement',role:['一般','マネージャー'],
   can:'毎日ではない記録です。身体測定（月1）、ヒヤリハット・怪我（そのつど）、生徒個人発達記録（毎月）。上のタブで切り替えます。',
-  steps:['月とクラスを選び、身長と体重を入れます。カウプ指数はその場で計算されます。',
+  steps:['月とクラスを選び、身長と体重を入れます。カウプ指数はその場で計算されます。入れ終わったら「保存する」を押します。',
    '「保護者へ測定結果を送信」を押すと、ご家庭ごとにそのお子さまの結果だけを書いた文面が作られます。',
    'ヒヤリハットは、人型の絵をタップするとその場所に印が付きます。',
    '発達記録は園児と月を選び、項目を選んでいきます。「前回の記録を反映」を押すと、いちばん近い前の記録を写せます（写す前に確認が出ます）。'],
-  tips:['発達記録は「全員分を出力」があります。監査で全員分を求められたときに1回で揃います。'],
+  tips:['身体測定は「保存する」を押すと、その月の身長・体重を直せなくなります。直したいときは「編集する」を押してください。',
+        '発達記録は「全員分を出力」があります。監査で全員分を求められたときに1回で揃います。'],
   out:'身体測定の一覧／ヒヤリハットの年間一覧／発達記録（1名分または全員分）をA4横で印刷できます。'},
 
  audit:{t:'監査対応',kw:'監査 指導監査 実地検査 チェックリスト 26項目 準備 書類 提出 パッケージ 虐待防止',role:['マネージャー','管理者'],
