@@ -232,6 +232,12 @@
   .tkchip.ok{background:var(--green-b);color:var(--green-t);}
   .tkchip.ng{background:var(--amber-b);color:var(--amber-t);}
   .tklegend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
+
+  .lockbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;}
+  .lockbar.open{background:#FAEEDA;color:#854F0B;border:1px solid #EF9F27;}
+  .lockbar.done{background:#EAF3DE;color:#27500A;border:1px solid #97C459;}
+  .lockbar .lkmsg{flex:1;min-width:180px;}
+  .lockbar .lkfix{background:#FCEBEB;color:#A32D2D;border:1px solid #F09595;border-radius:6px;padding:1px 8px;font-size:11.5px;}
   .tkitem{border-bottom:1px solid var(--line2);}
   .tkitem:last-child{border-bottom:none;}
   .tked{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
@@ -1608,15 +1614,24 @@ function drillAttendees(r){
 }
 function drillAutoCounts(r){var o={};drillAttendees(r).forEach(function(c){var a=ageClassOf(c)||'その他';o[a]=(o[a]||0)+1;});return o;}
 function drillFinalCounts(r){if(r.record.ageCounts&&Object.keys(r.record.ageCounts).length)return r.record.ageCounts;return drillAutoCounts(r);}
+/* 監査の一覧に「何日分あって、そのうち何日分が確定ずみか」を出す。
+   確定されていない記録は、監査で「承認が押されていない」と見られるところ。 */
+function lockInfo(data,unit){
+  var c=lockCount(data);
+  if(!c.all)return '記録なし';
+  if(c.done===c.all)return c.all+unit+'の記録あり（すべて確定ずみ）';
+  return c.all+unit+'の記録あり（確定ずみ '+c.done+' / まだ '+(c.all-c.done)+'）';
+}
 function auditDataInfo(key){
   switch(key){
     case 'anzen': return Object.keys(stGet('rec_安全点検',{})).length+'日分の記録あり';
     case 'gosui': return Object.keys(stGet('rec_午睡チェック',{})).length+'日分の記録あり';
-    case 'kenko': return Object.keys(stGet('rec_健康チェック',{})).length+'日分の記録あり';
+    case 'shusseki': return lockInfo(stGet('rec_登園シート',{}),'日分');
+    case 'kenko': return lockInfo(stGet('rec_健康チェック',{}),'日分');
     case 'shintai': return Object.keys(stGet('rec_身体測定',{})).length+'ヶ月分の記録あり';
     case 'hattatsu': var dv=stGet('rec_発達',{}),dn=0;Object.keys(dv).forEach(function(k){dn+=Object.keys(dv[k]).length;});return dn+'件の記録あり';
     case 'kega': return stGet('rec_hiyari',[]).length+'件の記録あり';
-    case 'nisshi': return Object.keys(stGet('rec_日報',{})).length+'日分の記録あり';
+    case 'nisshi': return lockInfo(stGet('rec_日報',{}),'日分');
     case 'gyakutai': return Object.keys(stGet('rec_虐待防止',{})).length+'回分の記録あり';
     case 'kunren': var dr=drillData().rows;return dr.filter(function(r){return r.record.date;}).length+' / '+dr.length+'回 実施記録あり';
     case 'shift': return Object.keys(stGet('shifts',{})).length+'ヶ月分あり';
@@ -2464,6 +2479,120 @@ function planAllows(need){
   return PLAN_RANK[myPlan()]>=PLAN_RANK[need];
 }
 /* 園長・管理者だけに見せるもの。一般（先生）には出さない。 */
+
+/* ══ 記録の「確定」と、直した跡 ═══════════════════
+   監査では「あとから都合よく書き換えていないか」が見られる。
+   これまでは保存したあとも何度でも上書きでき、誰が書いたかも残っていなかった。
+
+   ・確定を押すまでは、これまでどおり自由に書ける
+   ・確定すると読むだけになり、いつ・誰が確定したかが残る
+   ・直すには園長・管理者が「修正を許可」を押す
+   ・確定のあとに変わった中身は跡として積み、紙にも出す
+     （前の値に取り消し線、新しい値は赤）
+
+   記録に足すのは4つだけ。lock / lockBy / lockAt / fixes
+   これまでの記録には無いので、無ければ「未確定」として扱う。 */
+function lockWho(){
+  try{ var s=currentStaff(); return s?(s.name||s.loginId||''):''; }catch(e){ return ''; }
+}
+function lockNow(){
+  var d=new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function lockFmt(t){ return String(t||'').replace('-','/').replace('-','/'); }
+function isLocked(d){ return !!(d&&d.lock); }
+/* 「修正を許可」は、その日のうちだけ効く。
+   ずっと開いたままだと、確定した意味が無くなるため。 */
+function lockSameDay(t){
+  return String(t||'').slice(0,10)===todayISO();
+}
+function lockCanEdit(d){
+  if(!isLocked(d))return true;
+  return !!(d&&d.unlocked&&lockSameDay(d.unlockedAt));
+}
+/* 確定したあとに値が変わったら、跡を残す。変わっていなければ何もしない */
+function lockNote(d,field,before,after){
+  if(!d||!d.lock)return;
+  var b=(before==null?'':String(before)), a=(after==null?'':String(after));
+  if(b===a)return;
+  if(!d.fixes)d.fixes=[];
+  d.fixes.push({at:lockNow(),by:lockWho(),f:String(field||''),b:b,a:a});
+}
+/* 画面に出す帯 */
+function lockBarHtml(d){
+  if(!isLocked(d)){
+    return '<div class="lockbar open"><span class="lkmsg">まだ確定していません。書き終わったら確定してください。</span>'
+      +'<button class="btn btn-sm btn-primary lk-skip" data-lkdo="1">この記録を確定する</button></div>';
+  }
+  var nf=(d.fixes||[]).length;
+  return '<div class="lockbar done">'
+    +'<span class="lkmsg"><b>確定ずみ</b>　'+esc(lockFmt(d.lockAt||''))+'　'+esc(d.lockBy||'')+'</span>'
+    +(nf?'<span class="lkfix">確定のあとに直したところ '+nf+'件</span>':'')
+    +(lockCanEdit(d)
+      ?'<span class="lkfix">きょうのうちだけ直せます（許可：'+esc(d.unlockedBy||'')+'）</span><button class="btn btn-sm lk-skip" data-lkre="1">直し終わった</button>'
+      :(isBoss()
+        ?'<button class="btn btn-sm lk-skip" data-lkun="1">修正を許可</button>'
+        :'<span class="lkmsg" style="opacity:.75;">直すには園長・管理者の許可が要ります</span>'))
+    +'</div>';
+}
+/* 帯のボタンをつなぐ。redraw は画面を作り直す関数 */
+function lockBarWire(scope,d,save,redraw){
+  if(!scope)return;
+  var a=scope.querySelector('[data-lkdo]');
+  if(a)a.onclick=function(){
+    if(!confirm('この記録を確定します。確定したあとは読むだけになり、直すには園長・管理者の許可が要ります。よろしいですか。'))return;
+    d.lock=true; d.lockBy=lockWho(); d.lockAt=lockNow(); d.unlocked=false;
+    save(); if(redraw)redraw();
+  };
+  var b=scope.querySelector('[data-lkun]');
+  if(b)b.onclick=function(){
+    if(!isBoss()){alert('園長・管理者だけが許可できます。');return;}
+    d.unlocked=true; d.unlockedBy=lockWho(); d.unlockedAt=lockNow();
+    /* 誰がいつ直すことを許したかも、跡として残す */
+    if(!d.fixes)d.fixes=[];
+    d.fixes.push({at:d.unlockedAt,by:d.unlockedBy,f:'修正の許可',b:'確定ずみ',a:'この日のうちだけ直せる'});
+    save(); if(redraw)redraw();
+  };
+  var c=scope.querySelector('[data-lkre]');
+  if(c)c.onclick=function(){ d.unlocked=false; save(); if(redraw)redraw(); };
+}
+/* 確定していて、まだ許可が出ていないときは、入力できないようにする */
+function lockDisable(scope,d){
+  if(!scope||lockCanEdit(d))return;
+  var els=scope.querySelectorAll('input,textarea,select,.napcell,[data-lockable]'),i;
+  for(i=0;i<els.length;i++){
+    if(els[i].className&&String(els[i].className).indexOf('lk-skip')>-1)continue;
+    els[i].disabled=true;
+  }
+}
+/* 紙に出す脚注。確定日時・確定者と、直した跡 */
+function lockFootHtml(d){
+  if(!isLocked(d))return '<p style="font-size:10px;color:#888;">※この記録はまだ確定されていません。</p>';
+  var h='<p style="font-size:10px;">確定：'+esc(lockFmt(d.lockAt||''))+'　確定した人：'+esc(d.lockBy||'')+'</p>';
+  var f=d.fixes||[],i;
+  if(f.length){
+    h+='<p style="font-size:10px;font-weight:700;margin-top:6px;">確定のあとに直したところ</p>'
+      +'<table style="font-size:9px;"><thead><tr><th>いつ</th><th>だれが</th><th>どこ</th><th>直す前</th><th>直したあと</th></tr></thead><tbody>';
+    for(i=0;i<f.length;i++){
+      h+='<tr><td>'+esc(lockFmt(f[i].at))+'</td><td>'+esc(f[i].by)+'</td><td>'+esc(f[i].f)+'</td>'
+        +'<td><span style="text-decoration:line-through;color:#888;">'+esc(f[i].b)+'</span></td>'
+        +'<td><span style="color:#C00;font-weight:700;">'+esc(f[i].a)+'</span></td></tr>';
+    }
+    h+='</tbody></table>';
+  }
+  return h;
+}
+/* 監査の一覧で「確定できているか」を数える。日ごとの記録が入った塊を渡す */
+function lockCount(data){
+  var n=0,t=0,k;
+  for(k in data){
+    if(!Object.prototype.hasOwnProperty.call(data,k))continue;
+    if(!data[k]||typeof data[k]!=='object')continue;
+    t++; if(data[k].lock)n++;
+  }
+  return {done:n,all:t};
+}
+
 function isBoss(){
   try{ return typeof currentRole==='function' ? currentRole()!=='一般' : true; }catch(e){ return true; }
 }
@@ -7163,7 +7292,7 @@ function edTouen(){
   var WOPT=['','晴','曇','雨'],wNow=d.weather||'',wList=WOPT;
   if(wNow&&WOPT.indexOf(wNow)<0)wList=WOPT.concat([wNow]);
   var wOptHtml=wList.map(function(x){return '<option value="'+esc(x)+'"'+(x===wNow?' selected':'')+'>'+esc(x)+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
@@ -7213,6 +7342,10 @@ function edTouen(){
   var nap=napBlock(d.klass);
   $('#recBody').insertAdjacentHTML('beforeend',nap.html);
   nap.wire(edTouen);
+
+  /* 確定の帯。確定したあとは、登園も午睡もまとめて読むだけになる */
+  lockBarWire($('#recBody'),d,save,edTouen);
+  lockDisable($('#recBody'),d);
 
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
   attachRecPaperCard();
@@ -7339,7 +7472,7 @@ function edHealth(){
   function entryIdx(id){var x=-1;d.entries.forEach(function(en,i){if(en.childId===id)x=i;});return x;}
   var feverish=showKids.filter(function(c){return +tempOf(c.id,recDate)>=37.5;});
   var withSymptom=d.entries.length;
-  $('#recBody').innerHTML='<div class="card">'+recHead('健康チェック（出席児の健康状態）','<input type="date" id="hlDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="hlAllHealthy" style="'+(d.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'+(d.allHealthy?'✓ 全員健康 確認済':'全員「症状なし」を記録')+'</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('健康チェック（出席児の健康状態）','<input type="date" id="hlDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="hlAllHealthy" style="'+(d.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'+(d.allHealthy?'✓ 全員健康 確認済':'全員「症状なし」を記録')+'</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
     (present.length?'':'<div class="muted" style="margin-bottom:10px;color:#854F0B;">※ 登園シート未記録のため、全在園児を表示中</div>')+
     (feverish.length?'<div class="muted" style="margin-bottom:10px;color:#A32D2D;font-weight:500;">発熱の可能性（37.5℃以上）：'+feverish.map(function(c){return childFullName(c)+'（'+tempOf(c.id,recDate)+'℃）';}).join('・')+'</div>':'')+
     '<table><thead><tr><th>園児</th><th>歳児</th><th>体温</th><th>状態</th><th></th></tr></thead><tbody>'+
@@ -7351,7 +7484,7 @@ function edHealth(){
     '<div class="muted" style="margin-top:8px;font-size:12px;">出席 '+showKids.length+'名　／　症状あり '+withSymptom+'名　／　症状なし '+(showKids.length-showKids.filter(function(c){return entryIdx(c.id)>-1;}).length)+'名</div>'+
     '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>';
   $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
-  $('#hlBy').onchange=function(e){d.by=e.target.value;save();};
+  $('#hlBy').onchange=function(e){lockNote(d,'記録者',d.by,e.target.value);d.by=e.target.value;save();};
   $('#hlAllHealthy').onclick=function(){d.allHealthy=!d.allHealthy;save();edHealth();};
   document.querySelectorAll('[data-hadd]').forEach(function(b){b.onclick=function(){healthModal(null,d,save,+b.getAttribute('data-hadd'));};});
   document.querySelectorAll('[data-hedit]').forEach(function(b){b.onclick=function(){healthModal(+b.getAttribute('data-hedit'),d,save);};});
@@ -7360,6 +7493,13 @@ function edHealth(){
     /* 紙の中身は healthDayBody にまとめた（期間まとめと同じ紙になる） */
     printDoc('健康チェック記録（'+fmt(recDate)+'）',healthDayBody(recDate,d,showKids));
   };
+  lockBarWire($('#recBody'),d,save,edHealth);
+  lockDisable($('#recBody'),d);
+  /* 症状を足す・直す・消すボタンも、確定したあとは押せないようにする */
+  if(!lockCanEdit(d)){
+    var lk=$('#recBody').querySelectorAll('[data-hadd],[data-hedit],[data-hdel],#hlAllHealthy'),li;
+    for(li=0;li<lk.length;li++)lk[li].disabled=true;
+  }
   /* 「全員健康」や症状の記録で画面を描き直すので、紙のカードを付け直す */
   attachRecPaperCard();
 }
@@ -7701,7 +7841,8 @@ function edNippo(){
   var dtext=dkey?curDayText('Pre',recDate):'';
   var currText=dtext||('【午前】'+wk.morning+'\n【午後】'+wk.afternoon);
   var actualVal=d.actual||currText;
-  $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
+    lockBarHtml(d)+
     '<div class="field"><label>活動内容<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから取り込む</button></label><textarea id="npoActual" rows="4">'+esc(actualVal)+'</textarea></div>'+
     '<div class="field"><label>クラスの様子・エピソード</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
@@ -7709,15 +7850,21 @@ function edNippo(){
       '<div class="field"><label>早退</label><input id="npoEarly" value="'+esc((d.early||''))+'"></div></div>'+
     '<div class="muted" style="margin-bottom:8px;">※ 体調不良・怪我は「健康チェック」「怪我・発熱等 記録表」で記録します（二重入力を避けるため業務日報からは削除）。</div>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+esc((d.note||''))+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+esc((d.by||''))+'"></div></div>'+
-    '<div class="muted">入力は自動保存されます。</div></div>';
+    '<div class="muted">'+(isLocked(d)?'この記録は確定ずみです。':'入力は自動保存されます。書き終わったら上の「この記録を確定する」を押してください。')+'</div></div>';
   function save(){data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?REC_CARE:REC_DAILY);};
-  $('#npoCurr').onclick=function(){$('#npoActual').value=currText;d.actual=currText;save();};
-  [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
+  $('#npoCurr').onclick=function(){lockNote(d,'活動内容',d.actual,currText);$('#npoActual').value=currText;d.actual=currText;save();};
+  /* 確定したあとに直したときは、どこを何から何に変えたかを残す（監査で見られる） */
+  var NPO_LABEL={actual:'活動内容',diary:'クラスの様子・エピソード',absent:'欠席',early:'早退',note:'引き継ぎ・特記事項',by:'記録者'};
+  [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){
+    lockNote(d,NPO_LABEL[p[1]],d[p[1]],e.target.value);
+    d[p[1]]=e.target.value;save();};});
   $('#npoPrint').onclick=function(){
     /* 紙の中身は nippoDayBody にまとめた（期間まとめと同じ紙になる） */
     printDoc('業務日報・保育日誌（'+fmt(recDate)+'）',nippoDayBody(recDate,d));
   };
+  lockBarWire($('#recBody'),d,save,edNippo);
+  lockDisable($('#recBody'),d);
   attachRecPaperCard();
 }
 /* ========== 日常チェックを期間でまとめて出力 ==========
@@ -7786,7 +7933,8 @@ function touenDayBody(dk,d,kids){
     kids.map(function(c){var r=d.rows[c.id]||{opts:{}};var al=ageClassOf(c),ac=ageColor(al);
       /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
       return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(bfDob(c.dob))+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+((r.opts||{})[op]?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
-    '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>';
+    '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
+    +lockFootHtml(d);
 }
 /* 午睡チェックは登園と同じ画面にまとめてあるので、期間の紙でも登園の下に続けて出す */
 function napDayBody(dk){
@@ -7834,7 +7982,8 @@ function healthDayBody(dk,d,showKids){
       var idx=entryIdx(c.id),t=tempOf(c.id,dk)||'';
       if(idx>-1){var en=d.entries[idx];return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(t)+'</td><td>症状あり：'+esc((en.symptoms||[]).map(function(sy){return sy.cat+'：'+sy.opts.join('・');}).join(' / '))+(en.other?'（'+esc(en.other)+'）':'')+'</td><td>'+esc(en.action||'')+'</td></tr>';}
       return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(t)+'</td><td>症状なし</td><td></td></tr>';}).join('')+
-    '</tbody></table><p>記録者：'+esc(d.by||'　　　　')+'</p>';
+    '</tbody></table><p>記録者：'+esc(d.by||'　　　　')+'</p>'
+    +lockFootHtml(d);
 }
 function nippoDayBody(dk,d){
   if(!d)d=stGet('rec_日報',{})[dk]||{};
@@ -7843,7 +7992,8 @@ function nippoDayBody(dk,d){
   var dtext=dkey?curDayText('Pre',dk):'';
   /* 画面と同じで、活動内容が空のときはカリキュラムの内容を出す */
   var actual=d.actual||dtext||('【午前】'+wk.morning+'\n【午後】'+wk.afternoon);
-  return '<h2>活動内容</h2><p>'+esc(actual).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+esc(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>欠席・早退・引き継ぎ</h2><table><tbody><tr><th>欠席</th><td>'+esc(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+esc(d.early||'なし')+'</td></tr><tr><th>引き継ぎ・特記事項</th><td>'+esc(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+esc(d.by||'')+'</td></tr></tbody></table>';
+  return '<h2>活動内容</h2><p>'+esc(actual).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+esc(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>欠席・早退・引き継ぎ</h2><table><tbody><tr><th>欠席</th><td>'+esc(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+esc(d.early||'なし')+'</td></tr><tr><th>引き継ぎ・特記事項</th><td>'+esc(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+esc(d.by||'')+'</td></tr></tbody></table>'
+    +lockFootHtml(d);
 }
 
 /* --- 期間の指定 --- */
