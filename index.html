@@ -7477,7 +7477,16 @@ function renderCompose(){
   if(onlyEnrolled)composeFilter='在園児';
   /* 在園児あての一斉配信は「連絡・配信」に移したので、ここはリードだけにする。
      一般スタッフはリードを扱わないため、これまでどおり在園児を出す。 */
-  var cs=DB.contacts.filter(function(c){return onlyEnrolled?c.kind==='enrolled':c.kind==='lead';});
+  /* ★宛先の一覧を「一般ならば在園児、それ以外はリードだけ」で固定していたため、
+     請求書の案内・振込のお願い（在園児あて）は管理者・マネージャーが
+     宛先を1人も選べなかった。しかも「対象者を自動選択」を押すと
+     『該当する連絡先がありません。連絡先の進捗フェーズをご確認ください。』と、
+     在園児が5名いるのに連絡先の入力が悪いかのように言っていた。
+     ＝未入金の督促を誰も出せない状態だった。
+     選んでいるひな形が在園児あてなら、宛先も在園児にする。 */
+  var _tplNow=mailTpl(composeTpl)||{};
+  var _wantEnrolled=onlyEnrolled||!!_tplNow.enrolledOnly;
+  var cs=DB.contacts.filter(function(c){return _wantEnrolled?c.kind==='enrolled':c.kind==='lead';});
   var s=$('section[data-page="compose"]');
   if(onlyEnrolled&&!mailTpl(composeTpl).enrolledOnly){var _me=mailTplAll();var ek=Object.keys(_me).filter(function(k){return _me[k].enrolledOnly;});if(ek.length)composeTpl=ek[0];}
   s.innerHTML=
@@ -7501,6 +7510,7 @@ function renderCompose(){
   var tplKeys=Object.keys(_mall).filter(function(k){return (onlyEnrolled?_mall[k].enrolledOnly:true)&&tplAllowed('mail',k);});
   if(tplKeys.length&&tplKeys.indexOf(composeTpl)<0)composeTpl=tplKeys[0];
   var sel=$('#cmpTpl');sel.innerHTML=tplKeys.map(function(k){return '<option value="'+esc(k)+'">'+esc(_mall[k].label)+'</option>';}).join('');sel.value=composeTpl;
+
   $('#cmpCycle').innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(function(m){return '<option value="'+esc(m)+'"'+(m===composeCycle?' selected':'')+'>'+m+'月</option>';}).join('');
   function ctx(){return {cycleMonth:composeCycle};}
   function loadTpl(){var t=mailTpl(composeTpl);$('#cmpSubject').value=t.subject;$('#cmpBody').value=t.body;$('#cmpBilling').style.display=t.billing?'':'none';preview();}
@@ -7515,7 +7525,15 @@ function renderCompose(){
   function syncAll(){var sh=shown();$('#cmpAll').checked=sh.length>0&&sh.every(function(c){return composeSel[c.id];});var n=Object.keys(composeSel).filter(function(k){return composeSel[k];}).length;$('#cmpCount').textContent=n?n+' 件を選択中':'送信先を選択してください';}
   function selC(){return cs.filter(function(c){return composeSel[c.id];});}
   function preview(){var sc=selC();var c=sc.length?sc[0]:cs[0];$('#cmpPreview').textContent=(sc.length?'宛先: '+c.name+' 様（プレビュー）\n':'')+'件名: '+fillTokens($('#cmpSubject').value,c,ctx())+'\n\n'+fillTokens($('#cmpBody').value,c,ctx());}
-  $('#cmpTpl').onchange=function(e){composeTpl=e.target.value;loadTpl();};
+  $('#cmpTpl').onchange=function(e){
+    /* 在園児あて／リードあてで宛先の顔ぶれが変わるので、
+       種類が変わったときは選んでいた宛先をやめて画面を作り直す */
+    var was=!!(mailTpl(composeTpl)||{}).enrolledOnly;
+    composeTpl=e.target.value;
+    var now=!!(mailTpl(composeTpl)||{}).enrolledOnly;
+    if(was!==now){composeSel={};renderCompose();return;}
+    loadTpl();
+  };
   $('#cmpCycle').onchange=function(e){composeCycle=+e.target.value;preview();};
   $('#cmpAuto').onclick=function(){var t=mailTpl(composeTpl);composeSel={};cs.forEach(function(c){if(t.enrolledOnly){if(c.kind==='enrolled')composeSel[c.id]=true;}else if(t.targets){if(c.kind==='lead'&&t.targets.indexOf(c.status)>-1)composeSel[c.id]=true;}});list();var n=Object.keys(composeSel).filter(function(k){return composeSel[k];}).length;if(!n)alert('このテンプレの対象（'+(t.enrolledOnly?'在園児':(t.targets||[]).join('・'))+'）に該当する連絡先がありません。連絡先の進捗フェーズをご確認ください。');};
   $('#cmpAll').onclick=function(e){shown().forEach(function(c){composeSel[c.id]=e.target.checked;});list();};
