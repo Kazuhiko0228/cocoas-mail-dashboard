@@ -1383,6 +1383,12 @@ function actRepModal(cls,date){
           +'<div class="chips" style="margin:0;">'
           +ch.map(function(x){return '<span class="chip'+(o.picks.indexOf(x.t)>-1?' on':'')+'" data-rpick="'+esc(x.t)+'">'
             +esc(x.t)+(x.ai?'<span class="t-own" style="background:#EEEDFE;color:#3C3489;">下書き</span>':'')+'</span>';}).join('')
+          /* 日案から行を消したあとも、前に選んだ項目は記録に残る。
+             画面に出さないと外せなくなるので、印を付けて出す。 */
+          +o.picks.filter(function(p){
+            return ch.filter(function(x){return x.t===p;}).length===0;
+          }).map(function(p){return '<span class="chip on" data-rpick="'+esc(p)+'">'+esc(p)
+            +'<span class="t-own" style="background:#FAEEDA;color:#854F0B;">日案から消えた</span></span>';}).join('')
           +'</div>'
           +'<div class="muted" style="font-size:11.5px;margin-top:5px;">この一覧は、日案の「一日の流れ」から作っています。'
           +(ch.filter(function(x){return x.ai;}).length
@@ -1753,7 +1759,14 @@ var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（�
    保存先の鍵は分けたまま（これまでの記録・書き出し・監査の提出をずらさないため）。 */
 var REC_DAILY=['登園（出席）','安全点検','健康チェック','業務日報・保育日誌'];
 var REC_CARE=['身体測定','事故・ヒヤリハットの記録','児童票（成長の記録）','苦情・要望の記録'];
-function recPageOf(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
+/* ?rec=生徒個人発達記録 のような古いリンク（配った紙のQRを含む）でも、
+   正しい画面が開くように、先に新しい名前へ読み替える。
+   読み替えないと、どちらも「日常チェック」と判定されて別の記録が開いていた。 */
+function recPageOf(t){
+  t=(typeof REC_OLD_NAME!=='undefined'&&REC_OLD_NAME[t])?REC_OLD_NAME[t]:t;
+  return recPageOf_(t);
+}
+function recPageOf_(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
 /* 苦情の記録には保護者の個人的なことが入るので、園長・管理者だけに出す */
 function recCareList(){
   if(typeof isBoss==='function'&&!isBoss())return REC_CARE.filter(function(t){return t!=='苦情・要望の記録';});
@@ -1923,7 +1936,11 @@ function auditDataInfo(key){
     case 'hattatsu': var dv=stGet('rec_発達',{}),dn=0;Object.keys(dv).forEach(function(k){dn+=Object.keys(dv[k]).length;});return dn+'件の記録あり';
     case 'kega': return stGet('rec_hiyari',[]).length+'件の記録あり';
     case 'kujo': return stGet('rec_kujo',[]).length+'件の記録あり';
-    case 'kaigi': {var kg=stGet('kaigi',{}),kn=0;Object.keys(kg).forEach(function(ky){kn+=((kg[ky]&&kg[ky].rows)||[]).length;});return kn+'回分の記録あり';}
+    case 'kaigi': {
+      /* 議事録は年度ごとに持っている。全年度を足すと、監査の一覧だけ
+         年度の数と合わなくなる（紙は年度ごとに出る）。 */
+      var kg=stGet('kaigi',{})[curFY()]||{};
+      return ((kg.rows||[]).length)+'回分の記録あり（'+curFY()+'年度）';}
     case 'nisshi': return lockInfo(stGet('rec_日報',{}),'日分');
     case 'gyakutai': return Object.keys(stGet('rec_虐待防止',{})).length+'回分の記録あり';
     case 'kunren': var dr=drillData().rows;return dr.filter(function(r){return r.record.date;}).length+' / '+dr.length+'回 実施記録あり';
@@ -2985,11 +3002,30 @@ function lockFootHtml(d){
   return h;
 }
 /* 監査の一覧で「確定できているか」を数える。日ごとの記録が入った塊を渡す */
+/* 何日ぶんあって、そのうち何日ぶんが確定ずみか。
+   ★中身の無い日は数えない。画面を開いただけでできた空の記録まで数えると、
+     紙（期間まとめ）の日数と監査の一覧の日数が食い違う。 */
+function lockHasContent(v){
+  if(!v||typeof v!=='object')return false;
+  var k;
+  for(k in v){
+    if(!Object.prototype.hasOwnProperty.call(v,k))continue;
+    /* 印や覚え書きだけの日は「記録あり」としない */
+    if(k==='klass'||k==='savedBy'||k==='savedAt'||k==='lock'||k==='lockBy'
+       ||k==='lockAt'||k==='unlocked'||k==='unlockedBy'||k==='unlockedAt'||k==='fixes')continue;
+    var x=v[k];
+    if(x==null||x==='')continue;
+    if(Object.prototype.toString.call(x)==='[object Array]'){ if(x.length)return true; continue; }
+    if(typeof x==='object'){ if(Object.keys(x).length)return true; continue; }
+    return true;
+  }
+  return false;
+}
 function lockCount(data){
   var n=0,t=0,k;
   for(k in data){
     if(!Object.prototype.hasOwnProperty.call(data,k))continue;
-    if(!data[k]||typeof data[k]!=='object')continue;
+    if(!lockHasContent(data[k]))continue;
     t++; if(data[k].lock)n++;
   }
   return {done:n,all:t};
@@ -4324,8 +4360,16 @@ function aipCraftHTML(k){
     +'</div>';
   return h;
 }
+/* AIが配列ではなく1本の文字列で返すことがある。そのまま map を呼ぶと
+   画面が例外で止まり、「つくっています」と言い続ける。ここで配列にそろえる。 */
+function aipArr(v){
+  if(v==null)return [];
+  if(Object.prototype.toString.call(v)==='[object Array]')return v;
+  return [String(v)];
+}
 function aipList(t,arr){
-  if(!arr||!arr.length)return '';
+  arr=aipArr(arr);
+  if(!arr.length)return '';
   return '<div style="margin-top:14px;"><div style="font-weight:800;font-size:13px;margin-bottom:5px;">'+esc(t)+'</div>'
     +'<ul style="margin:0;padding-left:1.2em;font-size:13px;line-height:1.9;">'
     +arr.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
@@ -4487,7 +4531,12 @@ function actRepYears(cls){
   return out;
 }
 var AIMEM_FY=null;
-function aiMemFY(){ if(AIMEM_FY==null)AIMEM_FY=curFY(); return AIMEM_FY; }
+function aiMemFY(cls){
+  if(AIMEM_FY==null)AIMEM_FY=curFY();
+  /* そのクラスに無い年度が選ばれたままだと、記録があるのに空に見える */
+  if(cls&&actRepYears(cls).indexOf(AIMEM_FY)<0)AIMEM_FY=curFY();
+  return AIMEM_FY;
+}
 
 
 /* ══ 案を書類へ入れる ═══════════════════════════
@@ -4527,6 +4576,10 @@ function aiapPick(data,key){
 function aiapModal(plan,klass){
   var data=plan.data||{},cls=klass||plan.klass||'';
   var date=todayISO();
+  /* 入れ方と、項目ごとの入れる／入れないは、日付を変えても持ち越す。
+     draw() の中に置くと、日付を選び直したときに黙って元へ戻り、
+     触らないつもりの欄に文が入っていた。 */
+  var mode='add', pick={};
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
 
@@ -4542,7 +4595,7 @@ function aiapModal(plan,klass){
         +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap;">'
           +'<b style="font-size:13px;">'+esc(f.l)+'</b>'
           +'<span style="flex:1;"></span>'
-          +'<label class="tkchk" style="font-size:12px;"><input type="checkbox" data-aiapon="'+esc(f.k)+'" checked style="width:auto;">入れる</label>'
+          +'<label class="tkchk" style="font-size:12px;"><input type="checkbox" data-aiapon="'+esc(f.k)+'"'+((pick[f.k]===false)?'':' checked')+' style="width:auto;">入れる</label>'
         +'</div>'
         +'<div class="grid grid-2col" style="gap:10px;">'
           +'<div><div class="tkq">いまの内容</div><div class="tka" style="white-space:pre-wrap;font-size:12.5px;">'
@@ -4575,13 +4628,14 @@ function aiapModal(plan,klass){
         +'<button class="btn btn-primary" id="aiapGo">入れる</button></div>'
       +'</div>';
 
-    var mode='add';
     function markMode(){
       m.querySelectorAll('[data-aiapmode]').forEach(function(b){
         b.className='btn btn-sm'+(b.getAttribute('data-aiapmode')===mode?' btn-primary':'');});
     }
     m.querySelectorAll('[data-aiapmode]').forEach(function(b){b.onclick=function(){
       mode=b.getAttribute('data-aiapmode');markMode();};});
+    m.querySelectorAll('[data-aiapon]').forEach(function(c){c.onchange=function(){
+      pick[c.getAttribute('data-aiapon')]=c.checked;};});
     markMode();
     m.querySelector('#aiapDate').onchange=function(e){date=e.target.value;draw();};
     m.querySelector('#aiapCancel').onclick=function(){m.remove();};
@@ -4709,10 +4763,11 @@ function aipMemoHTML(k){
 
     +(function(){
       /* 覚えていること。1件ずつ直せて消せる。年度で分かれる */
-      var fy=aiMemFY(), ls=actRepList(k,fy), ys=actRepYears(k);
+      var fy=aiMemFY(k), ls=actRepList(k,fy), ys=actRepYears(k);
       return '<div class="card"><h3 style="margin-top:0;">'+ic('clipboard')+'覚えていること（'+ls.length+'件）</h3>'
         +'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;line-height:1.75;">'
-        +'カリキュラムの「実施」で書いた記録です。次の活動を考えるときの材料になります。'
+        +'カリキュラムの「実施」で書いた記録です。'
+        +'<b>いまは、AIの提案づくりには使っていません</b>（見返す・紙に出すためのものです）。'
         +'<br>年度は4月はじまり。<b>年度が変わると、前の年度のぶんは自動では使いません</b>（子どもが入れ替わるため）。</div>'
         +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">'
         +'<span class="muted" style="font-size:12px;">年度</span>'
@@ -4773,7 +4828,9 @@ function aipWire(k){
   var s=$('section[data-page="aiplan"]');
   var $$=function(sel){return s.querySelector(sel);};
 
-  var ks=$$('#aipK'); if(ks)ks.onchange=function(){AIP.klass=ks.value;AIP.res=null;AIP.hq=0;renderAIPlan();};
+  /* クラスを変えたときに年度が前のクラスのまま残ると、
+     記録があるのに「この年度の記録はまだありません」と出る */
+  var ks=$$('#aipK'); if(ks)ks.onchange=function(){AIP.klass=ks.value;AIMEM_FY=null;AIP.res=null;AIP.hq=0;renderAIPlan();};
   s.querySelectorAll('[data-aitab]').forEach(function(b){b.onclick=function(){
     AIP.tab=b.getAttribute('data-aitab');renderAIPlan();};});
   s.querySelectorAll('[data-aisub]').forEach(function(b){b.onclick=function(){
@@ -4844,7 +4901,7 @@ function aipWire(k){
         }
       }
       var filled2=[];
-      if(got)['name','aim','prep','steps','help','safe'].forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled2.push(kk); });
+      if(got)['name','aim','prep','steps','help','safe','materials','display','letter'].forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled2.push(kk); });
       /* 誤飲・窒息をふくむ安全の注意は、画面側で出したものを消さない。
          AIが書いた分は下へ足すだけにする。 */
       if(got&&got.safe){
@@ -4997,7 +5054,7 @@ function aipWire(k){
   };});
   var mrp=$$('#mrPrint');
   if(mrp)mrp.onclick=function(){
-    var fy=aiMemFY(),ls=actRepList(k,fy);
+    var fy=aiMemFY(k),ls=actRepList(k,fy);
     var b5='<table><thead><tr><th>日</th><th>実施</th><th>子どもの様子（先生が選んだもの）</th><th>ふりかえり</th><th>書いた人</th></tr></thead><tbody>'
       +(ls.length?ls.map(function(x){var v=x.v;
         return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+esc(v.done||'')+'</td>'
@@ -5017,7 +5074,8 @@ function aipWire(k){
 /* 項目の名前を、先生に分かる言い方にする */
 var AIP_FIELD_JA={aim:'ねらい',expect:'予想される子どもの姿',env:'環境構成',prep:'準備するもの',
   help:'保育士の援助',safe:'安全のための注意',review:'ふりかえり',times:'一日の流れ',
-  days:'一週間の流れ',rain:'雨のときの代わり',name:'活動の名前',steps:'進め方'};
+  days:'一週間の流れ',rain:'雨のときの代わり',name:'活動の名前',steps:'進め方',
+  materials:'材料',display:'展示・持ち帰り',letter:'保護者向けの紹介文'};
 function aipSrcLine(src){
   if(!src||!src.byAI)return '<div style="font-size:10px;color:#555;">この下書きは、園の記録から作りました（AIは使っていません）。</div>';
   var f=(src.aiFields||[]).map(function(x){return AIP_FIELD_JA[x]||x;});
@@ -5086,7 +5144,8 @@ function aipPrint(kind,d,k,src){
       +'<div style="margin-top:12px;border:1px solid #999;padding:8px;min-height:70px;font-size:11px;">ふり返り</div>';
   }
   function pr(t,a){
-    if(!a||!a.length)return '';
+    a=aipArr(a);
+    if(!a.length)return '';
     return '<div style="font-size:12px;margin-top:7px;"><b>'+esc(t)+'</b>　'+a.map(esc).join('／')+'</div>';
   }
   var w=window.open('','_blank');
@@ -7291,6 +7350,8 @@ function renderSettings(){
       '<div class="muted" style="margin-bottom:10px;">子ども何人につき保育士1人か。国が決めている数を入れてありますが、'
       +'3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。'
       +'園の自治体にご確認のうえ、必要なら直してください。</div>'+
+      '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">同じ数を入れた歳児は、人数を足してから1回だけ切り上げます'
+      +'（国の区切りが「1・2歳児で6人に1人」「4・5歳児で25人に1人」のように2学年ひとまとめのため）。</div>'+
       '<div class="grid" style="grid-template-columns:repeat(3,1fr);">'
       +['0','1','2','3','4','5'].map(function(a){
         return '<div class="field"><label>'+a+'歳児</label><input type="number" min="1" data-haichi="'+a+'" value="'+esc(haichiRatio()[a])+'"></div>';
@@ -7645,7 +7706,7 @@ function renderAudit(){
         +'<div class="row-sub" style="display:flex;align-items:center;gap:3px;"><span>'+(auditPlaceOf(it)?'保管：':'')+'</span><input data-place="'+esc(it.key)+'" value="'+String(auditPlaceOf(it)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);width:auto;min-width:160px;">'+'</div>'
         +(function(){var di=auditDataInfo(it.key);return di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
-        '<td style="width:130px;text-align:right;">'+(it.sys?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.key==='gyakutai'?'下部で実施':'外部管理')+'</span>')+'</td></tr>';}).join('')+
+        '<td style="width:130px;text-align:right;">'+(it.sys?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.key==='gyakutai'?'下部で実施':'外部管理')+'</span>')+'</td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="card" style="margin-bottom:14px;"><div id="gyBox"></div></div>';
   renderGyakutai($('#gyBox'));
@@ -7665,6 +7726,13 @@ function renderAudit(){
     var v=b.getAttribute('data-sys');
     if(v==='staff:qual'){staffFocus='qual';go('staff');return;}
     if(v==='staff:kenshin'){staffFocus='kenshin';go('staff');return;}
+    /* 議事録は研修・訓練の中のタブ。素で go すると防火管理台帳が開いてしまう */
+    var ak=b.getAttribute('data-auk');
+    if(v==='bouka'&&ak==='kaigi'){boukaTab='kaigi';go('bouka');return;}
+    if(v==='bouka'){boukaTab='daichou';go('bouka');return;}
+    if(v==='carerec'&&ak==='kujo'){recType='苦情・要望の記録';go('carerec');return;}
+    if(v==='carerec'&&ak==='hattatsu'){recType='児童票（成長の記録）';go('carerec');return;}
+    if(v==='carerec'&&ak==='kega'){recType='事故・ヒヤリハットの記録';go('carerec');return;}
     if(v==='timecard'){shiftTab='time';go('shift');return;}
     if(v==='roster'){go('roster');rosterTab='profile';renderRoster();return;}
     staffFocus=null;go(v);
@@ -7764,6 +7832,22 @@ function autoAttendKey(op){
   return Object.prototype.hasOwnProperty.call(ATTEND_AUTO_ALIAS,n)?ATTEND_AUTO_ALIAS[n]:'';
 }
 function isAutoAttendOpt(op){return !!autoAttendKey(op);}
+/* すでに使っている園は、設定に「ランチ」「ロングステイ」が保存されたままで、
+   登園シートの列見出しが古い名前のままになっていた。1回だけ新しい名前へ移す。
+   記録そのものは触らない（旧名の記録は attendOptOn が読む）。 */
+(function(){
+  try{
+    if(stGet('attendRenamed',0))return;
+    var map={'ランチ':'給食','ロングステイ':'延長保育','ロングスティ':'延長保育','ロング':'延長保育'};
+    var opts=SET.attendOptions||[],i,ch=false;
+    for(i=0;i<opts.length;i++){ if(map[opts[i]]){opts[i]=map[opts[i]];ch=true;} }
+    var am=SET.attendAutoMap||{},k,nm={};
+    for(k in am){ if(!Object.prototype.hasOwnProperty.call(am,k))continue;
+      if(map[k]){nm[map[k]]=am[k];ch=true;}else nm[k]=am[k]; }
+    if(ch){ SET.attendOptions=opts; SET.attendAutoMap=nm; DB.settings=SET; }
+    stSet('attendRenamed',1);
+  }catch(e){}
+})();
 /* オプションの名前は、その名前のまま記録の見出しになっている。
    「ランチ」「ロングステイ」を「給食」「延長保育」に言いかえたので、
    前の名前のまま残っている記録も、そのまま読めるようにしておく。
@@ -8887,6 +8971,12 @@ function edKujo(){
     log.splice(+bk.getAttribute('data-kjdel'),1);save();edKujo();};});
   $('#kjPrint').onclick=function(){
     var fy=curFY();
+    /* 表題は年度を名乗るのに、中身は全年度が載っていた。
+       受付日で4月〜翌3月に絞る。日付が空の行は、当年度の末尾に置く。 */
+    var log=stGet(K,[]).filter(function(r){
+      if(!r||!r.date)return true;
+      return fyOf(r.date)===fy;
+    });
     var b5='<p style="text-align:center;font-size:20px;font-weight:700;">苦情受付・処理の記録</p>'
       +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
       +'<table><thead><tr><th style="width:76px;">受付日</th><th style="width:60px;">方法</th><th style="width:90px;">申し出た方</th><th>内容</th><th>対応したこと</th><th style="width:80px;">対応した職員</th><th style="width:76px;">完了した日</th><th style="width:70px;">第三者委員</th></tr></thead><tbody>'
@@ -9612,12 +9702,21 @@ function haichiKids(date){
   return {by:by,total:total};
 }
 /* 必要な保育士の数。歳児ごとに切り上げてから足す（国の数え方） */
+/* 必要な保育士の数。
+   ★同じ比率の歳児は、人数を足してから1回だけ切り上げる。
+     国の区切りは「1・2歳児で6人に1人」「4・5歳児で25人に1人」のように
+     2学年をひとまとめにしている。1歳きざみで切り上げると、
+     たとえば1歳児1名＋2歳児1名で2人必要となり、実際より多く出てしまう。 */
 function haichiNeed(by){
-  var r=haichiRatio(),n=0,k;
+  var r=haichiRatio(),n=0,k,g={};
   for(k in by){
     if(!Object.prototype.hasOwnProperty.call(by,k))continue;
     var per=+r[k]||+HAICHI_DEFAULT[k]||25;
-    n+=Math.ceil(by[k]/per);
+    g[per]=(g[per]||0)+by[k];
+  }
+  for(k in g){
+    if(!Object.prototype.hasOwnProperty.call(g,k))continue;
+    n+=Math.ceil(g[k]/(+k));
   }
   if(n<haichiMin())n=haichiMin();
   return n;
@@ -9640,12 +9739,17 @@ function haichiStaff(date){
   }
   if(!n){
     src='シフト'; n=0;
+    var anyShift=false;
     for(k in sh){
       if(!Object.prototype.hasOwnProperty.call(sh,k))continue;
       if(!haichiIsStaff(k))continue;
       var p=sh[k][day];
+      if(p)anyShift=true;
       if(p&&p!=='休')n++;
     }
+    /* 打刻もシフトも1件も無い日は「シフトを見た結果0人」ではなく
+       「まだ記録が無い」。赤で「足りません」と断定しない。 */
+    if(!anyShift)src='なし';
   }
   return {n:n,src:src};
 }
@@ -9658,20 +9762,35 @@ function haichiFor(date){
 function haichiBarHtml(date){
   var h=haichiFor(date);
   if(!h.kids)return '';
-  var ok=(h.short===0);
   var ages=Object.keys(h.by).sort().map(function(k){return k+'歳児 '+h.by[k]+'名';}).join('／');
+  /* 出勤の記録がまだ無い日は、足りているとも足りないとも言えない */
+  if(h.src==='なし'){
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#F1EFE8;color:#5F5E5A;border:1px solid #D3D1C7;">'
+      +'<span style="flex:1;min-width:200px;"><b>出勤の記録がまだありません</b>'
+      +'　登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人'
+      +'　打刻かシフト表を入れると、足りているか確かめられます。</span></div>';
+  }
+  var ok=(h.short===0);
   return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;'
     +(ok?'background:#EAF3DE;color:#27500A;border:1px solid #97C459;':'background:#FCEBEB;color:#A32D2D;border:1px solid #F09595;')+'">'
-    +'<span style="flex:1;min-width:200px;"><b>'+(ok?'配置は足りています':'保育士が '+h.short+'人 足りません')+'</b>'
+    /* 職種を見ていないので「保育士が」とは言い切らない。出勤の記録の人数として出す */
+    +'<span style="flex:1;min-width:200px;"><b>'+(ok?'出勤の人数は足りています':'出勤の記録が '+h.short+'人 足りません')+'</b>'
     +'　登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人／'+esc(h.src)+' '+h.staff+'人</span>'
-    +'<span style="opacity:.8;font-size:11.5px;">数は目安です。自治体にご確認ください</span>'
+    +'<span style="opacity:.8;font-size:11.5px;">出勤の記録の人数です。保育士の資格までは見ていません。数は目安なので自治体にご確認ください</span>'
     +'</div>';
 }
 /* 月ぶんの足りない日 */
+/* 足りていない日。
+   ★当日と、これから先の日は数えない。
+     朝いちばんは、まだ全員が打刻していないので必ず「足りない」と出てしまう。
+     出勤の記録が1件も無い日も数えない（足りているとも足りないとも言えないため）。 */
 function haichiShortDays(mk){
-  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),out=[],d;
+  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),out=[],d,today=todayISO();
   for(d=1;d<=dim;d++){
-    var date=mk+'-'+pad(d),h=haichiFor(date);
+    var date=mk+'-'+pad(d);
+    if(date>=today)continue;
+    var h=haichiFor(date);
+    if(h.src==='なし')continue;
     if(h.kids&&h.short>0)out.push(h);
   }
   return out;
