@@ -4105,10 +4105,17 @@ function wireAtt(c){
 function kaupVal(h,w){h=parseFloat(h);w=parseFloat(w);if(!h||!w)return null;return (w*10000/(h*h));}
 function growthHTML(c){
   var bm=stGet('rec_身体測定',{})||{};
+  /* ★園が「保護者へ送信」を押していない月まで、ここに出していた。
+     先生が数字を打ってフォーカスを外した瞬間（保存も確定も押していない、
+     打ち間違いの値も）家庭の画面に出てしまう。
+     園の画面は「送信で反映されます」と書いているので、先生は気づけない。
+     園が控えを残した月（bmShared）だけを出す。 */
+  var shared=stGet('bmShared',{})||{};
   var months=Object.keys(bm).sort();
-  var rows=months.map(function(mk){var r=(bm[mk].rows||{})[c.id]||{};return {mk:mk,h:r.h,w:r.w};}).filter(function(r){return r.h||r.w;});
+  var rows=months.map(function(mk){var r=(bm[mk].rows||{})[c.id]||{};return {mk:mk,h:r.h,w:r.w};})
+    .filter(function(r){return (r.h||r.w)&&((shared[r.mk]||{})[String(c.id)]);});
   var head='<div class="card"><h2 class="sec sec-g">📈 '+esc(c.child)+'の身体記録</h2>';
-  if(!rows.length) return head+'<div class="empty">まだ身体測定の記録がありません。<br>測定後にこちらに反映されます。</div></div>';
+  if(!rows.length) return head+'<div class="empty">まだ身体測定のお知らせがありません。<br>園が結果をお知らせすると、こちらに出ます。</div></div>';
   // spark for height
   var hs=rows.map(function(r){return parseFloat(r.h)||0;});var mn=Math.min.apply(null,hs),mx=Math.max.apply(null,hs);var rng=(mx-mn)||1;
   var spark='<div class="muted" style="margin:2px 0 22px;">身長の推移（cm）</div><div class="spark">'+rows.map(function(r){var h=parseFloat(r.h)||0;var pct=18+((h-mn)/rng)*78;return '<div class="b" style="height:'+pct+'%;"><span>'+(r.h||'-')+'</span><em>'+r.mk.slice(5)+'月</em></div>';}).join('')+'</div>';

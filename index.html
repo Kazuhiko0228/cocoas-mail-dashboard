@@ -2301,7 +2301,16 @@ function drillAttendees(r){
   });
 }
 function drillAutoCounts(r){var o={};drillAttendees(r).forEach(function(c){var a=ageClassOf(c)||'その他';o[a]=(o[a]||0)+1;});return o;}
-function drillFinalCounts(r){if(r.record.ageCounts&&Object.keys(r.record.ageCounts).length)return r.record.ageCounts;return drillAutoCounts(r);}
+function drillFinalCounts(r){
+  /* 自動集計を土台に、手で直した歳児だけ上書きする。
+     鍵は「2歳児」の形だが、古い記録に素の「2」で入っているものがあっても
+     同じ歳児として扱う（別の行として二重に出さない） */
+  function norm(k){ k=String(k); return /^[0-9]+$/.test(k)?(k+'歳児'):k; }
+  var auto=drillAutoCounts(r),man=(r.record&&r.record.ageCounts)||{},out={},k;
+  for(k in auto){ if(Object.prototype.hasOwnProperty.call(auto,k))out[norm(k)]=auto[k]; }
+  for(k in man){ if(Object.prototype.hasOwnProperty.call(man,k))out[norm(k)]=man[k]; }
+  return out;
+}
 /* 監査の一覧に「何日分あって、そのうち何日分が確定ずみか」を出す。
    確定されていない記録は、監査で「承認が押されていない」と見られるところ。 */
 function lockInfo(data,unit,hasFn){
@@ -10182,7 +10191,7 @@ function edBody(){
     (isLocked(d)
       ?''
       :(d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>'))+
-    '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
+    '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」を押すと、その月の結果が<b>保護者の画面に出るようになります</b>（お子様ご本人の記録だけ・他児の記録は見えません）。押すまでは園の中だけです。<br>メールを送る仕組みはまだできていないため、文面は控えに残ります。控えをメールソフトへ貼り付けてお送りください。</div>'+
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
@@ -10231,7 +10240,9 @@ function edBody(){
   $('#bmShare').onclick=function(){
     var targets=kids.filter(function(c){var r=d.rows[c.id]||{};return r.h&&r.w;});
     if(!targets.length){alert('身長・体重が入力された園児がいません。先に測定値を入力してください。');return;}
-    if(!confirm(targets.length+'名の保護者に、それぞれのお子様の身体測定結果を送信します。よろしいですか？'))return;
+    if(!confirm(targets.length+'名ぶんの測定結果を、控え（送信済みメール）に残します。\n'
+      +'※メールを送る仕組みはまだできていないため、実際には送られません。\n'
+      +'お手数ですが、控えの内容をメールソフトへ貼り付けて送ってください。\nよろしいですか？'))return;
     var now=new Date(),stamp=('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
     var h=DB.history,ym=recMonth.replace('-','年')+'月';
     targets.forEach(function(c){var r=d.rows[c.id],kp=kaup(r);
@@ -10247,7 +10258,9 @@ function edBody(){
     DB.history=h;
     /* 記録そのものは触らないので save() は呼ばない（stampWho が走ってしまう） */
     if(typeof saveAll==='function')saveAll();
-    alert(targets.length+'名の保護者へ送信しました。\n保護者ページの「せいちょう」タブに反映され、各ご家庭ではお子様ご本人の記録のみが表示されます。');
+    alert(targets.length+'名ぶんを控えに残しました。\n'
+      +'この画面からメールは送られません。個別メールの「送信済みメール」から控えを開いて、\n'
+      +'内容をコピーして送ってください。');
     edBody();
   };
   lockBarWire($('#recBody'),d,save,edBody);
@@ -10621,10 +10634,18 @@ function edNippo(){
   var dp2=recDate.split('-'),jsD=new Date(+dp2[0],+dp2[1]-1,+dp2[2]).getDay(),dkey=['','Mon','Tue','Wed','Thu','Fri'][jsD]||'';
   var dtext=dkey?curDayText('Pre',recDate):'';
   var currText=dtext||('【午前】'+wk.morning+'\n【午後】'+wk.afternoon);
-  var actualVal=d.actual||currText;
+  /* ★カリキュラムの文を欄に出していたが d.actual は空のまま。
+     先生が「合っている」と判断してそのまま進むと、紙は「（未記入）」、
+     監査の件数にも出ない。画面と紙が食い違う。
+     欄は空にして、カリキュラムの文は薄い字（placeholder）で見せる。
+     「カリキュラムから取り込む」を押して初めて中身が入る（跡も正しく残る）。 */
+  var actualVal=d.actual||'';
   $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     lockBarHtml(d)+
-    '<div class="field"><label>活動内容<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから取り込む</button></label><textarea id="npoActual" rows="4">'+esc(actualVal)+'</textarea></div>'+
+    '<div class="field"><label>活動内容<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから取り込む</button></label>'
+      +'<textarea id="npoActual" rows="4" placeholder="'+esc(currText||'')+'">'+esc(actualVal)+'</textarea>'
+      +(currText&&!actualVal?'<div class="muted" style="font-size:11.5px;margin-top:3px;">薄い字はカリキュラムの予定です。まだ記録には入っていません。「カリキュラムから取り込む」を押すと入ります。</div>':'')
+      +'</div>'+
     '<div class="field"><label>クラスの様子・エピソード</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
       '<div class="field"><label>欠席</label><input id="npoAbsent" value="'+esc((d.absent||''))+'" placeholder="○○（発熱）"></div>'+
@@ -11199,7 +11220,15 @@ function drillModal(i){
       box.querySelectorAll('[data-rcls]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-rcls');rec.classes=rec.classes||[];var x=rec.classes.indexOf(k);if(x>-1)rec.classes.splice(x,1);else rec.classes.push(k);save();renderBody();};});
       box.querySelectorAll('[data-staff]').forEach(function(b){b.onclick=function(){var nm=b.getAttribute('data-staff');rec.staffNames=rec.staffNames||[];var x=rec.staffNames.indexOf(nm);if(x>-1)rec.staffNames.splice(x,1);else rec.staffNames.push(nm);save();b.classList.toggle('on');};});
       $('#r_staffAll').onclick=function(){rec.staffNames=DB.staff.map(function(x){return x.name;});save();renderBody();};
-      box.querySelectorAll('[data-agec]').forEach(function(inp){inp.onchange=function(){rec.ageCounts=rec.ageCounts||{};rec.ageCounts[inp.getAttribute('data-agec')]=+inp.value||0;save();};});
+      /* ★触った1つだけを書き、drillFinalCounts が「1つでもあれば ageCounts をそのまま返す」ので、
+         触っていない歳児が全部0として紙に出ていた。画面の合計と紙の合計、
+         紙の中の合計と参加者名簿が、同じ紙の上で食い違っていた。6欄まとめて書き戻す。 */
+      box.querySelectorAll('[data-agec]').forEach(function(inp){inp.onchange=function(){
+        rec.ageCounts=rec.ageCounts||{};
+        box.querySelectorAll('[data-agec]').forEach(function(x){
+          rec.ageCounts[x.getAttribute('data-agec')]=+x.value||0;
+        });
+        save();};});
       $('#r_autoCnt').onclick=function(){rec.ageCounts={};save();renderBody();};
       [['r_tm','tm'],['r_ts','ts'],['r_place','place'],['r_content','content'],['r_reflection','reflection']].forEach(function(f){$('#'+f[0]).onchange=function(e){rec[f[1]]=e.target.value;save();};});
       box.querySelectorAll('[data-tool]').forEach(function(cb){cb.onchange=function(){var t=cb.getAttribute('data-tool').split('|')[1];rec.tools=rec.tools||{};rec.tools[t]=cb.checked;save();};});
@@ -11675,7 +11704,20 @@ function tcGapRows(mk){
 }
 function tcGapBody(mk){
   var g=tcGapRows(mk);
-  if(!g.length)return '<p>シフト表と打刻は、すべて合っています。</p>';
+  /* ★打刻もシフトも1件も無い月でも「シフト表と打刻は、すべて合っています。」と
+     監査の紙が断定していた（空 vs 空 は「ずれ無し」として全部落ちるため）。
+     照らし合わせる相手があるかを先に見る。 */
+  var _tc=tcMonth(mk)||{},_sh={},_n=0,_k;
+  try{_sh=shiftCells(mk)||{};}catch(e){}
+  for(_k in _tc){ if(Object.prototype.hasOwnProperty.call(_tc,_k))_n+=Object.keys(_tc[_k]||{}).length; }
+  var _sn=0;
+  for(_k in _sh){ if(Object.prototype.hasOwnProperty.call(_sh,_k))_sn+=Object.keys(_sh[_k]||{}).length; }
+  if(!_n&&!_sn)return '<p>この月は、シフト表も打刻も登録されていません（照らし合わせできません）。</p>';
+  if(!_n)return '<p>この月は打刻が1件もありません。シフト表 '+_sn+'件分と照らし合わせられません。</p>';
+  if(!_sn)return '<p>この月はシフト表が1件もありません。打刻 '+_n+'件分と照らし合わせられません。</p>';
+  var _st=tcStaffOf(mk,_tc).length;
+  if(!g.length)return '<p>職員 '+_st+'名分を照らし合わせ、シフト表と打刻のずれはありませんでした'
+    +'（打刻 '+_n+'件・シフト '+_sn+'件）。</p>';
   return '<table><thead><tr><th>日</th><th>職員</th><th>シフト</th><th>打刻</th><th>ちがい</th><th>理由</th></tr></thead><tbody>'
     +g.map(function(r){return '<tr><td>'+r.day+'日</td><td>'+esc(r.name)+'</td><td>'+esc(r.plan)+'</td><td>'+esc(r.rec)+'</td><td>'+esc(r.why)+'</td><td>'+esc(r.note)+'</td></tr>';}).join('')
     +'</tbody></table><p style="font-size:10px;">※ちがいがある日は、理由を書いておくと監査で説明できます。</p>';
@@ -14569,8 +14611,18 @@ function invRow(mk,c){
   return {plan:o.plan,lunchN:+o.lunchN||0,extN:+o.extN||0,material:!!o.material,admission:!!o.admission,special:(sp==null?'':sp),extras:always,discount:0,discountNote:'',due:'',status:'未発行',issuedAt:'',sentAt:'',paidAt:''};
 }
 function invSaveRow(mk,id,r){var all=invAll();all[mk]=all[mk]||{};all[mk][id]=r;invSaveAll(all);}
+/* ★発行のときに単価を持たず、invLines が毎回 SET.pricing を読み直していた。
+   料金設定を1円でも直すと、発行ずみの請求書の紙も控えのメールも金額が変わる。
+   保護者ページだけは発行時の額（r.total）を見ているので、園と保護者で
+   違う金額が出ていた。画面には「もう作ってある請求書の金額は変わりません」と
+   書いてある。発行のときに単価を焼き付け、以後はそれを使う。 */
+function invUnits(){
+  var P=SET.pricing||{};
+  return {plans:Object.assign({},P.plans||{}),lunch:+P.lunch||0,extended:+P.extended||0,
+          material:+P.material||0,admission:+P.admission||0};
+}
 function invLines(r){
-  var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
+  var P=(r&&r.units)?r.units:(SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0});
   var L=[];
   if(r.admission)L.push(['入園金',P.admission||0,1,P.admission||0]);
   /* 特別料金が入っているときは、プラン・教育関連費・給食・延長保育のかわりに、
@@ -14632,7 +14684,25 @@ function invSend(mk,c,r){
   r.status='送付済';r.sentAt=todayISO();invSaveRow(mk,c.id,r);
 }
 function renderBilling(){
-  var mk=invMonthCur(),kids=enrolled(),s=$('section[data-page="billing"]');
+  var mk=invMonthCur(),s=$('section[data-page="billing"]');
+  /* ★在園児だけで一覧を作っていたので、月の途中で退園にすると
+     発行・送付ずみの請求書が画面から消え、合計も黙って減り、
+     入金済にする口も無くなっていた（保護者ページには請求が出たまま）。
+     その月に請求書の行がある子は、退園していても出す。 */
+  var kids=enrolled();
+  (function(){
+    var iv=stGet('invoices',{})[mk]||{},seen={},k;
+    kids.forEach(function(c){seen[String(c.id)]=1;});
+    for(k in iv){
+      if(!Object.prototype.hasOwnProperty.call(iv,k))continue;
+      if(seen[k])continue;
+      var c2=(DB.contacts||[]).filter(function(x){return String(x.id)===String(k);})[0];
+      if(!c2)continue;
+      var r2=iv[k]||{};
+      if(!r2.status||r2.status==='未発行')continue;
+      kids.push(c2);
+    }
+  })();
   var rows=kids.map(function(c){return {c:c,r:invRow(mk,c)};});
   var sum=rows.reduce(function(a,x){return a+invTotal(x.r);},0);
   var cnt={};INV_STATUS.forEach(function(st){cnt[st]=rows.filter(function(x){return x.r.status===st;}).length;});
@@ -14679,25 +14749,50 @@ function renderBilling(){
     var _tg=rows.filter(function(x){return x.r.status==='未発行';});
     var _pz=_tg.filter(function(x){return !!x.c.paused;});
     var _pnm=_pz.slice(0,5).map(function(x){return childFullName(x.c);}).join('・')+(_pz.length>5?' ほか'+(_pz.length-5)+'名':'');
+    /* ★料金設定が空のままだと合計が0円になるのに、そのまま発行・送付まで通っていた
+       （同じ画面の上の表は手入力の月額を出すので、¥52,000 と ¥0 が並ぶ）。 */
+    var _z=_tg.filter(function(x){return invTotal(x.r)<=0;});
+    if(_z.length===_tg.length&&_tg.length){
+      alert('請求金額がすべて 0円 です。\n設定 → 料金設定 でコースプランの月額を入れてから発行してください。');
+      return;
+    }
+    if(_z.length){
+      if(!confirm('請求金額が 0円 の園児が '+_z.length+'名 います（'
+        +_z.slice(0,5).map(function(x){return childFullName(x.c);}).join('・')+(_z.length>5?' ほか':'')+'）。\n'
+        +'設定 → 料金設定 か、その子の「明細」で金額を入れてください。\nこのまま発行しますか？'))return;
+    }
     if(!confirm(mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分の請求書を、未発行の園児について一括で発行します。'
       +(_pz.length?'\n\n休園中の園児が'+_pz.length+'名ふくまれます（'+_pnm+'）。\n金額は自動計算のままです。手で決めるときは、その子の「明細」から。':'')
       +'\n\nよろしいですか？'))return;
-    var n=0;rows.forEach(function(x){if(x.r.status==='未発行'){x.r.status='発行済';x.r.issuedAt=todayISO();x.r.total=invTotal(x.r);invSaveRow(mk,x.c.id,x.r);n++;}});
+    var n=0;rows.forEach(function(x){if(x.r.status==='未発行'){invFreeze(x.r);x.r.status='発行済';x.r.issuedAt=todayISO();x.r.total=invTotal(x.r);invSaveRow(mk,x.c.id,x.r);n++;}});
     alert(n+'件を発行しました。内容を確認のうえ「送付」してください。');renderBilling();
   };
+  /* 発行のときに、そのときの単価を行へ焼き付ける */
+  function invFreeze(r){ if(!r.units)r.units=invUnits(); return r; }
   $('#ivSendAll').onclick=function(){
     var t=rows.filter(function(x){return x.r.status==='発行済';});
     if(!t.length){alert('送付できる（発行済の）請求書がありません。先に「発行」してください。');return;}
-    if(!confirm(t.length+'件の請求書を保護者へ送付します。よろしいですか？'))return;
+    var z2=t.filter(function(x){return (x.r.total!=null?+x.r.total:invTotal(x.r))<=0;});
+    if(z2.length){
+      alert('請求金額が 0円 の請求書が '+z2.length+'件 あります（'
+        +z2.slice(0,5).map(function(x){return childFullName(x.c);}).join('・')+(z2.length>5?' ほか':'')+'）。\n'
+        +'金額を入れてから送ってください。');
+      return;
+    }
+    if(!confirm(t.length+'件の請求書を「送付済」にし、控えに残します。\n'
+      +'※メールを送る仕組みはまだできていないため、実際には送られません。\n'
+      +'お手数ですが、控えの内容をメールソフトへ貼り付けて送ってください。\nよろしいですか？'))return;
     t.forEach(function(x){invSend(mk,x.c,x.r);});
-    alert(t.length+'件を送付しました。保護者ページの「請求」でも確認できます。');renderBilling();
+    alert(t.length+'件を「送付済」にし、控えに残しました。\n'
+      +'この画面からメールは送られません。個別メールの「送信済みメール」から控えを開いて、\n'
+      +'内容をコピーして送ってください。');renderBilling();
   };
   $('#ivPrintAll').onclick=function(){
     var body=rows.map(function(x){return invHTML(mk,x.c,x.r);}).join('<div style="page-break-after:always;"></div>');
     printDoc('保育料 請求書（'+mk+'）',body);
   };
   s.querySelectorAll('[data-ivedit]').forEach(function(b){b.onclick=function(){invModal(mk,+b.getAttribute('data-ivedit'));};});
-  s.querySelectorAll('[data-ivissue]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivissue'),r=invRow(mk,{id:id});var c=kids.filter(function(k){return k.id===id;})[0];r=invRow(mk,c);r.status='発行済';r.issuedAt=todayISO();r.total=invTotal(r);invSaveRow(mk,id,r);renderBilling();};});
+  s.querySelectorAll('[data-ivissue]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivissue'),r=invRow(mk,{id:id});var c=kids.filter(function(k){return k.id===id;})[0];r=invRow(mk,c);invFreeze(r);r.status='発行済';r.issuedAt=todayISO();r.total=invTotal(r);invSaveRow(mk,id,r);renderBilling();};});
   s.querySelectorAll('[data-ivsend]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivsend'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);
     if(!confirm(childFullName(c)+'の請求書を「送付済」にし、控えに残します。\n※メールを送る仕組みはまだできていないため、実際には送られません。\nお手数ですが、控えの内容をメールソフトへ貼り付けて送ってください。\nよろしいですか？'))return;invSend(mk,c,r);renderBilling();};});
   s.querySelectorAll('[data-ivpaid]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivpaid'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);r.status='入金済';r.paidAt=todayISO();invSaveRow(mk,id,r);renderBilling();};});
@@ -14785,7 +14880,7 @@ function invModal(mk,id){
   ['im_plan','im_due','im_lunch','im_ext','im_mat','im_adm','im_special','im_disc','im_discn'].forEach(function(id){var el2=$('#'+id);if(el2){el2.oninput=upd;el2.onchange=upd;}});
   $('#im_cancel').onclick=function(){m.remove();};
   $('#im_print').onclick=function(){read();printDoc('保育料 請求書（'+mk+'・'+childFullName(c)+'）',invHTML(mk,c,r));};
-  $('#im_save').onclick=function(){read();if(r.status==='未発行'){r.status='発行済';r.issuedAt=todayISO();}r.total=invTotal(r);invSaveRow(mk,id,r);m.remove();renderBilling();};
+  $('#im_save').onclick=function(){read();if(r.status==='未発行'){if(!r.units)r.units=invUnits();r.status='発行済';r.issuedAt=todayISO();}r.total=invTotal(r);invSaveRow(mk,id,r);m.remove();renderBilling();};
   $('#im_send').onclick=function(){read();if(!confirm(childFullName(c)+'の請求書を「送付済」にし、控えに残します。\n※メールを送る仕組みはまだできていないため、実際には送られません。\nよろしいですか？'))return;r.total=invTotal(r);invSaveRow(mk,id,r);invSend(mk,c,r);m.remove();renderBilling();};
 }
 
@@ -15770,7 +15865,16 @@ function taskAutoDone(t,mk){
     }
     if(t.name==='調理職員の検便')return (typeof kenbenDone==='function')&&kenbenDone(mk);
     if(p==='シフト表'||p==='出勤簿')return !!stGet('shifts',{})[mk];
-    if(p==='経費管理'){var ex=stGet('expenses',{})[mk];return !!(ex&&(ex.rows||[]).length);}
+    if(p==='経費管理'){
+      /* ★「行を追加」で入る空の1行（金額0・支払先も内容も空）で
+         月締めが済になり、しかも page が同じなので年1回の
+         「決算・事業報告」まで同じ1行で済になっていた。 */
+      if(t.name==='決算・事業報告')return false;
+      var ex=stGet('expenses',{})[mk];
+      return !!(ex&&(ex.rows||[]).filter(function(r){
+        return r&&(+r.amount||r.payee||r.detail||r.slip);
+      }).length);
+    }
     if(p==='請求書発行'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
     if(p==='児童票（成長の記録）'||p==='生徒個人発達記録'){var dv=stGet('rec_発達',{}),n=0;Object.keys(dv).forEach(function(k){n+=Object.keys(dv[k]).length;});return n>0;}
   }catch(e){}
