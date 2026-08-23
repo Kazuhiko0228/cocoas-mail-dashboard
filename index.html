@@ -10026,16 +10026,18 @@ function edHealth(){
     lockDiff(d,_hlSnap,HL_F);
     _hlSnap=lockSnap(d,HL_F);
     stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
-  var touen=stGet('rec_登園シート',{})[recDate];
   var hlIds={};
   (d.entries||[]).forEach(function(en){ if(en&&en.childId!=null)hlIds[String(en.childId)]=1; });
   var showKids=dayKids(recDate,hlIds);
-  if(!showKids.length)showKids=enrolled();
+  /* 登園の記録も健康の記録も無い日は、在園児で代わりに出す。
+     そのことは画面にも紙にも書く（出席の記録ではないため） */
+  var hlFallback=!showKids.length;
+  if(hlFallback)showKids=enrolled();
   function entryIdx(id){var x=-1;d.entries.forEach(function(en,i){if(en.childId===id)x=i;});return x;}
   var feverish=showKids.filter(function(c){return +tempOf(c.id,recDate)>=37.5;});
   var withSymptom=d.entries.length;
   $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('健康チェック（出席児の健康状態）','<input type="date" id="hlDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="hlAllHealthy" style="'+(d.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'+(d.allHealthy?'✓ 全員健康 確認済':'全員「症状なし」を記録')+'</button><button class="btn btn-sm" id="hlPrint">'+ic('printer')+'本日分を出力</button>')+
-    (present.length?'':'<div class="muted" style="margin-bottom:10px;color:#854F0B;">※ 登園シート未記録のため、全在園児を表示中</div>')+
+    (hlFallback?'<div class="muted" style="margin-bottom:10px;color:#854F0B;">※ この日は登園（出席）の記録がありません。在園児をそのまま並べています（出席の記録ではありません）。</div>':'')+
     (feverish.length?'<div class="muted" style="margin-bottom:10px;color:#A32D2D;font-weight:500;">発熱の可能性（37.5℃以上）：'+feverish.map(function(c){return dayKidName(c)+'（'+tempOf(c.id,recDate)+'℃）';}).join('・')+'</div>':'')+
     '<table><thead><tr><th>園児</th><th>歳児</th><th>体温</th><th>状態</th><th></th></tr></thead><tbody>'+
       showKids.map(function(c){var idx=entryIdx(c.id);var t=tempOf(c.id,recDate);var statusCell,act;
