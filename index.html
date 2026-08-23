@@ -1243,7 +1243,7 @@ function curLegacyCount(){
 /* 園が選んだ月へ置き直す。上書きはしない（その月にすでにあるものは残す） */
 function curLegacyPlace(mk){
   if(!/^[0-9]{4}-[0-9]{2}$/.test(String(mk)))return 0;
-  var n=0,skipped=0,cls,type,wk;
+  var n=0,skipped=0,placed=[],cls,type,wk;
   var a=CUR.actMonthly||{};
   CUR.actMonthlyM=CUR.actMonthlyM||{};
   CUR.actMonthlyM[mk]=CUR.actMonthlyM[mk]||{};
@@ -1261,13 +1261,13 @@ function curLegacyPlace(mk){
       var cur=CUR.actMonthlyM[mk][cls][type];
       if(cur==null){
         CUR.actMonthlyM[mk][cls][type]={theme:v.theme||'',teacher:v.teacher||'',goal:v.goal||''};
-        n++;
+        n++; placed.push({kind:'goal',cls:cls,type:type});
       }else{
         var put=false;
         if(!cur.theme&&v.theme){cur.theme=v.theme;put=true;}
         if(!cur.teacher&&v.teacher){cur.teacher=v.teacher;put=true;}
         if(!cur.goal&&v.goal){cur.goal=v.goal;put=true;}
-        if(put)n++; else skipped++;
+        if(put){n++;placed.push({kind:'goal',cls:cls,type:type});} else skipped++;
       }
     }
   }
@@ -1287,19 +1287,29 @@ function curLegacyPlace(mk){
         var cw=CUR.contentM[mk][cls][wk][type];
         if(cw==null){
           CUR.contentM[mk][cls][wk][type]={theme:w.theme||'',teacher:w.teacher||'',plan:w.plan||''};
-          n++;
+          n++; placed.push({kind:'week',cls:cls,wk:wk,type:type});
         }else{
           var putw=false;
           if(!cw.theme&&w.theme){cw.theme=w.theme;putw=true;}
           if(!cw.teacher&&w.teacher){cw.teacher=w.teacher;putw=true;}
           if(!cw.plan&&w.plan){cw.plan=w.plan;putw=true;}
-          if(putw)n++; else skipped++;
+          if(putw){n++;placed.push({kind:'week',cls:cls,wk:wk,type:type});} else skipped++;
         }
       }
     }
   }
   /* ★1件も置けなかった／置けないものが残ったときに古い置き場を隠していた。
      隠すと画面からも紙からも二度と出ないので、置ききれたときだけ隠す。 */
+  /* ★置いても古い置き場から取り除いていなかったので、
+     もう一度別の月へ置くと、同じねらいが2つの月に入り、
+     両方の月の「月案の作成」が自動で済になっていた。
+     置けたものは取り除き、置けなかったものだけ残す。 */
+  if(placed.length){
+    placed.forEach(function(p){
+      if(p.kind==='goal'){ if(CUR.actMonthly&&CUR.actMonthly[p.cls])delete CUR.actMonthly[p.cls][p.type]; }
+      else { if(CUR.content&&CUR.content[p.cls]&&CUR.content[p.cls][p.wk])delete CUR.content[p.cls][p.wk][p.type]; }
+    });
+  }
   if(!skipped){
     CUR.legacyPlacedAt=mk;
     CUR.actMonthlyOld=CUR.actMonthly; delete CUR.actMonthly;
@@ -1322,9 +1332,19 @@ function curLegacyUnhide(){
 }
 /* 帯を閉じたあと・置いたあとでも、控えが残っているか */
 function curLegacyHasBackup(){
-  var a=CUR.actMonthly||CUR.actMonthlyOld||{},c=CUR.content||CUR.contentOld||{},k;
-  for(k in a){ if(Object.prototype.hasOwnProperty.call(a,k))return true; }
-  for(k in c){ if(Object.prototype.hasOwnProperty.call(c,k))return true; }
+  /* ★鍵の有無で見ていたので、空の殻でも「控えがある」と出て、
+     押しても何も起きないボタンが出ていた。中身で見る。 */
+  var a=CUR.actMonthly||CUR.actMonthlyOld||{},c=CUR.content||CUR.contentOld||{},cls,type,wk;
+  for(cls in a){
+    if(!Object.prototype.hasOwnProperty.call(a,cls))continue;
+    for(type in a[cls]){ var v=a[cls][type]||{}; if(v.theme||v.teacher||v.goal)return true; }
+  }
+  for(cls in c){
+    if(!Object.prototype.hasOwnProperty.call(c,cls))continue;
+    for(wk in c[cls]){
+      for(type in c[cls][wk]){ var w=c[cls][wk][type]||{}; if(w.theme||w.teacher||w.plan)return true; }
+    }
+  }
   return false;
 }
 CUR.month=curMonthKey();
@@ -2186,14 +2206,49 @@ function classRename(oldName,newName){
   (cs||[]).forEach(function(c){ if(c&&c.klass===oldName){c.klass=newName;ch=true;} });
   if(ch)DB.contacts=cs;
   /* 日案・日別スケジュール・週の内容・月間のねらい・活動の種類 */
-  function moveKey(o){ if(o&&o[oldName]!=null){ if(o[newName]==null)o[newName]=o[oldName]; delete o[oldName]; } }
-  moveKey(CUR.daily); moveKey(CUR.schedule); moveKey(CUR.byClass);
-  moveKey(CUR.actMonthly); moveKey(CUR.actMonthlyOld); moveKey(CUR.content); moveKey(CUR.contentOld);
+  /* ★移す先にすでに鍵があると、旧名の記録を黙って捨てていた。
+     移せたときだけ消す（移せなかったものは、そのまま残して知らせる）。 */
+  var _stuck=[];
+  function moveKey(o,label){
+    if(!o||o[oldName]==null)return;
+    if(o[newName]==null){ o[newName]=o[oldName]; delete o[oldName]; return; }
+    _stuck.push(label||'');
+  }
+  moveKey(CUR.daily,'日案'); moveKey(CUR.schedule,'日別スケジュール'); moveKey(CUR.byClass,'月次項目');
+  moveKey(CUR.actMonthly,'月間のねらい'); moveKey(CUR.actMonthlyOld);
+  moveKey(CUR.content,'週の内容'); moveKey(CUR.contentOld);
   if(CUR.actMonthlyM)for(k in CUR.actMonthlyM){ if(Object.prototype.hasOwnProperty.call(CUR.actMonthlyM,k))moveKey(CUR.actMonthlyM[k]); }
   if(CUR.contentM)for(k in CUR.contentM){ if(Object.prototype.hasOwnProperty.call(CUR.contentM,k))moveKey(CUR.contentM[k]); }
   /* 活動の種類は SET.activityTypes[クラス] に持っている */
   if(SET.activityTypes){ moveKey(SET.activityTypes); DB.settings=SET; }
   DB.curriculum=CUR;
+  /* AIのクラス像・計画・記録 */
+  try{
+    var ac=stGet('ai_class',null);
+    if(ac){ moveKey(ac,'AIのクラス像'); stSet('ai_class',ac); }
+    var ap=stGet('ai_plans',null);
+    if(ap&&Object.prototype.toString.call(ap)==='[object Array]'){
+      ap.forEach(function(x){ if(x&&x.klass===oldName)x.klass=newName; });
+      stSet('ai_plans',ap);
+    }
+    var al=stGet('ai_log',null);
+    if(al&&Object.prototype.toString.call(al)==='[object Array]'){
+      al.forEach(function(x){ if(x&&x.klass===oldName)x.klass=newName; });
+      stSet('ai_log',al);
+    }
+  }catch(e){}
+  /* 生徒台帳のクラス */
+  try{
+    var sp=stGet('studentProfiles',null);
+    if(sp){
+      var spk;
+      for(spk in sp){
+        if(!Object.prototype.hasOwnProperty.call(sp,spk))continue;
+        if(sp[spk]&&sp[spk].klass===oldName)sp[spk].klass=newName;
+      }
+      stSet('studentProfiles',sp);
+    }
+  }catch(e){}
   /* 実施報告（鍵が「クラス|日付」） */
   var ar=stGet('act_reports',{}),nr={},moved=false;
   for(k in ar){
@@ -2209,6 +2264,10 @@ function classRename(oldName,newName){
     for(dk in dd){ if(Object.prototype.hasOwnProperty.call(dd,dk)&&dd[dk]&&dd[dk].klass===oldName){dd[dk].klass=newName;c2=true;} }
     if(c2)stSet(RK,dd);
   });
+  if(_stuck.length){
+    try{alert('「'+newName+'」にはすでに記録があるため、'+_stuck.filter(Boolean).join('・')
+      +' は付け替えできませんでした。\n「'+oldName+'」の記録はそのまま残しています。');}catch(e){}
+  }
   /* 配信のひな形の宛先クラス（園が作ったもの） */
   try{
     var tu=stGet('tplUser',null);
@@ -2242,6 +2301,24 @@ function classDelWarn(name){
     +'一覧から消すと、その園児のクラスが空欄になり、日案・実施報告は開けなくなります。\n'
     +'消さずに名前を変えるだけなら、記録はそのまま連れていきます。';
 }
+/* ★問い合わせ方法・体験の方法を改名すると、過去のリードの表示が
+   別の値に変わり、保存で中身まで書き換わっていた（選択肢の並び順で拾われるため）。
+   避難訓練の種別・クラスと同じく、名前と一緒に記録を連れていく。 */
+function contactFieldRename(field,oldName,newName){
+  if(!oldName||!newName||oldName===newName)return;
+  var cs=DB.contacts,ch=false;
+  (cs||[]).forEach(function(c){ if(c&&c[field]===oldName){c[field]=newName;ch=true;} });
+  if(ch)DB.contacts=cs;
+}
+function contactFieldDelWarn(field,label,name){
+  var n=(DB.contacts||[]).filter(function(c){return c&&c[field]===name;}).length;
+  if(!n)return '';
+  return '「'+name+'」は '+n+'件の連絡先で'+label+'として使われています。\n'
+    +'一覧から消すと、その欄は空欄になります。\n'
+    +'消さずに名前を変えるだけなら、記録はそのまま連れていきます。';
+}
+/* その画面を開ける人にだけ、そこへ飛ぶボタンを出す */
+function canGoPage(p){ try{ return (typeof canView==='function')?canView(p):true; }catch(e){ return true; } }
 function drillKindRename(oldName,newName){
   if(!oldName||!newName||oldName===newName)return;
   var m=stGet('drill_proc_by_kind',{})||{};
@@ -2426,7 +2503,14 @@ function auditDataInfo(key,fy){
     case 'hattatsu': {
       /* ★年度を切り替えても数字が動かず、「◯◯年度」の紙に全年度の合計が載っていた */
       var dv=stGet('rec_発達',{}),dn=0;
-      Object.keys(dv).forEach(function(k){ dn+=Object.keys(auditPickFY(dv[k]||{},fy)).length; });
+      Object.keys(dv).forEach(function(k){
+        var m=auditPickFY(dv[k]||{},fy);
+        Object.keys(m).forEach(function(mk2){
+          var r=m[mk2]||{};
+          /* ★画面を開いただけの空の記録を1件と数えていた */
+          if((typeof devHasItems==='function'&&devHasItems(r))||r.memo)dn++;
+        });
+      });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
     case 'kega': {
@@ -2472,7 +2556,18 @@ function auditDataInfo(key,fy){
       return dr.filter(function(r){return r.record&&r.record.date;}).length+' / '+dr.length
         +'回 実施記録あり'+(ys.length?'（'+ys.join('・')+'年）':'');}
     case 'shift': {
-      var shn=Object.keys(auditPickFY(stGet('shifts',{}),fy)).length;
+      /* ★月の鍵があるだけで数えていた。1マスも入っていない月まで「1ヶ月分あり」 */
+      var sha=auditPickFY(stGet('shifts',{}),fy),shn=0,shk;
+      for(shk in sha){
+        if(!Object.prototype.hasOwnProperty.call(sha,shk))continue;
+        var cl=(sha[shk]||{}).cells||{},sid,any=false;
+        for(sid in cl){
+          var dd2=cl[sid]||{},dk2;
+          for(dk2 in dd2){ if(dd2[dk2]){any=true;break;} }
+          if(any)break;
+        }
+        if(any)shn++;
+      }
       return shn?(shn+'ヶ月分あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
     case 'kinkyu_b': return facGet().doctors.length+'件登録済み（現在）';
@@ -2514,13 +2609,26 @@ function auditDataInfo(key,fy){
     }
     case 'shukkin': {
       /* ★年度を無視して今月の数を返し、それが「◯◯年度」の紙に載っていた */
-      var tcA=auditPickFY(stGet('timecards',{}),fy),tn=0,tk;
+      var tcA=auditPickFY(stGet('timecards',{}),fy),tn=0,rn=0,tk;
       for(tk in tcA){
         if(!Object.prototype.hasOwnProperty.call(tcA,tk))continue;
         var tm=tcA[tk]||{},sid;
-        for(sid in tm){ if(Object.prototype.hasOwnProperty.call(tm,sid))tn+=Object.keys(tm[sid]||{}).length; }
+        for(sid in tm){
+          if(!Object.prototype.hasOwnProperty.call(tm,sid))continue;
+          var dm=tm[sid]||{},dk3;
+          for(dk3 in dm){
+            if(!Object.prototype.hasOwnProperty.call(dm,dk3))continue;
+            var v3=dm[dk3]||{};
+            /* ★出退勤の時刻が無く、欠勤の理由を書いただけの日まで
+               「打刻あり」と数えていた */
+            if(v3.in||v3.out)tn++;
+            else if(v3.note)rn++;
+          }
+        }
       }
-      return tn?(fy+'年度 '+tn+'日分の打刻あり'):(fy+'年度の打刻はまだありません');
+      if(!tn&&!rn)return fy+'年度の打刻はまだありません';
+      return (tn?(fy+'年度 '+tn+'日分の打刻あり'):(fy+'年度の打刻はまだありません'))
+        +(rn?('／理由の記入 '+rn+'日分'):'');
     }
     case 'roudou_meibo': return DB.staff.length+'名登録済み（現在）';
     case 'shikaku': {
@@ -2593,9 +2701,23 @@ function dlFile(name,content,mime){
 /* 画面にだけ出す補足表示（列見出しの「（自動）」など）は data-noexport を付けておき、
    Excel保存では列名に混ざらないよう取り除く。データそのものには一切触れない。 */
 function exportCellText(cell){
-  if(!cell.querySelector('[data-noexport]'))return cell.textContent;
   var c=cell.cloneNode(true);
   [].slice.call(c.querySelectorAll('[data-noexport]')).forEach(function(n){n.parentNode.removeChild(n);});
+  /* ★セルの中に入れ子の行（row-sub など）があると、区切りなしにつながって
+     「高橋 心春2023-05-10」のような1セルになっていた。境目に区切りを入れる。 */
+  var parts=[],i;
+  var subs=c.querySelectorAll('div,p,br');
+  if(subs.length){
+    var t=c.innerHTML.replace(/<\s*(br|\/div|\/p)\s*\/?>/gi,'\u0001');
+    var tmp=document.createElement('div');
+    tmp.innerHTML=t;
+    var raw=tmp.textContent.split('\u0001');
+    for(i=0;i<raw.length;i++){
+      var v=raw[i].replace(/^\s+|\s+$/g,'');
+      if(v)parts.push(v);
+    }
+    return parts.join(' / ');
+  }
   return c.textContent;
 }
 function tableToHtml(t){
@@ -2754,7 +2876,10 @@ function auditSummary(){
   var docDate=auditDateOf(curFY()),docLeft=docDate?daysUntil(new Date(docDate)):null;
   /* 現場監査に備えて「日々の記録」が今日そろっているか */
   var todayRec=[['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']];
-  var recMissing=todayRec.filter(function(t){return !stGet(t[1],{})[todayISO()];}).map(function(t){return t[0];});
+  /* ★日付の鍵があるだけで「済」にしていた。画面を開いただけの日、
+     記録者を選んだだけの日が『安全点検 ✓ 済』になっていた。
+     監査の一覧・紙と同じ「中身があるか」で見る。 */
+  var recMissing=todayRec.filter(function(t){return !recDoneToday(t[1]);}).map(function(t){return t[0];});
   var mk=todayISO().slice(0,7);
   var monthly=[];
   try{
@@ -3780,6 +3905,7 @@ var LOCK_SKIP_ID={tsPrint:1,hlPrint:1,npoPrint:1,bmPrint:1,npPrint:1,dvPrint:1,d
                   /* 期間まとめの出力と、紙を撮って取り込むカード。この記録の外なので止めない */
                   pdFrom:1,pdTo:1,pdPrint:1,pdXls:1,pdCount:1,
                   scanFile:1,scanList:1,scanPrint:1,scanMsg:1,
+                  sfDate:1,sfPrint:1,
                   /* 体温計の接続は端末の設定。記録の中身ではないので止めない */
                   thBarOn:1,thBarOff:1,kjYear:1,bkYear:1};
 function lockDisable(scope,d){
@@ -3819,8 +3945,12 @@ function lockFootHtml(d){
 /* 何日ぶんあって、そのうち何日ぶんが確定ずみか。
    ★中身の無い日は数えない。画面を開いただけでできた空の記録まで数えると、
      紙（期間まとめ）の日数と監査の一覧の日数が食い違う。 */
+/* ★記録者を選んだだけの日を「中身あり」と数えていたので、
+   全欄が空のまま確定でき、紙には「（未記入）」だらけの本文と確定署名が並んだ。
+   誰が書いたかは、書いた中身があってはじめて意味を持つ。 */
 var LOCK_META_KEYS={klass:1,savedBy:1,savedAt:1,lock:1,lockBy:1,lockAt:1,
-                    unlocked:1,unlockedBy:1,unlockedAt:1,fixes:1,locked:1};
+                    unlocked:1,unlockedBy:1,unlockedAt:1,fixes:1,locked:1,
+                    by:1,charge:1,units:1};
 /* ★中身があるかを「鍵があるか」で見ていた。画面を開いただけで
    在園児ぜんぶに {h:'',w:''} のような空の行ができるので、
    1文字も書いていない記録が「記録あり」と数えられ、
@@ -6217,6 +6347,26 @@ var HOME_GROUPS=[
   ]}
 ];
 /* タイルに出す件数。「開く前に分かる」ことが、ただのランチャーとの違い */
+/* 記録の置き場ごとの「中身があるか」。監査の一覧・紙と同じ判定を使う。
+   ここが違うと、ホームは「済」なのに紙は白紙、ということが起きる。 */
+function recHasFn(key){
+  if(key==='rec_登園シート')return (typeof touenHas==='function')?touenHas:null;
+  if(key==='rec_午睡チェック')return (typeof napHas==='function')?napHas:null;
+  if(key==='rec_健康チェック')return (typeof healthHas==='function')?healthHas:null;
+  if(key==='rec_日報')return (typeof nippoHas==='function')?nippoHas:null;
+  if(key==='rec_安全点検')return function(d){
+    var ai=(d&&d.items)||{},k;
+    for(k in ai){ if(ai[k]==='ok'||ai[k]==='ng')return true; }
+    return false;
+  };
+  return null;
+}
+function recDoneToday(key,date){
+  var d=stGet(key,{})[date||todayISO()];
+  if(!d)return false;
+  var f=recHasFn(key);
+  return f?!!f(d):(typeof lockHasContent==='function'?lockHasContent(d):true);
+}
 function homeBadge(page){
   try{
     if(page==='records'){
@@ -6744,7 +6894,7 @@ function renderDash(){
      ['午睡チェックの記録','rec_午睡チェック','午睡チェック','#7F77DD'],
      ['安全点検の記録','rec_安全点検','安全点検','#639922'],
      ['業務日報・保育日誌の記録','rec_日報','業務日報・保育日誌','#854F0B']
-    ].forEach(function(t){var dn=!!stGet(t[1],{})[todayISO()];myTasks.push({label:t[0],sub:dn?'本日分 記録済み':'本日分が未記録です',done:dn,color:t[3],go:['records',t[2]],btn:dn?'確認する':'記録する'});});
+    ].forEach(function(t){var dn=recDoneToday(t[1]);myTasks.push({label:t[0],sub:dn?'本日分 記録済み':'本日分が未記録です',done:dn,color:t[3],go:['records',t[2]],btn:dn?'確認する':'記録する'});});
     if(!stGet('rec_身体測定',{})[todayISO().slice(0,7)])myTasks.push({label:'今月の身体測定',sub:'今月の測定がまだ記録されていません',done:false,color:'#E24B4A',go:['carerec','身体測定'],btn:'記録する'});
     myTasks.push({label:'デイリーメールの作成',sub:'毎日 17:00 ・ 保護者へ本日の様子を配信',done:false,color:'#EF9F27',go:['broadcast','dailyPre'],btn:'作成する'});
     var un=(typeof dmUnreadTotal==='function')?dmUnreadTotal():0;
@@ -6780,7 +6930,7 @@ function renderDash(){
         +'<div style="display:flex;flex-direction:column;gap:6px;"><button class="btn btn-primary" data-task="audit">監査対応へ</button>'+(A.recMissing.length?'<button class="btn btn-sm" data-task="records">記録する</button>':'')+'</div>'
         +'</div></div>';})())+
     '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:13.5px;font-weight:600;">'+ic('activity').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px;color:#0B5F8F;"')+' 本日の記録</span>'+
-      [['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=!!stGet(t[1],{})[todayISO()];return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
+      [['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=recDoneToday(t[1]);return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
       '<span class="spacer"></span><button class="btn btn-sm" data-task="records">記録する</button></div>'+
     '<div class="grid dash-2col">'+
       (isIppan
@@ -7590,9 +7740,20 @@ function sentMailModal(h){
     '<tr><td style="color:var(--tx2);">送信元</td><td>'+(h.from||'')+'　BCC：'+(h.bcc||SET.bcc)+'</td></tr>'+
     '<tr><td style="color:var(--tx2);">件名</td><td>'+(h.subject||'（記録なし）')+'</td></tr></tbody></table>'+
     '<div class="preview" style="max-height:360px;">'+((h.body||'（本文の記録がありません。旧バージョンで送信された履歴です）')).replace(/</g,'&lt;')+'</div>'+
-    '<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn btn-primary" id="sm_close">閉じる</button></div></div>';
+    '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">'
+    /* ★「控えをコピーして送ってください」と案内するのに、コピーの口が無かった */
+    +'<button class="btn" id="sm_copy">'+ic('doc')+'宛先・件名・本文をコピー</button>'
+    +'<button class="btn btn-primary" id="sm_close">閉じる</button></div></div>';
   $('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  $('#sm_copy').onclick=function(){
+    var t='宛先：'+(h.email||h.to||'')+'\n件名：'+(h.subject||'')+'\n\n'+(h.body||'');
+    function done(){ $('#sm_copy').textContent='コピーしました'; setTimeout(function(){var b2=$('#sm_copy');if(b2)b2.textContent='宛先・件名・本文をコピー';},1600); }
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){alert(t);});return;}
+    }catch(e){}
+    alert(t);
+  };
   $('#sm_close').onclick=function(){m.remove();};
 }
 
@@ -8060,7 +8221,7 @@ function renderTemplates(){
       +'<div class="preview" style="max-height:160px;">'+esc(fillTokens(t.body,null,{}))+'</div>'
       +tplWhoLine(t.at,t.by,t.custom?'作成':'書き直し')
       +'<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-      +'<button class="btn btn-sm btn-primary" data-use="'+esc(k)+'">この文面で送信</button>'
+      +(canGoPage('compose')?('<button class="btn btn-sm btn-primary" data-use="'+esc(k)+'">この文面で使う</button>'):'')
       +'<button class="btn btn-sm" data-edit="mail|'+esc(k)+'">題名と文章を直す</button>'
       +(t.edited?'<button class="btn btn-sm btn-ghost" data-reset="mail|'+esc(k)+'">はじめの内容に戻す</button>':'')
       +(t.custom?'<button class="btn btn-sm btn-ghost" data-del="'+esc(k)+'">消す</button>':'')
@@ -9341,11 +9502,11 @@ function scanHostKeys(type){
     }
     return out;
   }
-  if(type==='安全点検'){
-    var mk=String(recDate||todayISO()).slice(0,7),dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),o2=[],dd;
-    for(dd=1;dd<=dim;dd++)o2.push(mk+'-'+pad(dd));
-    return o2;
-  }
+  /* ★安全点検の紙は月まとめだが、確定は日ごと。その月の全日を束にすると、
+     1日でも確定した時点で、月の終わりの紙が取り込めなくなる。
+     同じカードが「1ヶ月分まとめて取り込みます」と案内しているので詰む。
+     安全点検は、いま開いている日だけで見る。 */
+  if(type==='安全点検')return [recDate||todayISO()];
   return [scanHostKey(type)];
 }
 function scanCard(type,d){
@@ -9395,8 +9556,11 @@ function scanNoteAll(type,before,after){
   for(i=0;i<keys.length;i++){
     var x=all[keys[i]];
     if(!x||typeof isLocked!=='function'||!isLocked(x))continue;
+    /* 誰がいつ紙を触ったかは、この跡（{at,by} つき）に残る。
+       ★あわせて savedBy/savedAt まで書き換えていたので、束の全日の
+       「最後に書いた人」が、取り込んだ人と今日の日時に変わっていた。
+       書いた人は、記録の中身を書いた操作のときだけ更新する。 */
     if(typeof lockNote==='function')lockNote(x,'取り込んだ紙',before,after);
-    if(typeof stampWho==='function')stampWho(x);
     touched=true;
   }
   if(touched)stSet(K,all);
@@ -10195,7 +10359,23 @@ function edBody(){
   var K='rec_身体測定',data=stGet(K,{}),d=data[recMonth]||{rows:{}};
   var BM_F=[{k:'by',l:'記録者'},{k:'locked',l:'保存の状態'}];
   var BM_F2=[{k:'rows',l:'身長・体重',deep:true,keyer:'kid'}].concat(BM_F);
+  /* ★在園児だけで表を作っていたので、退園した子の過去の測定値が
+     画面からも紙からも消えていた（データは残っている）。
+     その月に記録がある子は、在園でなくても出す。 */
   var kids=enrolled().filter(function(c){return bmKlass==='すべて'||c.klass===bmKlass;});
+  (function(){
+    var seen={},k;
+    kids.forEach(function(c){seen[String(c.id)]=1;});
+    for(k in (d.rows||{})){
+      if(!Object.prototype.hasOwnProperty.call(d.rows,k))continue;
+      if(seen[k])continue;
+      var r0=d.rows[k]||{};
+      if(!r0.h&&!r0.w)continue;
+      var c2=(DB.contacts||[]).filter(function(x){return String(x.id)===String(k);})[0];
+      if(c2){ if(bmKlass!=='すべて'&&c2.klass!==bmKlass)continue; kids.push(c2); }
+      else kids.push({id:k,__gone:true,klass:'',lastName:'',firstName:'',childLastName:'',childFirstName:'',dob:''});
+    }
+  })();
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
   var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
@@ -10213,7 +10393,9 @@ function edBody(){
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
-      return '<tr><td class="row-name">'+esc(childFullName(c))+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+esc(c.klass)+'</td>'+
+      var _bd=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
+      return '<tr><td class="row-name">'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))
+        +'<div class="row-sub">'+esc(_bd?ageClassOf({dob:_bd,klass:c.klass}):'—')+'</div></td><td>'+esc(c.klass||'')+'</td>'+
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td>'+
@@ -10799,7 +10981,8 @@ function touenDayBody(dk,d,kids){
       /* ★生年月日が生徒台帳にしか無い子は、歳児の欄にクラス名が刷られていた
          （同じ日の帯は「2歳児」と出すので食い違う）。台帳も見る。 */
       var _dob=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
-      var al=(c.__gone||!_dob)?'—':ageClassOf({dob:_dob,klass:c.klass},dk),ac=ageColor(al);
+      /* 歳児が分かるかどうかは、連絡先にいるかではなく生年月日があるかで決める */
+      var al=_dob?ageClassOf({dob:_dob,klass:c.klass},dk):'—',ac=ageColor(al);
       /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
       return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(_dob?bfDob(_dob):'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
@@ -11109,7 +11292,7 @@ function renderDrill(){
       '<div class="muted" style="margin-bottom:8px;">災害の種別ごとに手順を登録できます。ここで登録した手順は、その種別の回の<b>「計画・記録を印刷」に自動で入ります</b>。</div>'+
       '<div class="chips" style="margin-bottom:10px;">'+DRILL_KINDS.map(function(k){return '<span class="chip'+(k===drillProcTabNow()?' on':'')+'" data-ptab="'+esc(k)+'">'+esc(k)+'</span>';}).join('')
         /* この画面を見ている人が、設定の場所を知らなくても種別を足せるように */
-        +'<button class="btn btn-sm btn-ghost" id="drKindEdit" style="margin-left:6px;">'+ic('gear')+'種別を追加・変更</button>'+'</div>'+
+        +(canGoPage('settings')?('<button class="btn btn-sm btn-ghost" id="drKindEdit" style="margin-left:6px;">'+ic('gear')+'種別を追加・変更</button>'):'')+'</div>'+
       '<textarea id="drProc" rows="10" style="font-size:13px;line-height:1.7;" placeholder="'+esc(DRILL_PROC_HINT).replace(/\n/g,'&#10;')+'">'+esc(drillProcOf(drillProcTabNow()))+'</textarea>'+
       '<div class="muted" style="margin-top:8px;">書き直すと、その場で保存されます。<br>年間記録表を出すと、いまある種別すべての手順が入ります。</div></div>';
   s.querySelectorAll('[data-kind]').forEach(function(sel){sel.onchange=function(){
@@ -11122,7 +11305,7 @@ function renderDrill(){
   $('#drProc').onchange=function(e){drillProcSet(drillProcTabNow(),e.target.value);};
   s.querySelectorAll('[data-ptab]').forEach(function(b){b.onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTabNow(),ta.value);drillProcTab=b.getAttribute('data-ptab');renderDrill();};});
   /* 設定へ飛ぶ前に、書きかけの手順を保存する。飛んだあとに戻ると書いた文字が消えているのを防ぐため */
-  $('#drKindEdit').onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTabNow(),ta.value);go('settings');toastAI('設定の「選択肢の管理」→「避難訓練の種別」で追加・変更できます');};
+  if($('#drKindEdit'))$('#drKindEdit').onclick=function(){var ta=$('#drProc');if(ta)drillProcSet(drillProcTabNow(),ta.value);go('settings');toastAI('設定の「選択肢の管理」→「避難訓練の種別」で追加・変更できます');};
   $('#dr2PrintYear').onclick=function(){
     /* いまの一覧にある種別に加えて、各回で使われている種別も出す。
        設定から外した種別を使っている回が残っていることがあり、
@@ -11478,6 +11661,13 @@ function haichiIsStaff(id){
   if(id==null||id==='')return false;
   return true;
 }
+/* ★haichiIsStaff は「配置の人数に数えるか」で、常に true になった。
+   「名簿にいるか」を見たいところ（暗証番号の掃除など）は、こちらを使う。 */
+function inRoster(id){
+  var a=DB.staff||[],i;
+  for(i=0;i<a.length;i++){ if(String(a[i].id)===String(id))return true; }
+  return false;
+}
 /* 名簿から消えた職員の見せ方。番号だけだと誰か分からないので、そう書く */
 function haichiStaffName(id){
   var a=DB.staff||[],i;
@@ -11703,9 +11893,13 @@ function tcGapRows(mk){
   var tcm=tcMonth(mk)||{};
   for(k in tcm){ if(Object.prototype.hasOwnProperty.call(tcm,k)&&!seen[k]){seen[k]=1;list.push({id:k,name:haichiStaffName(k)});} }
   for(k in sh){ if(Object.prototype.hasOwnProperty.call(sh,k)&&!seen[k]){seen[k]=1;list.push({id:k,name:haichiStaffName(k)});} }
+  var _today=todayISO();
   list.forEach(function(st){
     var d;
     for(d=1;d<=dim;d++){
+      /* ★まだ来ていない日を「シフトはあるが打刻がない」と数えていた。
+         月の後半のシフトが全部ずれとして並び、監査の紙にも出ていた。 */
+      if((mk+'-'+pad(d))>=_today)continue;
       var plan=((sh[st.id]||{})[d])||'';
       var v=tcGet(mk,st.id,d);
       var worked=!!(v.in||v.out);
@@ -11795,7 +11989,7 @@ function tcBossBox(mk){
       var a=pinAll(),out='',k;
       for(k in a){
         if(!Object.prototype.hasOwnProperty.call(a,k))continue;
-        if(haichiIsStaff(k))continue;
+        if(inRoster(k))continue;
         out+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);">'
           +'<span style="flex:1;color:var(--tx3);">持ち主の分からない番号（職員番号 '+esc(k)+'）</span>'
           +'<button class="btn btn-sm" data-tcpindel="'+esc(k)+'">消す</button></div>';
@@ -12037,6 +12231,12 @@ function renderShift(){
   };
   /* 実際の提出様式（日付×職員／時刻を直接記載）での出力 */
   $('#shPrintTime').onclick=function(){
+    /* ★職員が多いと印刷の指定が全セルを切り落とし、切れたことは紙に出なかった */
+    if(shStaff.length>24){
+      if(!confirm('職員が '+shStaff.length+'名います。時刻表記の勤務表は、この人数だと1枚に収まらず、\n'
+        +'右側が切れることがあります。\n用紙を横向きにするか、記号（早/日/遅）の勤務表をお使いください。\n'
+        +'このまま出しますか？'))return;
+    }
     var body='<div class="shift-print"><table><thead>'
       +'<tr><th class="nm" rowspan="2">'+y+'年度</th>'+shStaff.map(function(st){return '<th>'+esc(st.role||'')+'</th>';}).join('')+'</tr>'
       +'<tr>'+shStaff.map(function(st){return '<th>'+esc(st.name)+'（'+esc(st.employ||'')+'）</th>';}).join('')+'</tr></thead><tbody>'
@@ -12651,6 +12851,9 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
   mark:function(key){
     if(!API.online())return;
     if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(key))return;
+    /* ★スクールガイドの原本は、画面に「外部には送信されません」と書いてあるのに
+       サーバへ中身ごと送っていた。書いてあるとおり、この端末に留める。 */
+    if(/^cocoas_guide_files$/.test(key))return;
     if(/^cocoas_pstate_/.test(key))return;   /* 保護者から届いた控え。園の帳簿ではないので送り返さない */
     SYNC.queue[key.replace(/^cocoas_/,'')]=true;
     clearTimeout(SYNC.timer);
@@ -13418,7 +13621,10 @@ function dmPost(childId,from,by,text){
   return t[childId].messages[t[childId].messages.length-1];
 }
 /* 通知メール（返信URL付き）— 実送信はバックエンド接続後。いまは送信履歴に記録して可視化 */
-function dmNotify(childId,msg){
+/* ★保護者DMを送るたび、実際には送っていない「DM通知（保護者へ）」という
+   メールが送信済みメールに積まれていた。DMのやりとりは dmThreads に残り、
+   保護者は未来WAで読むので、控えに擬似のメールを足す必要がない。 */
+function dmNotify_unused(childId,msg){
   var c=DB.contacts.filter(function(x){return x.id===childId;})[0];if(!c)return;
   var h=DB.history;
   if(msg.from==='staff'){
@@ -13538,7 +13744,7 @@ function renderDM(){
        同じ文面でも、やりとりはご家庭ごとに別々に残す（1つに混ぜない）。 */
     var to=picked.length?picked:[cur];
     if(to.length>1&&!confirm(to.length+' 家庭に、同じ文面を送ります。よろしいですか。'))return;
-    to.forEach(function(c){ var m=dmPost(c.id,'staff',$('#dmBy').value,tx); dmNotify(c.id,m); });
+    to.forEach(function(c){ dmPost(c.id,'staff',$('#dmBy').value,tx); });
     $('#dmText').value='';
     var n=to.length;
     renderDM();
@@ -14694,7 +14900,7 @@ function invSend(mk,c,r){
   var body=c.name+' 様\n\nいつもお世話になっております。\n'+ym+'月分の保育料の請求書をお送りいたします。\n\n'
     +'お子様：'+childFullName(c)+(c.paused?'（休園中）':'')+'\n請求金額：'+yen(tot)+'\nお支払期日：'+(r.due?fmt(r.due):'（別途ご案内）')+'\n\n【内訳】\n'
     +invLines(r).map(function(x){return '・'+x[0]+'　'+yen(x[3]);}).join('\n')
-    +'\n\n【お振込先】\n'+(SET.bankName||'')+' '+(SET.bankBranch||'')+' '+(SET.bankType||'')+' '+(SET.bankNo||'')+' '+(SET.bankHolder||'')
+    +'\n\n【お振込先】\n'+([SET.bankName,SET.bankBranch,SET.bankType,SET.bankNo,SET.bankHolder].filter(Boolean).join(' ')||'（振込先が未設定です。設定 → 送信設定 でご登録ください）')
     +'\n※振込名義はお子様のお名前でお願いいたします。\n\n'+SET.school;
   var h=DB.history,now=new Date(),stamp=pad(now.getHours())+':'+pad(now.getMinutes());
   h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'請求書（'+ym+'月分）',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:body});
@@ -15893,7 +16099,19 @@ function taskAutoDone(t,mk){
         return r&&(+r.amount||r.payee||r.detail||r.slip);
       }).length);
     }
-    if(p==='請求書発行'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
+    if(p==='請求書発行'){
+      /* ★請求書は翌月分を作る決まりなのに、判定がタスクの月をそのまま鍵にしていた。
+         作った月は「未」、何もしていない翌月が「済」になり、外せなかった。
+         その月に作るべき請求書＝翌月ぶんで見る。 */
+      var p2=String(mk).split('-'),nx=new Date(+p2[0],+p2[1],1);
+      var nk=nx.getFullYear()+'-'+pad(nx.getMonth()+1);
+      var iv=stGet('invoices',{})[nk]||{},ik;
+      for(ik in iv){
+        if(!Object.prototype.hasOwnProperty.call(iv,ik))continue;
+        if((iv[ik]||{}).status&&iv[ik].status!=='未発行')return true;
+      }
+      return false;
+    }
     if(p==='児童票（成長の記録）'||p==='生徒個人発達記録'){var dv=stGet('rec_発達',{}),n=0;Object.keys(dv).forEach(function(k){n+=Object.keys(dv[k]).length;});return n>0;}
   }catch(e){}
   return false;
@@ -16366,6 +16584,25 @@ function backupRestoreFile(file,done){
                       'cocoas_staffAccounts':1,'cocoas_parentAccounts':1,
                       'cocoas_staffSession':1,'cocoas_psession':1};
       Object.keys(p.data).forEach(function(k){if(NO_RESTORE[k])return;if(String(k).indexOf('cocoas_')===0)(window.__rawSet||localStorage.setItem.bind(localStorage))(k,p.data[k]);});
+      /* ★復元は「上書き」ではなく「重ね書き」。控えに入っていない記録は
+         いまのデータが残るのに、件数だけ出していたので全部戻ったように見えていた。
+         あわせて、復元そのものが変更ログに1件も残っていなかった。 */
+      var extra=[],ki;
+      for(ki=0;ki<localStorage.length;ki++){
+        var kk2=localStorage.key(ki);
+        if(String(kk2).indexOf('cocoas_')!==0||NO_RESTORE[kk2])continue;
+        if(p.data[kk2]===undefined)extra.push((typeof logLabel==='function')?logLabel(kk2):kk2);
+      }
+      try{
+        var lg=[];try{lg=JSON.parse(localStorage.getItem('cocoas_eventLog'))||[];}catch(e2){lg=[];}
+        lg.push({at:logStamp(),key:'（復元）',label:'控えから復元（'+Object.keys(p.data).length+'項目）',
+                 by:(typeof lockWho==='function'?lockWho():''),size:0,n:1});
+        (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_eventLog',JSON.stringify(lg));
+      }catch(e3){}
+      if(extra.length){
+        try{alert('控えに入っていなかった記録は、いまのデータがそのまま残ります。\n'
+          +'（'+extra.slice(0,8).join('・')+(extra.length>8?' ほか'+(extra.length-8)+'件':'')+'）');}catch(e4){}
+      }
       done(null,Object.keys(p.data).length);
     }catch(e){done(e);}
   };
@@ -16377,8 +16614,14 @@ var OPT_DEFS=[
   {k:'classes',label:'クラス',def:function(){return CLASSES_DEFAULT;},
    note:'園児のクラス。連絡先・カリキュラム・配信先などで使われます。',
    rename:function(a,b){classRename(a,b);},delWarn:function(a){return classDelWarn(a);}},
-  {k:'leadSources',label:'問い合わせ方法',def:function(){return LEAD_SOURCES_DEFAULT;},note:'ダッシュボードの「問い合わせ件数 内訳」の集計項目になります。'},
-  {k:'trialFormats',label:'体験の方法',def:function(){return TRIAL_FORMATS_DEFAULT;},note:'体験の実施方法（対面・オンラインなど）。'},
+  {k:'leadSources',label:'問い合わせ方法',def:function(){return LEAD_SOURCES_DEFAULT;},
+   note:'ダッシュボードの「問い合わせ件数 内訳」の集計項目になります。',
+   rename:function(a,b){contactFieldRename('source',a,b);},
+   delWarn:function(a){return contactFieldDelWarn('source','問い合わせ方法',a);}},
+  {k:'trialFormats',label:'体験の方法',def:function(){return TRIAL_FORMATS_DEFAULT;},
+   note:'体験の実施方法（対面・オンラインなど）。',
+   rename:function(a,b){contactFieldRename('format',a,b);},
+   delWarn:function(a){return contactFieldDelWarn('format','体験の方法',a);}},
   /* 訓練の種別。名前を変えたときは、その名前で保存している手順と各回の種別も一緒に連れていく（rename）。
      消すときは、使われている回や書いた手順があることを先に知らせる（delWarn） */
   {k:'drillKinds',label:'避難訓練の種別',def:function(){return DRILL_KINDS_DEFAULT;},
