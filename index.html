@@ -3408,7 +3408,9 @@ function aiLog(act,detail,klass){
      出せるようにするための控え（いまの3役職では使わない）。 */
   a.push({at:aiNow(),who:(st&&st.name)||'—',uid:(st&&st.id)||null,
           act:act,detail:detail||'',klass:klass||''});
-  stSet('ai_log',a.slice(-200));
+  /* 計画は300件残る（aiPlanAdd）。あしあとを200件で切ると、
+     計画より先に「AIが書いた証拠」が消えてしまう。計画より長く残す。 */
+  stSet('ai_log',a.slice(-600));
 }
 /* この人が見てよい範囲だけを返す。
    シート26行：先生＝自分のみ／園長・管理者＝全体。 */
@@ -4174,10 +4176,14 @@ function aipMemoHTML(k){
     +(ps.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
       +ps.slice().reverse().map(function(x){
         return '<tr><td style="padding:8px 0;">'+esc({year:'年間発達マップ',month:'月案',week:'週案',day:'日案',craft:'制作物'}[x.kind]||x.kind)
-          +'　<span class="muted">'+esc(x.title||'')+'</span></td>'
+          +'　<span class="muted">'+esc(x.title||'')+'</span>'
+          /* 監査で「この記述の根拠は？」と聞かれる。一覧でも見分けられるようにする */
+          +(x.byAI?'<span class="badge" style="background:#EEEDFE;color:#3C3489;margin-left:6px;">AIが下書き</span>'
+                  :'<span class="badge" style="background:#F1EFE8;color:#5F5E5A;margin-left:6px;">記録から</span>')+'</td>'
           +'<td style="padding:8px 0;width:88px;"><span class="badge" style="background:'
           +(x.status==='承認済み'?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'+esc(x.status)+'</span></td>'
-          +'<td style="padding:8px 0;width:96px;text-align:right;">'
+          +'<td style="padding:8px 0;width:150px;text-align:right;white-space:nowrap;">'
+          +'<button class="btn btn-sm" data-apr="'+esc(x.id)+'">印刷</button> '
           +(x.status==='承認済み'?'':'<button class="btn btn-sm" data-apv="'+esc(x.id)+'">承認する</button>')+'</td></tr>';
       }).join('')+'</tbody></table>'
       :'<div class="muted" style="text-align:center;padding:22px 0;">まだありません</div>')+'</div>'
@@ -4240,7 +4246,7 @@ function aipWire(k){
     var m=$$('#cM').value, mins=+($$('#cMin').value||20);
     var base=aiCraft(k,{month:m,minutes:mins});
     if(!aiCanServer()){
-      AIP.res={kind:'craft',data:base}; AI_NET.note='';
+      AIP.res={kind:'craft',data:base,byAI:false,aiFields:[]}; AI_NET.note='';
       aiLog('制作物アイディアをつくった',k+' '+m); renderAIPlan(); return;
     }
     AI_NET.busy=true; AI_NET.what='制作物アイディア'; AI_NET.note='';
@@ -4254,7 +4260,9 @@ function aipWire(k){
       if(got&&got.materials&&got.materials.length){
         d.materials=got.materials.map(function(x){return String(x)+'（'+base.count+'名分）';});
       }
-      AIP.res={kind:'craft',data:d,byAI:!!got};
+      var filled2=[];
+      if(got)['name','aim','prep','steps','help','safe'].forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled2.push(kk); });
+      AIP.res={kind:'craft',data:d,byAI:!!got,aiFields:filled2};
       aiLog('制作物アイディアをつくった'+(got?'（AI）':'（下書き）'),k+' '+m); renderAIPlan();
     });
   };
@@ -4262,10 +4270,11 @@ function aipWire(k){
   var cs=$$('#cSave');
   if(cs)cs.onclick=function(){
     var d=AIP.res.data;
-    aiPlanAdd({kind:'craft',klass:k,title:d.month+'　'+d.name,data:d});
+    aiPlanAdd({kind:'craft',klass:k,title:d.month+'　'+d.name,data:d,
+      byAI:!!AIP.res.byAI, aiFields:AIP.res.aiFields||[]});
     aiLog('制作物を下書き保存',d.name); renderAIPlan(); aiToast('下書きとして保存しました');
   };
-  var cp=$$('#cPrint'); if(cp)cp.onclick=function(){ aipPrint('craft',AIP.res.data,k); };
+  var cp=$$('#cPrint'); if(cp)cp.onclick=function(){ aipPrint('craft',AIP.res.data,k,AIP.res); };
 
   /* 年間発達マップ */
   var yg=$$('#yGo');
@@ -4273,10 +4282,10 @@ function aipWire(k){
     aiLog('年間発達マップをつくった',k); renderAIPlan(); };
   var ys=$$('#ySave');
   if(ys)ys.onclick=function(){
-    aiPlanAdd({kind:'year',klass:k,title:'4月〜3月',data:AIP.res.data});
+    aiPlanAdd({kind:'year',klass:k,title:'4月〜3月',data:AIP.res.data,byAI:false,aiFields:[]});
     aiLog('年間発達マップを下書き保存',k); renderAIPlan(); aiToast('下書きとして保存しました');
   };
-  var yp=$$('#yPrint'); if(yp)yp.onclick=function(){ aipPrint('year',AIP.res.data,k); };
+  var yp=$$('#yPrint'); if(yp)yp.onclick=function(){ aipPrint('year',AIP.res.data,k,AIP.res); };
 
   /* 活動計画 */
   s.querySelectorAll('[data-aikind]').forEach(function(b){b.onclick=function(){
@@ -4285,7 +4294,7 @@ function aipWire(k){
     /* まず記録から下書きを組み立てる。AIが使えないときは、これがそのまま出る。 */
     var base=aiPlanGen(k,kind);
     if(!aiCanServer()){
-      AIP.res={kind:kind,data:base}; AI_NET.note='';
+      AIP.res={kind:kind,data:base,byAI:false,aiFields:[]}; AI_NET.note='';
       aiLog(nm+'をつくった',k); renderAIPlan(); return;
     }
     AI_NET.busy=true; AI_NET.what=nm; AI_NET.note='';
@@ -4297,17 +4306,23 @@ function aipWire(k){
       var keys=['aim','expect','env','prep','help','safe','review'];
       if(kind==='week')keys=keys.concat(['days','rain']);
       if(kind==='day') keys=keys.concat(['times']);
-      AIP.res={kind:kind,data:aiMerge(base,got,keys),byAI:!!got};
+      /* どの項目をAIが埋めたかを控えておく。
+         監査で「この記述の根拠は？」と聞かれたときに示せるようにするため。
+         AIが返さなかった項目は、園の記録から作った下書きのまま。 */
+      var filled=[];
+      if(got)keys.forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled.push(kk); });
+      AIP.res={kind:kind,data:aiMerge(base,got,keys),byAI:!!got,aiFields:filled};
       aiLog(nm+'をつくった'+(got?'（AI）':'（下書き）'),k); renderAIPlan();
     });
   };});
   var ps2=$$('#pSave');
   if(ps2)ps2.onclick=function(){
     var d=AIP.res.data;
-    aiPlanAdd({kind:AIP.res.kind,klass:k,title:d.period,data:d});
+    aiPlanAdd({kind:AIP.res.kind,klass:k,title:d.period,data:d,
+      byAI:!!AIP.res.byAI, aiFields:AIP.res.aiFields||[]});
     aiLog('計画を下書き保存',k+' '+d.period); renderAIPlan(); aiToast('下書きとして保存しました');
   };
-  var pp=$$('#pPrint'); if(pp)pp.onclick=function(){ aipPrint(AIP.res.kind,AIP.res.data,k); };
+  var pp=$$('#pPrint'); if(pp)pp.onclick=function(){ aipPrint(AIP.res.kind,AIP.res.data,k,AIP.res); };
 
   /* 相談 */
   s.querySelectorAll('[data-aipre]').forEach(function(b){b.onclick=function(){
@@ -4350,11 +4365,29 @@ function aipWire(k){
     aiPlanUpd(b.getAttribute('data-apv'),{status:'承認済み',approvedBy:(st&&st.name)||'—',approvedAt:aiNow()});
     aiLog('計画を承認',b.getAttribute('data-apv')); renderAIPlan(); aiToast('承認しました');
   };});
+  /* 保存ずみの計画を、あとから紙に出す。AIが下書きした項目もそのまま印字される */
+  s.querySelectorAll('[data-apr]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-apr');
+    var p=aiPlans().filter(function(x){return x.id===id;})[0];
+    if(!p)return;
+    aipPrint(p.kind,p.data,p.klass||k,{byAI:!!p.byAI,aiFields:p.aiFields||[]});
+  };});
 }
 
 /* ── 印刷 ────────────────────────────────
    日案はA4縦、週案はA4横。名前は出さず、クラス全体の計画として出す。 */
-function aipPrint(kind,d,k){
+/* 項目の名前を、先生に分かる言い方にする */
+var AIP_FIELD_JA={aim:'ねらい',expect:'予想される子どもの姿',env:'環境構成',prep:'準備するもの',
+  help:'保育士の援助',safe:'安全のための注意',review:'ふりかえり',times:'一日の流れ',
+  days:'一週間の流れ',rain:'雨のときの代わり',name:'活動の名前',steps:'進め方'};
+function aipSrcLine(src){
+  if(!src||!src.byAI)return '<div style="font-size:10px;color:#555;">この下書きは、園の記録から作りました（AIは使っていません）。</div>';
+  var f=(src.aiFields||[]).map(function(x){return AIP_FIELD_JA[x]||x;});
+  return '<div style="font-size:10px;color:#555;border:1px solid #999;padding:3px 6px;margin-top:3px;">'
+    +'<b>AIが下書きした項目</b>：'+esc(f.length?f.join('／'):'（記録なし）')
+    +'　※先生が読んで直したうえでお使いください。子どもの姿は、実際に見たことに書き直してください。</div>';
+}
+function aipPrint(kind,d,k,src){
   var land=(kind==='week'||kind==='year');
   var st=(typeof currentStaff==='function')?currentStaff():null;
   var head='<div style="display:flex;align-items:baseline;border-bottom:2px solid #000;padding-bottom:6px;">'
@@ -4364,7 +4397,10 @@ function aipPrint(kind,d,k){
     +'<div style="margin-left:auto;font-size:11px;">'+esc(d.period||d.month||'')+'</div></div>'
     +'<div style="font-size:10px;color:#555;margin-top:4px;">作成 '+esc(aiNow())
     +'　作成者 '+esc((st&&st.name)||'—')+'　確認者 ______　承認者 ______　'
-    +'<b>この計画は下書きです。承認欄に記入のうえお使いください。</b></div>';
+    +'<b>この計画は下書きです。承認欄に記入のうえお使いください。</b></div>'
+    /* 監査では「この記述の根拠は？」と聞かれる。
+       AIが下書きした項目は、紙の上でも分かるようにしておく。 */
+    +aipSrcLine(src);
   var body='';
   if(kind==='craft'){
     body='<h2 style="font-size:15px;margin:12px 0 6px;">'+esc(d.name)+'</h2>'
