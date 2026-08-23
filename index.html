@@ -1115,6 +1115,37 @@ function defaultCurriculum(){return {month:curMonthKey(),
    捨てなければ何ヶ月ぶんでもそのまま持てる。
    開いたときは今月を見せる。前の月は、月を選び直せば出る。 */
 var CUR=Object.assign(defaultCurriculum(),DB.curriculum||{});
+/* 月ごとに分ける前の置き場（actMonthly＝月間のねらい／content＝週の内容）は
+   月の鍵を持っていない。「その月に無ければ古い方を読む」にしていたので、
+   8月に書いた内容が12月の画面・紙・保護者へのメールにも出ていた。
+   保存されていた月（CUR.month をここで上書きする前の値）の棚へ、一度だけ移す。
+   古い方は消さない。読めなくなるのが怖いため。 */
+(function(){
+  var mk=String(CUR.month||'').slice(0,7),cls,type;
+  if(!/^[0-9]{4}-[0-9]{2}$/.test(mk))mk=curMonthKey();
+  if(CUR.actMonthly&&!CUR.actMonthlyMoved){
+    CUR.actMonthlyM=CUR.actMonthlyM||{};
+    CUR.actMonthlyM[mk]=CUR.actMonthlyM[mk]||{};
+    for(cls in CUR.actMonthly){
+      if(!Object.prototype.hasOwnProperty.call(CUR.actMonthly,cls))continue;
+      CUR.actMonthlyM[mk][cls]=CUR.actMonthlyM[mk][cls]||{};
+      for(type in CUR.actMonthly[cls]){
+        if(!Object.prototype.hasOwnProperty.call(CUR.actMonthly[cls],type))continue;
+        if(CUR.actMonthlyM[mk][cls][type]==null)CUR.actMonthlyM[mk][cls][type]=CUR.actMonthly[cls][type];
+      }
+    }
+    CUR.actMonthlyMoved=1;
+  }
+  if(CUR.content&&!CUR.contentMoved){
+    CUR.contentM=CUR.contentM||{};
+    CUR.contentM[mk]=CUR.contentM[mk]||{};
+    for(cls in CUR.content){
+      if(!Object.prototype.hasOwnProperty.call(CUR.content,cls))continue;
+      if(CUR.contentM[mk][cls]==null)CUR.contentM[mk][cls]=CUR.content[cls];
+    }
+    CUR.contentMoved=1;
+  }
+})();
 CUR.month=curMonthKey();
 DB.curriculum=CUR;
 function weekOfMonth(s){var d=+s.split('-')[2];return Math.min(CUR.weeks.length,Math.max(1,Math.ceil(d/7)));}
@@ -1124,9 +1155,10 @@ function curSchedGet(cls,date){var s=curSched(),o=((s[cls]||{})[date]);
   return {am:o.am||'',pm:o.pm||'',daycare:!!o.daycare,memo:o.memo||'',
           amText:o.amText||'',pmText:o.pmText||'',teacher:o.teacher||''};}
 function curSchedSet(cls,date,obj){var s=curSched();s[cls]=s[cls]||{};s[cls][date]=obj;DB.curriculum=CUR;}
-function curCont(){if(!CUR.content)CUR.content={};return CUR.content;}
-function curContGet(cls,wk,type){var c=curCont();return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
-function curContSet(cls,wk,type,obj){var c=curCont();c[cls]=c[cls]||{};c[cls][wk]=c[cls][wk]||{};c[cls][wk][type]=obj;DB.curriculum=CUR;}
+function curContAll(){if(!CUR.contentM)CUR.contentM={};return CUR.contentM;}
+function curCont(mk){var a=curContAll();mk=mk||CUR.month;if(!a[mk])a[mk]={};return a[mk];}
+function curContGet(cls,wk,type,mk){var c=curCont(mk);return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
+function curContSet(cls,wk,type,obj,mk){var c=curCont(mk);c[cls]=c[cls]||{};c[cls][wk]=c[cls][wk]||{};c[cls][wk][type]=obj;DB.curriculum=CUR;}
 /* クラス別の月次項目（Pre / Kinder で別々に登録）。
    入力するカードは画面から外したが、これまでに入れた内容を失わないよう、
    また、あとで戻せるよう、保存と読み出しの仕組みはそのまま残している。 */
@@ -1165,8 +1197,9 @@ function curActMGet(cls,type,mk){
   var m=curActMByMonth()[mk];
   var v=m&&m[cls]&&m[cls][type];
   if(v)return curActMCopy(v);
-  /* 月ごとに分ける前に入れた分。読むだけで、書き戻しはしない */
-  return curActMCopy((curActM()[cls]||{})[type]);
+  /* 月ごとに分ける前の分は、読み込みのときに保存されていた月の棚へ移してある。
+     ここで古い置き場を読むと、その月に書いていない内容がどの月にも出てしまう。 */
+  return curActMCopy(null);
 }
 function curActMSet(cls,type,obj,mk){
   mk=mk||CUR.month;
@@ -1178,7 +1211,7 @@ function curActMSet(cls,type,obj,mk){
 }
 /* 週の実効値：週で上書きがあればそれ、なければ月間テーマ・担当を自動反映 */
 function curEff(cls,wk,type,mk){
-  var ct=curContGet(cls,wk,type),m=curActMGet(cls,type,mk);
+  var ct=curContGet(cls,wk,type,mk),m=curActMGet(cls,type,mk);
   return {theme:(ct.theme||m.theme||''),teacher:(ct.teacher||m.teacher||''),plan:(ct.plan||''),goal:m.goal||'',
     themeInherited:!ct.theme&&!!m.theme,teacherInherited:!ct.teacher&&!!m.teacher};
 }
@@ -2379,8 +2412,16 @@ function actTypesSave(cls,list){if(!SET.activityTypes)SET.activityTypes={};SET.a
    週の内容・月間のねらい／担当・日別スケジュールの選択、すべてが対象。 */
 function actRenameData(cls,oldName,newName){
   if(!oldName||!newName||oldName===newName)return;
-  var c=curCont(),wk,d;
-  if(c[cls])for(wk in c[cls]){var w=c[cls][wk];if(w&&w[oldName]!=null){if(w[newName]==null)w[newName]=w[oldName];delete w[oldName];}}
+  var ca=curContAll(),cmk,wk,d;
+  /* 週の内容も月ごとの棚に変わった。今月だけ回すと、
+     前の月に入れた内容が名前を変えたとたんに読めなくなる。 */
+  for(cmk in ca){
+    if(!Object.prototype.hasOwnProperty.call(ca,cmk))continue;
+    var c=ca[cmk]||{};
+    if(c[cls])for(wk in c[cls]){var w=c[cls][wk];if(w&&w[oldName]!=null){if(w[newName]==null)w[newName]=w[oldName];delete w[oldName];}}
+  }
+  var cLegacy=CUR.content||{};
+  if(cLegacy[cls])for(wk in cLegacy[cls]){var wL=cLegacy[cls][wk];if(wL&&wL[oldName]!=null){if(wL[newName]==null)wL[newName]=wL[oldName];delete wL[oldName];}}
   var a=curActM();
   if(a[cls]&&a[cls][oldName]!=null){if(a[cls][newName]==null)a[cls][newName]=a[cls][oldName];delete a[cls][oldName];}
   /* ★月ごとのねらい（月に分けたあとの置き場）も付け替える。
@@ -2397,8 +2438,12 @@ function actRenameData(cls,oldName,newName){
 }
 /* その活動に入力があるか。消す前に「入力ずみです」と伝えるために使う */
 function actHasData(cls,name){
-  var c=curCont(),has=false,wk,d;
-  if(c[cls])for(wk in c[cls]){var e=(c[cls][wk]||{})[name];if(e&&(e.theme||e.teacher||e.plan))has=true;}
+  var ca=curContAll(),has=false,cmk,wk,d;
+  for(cmk in ca){
+    if(!Object.prototype.hasOwnProperty.call(ca,cmk))continue;
+    var c=ca[cmk]||{};
+    if(c[cls])for(wk in c[cls]){var e=(c[cls][wk]||{})[name];if(e&&(e.theme||e.teacher||e.plan))has=true;}
+  }
   var m=(curActM()[cls]||{})[name];
   if(m&&(m.theme||m.teacher||m.goal))has=true;
   var am2=curActMByMonth(),mk2;
@@ -4241,6 +4286,34 @@ function aiAskServer(kind,klass,period,extra){
    base に無い項目は入れない（画面が知らない項目を増やさないため）。 */
 /* 組（配列）で受け取るはずの項目。文字列で返ってきたら組に直す */
 var AI_LIST_KEYS={times:1,days:1,materials:1,prep:1,steps:1,help:1,safe:1,expect:1,review:1,join:1,staff:1};
+/* 素材などが組（{name:'画用紙'} など）で返ってくることがある。
+   そのまま String() にすると紙に「[object Object]」と出る。 */
+function aiText(x){
+  if(x==null)return '';
+  if(typeof x==='object'){
+    var ks=['t','text','name','n','label','title','item','value','材料','内容'],i;
+    for(i=0;i<ks.length;i++){ if(typeof x[ks[i]]==='string'&&x[ks[i]])return x[ks[i]]; }
+    for(i in x){ if(typeof x[i]==='string'&&x[i])return x[i]; }
+    return '';
+  }
+  return String(x);
+}
+/* 一日の流れ・一週間の流れは「時刻と中身」の組で持っている。
+   AIが1行の文字列で返してきたとき、そのまま入れると欄が空で出るので、
+   先頭の時刻・曜日を切り分けて組に直す。 */
+function aiRowify(k,x){
+  if(x&&typeof x==='object')return x;
+  var t=String(x==null?'':x).replace(/^\s+|\s+$/g,'');
+  if(k==='times'){
+    var m=t.match(/^([0-9]{1,2}[:：][0-9]{2})\s*[　\-–ー~〜]?\s*(.*)$/);
+    return m?{t:m[1].replace('：',':'),a:m[2],e:''}:{t:'',a:t,e:''};
+  }
+  if(k==='days'){
+    var d=t.match(/^([月火水木金土日])曜日?\s*[：:　\-]?\s*(.*)$/);
+    return d?{d:d[1]+'曜',main:d[2],env:'',help:''}:{d:'',main:t,env:'',help:''};
+  }
+  return t;
+}
 function aiMerge(base,got,only){
   if(!got)return base;
   only.forEach(function(k){
@@ -4251,7 +4324,10 @@ function aiMerge(base,got,only){
       /* 中身が「一日の流れ」「週の流れ」のような組のときは、そのまま入れる。
          ここで文字列にしてしまうと、曜日や時刻が消えてしまう。 */
       base[k]=v.map(function(x){
-        return (x&&typeof x==='object')?x:String(x);
+        /* ★組で受け取るはずの項目（一日の流れ・一週間の流れ）に
+           文字列が混ざると、その行だけ欄が空で出る。行の形に直す。 */
+        if(k==='times'||k==='days')return aiRowify(k,x);
+        return (x&&typeof x==='object')?aiText(x):String(x);
       });
     }
     /* ★組（一日の流れ・一週間の流れ・材料など）で受け取るはずの項目が
@@ -4752,11 +4828,19 @@ var AIAP_MAP=[
   {k:'junbi', l:'準備・材料',    from:'prep'},
   {k:'rows',  l:'一日の流れ',    from:'times'}
 ];
+/* 一日の流れの1行を、見比べ用の文にする。
+   日案の行は「時刻・活動・保育士の配慮」の3つを持っている。
+   配慮を出さないでいると、入れ替えたときに先生が書いた配慮が
+   黙って消えたことに気づけなかった。 */
+function aiapRowText(t,c,h){
+  var base=[t,c].filter(Boolean).join('　');
+  return h?(base+'　／配慮：'+h):base;
+}
 function aiapText(v){
   if(v==null)return '';
   if(Object.prototype.toString.call(v)==='[object Array]'){
     return v.map(function(x){
-      if(x&&typeof x==='object')return [x.t,x.a].filter(Boolean).join('　');
+      if(x&&typeof x==='object')return aiapRowText(x.t,x.a,x.e);
       return String(x);
     }).join('\n');
   }
@@ -4785,7 +4869,7 @@ function aiapModal(plan,klass){
     var cur=curDailyGet(cls,date);
     var rows=AIAP_MAP.map(function(f){
       var now=(f.k==='rows')
-        ? (cur.rows||[]).map(function(r){return [r.t,r.c].filter(Boolean).join('　');}).join('\n')
+        ? (cur.rows||[]).map(function(r){return aiapRowText(r.t,r.c,r.h);}).join('\n')
         : (cur[f.k]||'');
       var add=aiapText(aiapPick(data,f.k));
       if(!add)return '';
@@ -4817,6 +4901,16 @@ function aiapModal(plan,klass){
         +'<button class="btn btn-sm btn-primary" data-aiapmode="add">今の文に足す</button>'
         +'<button class="btn btn-sm" data-aiapmode="rep">今の文と入れ替える</button>'
       +'</div>'
+      /* 入れ替えると、いまの行に書いてある配慮・援助ごと差し替わる。
+         案の側は配慮を持っていないことが多いので、消えることを先に伝える */
+      +(function(){
+        var hn=(cur.rows||[]).filter(function(r){return r&&r.h;}).length;
+        if(!hn||mode!=='rep')return '';
+        return '<div class="note note-warn" style="margin:-6px 0 14px;font-size:12.5px;">'
+          +'「入れ替える」を選んでいます。いまの一日の流れに書いてある'
+          +'<b>保育士の配慮・援助 '+hn+'行</b>も、あわせて差し替わります。'
+          +'残したいときは「今の文に足す」を選んでください。</div>';
+      })()
       +(rows||'<div class="empty">この案には、日案に入れられる項目がありません。</div>')
       +'<div class="muted" style="font-size:11.5px;margin-top:4px;">'
         +'先生が書いた文は、勝手には消しません。入れたあと、画面の下に出る帯から取り消せます'
@@ -4831,7 +4925,7 @@ function aiapModal(plan,klass){
         b.className='btn btn-sm'+(b.getAttribute('data-aiapmode')===mode?' btn-primary':'');});
     }
     m.querySelectorAll('[data-aiapmode]').forEach(function(b){b.onclick=function(){
-      mode=b.getAttribute('data-aiapmode');markMode();};});
+      mode=b.getAttribute('data-aiapmode');draw();};});
     m.querySelectorAll('[data-aiapon]').forEach(function(c){c.onchange=function(){
       pick[c.getAttribute('data-aiapon')]=c.checked;};});
     markMode();
@@ -5091,22 +5185,23 @@ function aipWire(k){
       /* 材料だけは、人数ぶんの表記をこちらで足す */
       var gotMat=aipArr(got&&got.materials);
       if(gotMat.length){
-        d.materials=gotMat.map(function(x){return String(x)+'（'+base.count+'名分）';});
-        /* ★材料が変わったら、誤飲・窒息の注意も作り直す。
-           作り直さないと、紙に並ぶ材料と注意が食い違う。 */
         /* ★材料が変わったら、誤飲・窒息の注意は必ず作り直す。
            前の注意を1行ずつ取り除いてから入れ替えないと、
-           同じ注意が二重に出たり、古い材料の注意が残ったりする。 */
-        var oldNote=aiChokeNotes(base.mat,k);
-        var reNote=aiChokeNotes(gotMat,k);
+           同じ注意が二重に出たり、古い材料の注意が残ったりする。
+           もとの材料は base.materials で持っている。base.mat は
+           aiCraft が返す組には無く、ここを読んでも空だった
+           （＝古い材料の注意が1行も外れていなかった）。 */
+        var matBefore=(base.materials||[]).slice();
+        d.materials=gotMat.map(function(x){return aiText(x)+'（'+base.count+'名分）';});
+        var oldNote=aiChokeNotes(matBefore,k);
+        var reNote=aiChokeNotes(d.materials,k);
         var fixed=keepSafe.filter(function(x){
           return oldNote.indexOf(x)<0 && reNote.indexOf(x)<0;
         });
         keepSafe=reNote.concat(fixed);
       }
       var filled2=[];
-      filled2=(typeof aiFilledC==='function')?aiFilledC(got):filled2;
-      if(!filled2.length&&got){
+      if(got){
         ['name','aim','prep','steps','help','safe','materials','display','letter'].forEach(function(kk){
           var v=got[kk];
           if(v==null)return;
