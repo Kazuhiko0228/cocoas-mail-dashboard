@@ -2626,6 +2626,18 @@ function planAllows(need){
 
    記録に足すのは4つだけ。lock / lockBy / lockAt / fixes
    これまでの記録には無いので、無ければ「未確定」として扱う。 */
+/* 保存のたびに「最後に触った人」と時刻を残す。
+   監査は「誰がいつ書いたか」を見るので、確定したときだけでは足りない。
+   画面には出さない（先生が書く欄ではないため）。紙と監査の一覧にだけ出す。 */
+function stampWho(d){
+  if(!d||typeof d!=='object')return d;
+  d.savedBy=lockWho(); d.savedAt=lockNow();
+  return d;
+}
+function stampText(d){
+  if(!d||!d.savedAt)return '';
+  return '最後に書いた人：'+esc(d.savedBy||'（分かりません）')+'　'+esc(lockFmt(d.savedAt));
+}
 function lockWho(){
   try{ var s=currentStaff(); return s?(s.name||s.loginId||''):''; }catch(e){ return ''; }
 }
@@ -2701,8 +2713,9 @@ function lockDisable(scope,d){
 }
 /* 紙に出す脚注。確定日時・確定者と、直した跡 */
 function lockFootHtml(d){
-  if(!isLocked(d))return '<p style="font-size:10px;color:#888;">※この記録はまだ確定されていません。</p>';
-  var h='<p style="font-size:10px;">確定：'+esc(lockFmt(d.lockAt||''))+'　確定した人：'+esc(d.lockBy||'')+'</p>';
+  var who=stampText(d);
+  if(!isLocked(d))return '<p style="font-size:10px;color:#888;">※この記録はまだ確定されていません。'+(who?'　'+who:'')+'</p>';
+  var h='<p style="font-size:10px;">確定：'+esc(lockFmt(d.lockAt||''))+'　確定した人：'+esc(d.lockBy||'')+(who?'　／　'+who:'')+'</p>';
   var f=d.fixes||[],i;
   if(f.length){
     h+='<p style="font-size:10px;font-weight:700;margin-top:6px;">確定のあとに直したところ</p>'
@@ -7632,7 +7645,7 @@ function edTouen(){
        ここから明示的に「今の通園曜日の設定に合わせ直す」操作ができるようにする。 */
     (autoOpts.length?'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-sm" id="tsResync" title="この日の「'+esc(autoOpts.join('・'))+'」を、いまの通園曜日の設定に合わせ直します">更新</button></div>':'')+
     '</div>';
-  function save(){data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
+  function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#tsKlass').onchange=function(e){d.klass=e.target.value;save();edTouen();};
   [['tsWeather','weather'],['tsTemp','temp'],['tsHum','hum'],['tsMemo','memo']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
@@ -7682,7 +7695,7 @@ function edSafety(){
     '<table><tbody>'+rows+'</tbody></table>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+esc((d.memo||''))+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><select id="sfBy"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===d.by?' selected':'')+'>'+st.name+'</option>';}).join('')+'</select></div></div>'+
     '<div class="muted" style="margin-top:12px;">直近7日：'+last7+'</div></div>';
-  function save(){data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
+  function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#sfMemo').onchange=function(e){d.memo=e.target.value;save();};
   $('#sfBy').onchange=function(e){d.by=e.target.value;save();};
@@ -7722,7 +7735,7 @@ function napBlock(klass){
   if(!d.charge)d.charge=[];
   d.klass=klass;                       /* 登園側で選んだクラスに合わせる */
   var slots=napSlots(),kids=classOf(klass);
-  function save(){data[recDate]=d;stSet(K,data);}
+  function save(){stampWho(d);data[recDate]=d;stSet(K,data);}
   function chargeAt(t){var r='';d.charge.slice().sort(function(a,b){return a.from<b.from?-1:1;}).forEach(function(e){if(e.from<=t&&e.by)r=e.by;});return r;}
   /* 担当は、時刻ごとに1人えらぶ形にする。
      前は「この時刻から担当」を足したり消したりする作りで、
@@ -7786,7 +7799,7 @@ function edNap(){ return edTouen(); }
 function edHealth(){
   var K='rec_健康チェック',data=stGet(K,{}),d=data[recDate]||{entries:[],by:''};
   if(!d.entries)d.entries=[];
-  function save(){data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
+  function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   var touen=stGet('rec_登園シート',{})[recDate];
   var present=enrolled().filter(function(c){var r=touen&&touen.rows&&touen.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;});
   var showKids=present.length?present:enrolled();
@@ -7849,7 +7862,7 @@ function edBody(){
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
   var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'+(d.locked?'<button class="btn btn-sm" id="bmEdit">'+ic('edit')+'編集する</button>':'<button class="btn btn-sm btn-primary" id="bmSave">'+ic('check')+'保存する</button>')+'<button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'+(d.locked?'<button class="btn btn-sm" id="bmEdit">'+ic('edit')+'編集する</button>':'<button class="btn btn-sm btn-primary" id="bmSave">'+ic('check')+'保存する</button>')+'<button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
     (d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>')+
     '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+
@@ -7860,7 +7873,7 @@ function edBody(){
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(d.locked?' disabled':'')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
-  function save(){data[recMonth]=d;stSet(K,data);}
+  function save(){stampWho(d);data[recMonth]=d;stSet(K,data);}
   $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
   if(!d.locked)document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
@@ -7894,6 +7907,8 @@ function edBody(){
     alert(targets.length+'名の保護者へ送信しました。\n保護者ページの「せいちょう」タブに反映され、各ご家庭ではお子様ご本人の記録のみが表示されます。');
     edBody();
   };
+  lockBarWire($('#recBody'),d,save,edBody);
+  lockDisable($('#recBody'),d);
   attachRecPaperCard();
 }
 function bodyFigSVG(marks,side,editable){
@@ -8155,7 +8170,7 @@ function edDev(){
   if(periods.indexOf(recDevMonth)<0)periods.push(recDevMonth);
   periods.sort(function(a,b){var x=devSortKey(a),y=devSortKey(b);return x<y?-1:x>y?1:0;});
   var prevKey=cur?devPrevKey(mine,recDevMonth):'';
-  $('#recBody').innerHTML='<div class="card">'+recHead('児童票（成長の記録・毎月）',
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(rec)+recHead('児童票（成長の記録・毎月）',
     '<select id="dvCls" style="width:150px;">'+['すべて'].concat(CLASSES).map(function(k){var n=(k==='すべて')?kids.length:kids.filter(function(c){return c.klass===k;}).length;return '<option value="'+esc(k)+'"'+(k===devCls?' selected':'')+'>'+esc(k==='すべて'?'すべてのクラス':k)+'（'+n+'名）</option>';}).join('')+'</select>'+
     '<select id="dvChild" style="width:170px;">'+devKids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===devChild?' selected':'')+'>'+esc(childFullName(c))+'</option>';}).join('')+'</select>'+
     '<select id="dvQ" style="width:230px;">'+periods.map(function(q){return '<option value="'+esc(q)+'"'+(q===recDevMonth?' selected':'')+'>'+esc(devPeriodLabel(q))+'</option>';}).join('')+'</select>'+
@@ -8171,7 +8186,7 @@ function edDev(){
       c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+esc(key)+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+(rec.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="dvBy" value="'+(rec.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>':'')+'</div>';
-  function save(){data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
+  function save(){stampWho(rec);data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
   /* クラスを変えても、選んでいる月（recDevMonth）は触らない */
   if($('#dvCls'))$('#dvCls').onchange=function(e){devCls=e.target.value;edDev();};
   if($('#dvChild'))$('#dvChild').onchange=function(e){devChild=+e.target.value;edDev();};
@@ -8215,6 +8230,8 @@ function edDev(){
     var body=devKids.map(function(c){var rc=(data[c.id]&&data[c.id][recDevMonth])||{items:{},memo:'',by:''};return '<h2>'+esc(childFullName(c))+'（'+ageClassOf(c)+'）</h2><p>記録者：'+esc(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+esc(rc.memo||'')+'</p>';}).join('<div style="page-break-after:always;"></div>');
     printDoc('児童票（成長の記録） 全員分（'+(devCls==='すべて'?'':devCls+'・')+devPeriodLabel(recDevMonth)+'）',body);
   };
+  lockBarWire($('#recBody'),rec,save,edDev);
+  lockDisable($('#recBody'),rec);
   attachRecPaperCard();
 }
 function edNippo(){
@@ -8234,7 +8251,7 @@ function edNippo(){
     '<div class="muted" style="margin-bottom:8px;">※ 体調不良・怪我は「健康チェック」「事故・ヒヤリハットの記録」で記録します（二重入力を避けるため業務日報からは削除）。</div>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+esc((d.note||''))+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+esc((d.by||''))+'"></div></div>'+
     '<div class="muted">'+(isLocked(d)?'この記録は確定ずみです。':'入力は自動保存されます。書き終わったら上の「この記録を確定する」を押してください。')+'</div></div>';
-  function save(){data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
+  function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#npoCurr').onclick=function(){lockNote(d,'活動内容',d.actual,currText);$('#npoActual').value=currText;d.actual=currText;save();};
   /* 確定したあとに直したときは、どこを何から何に変えたかを残す（監査で見られる） */
@@ -8525,7 +8542,7 @@ function renderGyakutai(box){
     '<div class="muted" style="margin-bottom:10px;">監査時も「職員の意識チェック」として確認される項目です。四半期ごとに実施・記録します。</div>'+
     '<table><tbody>'+GYAKUTAI_ITEMS.map(function(it,i){var v=d.items[i];return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-gi="'+esc(i)+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">問題なし</button> <button class="btn btn-sm" data-gi="'+esc(i)+'" data-v="issue" style="'+(v==='issue'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">課題あり</button></td></tr>';}).join('')+'</tbody></table>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 2fr;margin-top:12px;"><div class="field" style="margin:0;"><label>実施日</label><input type="date" id="gyDate" value="'+esc((d.date||''))+'"></div><div class="field" style="margin:0;"><label>実施者</label><input id="gyBy" value="'+esc((d.by||''))+'"></div><div class="field" style="margin:0;"><label>特記事項・改善策</label><input id="gyNote" value="'+esc((d.note||''))+'"></div></div>';
-  function save(){data[recQuarter]=d;stSet(K,data);}
+  function save(){stampWho(d);data[recQuarter]=d;stSet(K,data);}
   $('#gyQ').onchange=function(e){recQuarter=e.target.value;renderGyakutai(box);};
   $('#gyDate').onchange=function(e){d.date=e.target.value;save();};
   $('#gyBy').onchange=function(e){d.by=e.target.value;save();};
