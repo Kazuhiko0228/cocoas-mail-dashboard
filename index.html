@@ -1203,7 +1203,11 @@ function curDayActivities(cls,date){
   var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));
   /* その日に書いた文があればそれを使う。無ければ月間のねらいから補う */
   function txt(t,own){
-    if(!t)return '';
+    /* 活動のプルダウンが「—」のままでも、その下の「内容」に書いた文は捨てない。
+       これまでは捨てていたので、先生が内容を書いた日でも
+       デイリーメールの〔本日の活動〕が空になり、画面は
+       「まだ入っていません。日別スケジュールに入れてください」と言っていた。 */
+    if(!t)return own?String(own):'';
     if(t==='Daycare')return '1日託児保育（Daycare）';
     var d=own||'';
     if(!d){var e=curEff(cls,wk,t);d=e.plan||e.theme||'';}
@@ -1315,6 +1319,7 @@ function actRepGet(cls,date){
   var o=actRepAll()[actRepKey(cls,date)];
   if(!o)o={};
   return {done:o.done||'', picks:(o.picks&&o.picks.length)?o.picks:[],
+          aiPicks:(o.aiPicks&&o.aiPicks.length)?o.aiPicks:[],
           free:o.free||'', muzu:o.muzu||'', jikan:o.jikan||'', tsugi:o.tsugi||'',
           at:o.at||'', by:o.by||''};
 }
@@ -1324,12 +1329,28 @@ function actRepSet(cls,date,o){
   a[actRepKey(cls,date)]=o; stSet('act_reports',a);
 }
 function actRepHas(cls,date){return !!actRepGet(cls,date).done;}
+/* 選んだ項目を並べる。下書き由来のものには印を付ける（紙でも区別できるように） */
+function actRepPickText(v){
+  var ai=v.aiPicks||[];
+  return (v.picks||[]).map(function(x){
+    return x+(ai.indexOf(x)>-1?'（下書き）':'');
+  }).join('／');
+}
 /* 選択肢は、その日の日案に書かれた「一日の流れ」から作る。AIの作文は入らない */
+/* 日案の「一日の流れ」から選択肢を作る。
+   ★行には出どころ（src）が付いている。
+     先生が手で書いた行は印なし、AIや下書きから入った行は src:'ai'。
+     どちらも選べるが、下書き由来の行はそうと分かるようにする。
+     ここを混ぜて「先生が書いた」と言うと、誰も見ていない場面が
+     観察した事実として児童票に載ってしまう。 */
 function actRepChoices(cls,date){
-  var o=curDailyGet(cls,date),out=[],i,t;
+  var o=curDailyGet(cls,date),out=[],seen={},i,t,r;
   for(i=0;i<(o.rows||[]).length;i++){
-    t=String(o.rows[i].c||'').replace(/^\s+|\s+$/g,'');
-    if(t&&out.indexOf(t)<0)out.push(t);
+    r=o.rows[i];
+    t=String(r.c||'').replace(/^\s+|\s+$/g,'');
+    if(!t||seen[t])continue;
+    seen[t]=1;
+    out.push({t:t, ai:(r.src==='ai')});
   }
   return out;
 }
@@ -1360,9 +1381,13 @@ function actRepModal(cls,date){
       +(ch.length
         ?'<div class="field"><label>よく取り組んでいたところ（当てはまるものを押す）</label>'
           +'<div class="chips" style="margin:0;">'
-          +ch.map(function(x){return '<span class="chip'+(o.picks.indexOf(x)>-1?' on':'')+'" data-rpick="'+esc(x)+'">'+esc(x)+'</span>';}).join('')
+          +ch.map(function(x){return '<span class="chip'+(o.picks.indexOf(x.t)>-1?' on':'')+'" data-rpick="'+esc(x.t)+'">'
+            +esc(x.t)+(x.ai?'<span class="t-own" style="background:#EEEDFE;color:#3C3489;">下書き</span>':'')+'</span>';}).join('')
           +'</div>'
-          +'<div class="muted" style="font-size:11.5px;margin-top:5px;">この一覧は、日案の「一日の流れ」に先生が書いた内容から作っています。</div></div>'
+          +'<div class="muted" style="font-size:11.5px;margin-top:5px;">この一覧は、日案の「一日の流れ」から作っています。'
+          +(ch.filter(function(x){return x.ai;}).length
+            ?'<br><b>「下書き」の印が付いたものは、AIやひな型が書いた文です。実際に見たことと違うときは押さないでください。</b>'
+            :'')+'</div></div>'
         :'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">日案の「一日の流れ」がまだ空なので、下の欄に書いてください。</div>')
       +'<div class="field"><label>そのほか気づいたこと</label><input id="rpFree" value="'+esc(o.free)+'" placeholder="見たことを、そのまま書いてください"></div>'
       +'<div class="field"><label>むずかしさ</label><div style="display:flex;gap:8px;flex-wrap:wrap;">'+seg('rmuzu',ACTREP_MUZU,o.muzu)+'</div></div>'
@@ -1398,7 +1423,10 @@ function actRepModal(cls,date){
   m.querySelector('#rpCancel').onclick=function(){m.remove();};
   m.querySelector('#rpSave').onclick=function(){
     if(!cur.done){alert('「やった」か「できなかった」を押してください。');return;}
-    actRepSet(cls,date,{done:cur.done,picks:cur.picks,
+    /* どれが下書き由来だったかも残す。紙で区別できるようにするため */
+    var aiPicks=[];
+    ch.forEach(function(x){ if(x.ai&&cur.picks.indexOf(x.t)>-1)aiPicks.push(x.t); });
+    actRepSet(cls,date,{done:cur.done,picks:cur.picks,aiPicks:aiPicks,
       free:(m.querySelector('#rpFree')||{}).value||'',
       muzu:cur.muzu,jikan:cur.jikan,tsugi:cur.tsugi});
     if(typeof saveAll==='function')saveAll();
@@ -1417,7 +1445,7 @@ function actRepBody(cls,mk){
     rows+='<tr><td>'+d+'日</td>'
       +'<td>'+esc([a.morning,a.afternoon].filter(Boolean).join(' / ')||'—')+'</td>'
       +'<td>'+esc(r.done||'未記入')+'</td>'
-      +'<td>'+esc(r.picks.join('／'))+(r.free?'<div style="font-size:10px;">'+esc(r.free)+'</div>':'')+'</td>'
+      +'<td>'+esc(actRepPickText(r))+(r.free?'<div style="font-size:10px;">'+esc(r.free)+'</div>':'')+'</td>'
       +'<td>'+esc([r.muzu,r.jikan,r.tsugi].filter(Boolean).join('／'))+'</td>'
       +'<td style="font-size:10px;">'+esc(r.by||'')+'</td></tr>';
   }
@@ -1425,7 +1453,8 @@ function actRepBody(cls,mk){
   return '<table><thead><tr><th style="width:44px;">日</th><th>予定していた活動</th><th style="width:80px;">実施</th>'
     +'<th>子どもの様子（先生が選んだもの）</th><th style="width:150px;">ふりかえり</th><th style="width:90px;">書いた人</th></tr></thead>'
     +'<tbody>'+rows+'</tbody></table>'
-    +'<p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。</p>';
+    +'<p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。'
+    +'（下書き）と付いた項目は、AIやひな型が書いた文から選ばれたものです。</p>';
 }
 
 var NICHI={cls:null,date:null,env:[],rows:[]};
@@ -1552,7 +1581,7 @@ function nichiModal(cls,date){
       if(!$('#niNerai').value && g.aim)$('#niNerai').value=g.aim;
       var t=g.times||[];
       if(t.length && NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length===0){
-        NICHI.rows=t.map(function(x){return {t:x.t||'',c:x.a||'',h:x.e||''};});
+        NICHI.rows=t.map(function(x){return {t:x.t||'',c:x.a||'',h:x.e||'',src:'ai'};});
         drawRows();
       }
     }
@@ -4539,7 +4568,8 @@ function aiapModal(plan,klass){
       +'</div>'
       +(rows||'<div class="empty">この案には、日案に入れられる項目がありません。</div>')
       +'<div class="muted" style="font-size:11.5px;margin-top:4px;">'
-        +'先生が書いた文は、勝手には消しません。入れ替えたときは、そのあと取り消せます。</div>'
+        +'先生が書いた文は、勝手には消しません。入れたあと、画面の下に出る帯から取り消せます'
+        +'（帯を閉じるまで残ります）。</div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">'
         +'<button class="btn" id="aiapCancel">閉じる</button>'
         +'<button class="btn btn-primary" id="aiapGo">入れる</button></div>'
@@ -4569,9 +4599,12 @@ function aiapModal(plan,klass){
         if(add==null||add==='')return;
         if(f.k==='rows'){
           var list=(Object.prototype.toString.call(add)==='[object Array]')?add:[];
+          /* AIやひな型から入った行だと分かるように印を付ける。
+             この印が無いと、あとで実施報告の選択肢になったときに
+             「先生が書いた」と見分けられなくなる。 */
           var made=list.map(function(x){
-            if(x&&typeof x==='object')return {t:x.t||'',c:x.a||'',h:x.e||''};
-            return {t:'',c:String(x),h:''};
+            if(x&&typeof x==='object')return {t:x.t||'',c:x.a||'',h:x.e||'',src:'ai'};
+            return {t:'',c:String(x),h:'',src:'ai'};
           });
           cur2.rows=(mode==='add')?(cur2.rows||[]).concat(made):made;
         }else{
@@ -4582,7 +4615,10 @@ function aiapModal(plan,klass){
       });
       if(!n){alert('入れる項目が選ばれていません。');return;}
       curDailySet(cls,date,cur2);
-      AIAP_UNDO={cls:cls,date:date,before:before,at:lockNow()};
+      /* 入れる前と、入れた直後の両方を控える。
+         取り消すときに「そのあと直されたか」を見分けるため */
+      var after={nerai:cur2.nerai,sugata:cur2.sugata,junbi:cur2.junbi,rows:(cur2.rows||[]).slice()};
+      AIAP_UNDO={cls:cls,date:date,before:before,after:after,at:lockNow()};
       if(typeof saveAll==='function')saveAll();
       aiLog('案を日案に入れた（'+(mode==='add'?'足す':'入れ替え')+'）',fmt(date)+' '+n+'項目',cls);
       m.remove();
@@ -4599,11 +4635,30 @@ function aiapToastUndo(){
   var d=el('div',{id:'aiapUndo'});
   d.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;'
     +'background:#16202B;color:#fff;border-radius:10px;padding:11px 16px;display:flex;align-items:center;gap:14px;font-size:13px;';
-  d.innerHTML='<span>日案に入れました。</span><button class="btn btn-sm" id="aiapUndoBtn" style="background:#fff;">取り消す</button>';
+  /* 自動で消さない。消えると取り消せなくなるのに、期限をどこにも書いていなかった。
+     先生が閉じるまで出しておく。 */
+  d.innerHTML='<span>日案に入れました。</span>'
+    +'<button class="btn btn-sm" id="aiapUndoBtn" style="background:#fff;">取り消す</button>'
+    +'<button class="btn btn-sm" id="aiapUndoClose" style="background:transparent;color:#fff;border-color:#5B6875;">閉じる</button>';
   document.body.appendChild(d);
+  document.getElementById('aiapUndoClose').onclick=function(){ d.remove(); };
   document.getElementById('aiapUndoBtn').onclick=function(){
     if(!AIAP_UNDO){d.remove();return;}
     var u=AIAP_UNDO,cur=curDailyGet(u.cls,u.date);
+    /* ★入れたあとに先生が直した欄は、黙って戻さない。
+       前は「入れる前」を丸ごと書き戻していたので、
+       入れたあとに書き直した文まで確認なしに消えていた。 */
+    var F=[{k:'nerai',l:'ねらい'},{k:'sugata',l:'子どもの姿'},{k:'junbi',l:'準備・材料'}];
+    var changed=[],i;
+    for(i=0;i<F.length;i++){
+      var k=F[i].k;
+      if(String(cur[k]||'')!==String(u.after[k]||''))changed.push(F[i].l);
+    }
+    if(JSON.stringify(cur.rows||[])!==JSON.stringify(u.after.rows||[]))changed.push('一日の流れ');
+    if(changed.length){
+      if(!confirm('入れたあとに、'+changed.join('・')+' が直されています。\n'
+        +'取り消すと、その直した内容も一緒に消えます。\n\nそれでも取り消しますか。'))return;
+    }
     cur.nerai=u.before.nerai; cur.sugata=u.before.sugata;
     cur.junbi=u.before.junbi; cur.rows=u.before.rows;
     curDailySet(u.cls,u.date,cur);
@@ -4612,7 +4667,6 @@ function aiapToastUndo(){
     AIAP_UNDO=null; d.remove();
     if(typeof renderCurriculum==='function'&&$('section[data-page="curriculum"]')&&!$('section[data-page="curriculum"]').hidden)renderCurriculum();
   };
-  setTimeout(function(){ var x=document.getElementById('aiapUndo'); if(x)x.remove(); },12000);
 }
 
 function aipMemoHTML(k){
@@ -4672,7 +4726,7 @@ function aipMemoHTML(k){
               var v=x.v;
               return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(fmt(x.date))+'</td>'
                 +'<td>'+esc(v.done||'')+'</td>'
-                +'<td style="font-size:12.5px;">'+esc((v.picks||[]).join('／'))
+                +'<td style="font-size:12.5px;">'+esc(actRepPickText(v))
                   +(v.free?'<div class="row-sub">'+esc(v.free)+'</div>':'')
                   +(v.muzu||v.jikan||v.tsugi?'<div class="row-sub">'+esc([v.muzu,v.jikan,v.tsugi].filter(Boolean).join('／'))+'</div>':'')
                 +'</td>'
@@ -4769,10 +4823,25 @@ function aipWire(k){
       AI_NET.busy=false;
       /* 参加のしかた（はさみの段階と人数）・先生の配置・必要な確認は
          記録から出しているので、AIの文章では上書きしない。 */
-      var d=aiMerge(base,got,['name','aim','prep','steps','help','safe','display','letter']);
+      /* ★safe は上書きの一覧に入れない。
+         aiMerge は base をその場で書き換えて同じものを返すので、
+         一覧に入れると、下で (base.safe||[]) を読むときには
+         もうAIの文に変わっており、誤飲・窒息の注意が1行も残らなかった。 */
+      var keepSafe=(base.safe||[]).slice();
+      var d=aiMerge(base,got,['name','aim','prep','steps','help','display','letter']);
       /* 材料だけは、人数ぶんの表記をこちらで足す */
       if(got&&got.materials&&got.materials.length){
         d.materials=got.materials.map(function(x){return String(x)+'（'+base.count+'名分）';});
+        /* ★材料が変わったら、誤飲・窒息の注意も作り直す。
+           作り直さないと、紙に並ぶ材料と注意が食い違う。 */
+        var reNote=aiChokeNotes(got.materials,k);
+        if(reNote.length){
+          var fixed=keepSafe.filter(function(x){
+            return AI_CHOKE.filter(function(c){return c.t===x;}).length===0
+                && String(x).indexOf('誤飲・窒息に特に気をつけて')<0;
+          });
+          keepSafe=reNote.concat(fixed);
+        }
       }
       var filled2=[];
       if(got)['name','aim','prep','steps','help','safe'].forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled2.push(kk); });
@@ -4780,8 +4849,8 @@ function aipWire(k){
          AIが書いた分は下へ足すだけにする。 */
       if(got&&got.safe){
         var addS=(Object.prototype.toString.call(got.safe)==='[object Array]')?got.safe:[String(got.safe)];
-        d.safe=(base.safe||[]).concat(addS.map(function(x){return 'AIからの追加：'+String(x);}));
-      }else{ d.safe=base.safe; }
+        d.safe=keepSafe.concat(addS.map(function(x){return 'AIからの追加：'+String(x);}));
+      }else{ d.safe=keepSafe; }
       AIP.res={kind:'craft',data:d,byAI:!!got,aiFields:filled2};
       aiLog('制作物アイディアをつくった'+(got?'（AI）':'（下書き）'),k+' '+m); renderAIPlan();
     });
@@ -4932,11 +5001,12 @@ function aipWire(k){
     var b5='<table><thead><tr><th>日</th><th>実施</th><th>子どもの様子（先生が選んだもの）</th><th>ふりかえり</th><th>書いた人</th></tr></thead><tbody>'
       +(ls.length?ls.map(function(x){var v=x.v;
         return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+esc(v.done||'')+'</td>'
-          +'<td>'+esc((v.picks||[]).join('／'))+(v.free?'<div style="font-size:10px;">'+esc(v.free)+'</div>':'')+'</td>'
+          +'<td>'+esc(actRepPickText(v))+(v.free?'<div style="font-size:10px;">'+esc(v.free)+'</div>':'')+'</td>'
           +'<td>'+esc([v.muzu,v.jikan,v.tsugi].filter(Boolean).join('／'))+'</td>'
           +'<td>'+esc(v.by||'')+'</td></tr>';}).join('')
         :'<tr><td colspan="5">記録がありません</td></tr>')
-      +'</tbody></table><p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。AIが作った文は入っていません。</p>';
+      +'</tbody></table><p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。'
+      +'（下書き）と付いた項目は、AIやひな型が書いた文から選ばれたものです。</p>';
     printDoc('活動の記録（'+esc(k)+'・'+fy+'年度）',b5);
   };
 
@@ -7441,7 +7511,11 @@ function renderStaff(){
   s.querySelectorAll('[data-mkacct]').forEach(function(b){b.onclick=function(){acctModal(null,+b.getAttribute('data-mkacct'));};});
   s.querySelectorAll('[data-editacct]').forEach(function(b){b.onclick=function(){acctModal(+b.getAttribute('data-editacct'));};});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){staffModal(+b.getAttribute('data-edit'));};});
-  s.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){if(confirm('この職員を削除しますか？')){DB.staff=DB.staff.filter(function(x){return x.id!==+b.getAttribute('data-del');});renderStaff();}};});
+  s.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){if(confirm('この職員を削除しますか？\n打刻の暗証番号も一緒に消します。\n出勤簿とシフト表に残っている記録は、監査で必要になるため消しません。')){
+    var _id=+b.getAttribute('data-del');
+    /* 番号を残すと、名前が空欄のまま打刻できてしまう */
+    try{ if(typeof pinSetHash==='function')pinSetHash(_id,null); }catch(e){}
+    DB.staff=DB.staff.filter(function(x){return x.id!==_id;});renderStaff();}};});
 }
 /* 勤続年数・年齢の自動算出 */
 function yearsBetween(from,to){
@@ -9478,16 +9552,27 @@ function pinMake(pin,done){
   }catch(e){done(null);}
 }
 /* 入れた番号が、どの先生のものかを探す。見つからなければ null */
+/* 入れた番号に当たる職員を全部さがす。
+   1人だけならその人。2人以上なら誰も返さない（取り違えると
+   別の先生の名前で打刻が残ってしまうため）。 */
+function pinMatches(pin,done){
+  done=done||function(){};
+  var a=pinAll(),ids=Object.keys(a),i=0,hit=[];
+  function next(){
+    if(i>=ids.length){done(hit);return;}
+    var sid=ids[i++];
+    CRED.verify(pin,a[sid],function(ok){ if(ok)hit.push(sid); next(); });
+  }
+  if(!ids.length){done([]);return;}
+  next();
+}
 function pinFind(pin,done){
   done=done||function(){};
-  var a=pinAll(),ids=Object.keys(a),i=0;
-  function next(){
-    if(i>=ids.length){done(null);return;}
-    var sid=ids[i++];
-    CRED.verify(pin,a[sid],function(ok){ if(ok)done(sid); else next(); });
-  }
-  if(!ids.length){done(null);return;}
-  next();
+  pinMatches(pin,function(hit){
+    if(hit.length===1)done(hit[0]);
+    else if(hit.length>1)done({dup:hit});
+    else done(null);
+  });
 }
 function tcStaffName(sid){
   var st=(DB.staff||[]).filter(function(x){return String(x.id)===String(sid);})[0];
@@ -9538,11 +9623,18 @@ function haichiNeed(by){
   return n;
 }
 /* その日に出ていた職員の数。打刻があればそれ、無ければシフトで数える */
+/* いま園にいる職員かどうか。辞めた先生のIDが打刻やシフトに残っていても数えない */
+function haichiIsStaff(id){
+  var a=DB.staff||[],i;
+  for(i=0;i<a.length;i++){ if(String(a[i].id)===String(id))return true; }
+  return false;
+}
 function haichiStaff(date){
   var mk=date.slice(0,7),day=+date.slice(8,10);
   var tc=tcMonth(mk),n=0,src='打刻',sh=shiftCells(mk),k;
   for(k in tc){
     if(!Object.prototype.hasOwnProperty.call(tc,k))continue;
+    if(!haichiIsStaff(k))continue;
     var v=tc[k][day];
     if(v&&(v.in||v.out))n++;
   }
@@ -9550,6 +9642,7 @@ function haichiStaff(date){
     src='シフト'; n=0;
     for(k in sh){
       if(!Object.prototype.hasOwnProperty.call(sh,k))continue;
+      if(!haichiIsStaff(k))continue;
       var p=sh[k][day];
       if(p&&p!=='休')n++;
     }
@@ -9634,7 +9727,9 @@ function renderPunch(){
     if(TCARD.pin.length<4){renderPunch();return;}
     var tried=TCARD.pin; TCARD.pin=''; TCARD.msg='確かめています…'; renderPunch();
     pinFind(tried,function(sid){
-      if(sid){TCARD.who=sid;TCARD.msg='';}
+      if(sid&&sid.dup){
+        TCARD.msg='この番号は複数の先生に登録されています。園の管理者に番号を分けてもらってください。';
+      }else if(sid){TCARD.who=sid;TCARD.msg='';}
       else{TCARD.msg='この番号の先生が見つかりません。園の管理者にご確認ください。';}
       renderPunch();
     });
@@ -9653,15 +9748,28 @@ function renderPunch(){
   };
   var bb=$('#tcBack');
   if(bb)bb.onclick=function(){TCARD.who=null;TCARD.msg='';renderPunch();};
+  s.querySelectorAll('[data-tcpindel]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-tcpindel');
+    if(!confirm('持ち主の分からない暗証番号を消します。よろしいですか。'))return;
+    pinSetHash(id,null); renderPunch();
+  };});
   s.querySelectorAll('[data-tcpin]').forEach(function(b){b.onclick=function(){
     var sid=b.getAttribute('data-tcpin');
     var p=prompt(tcStaffName(sid)+' さんの暗証番号（4けた）を決めてください。\n空のまま OK を押すと、いまの番号を消します。','');
     if(p===null)return;
     if(p===''){pinSetHash(sid,null);renderPunch();return;}
     if(!/^\d{4}$/.test(p)){alert('数字4けたで入れてください。');return;}
-    pinMake(p,function(rec){
-      if(!rec){alert('この端末では暗証番号を作れませんでした。');return;}
-      pinSetHash(sid,rec); renderPunch();
+    /* 同じ番号を2人に付けると、打刻が別の先生の名前で残ってしまう */
+    pinMatches(p,function(hit){
+      var other=hit.filter(function(x){return String(x)!==String(sid);});
+      if(other.length){
+        alert('この番号は '+tcStaffName(other[0])+' さんが使っています。別の番号にしてください。');
+        return;
+      }
+      pinMake(p,function(rec){
+        if(!rec){alert('この端末では暗証番号を作れませんでした。');return;}
+        pinSetHash(sid,rec); renderPunch();
+      });
     });
   };});
   s.querySelectorAll('[data-tcnote]').forEach(function(inp){inp.onchange=function(){
@@ -9739,6 +9847,19 @@ function tcBossBox(mk){
         +'<span class="pill" style="background:'+(pinHas(st.id)?'#EAF3DE;color:#27500A':'#F1EFE8;color:#5F5E5A')+';">'+(pinHas(st.id)?'決めてある':'まだ')+'</span>'
         +'<button class="btn btn-sm" data-tcpin="'+esc(st.id)+'">'+(pinHas(st.id)?'変える':'決める')+'</button></div>';
     }).join('')
+    /* 職員の一覧に居ないのに番号だけ残っているもの。
+       残っていると、名前が空欄のまま打刻できてしまう。 */
+    +(function(){
+      var a=pinAll(),out='',k;
+      for(k in a){
+        if(!Object.prototype.hasOwnProperty.call(a,k))continue;
+        if(haichiIsStaff(k))continue;
+        out+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);">'
+          +'<span style="flex:1;color:var(--tx3);">持ち主の分からない番号（職員番号 '+esc(k)+'）</span>'
+          +'<button class="btn btn-sm" data-tcpindel="'+esc(k)+'">消す</button></div>';
+      }
+      return out?'<div style="margin-top:10px;">'+out+'</div>':'';
+    })()
     +'</div>';
   return h;
 }
