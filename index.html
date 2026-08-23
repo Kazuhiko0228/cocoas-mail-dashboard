@@ -1084,7 +1084,10 @@ var CUR=(DB.curriculum&&DB.curriculum.month===curMonthKey())?Object.assign(defau
 DB.curriculum=CUR;
 function weekOfMonth(s){var d=+s.split('-')[2];return Math.min(CUR.weeks.length,Math.max(1,Math.ceil(d/7)));}
 function curSched(){if(!CUR.schedule)CUR.schedule={};return CUR.schedule;}
-function curSchedGet(cls,date){var s=curSched();return ((s[cls]||{})[date])||{am:'',pm:'',daycare:false,memo:''};}
+function curSchedGet(cls,date){var s=curSched(),o=((s[cls]||{})[date]);
+  if(!o)o={};
+  return {am:o.am||'',pm:o.pm||'',daycare:!!o.daycare,memo:o.memo||'',
+          amText:o.amText||'',pmText:o.pmText||'',teacher:o.teacher||''};}
 function curSchedSet(cls,date,obj){var s=curSched();s[cls]=s[cls]||{};s[cls][date]=obj;DB.curriculum=CUR;}
 function curCont(){if(!CUR.content)CUR.content={};return CUR.content;}
 function curContGet(cls,wk,type){var c=curCont();return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
@@ -1113,7 +1116,48 @@ function curEff(cls,wk,type){
   return {theme:(ct.theme||m.theme||''),teacher:(ct.teacher||m.teacher||''),plan:(ct.plan||''),goal:m.goal||'',
     themeInherited:!ct.theme&&!!m.theme,teacherInherited:!ct.teacher&&!!m.teacher};
 }
-function curDayActivities(cls,date){var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));function txt(t){if(!t)return '';if(t==='Daycare')return '1日託児保育（Daycare）';var e=curEff(cls,wk,t);var d=e.plan||e.theme||'';return t+(d?'：'+d:'');}if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:''};return {morning:txt(sc.am),afternoon:txt(sc.pm)};}
+/* 週ごとの「活動の内容（Week1-4）」をやめて、日ごとに書く形にした。
+   やめる前に、いま週に入っている内容を、その週の各日へ写しておく。
+   写さないと、画面から週の欄が消えたときに、書いたものが見えなくなる。
+   もとの記録（CUR.content）は消さない。読めなくなるのが怖いため。 */
+function curMigrateWeekToDay(){
+  if(!CUR||CUR.dayTextMoved)return;
+  try{
+    var y=+String(CUR.month).split('-')[0],mo=+String(CUR.month).split('-')[1];
+    if(!y||!mo){CUR.dayTextMoved=1;return;}
+    var dim=new Date(y,mo,0).getDate(),ci,cls,dd,date,sc,wk,e;
+    for(ci=0;ci<CLASSES.length;ci++){
+      cls=CLASSES[ci];
+      for(dd=1;dd<=dim;dd++){
+        var dwk=new Date(y,mo-1,dd).getDay();
+        if(dwk===0||dwk===6)continue;
+        date=CUR.month+'-'+pad(dd);
+        sc=curSchedGet(cls,date);
+        wk='W'+Math.min(4,weekOfMonth(date));
+        var touched=false;
+        if(sc.am&&!sc.amText){e=curEff(cls,wk,sc.am);sc.amText=e.plan||e.theme||'';if(sc.amText)touched=true;
+          if(!sc.teacher&&e.teacher){sc.teacher=e.teacher;touched=true;}}
+        if(sc.pm&&!sc.pmText){e=curEff(cls,wk,sc.pm);sc.pmText=e.plan||e.theme||'';if(sc.pmText)touched=true;
+          if(!sc.teacher&&e.teacher){sc.teacher=e.teacher;touched=true;}}
+        if(touched)curSchedSet(cls,date,sc);
+      }
+    }
+  }catch(e){}
+  CUR.dayTextMoved=1; DB.curriculum=CUR;
+}
+function curDayActivities(cls,date){
+  var sc=curSchedGet(cls,date),wk='W'+Math.min(4,weekOfMonth(date));
+  /* その日に書いた文があればそれを使う。無ければ月間のねらいから補う */
+  function txt(t,own){
+    if(!t)return '';
+    if(t==='Daycare')return '1日託児保育（Daycare）';
+    var d=own||'';
+    if(!d){var e=curEff(cls,wk,t);d=e.plan||e.theme||'';}
+    return t+(d?'：'+d:'');
+  }
+  if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:'',teacher:sc.teacher||''};
+  return {morning:txt(sc.am,sc.amText),afternoon:txt(sc.pm,sc.pmText),teacher:sc.teacher||''};
+}
 function curDayText(cls,date){var a=curDayActivities(cls,date);return [a.morning?'【午前】'+a.morning:'',a.afternoon?'【午後】'+a.afternoon:''].filter(Boolean).join('\n');}
 
 /* ========== 日案（日別スケジュールの「詳細」） ==========
@@ -6279,36 +6323,27 @@ function renderCurriculum(){
   function actOpts(sel){return '<option value="">—</option>'+types.map(function(t){return '<option'+(t===sel?' selected':'')+'>'+esc(t)+'</option>';}).join('');}
   var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'カリキュラム</h3>'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+esc(k)+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+esc(CUR.month)+'" style="width:150px;margin-left:auto;"></div>'+
-    '<div class="chips" style="margin:0;">'+[['schedule','日別スケジュール'],['content','活動の内容（Week1-4）']].map(function(t){return '<span class="chip'+(t[0]===curTab?' on':'')+'" data-ctab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
+    '</div>';
+  /* 週ごとの欄をやめる前に、いま書いてある内容を各日へ写す（1回だけ） */
+  curMigrateWeekToDay();
   var bodyHtml;
-  if(curTab==='schedule'){
+  {
     var dim=new Date(y,mo,0).getDate(),rows='';
-    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
-    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:76px;">日案</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
-  } else {
-    bodyHtml='<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間のねらい・担当（'+curClass+'・月に1回登録）</div>'+
+    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select><input data-samt="'+esc(date)+'" value="'+esc(v(sc.amText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select><input data-spmt="'+esc(date)+'" value="'+esc(v(sc.pmText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><input data-stea="'+esc(date)+'" value="'+esc(v(sc.teacher))+'" placeholder="担当"></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
+    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:110px;">担当</th><th style="width:76px;">日案</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  }
+  /* 週ごとの欄はやめて、月間のねらいと日別を1つの画面にまとめた（2026-08-22）。
+     いま書いてある週の内容は、上の curMigrateWeekToDay() で各日へ写してある。
+     もとの記録（CUR.content）は消していない。 */
+  var monthHtml=
+    '<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">アクティビティ別 月間のねらい・担当（'+curClass+'・月に1回登録）</div>'+
       types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+esc(t)+'</span><input data-actm="'+esc(t)+'|goal" value="'+esc(v(m.goal))+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+esc(t)+'|teacher" value="'+esc(v(m.teacher))+'" placeholder="担当" style="width:110px;"></div>';}).join('')+
       (types.length?'':'<div class="empty">まだ活動がありません。下の「活動内容を編集」から足すと、ここに入ります。</div>')+
-      curActTypeBox(types)+'</div>'+
-      '<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">週</span><div class="chips" style="margin:0;">'+['W1','W2','W3','W4'].map(function(w,i){return '<span class="chip'+(w===curWeek?' on':'')+'" data-cw="'+esc(w)+'">Week'+(i+1)+'</span>';}).join('')+'</div></div>'+
-      types.map(function(t){var e=curEff(curClass,curWeek,t),ct0=curContGet(curClass,curWeek,t),m0=curActMGet(curClass,t);
-        /* 「自動」は月間登録を実際に引き継いでいるときだけ出す（入力欄の淡色ハイライトと同じ判定） */
-        var inh=e.themeInherited||e.teacherInherited;
-        /* 「↺」は戻す先（月間登録）が実在する上書きがあるときだけ出す。無いのに出すと入力が消えて戻せなくなる */
-        var canReset=(!!ct0.theme&&!!m0.theme)||(!!ct0.teacher&&!!m0.teacher);
-        var mark=(inh?'<span class="pill" style="background:#E3F1F9;color:#0B5F8F;font-size:10px;">自動</span>':'')
-          +(canReset?'<button class="btn btn-sm btn-ghost" data-creset="'+esc(t)+'" style="padding:2px 7px;font-size:11px;" title="この週の上書きを消して、月間登録の内容に戻します">↺</button>':'');
-        return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
-          +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;">'+esc(t)+'</span>'
-          +'<input data-cont="'+esc(t)+'|theme" value="'+esc(v(e.theme))+'" placeholder="テーマ／Title" style="flex:1;min-width:140px;'+(e.themeInherited?'background:#F6FBF9;':'')+'">'
-          +'<input data-cont="'+esc(t)+'|teacher" value="'+esc(v(e.teacher))+'" placeholder="担当" style="width:110px;'+(e.teacherInherited?'background:#F6FBF9;':'')+'">'
-          +mark+'</div>'
-          +(e.goal?'<div class="muted" style="font-size:11.5px;margin:-2px 0 6px;">ねらい：'+esc(e.goal)+'</div>':'')
-          +'<textarea data-cont="'+esc(t)+'|plan" rows="2" placeholder="この週の内容">'+esc((e.plan||''))+'</textarea></div>';}).join('')+
-      (types.length?'':'<div class="empty">まだ活動がありません。上の「活動内容を編集」から足すと、週ごとの入力欄が、ここに入ります。</div>')+'</div>';
-  }
+      curActTypeBox(types)+'</div>';
+  bodyHtml=monthHtml+bodyHtml;
   s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curPrint">'+ic('printer')+'印刷（MTG配布用）</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
+  /* 週のタブは無くなったが、古い呼び出しが残っていても落ちないよう配線だけ残す */
   s.querySelectorAll('[data-ctab]').forEach(function(b){b.onclick=function(){curTab=b.getAttribute('data-ctab');renderCurriculum();};});
   s.querySelectorAll('[data-cw]').forEach(function(b){b.onclick=function(){curWeek=b.getAttribute('data-cw');renderCurriculum();};});
   var cm=$('#curMonth');if(cm)cm.onchange=function(e){CUR.month=e.target.value;DB.curriculum=CUR;renderCurriculum();};
@@ -6316,6 +6351,10 @@ function renderCurriculum(){
   s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-sdc]').forEach(function(cb){cb.onchange=function(){var d=cb.getAttribute('data-sdc'),sc=curSchedGet(curClass,d);sc.daycare=cb.checked;curSchedSet(curClass,d,sc);renderCurriculum();};});
   s.querySelectorAll('[data-smemo]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-smemo'),sc=curSchedGet(curClass,d);sc.memo=inp.value;curSchedSet(curClass,d,sc);};});
+  /* その日の活動の中身と担当。1日ごとに違うので、日ごとに持つ */
+  s.querySelectorAll('[data-samt]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-samt'),sc=curSchedGet(curClass,d);sc.amText=inp.value;curSchedSet(curClass,d,sc);};});
+  s.querySelectorAll('[data-spmt]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-spmt'),sc=curSchedGet(curClass,d);sc.pmText=inp.value;curSchedSet(curClass,d,sc);};});
+  s.querySelectorAll('[data-stea]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-stea'),sc=curSchedGet(curClass,d);sc.teacher=inp.value;curSchedSet(curClass,d,sc);};});
     s.querySelectorAll('[data-nichi]').forEach(function(b){b.onclick=function(){
       nichiModal(curClass,b.getAttribute('data-nichi'));};});
   s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-cont')),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
