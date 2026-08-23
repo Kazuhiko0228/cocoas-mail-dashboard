@@ -1149,24 +1149,36 @@ function curMonthlySet(cls,key,val){var m=curMonthly(cls);m[key]=val;if(cls==='P
    その月に無ければ、これまでの共通の値を見る。 */
 function curActM(){if(!CUR.actMonthly)CUR.actMonthly={};return CUR.actMonthly;}
 function curActMByMonth(){if(!CUR.actMonthlyM)CUR.actMonthlyM={};return CUR.actMonthlyM;}
-function curActMGet(cls,type){
-  var m=curActMByMonth()[CUR.month];
-  var v=m&&m[cls]&&m[cls][type];
-  if(v)return v;
-  /* 月ごとに分ける前に入れた分。読むだけで、書き戻しはしない */
-  var old=(curActM()[cls]||{})[type];
-  return old||{theme:'',teacher:'',goal:''};
+/* ★必ず複製を返す。
+   もとのものをそのまま返すと、受け取った側が書き換えたときに
+   ・旧データ（月に分ける前のもの）まで一緒に書き換わる
+   ・同じものを2つの月の枠に入れてしまい、両方の月が同じ内容になる
+   という壊れ方をする。
+   ★月は引数で受ける。CUR.month は「いま画面で見ている月」であって、
+   引きたい日付の月とはかぎらない（日案やデイリーメールは日付から引く）。 */
+function curActMCopy(o){
+  o=o||{};
+  return {theme:o.theme||'',teacher:o.teacher||'',goal:o.goal||''};
 }
-function curActMSet(cls,type,obj){
+function curActMGet(cls,type,mk){
+  mk=mk||CUR.month;
+  var m=curActMByMonth()[mk];
+  var v=m&&m[cls]&&m[cls][type];
+  if(v)return curActMCopy(v);
+  /* 月ごとに分ける前に入れた分。読むだけで、書き戻しはしない */
+  return curActMCopy((curActM()[cls]||{})[type]);
+}
+function curActMSet(cls,type,obj,mk){
+  mk=mk||CUR.month;
   var a=curActMByMonth();
-  a[CUR.month]=a[CUR.month]||{};
-  a[CUR.month][cls]=a[CUR.month][cls]||{};
-  a[CUR.month][cls][type]=obj;
+  a[mk]=a[mk]||{};
+  a[mk][cls]=a[mk][cls]||{};
+  a[mk][cls][type]=curActMCopy(obj);
   DB.curriculum=CUR;
 }
 /* 週の実効値：週で上書きがあればそれ、なければ月間テーマ・担当を自動反映 */
-function curEff(cls,wk,type){
-  var ct=curContGet(cls,wk,type),m=curActMGet(cls,type);
+function curEff(cls,wk,type,mk){
+  var ct=curContGet(cls,wk,type),m=curActMGet(cls,type,mk);
   return {theme:(ct.theme||m.theme||''),teacher:(ct.teacher||m.teacher||''),plan:(ct.plan||''),goal:m.goal||'',
     themeInherited:!ct.theme&&!!m.theme,teacherInherited:!ct.teacher&&!!m.teacher};
 }
@@ -1189,9 +1201,9 @@ function curMigrateWeekToDay(){
         sc=curSchedGet(cls,date);
         wk='W'+Math.min(4,weekOfMonth(date));
         var touched=false;
-        if(sc.am&&!sc.amText){e=curEff(cls,wk,sc.am);sc.amText=e.plan||e.theme||'';if(sc.amText)touched=true;
+        if(sc.am&&!sc.amText){e=curEff(cls,wk,sc.am,CUR.month);sc.amText=e.plan||e.theme||'';if(sc.amText)touched=true;
           if(!sc.teacher&&e.teacher){sc.teacher=e.teacher;touched=true;}}
-        if(sc.pm&&!sc.pmText){e=curEff(cls,wk,sc.pm);sc.pmText=e.plan||e.theme||'';if(sc.pmText)touched=true;
+        if(sc.pm&&!sc.pmText){e=curEff(cls,wk,sc.pm,CUR.month);sc.pmText=e.plan||e.theme||'';if(sc.pmText)touched=true;
           if(!sc.teacher&&e.teacher){sc.teacher=e.teacher;touched=true;}}
         if(touched)curSchedSet(cls,date,sc);
       }
@@ -1213,7 +1225,8 @@ function curDayActivities(cls,date){
     /* 画面にあるのは「ねらい・目標」（goal）なので、それも補完に使う。
        これまでは plan と theme しか見ておらず、どちらも入力欄が無くなっていたため
        「無ければ月間のねらいから補う」が一度も起きていなかった。 */
-    if(!d){var e=curEff(cls,wk,t);d=e.plan||e.theme||e.goal||'';}
+    /* 引く月は「その日の月」。画面で見ている月ではない */
+    if(!d){var e=curEff(cls,wk,t,String(date).slice(0,7));d=e.plan||e.theme||e.goal||'';}
     return t+(d?'：'+d:'');
   }
   if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:'',teacher:sc.teacher||''};
@@ -1381,8 +1394,9 @@ function actRepModal(cls,date){
       +'<button class="btn'+(o.done==='できなかった'?' btn-primary':'')+'" data-rdone="できなかった" style="flex:1;padding:14px;">できなかった</button>'
     +'</div>'
     +'<div id="rpBody"'+(o.done?'':' style="display:none;"')+'>'
-      +(ch.length
+      +((ch.length||o.picks.length)
         ?'<div class="field"><label>よく取り組んでいたところ（当てはまるものを押す）</label>'
+          +(ch.length?'':'<div class="muted" style="font-size:11.5px;margin-bottom:5px;">日案の「一日の流れ」が空になっています。前に選んだものだけ出しています。</div>')
           +'<div class="chips" style="margin:0;">'
           +ch.map(function(x){return '<span class="chip'+(o.picks.indexOf(x.t)>-1?' on':'')+'" data-rpick="'+esc(x.t)+'">'
             +esc(x.t)+(x.ai?'<span class="t-own" style="background:#EEEDFE;color:#3C3489;">下書き</span>':'')+'</span>';}).join('')
@@ -1433,8 +1447,13 @@ function actRepModal(cls,date){
   m.querySelector('#rpSave').onclick=function(){
     if(!cur.done){alert('「やった」か「できなかった」を押してください。');return;}
     /* どれが下書き由来だったかも残す。紙で区別できるようにするため */
-    var aiPicks=[];
-    ch.forEach(function(x){ if(x.ai&&cur.picks.indexOf(x.t)>-1)aiPicks.push(x.t); });
+    /* ★前に付いた印を引き継ぐ。作り直すだけだと、日案からその行が消えた時点で
+       「AIが書いた」の印が黙って落ちる。監査で問われるのはまさにそこ。 */
+    var prevAi=o.aiPicks||[];
+    var aiPicks=cur.picks.filter(function(t){
+      var inCh=ch.filter(function(x){return x.t===t;})[0];
+      return inCh?inCh.ai:(prevAi.indexOf(t)>-1);
+    });
     actRepSet(cls,date,{done:cur.done,picks:cur.picks,aiPicks:aiPicks,
       free:(m.querySelector('#rpFree')||{}).value||'',
       muzu:cur.muzu,jikan:cur.jikan,tsugi:cur.tsugi});
@@ -2975,7 +2994,7 @@ function lockBarWire(scope,d,save,redraw){
    lk-skip を付けて止めない。 */
 var LOCK_SKIP_ID={tsPrint:1,hlPrint:1,npoPrint:1,bmPrint:1,npPrint:1,dvPrint:1,dvPrintAll:1,
                   tsDate:1,tsKlass:1,hlDate:1,npoDate:1,bmMonth:1,bmKlassSel:1,
-                  dvCls:1,dvChild:1,dvMonth:1,
+                  dvCls:1,dvChild:1,dvQ:1,
                   /* 期間まとめの出力と、紙を撮って取り込むカード。この記録の外なので止めない */
                   pdFrom:1,pdTo:1,pdPrint:1,pdXls:1,pdCount:1,
                   scanFile:1,scanList:1,scanPrint:1,scanMsg:1};
@@ -3493,9 +3512,20 @@ function thFlowSave(v){
   try{
     var K='rec_登園シート', data=stGet(K,{}), day=(typeof recDate!=='undefined'&&recDate)?recDate:todayISO();
     var d=data[day]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
+    /* この吹き出しは画面の外（body直下）に出るので、
+       確定したときに止まる仕組みが効かない。ここで自分で見る。 */
+    if(typeof lockCanEdit==='function'&&!lockCanEdit(d)){
+      thFlowClose();
+      alert('この記録は確定ずみです。直すには園長・管理者の許可が要ります。');
+      return;
+    }
     var r=d.rows[THF.child.id]||{att:'',temp:'',opts:{}};
+    /* 確定のあとに直したときは跡に積む */
+    if(typeof lockNote==='function')lockNote(d,'体温（'+((THF.child&&THF.child.name)||'')+'）',r.temp,String(v));
     r.temp=String(v);
-    d.rows[THF.child.id]=r; data[day]=d; stSet(K,data);
+    d.rows[THF.child.id]=r;
+    if(typeof stampWho==='function')stampWho(d);
+    data[day]=d; stSet(K,data);
     thRedraw();
   }catch(e){ console.error('[体温の保存]',e.message); }
 }
@@ -4060,6 +4090,8 @@ function aiAskServer(kind,klass,period,extra){
 
 /* AIが書いた文章を、いまの下書きに重ねる。
    base に無い項目は入れない（画面が知らない項目を増やさないため）。 */
+/* 組（配列）で受け取るはずの項目。文字列で返ってきたら組に直す */
+var AI_LIST_KEYS={times:1,days:1,materials:1,prep:1,steps:1,help:1,safe:1,expect:1,review:1,join:1,staff:1};
 function aiMerge(base,got,only){
   if(!got)return base;
   only.forEach(function(k){
@@ -4072,6 +4104,15 @@ function aiMerge(base,got,only){
       base[k]=v.map(function(x){
         return (x&&typeof x==='object')?x:String(x);
       });
+    }
+    /* ★組（一日の流れ・一週間の流れ・材料など）で受け取るはずの項目が
+       1本の文字列で返ってくることがある。そのまま map を呼ぶと画面が
+       例外で止まり「つくっています」と言い続ける。ここで組に直す。 */
+    else if(AI_LIST_KEYS[k]&&typeof v==='string'){
+      if(!v.trim())return;
+      base[k]=(k==='times')?[{t:'',a:v.trim(),e:''}]
+             :(k==='days')?[{d:'',main:v.trim(),env:'',help:''}]
+             :[v.trim()];
     }
     else if(typeof v==='string'){ if(v.trim())base[k]=v.trim(); }
     else base[k]=v;
@@ -4449,14 +4490,14 @@ function aipPlanHTML(k){
     +aipList('予想される子どもの姿',d.expect)
     +(d.times?'<div style="margin-top:14px;"><div style="font-weight:800;font-size:13px;margin-bottom:6px;">一日の流れ</div>'
       +'<table style="width:100%;font-size:12.5px;"><tbody>'
-      +d.times.map(function(t){
+      +aipArr(d.times).map(function(t){
         return '<tr><td style="width:56px;font-weight:700;padding:6px 0;">'+esc(t.t)+'</td>'
           +'<td style="padding:6px 8px;">'+esc(t.a)+'</td>'
           +'<td class="muted" style="padding:6px 0;">'+esc(t.e)+'</td></tr>';}).join('')
       +'</tbody></table></div>':'')
     +(d.days?'<div style="margin-top:14px;"><div style="font-weight:800;font-size:13px;margin-bottom:6px;">週の流れ</div>'
       +'<table style="width:100%;font-size:12.5px;"><tbody>'
-      +d.days.map(function(x){
+      +aipArr(d.days).map(function(x){
         return '<tr><td style="width:34px;font-weight:700;padding:6px 0;">'+esc(x.d)+'</td>'
           +'<td style="padding:6px 8px;">'+esc(x.main)+'</td></tr>';}).join('')
       +'</tbody></table>'
@@ -4899,11 +4940,12 @@ function aipWire(k){
       var keepSafe=(base.safe||[]).slice();
       var d=aiMerge(base,got,['name','aim','prep','steps','help','display','letter']);
       /* 材料だけは、人数ぶんの表記をこちらで足す */
-      if(got&&got.materials&&got.materials.length){
-        d.materials=got.materials.map(function(x){return String(x)+'（'+base.count+'名分）';});
+      var gotMat=aipArr(got&&got.materials);
+      if(gotMat.length){
+        d.materials=gotMat.map(function(x){return String(x)+'（'+base.count+'名分）';});
         /* ★材料が変わったら、誤飲・窒息の注意も作り直す。
            作り直さないと、紙に並ぶ材料と注意が食い違う。 */
-        var reNote=aiChokeNotes(got.materials,k);
+        var reNote=aiChokeNotes(gotMat,k);
         if(reNote.length){
           var fixed=keepSafe.filter(function(x){
             return AI_CHOKE.filter(function(c){return c.t===x;}).length===0
@@ -5143,14 +5185,14 @@ function aipPrint(kind,d,k,src){
         +'<tr><th style="border:1px solid #999;padding:4px;width:52px;">時刻</th>'
         +'<th style="border:1px solid #999;padding:4px;">活動</th>'
         +'<th style="border:1px solid #999;padding:4px;">環境構成・保育者の動き</th></tr>'
-        +d.times.map(function(t){
+        +aipArr(d.times).map(function(t){
           return '<tr><td style="border:1px solid #999;padding:4px;">'+esc(t.t)+'</td>'
             +'<td style="border:1px solid #999;padding:4px;">'+esc(t.a)+'</td>'
             +'<td style="border:1px solid #999;padding:4px;">'+esc(t.e)+'</td></tr>';}).join('')
         +'</table>':'')
       +(d.days?'<table style="width:100%;font-size:11px;border-collapse:collapse;">'
-        +'<tr>'+d.days.map(function(x){return '<th style="border:1px solid #999;padding:4px;">'+esc(x.d)+'</th>';}).join('')+'</tr>'
-        +'<tr>'+d.days.map(function(x){return '<td style="border:1px solid #999;padding:6px;vertical-align:top;height:120px;">'+esc(x.main)+'</td>';}).join('')+'</tr>'
+        +'<tr>'+aipArr(d.days).map(function(x){return '<th style="border:1px solid #999;padding:4px;">'+esc(x.d)+'</th>';}).join('')+'</tr>'
+        +'<tr>'+aipArr(d.days).map(function(x){return '<td style="border:1px solid #999;padding:6px;vertical-align:top;height:120px;">'+esc(x.main)+'</td>';}).join('')+'</tr>'
         +'</table><p style="font-size:11px;">'+esc(d.rain||'')+'</p>':'')
       +pr('準備物',d.prep)+pr('保育者の援助',d.help)+pr('先生の配置',d.staff)+pr('安全上の注意',d.safe)
       +'<div style="margin-top:12px;border:1px solid #999;padding:8px;min-height:70px;font-size:11px;">ふり返り</div>';
@@ -7367,8 +7409,8 @@ function renderSettings(){
       '<div class="muted" style="margin-bottom:10px;">子ども何人につき保育士1人か。国が決めている数を入れてありますが、'
       +'3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。'
       +'園の自治体にご確認のうえ、必要なら直してください。</div>'+
-      '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">同じ数を入れた歳児は、人数を足してから1回だけ切り上げます'
-      +'（国の区切りが「1・2歳児で6人に1人」「4・5歳児で25人に1人」のように2学年ひとまとめのため）。</div>'+
+      '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">同じ区切りの歳児は、人数を足してから1回だけ切り上げます'
+      +'（国の区切りは 0歳／1・2歳／3歳／4・5歳 の4つです。同じ区切りの中で一番きびしい数を使います）。</div>'+
       '<div class="grid" style="grid-template-columns:repeat(3,1fr);">'
       +['0','1','2','3','4','5'].map(function(a){
         return '<div class="field"><label>'+a+'歳児</label><input type="number" min="1" data-haichi="'+a+'" value="'+esc(haichiRatio()[a])+'"></div>';
@@ -8564,7 +8606,13 @@ function napBlock(klass){
   if(!d.charge)d.charge=[];
   d.klass=klass;                       /* 登園側で選んだクラスに合わせる */
   var slots=napSlots(),kids=classOf(klass);
-  function save(){stampWho(d);data[recDate]=d;stSet(K,data);}
+  /* 午睡も、確定のあとに直したら跡に積む（登園・健康と同じ形） */
+  var NAP_F=[{k:'cells',l:'午睡の記録'},{k:'charge',l:'担当'},{k:'memo',l:'メモ'}];
+  var _npSnap=lockSnap(d,NAP_F);
+  function save(){
+    lockDiff(d,_npSnap,NAP_F);
+    _npSnap=lockSnap(d,NAP_F);
+    stampWho(d);data[recDate]=d;stSet(K,data);}
   function chargeAt(t){var r='';d.charge.slice().sort(function(a,b){return a.from<b.from?-1:1;}).forEach(function(e){if(e.from<=t&&e.by)r=e.by;});return r;}
   /* 担当は、時刻ごとに1人えらぶ形にする。
      前は「この時刻から担当」を足したり消したりする作りで、
@@ -8661,7 +8709,8 @@ function edHealth(){
     '<div class="muted" style="margin-top:8px;font-size:12px;">出席 '+showKids.length+'名　／　症状あり '+withSymptom+'名　／　症状なし '+(showKids.length-showKids.filter(function(c){return entryIdx(c.id)>-1;}).length)+'名</div>'+
     '<div class="field" style="max-width:240px;margin-top:12px;"><label>記録者</label><input id="hlBy" value="'+(d.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>';
   $('#hlDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
-  $('#hlBy').onchange=function(e){lockNote(d,'記録者',d.by,e.target.value);d.by=e.target.value;save();};
+  /* 跡は save() の中の lockDiff が積む。ここでも積むと同じものが2件になる */
+  $('#hlBy').onchange=function(e){d.by=e.target.value;save();};
   $('#hlAllHealthy').onclick=function(){d.allHealthy=!d.allHealthy;save();edHealth();};
   document.querySelectorAll('[data-hadd]').forEach(function(b){b.onclick=function(){healthModal(null,d,save,+b.getAttribute('data-hadd'));};});
   document.querySelectorAll('[data-hedit]').forEach(function(b){b.onclick=function(){healthModal(+b.getAttribute('data-hedit'),d,save);};});
@@ -8701,7 +8750,8 @@ function healthModal(idx,d,save,pre){
 }
 function edBody(){
   var K='rec_身体測定',data=stGet(K,{}),d=data[recMonth]||{rows:{}};
-  var BM_F=[{k:'rows',l:'身長・体重'},{k:'by',l:'記録者'},{k:'locked',l:'保存の状態'}];
+  var BM_F=[{k:'by',l:'記録者'},{k:'locked',l:'保存の状態'}];
+  var BM_F2=[{k:'rows',l:'身長・体重'}].concat(BM_F);
   var kids=enrolled().filter(function(c){return bmKlass==='すべて'||c.klass===bmKlass;});
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
@@ -8721,8 +8771,8 @@ function edBody(){
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
       return '<tr><td class="row-name">'+esc(childFullName(c))+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+esc(c.klass)+'</td>'+
-      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(d.locked?' disabled':'')+'></td>'+
-      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(d.locked?' disabled':'')+'></td>'+
+      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+((d.locked&&!lockCanEdit(d))?' disabled':'')+'></td>'+
+      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+((d.locked&&!lockCanEdit(d))?' disabled':'')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   var _bmSnap=lockSnap(d,BM_F);
@@ -8732,7 +8782,10 @@ function edBody(){
     stampWho(d);data[recMonth]=d;stSet(K,data);}
   $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
-  if(!d.locked)document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
+  /* 「保存する」で閉じた月でも、確定の許可が出ているあいだは直せる。
+     これを見ないと、帯は「きょうのうちだけ直せます」と言うのに
+     入力欄が固まったまま、という食い違いになる。 */
+  if(!d.locked||lockCanEdit(d))document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;lockDiff(d,_bmSnap,BM_F2);_bmSnap=lockSnap(d,BM_F2);save();$('#kp'+p[0]).textContent=kaup(r);};});
   /* 打っているあいだは自動で残る。「保存する」を押したら、その月の数字は直せないようにする */
   if($('#bmSave'))$('#bmSave').onclick=function(){
     var filled=Object.keys(d.rows).filter(function(id){var r=d.rows[id]||{};return r.h||r.w;});
@@ -9074,7 +9127,7 @@ function edDev(){
       +'メモと記録者は写しません。\n\nよろしいですか？'))return;
     var it={},sk;
     for(sk in src.items){if(Object.prototype.hasOwnProperty.call(src.items,sk))it[sk]=src.items[sk];}
-    lockNote(rec,'前回の記録を反映',JSON.stringify(rec.items||{}),JSON.stringify(it||{}));rec.items=it;
+    rec.items=it;   /* 跡は save() の中の lockDiff が積む */
     save();
     edDev();
   };
@@ -9724,16 +9777,23 @@ function haichiKids(date){
      国の区切りは「1・2歳児で6人に1人」「4・5歳児で25人に1人」のように
      2学年をひとまとめにしている。1歳きざみで切り上げると、
      たとえば1歳児1名＋2歳児1名で2人必要となり、実際より多く出てしまう。 */
+/* 国の区切り。0歳／1・2歳／3歳／4・5歳 の4つ。
+   ★比率の数字でまとめると、園が数を変えたときに区切りが崩れる
+     （たとえば3歳を6に直すと1・2歳と同じ束になり、必要人数が少なく出る）。
+     区切りは年齢で固定し、比率はその区切りの代表値を使う。 */
+var HAICHI_GROUPS=[['0'],['1','2'],['3'],['4','5']];
 function haichiNeed(by){
-  var r=haichiRatio(),n=0,k,g={};
-  for(k in by){
-    if(!Object.prototype.hasOwnProperty.call(by,k))continue;
-    var per=+r[k]||+HAICHI_DEFAULT[k]||25;
-    g[per]=(g[per]||0)+by[k];
-  }
-  for(k in g){
-    if(!Object.prototype.hasOwnProperty.call(g,k))continue;
-    n+=Math.ceil(g[k]/(+k));
+  var r=haichiRatio(),n=0,gi,i;
+  for(gi=0;gi<HAICHI_GROUPS.length;gi++){
+    var g=HAICHI_GROUPS[gi],sum=0,per=null;
+    for(i=0;i<g.length;i++){
+      var a=g[i];
+      if(by[a])sum+=by[a];
+      var p=+r[a]||+HAICHI_DEFAULT[a]||25;
+      /* その区切りの中で一番きびしい（小さい）数を使う */
+      if(per===null||p<per)per=p;
+    }
+    if(sum>0)n+=Math.ceil(sum/per);
   }
   if(n<haichiMin())n=haichiMin();
   return n;
@@ -15565,7 +15625,13 @@ staffBoot();
 function egRefresh(){
   try{applyPerms();}catch(e){console.error('[applyPerms]',e.message);}
   /* ログインしたら、まずホームを出す（スプレッドシートの依頼） */
-  try{ if(!window.__egHomeShown){window.__egHomeShown=true;go('home');} }catch(e){}
+  /* ★深いリンク（?rec=… や ?dm=…）で入ってきたときは、ホームへ飛ばさない。
+     飛ばすと、配った紙のQRを読んでも記録の画面が開かず、ホームが出てしまう。 */
+  try{
+    var _deep=false;
+    try{ _deep=!!((typeof recDeepLink==='function'&&recDeepLink())||(typeof dmDeepLink==='function'&&dmDeepLink())); }catch(e2){}
+    if(!window.__egHomeShown&&!_deep){window.__egHomeShown=true;go('home');}
+  }catch(e){}
 }
 egRefresh();
 window.addEventListener('load',egRefresh);
