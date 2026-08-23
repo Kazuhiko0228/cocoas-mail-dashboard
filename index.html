@@ -1822,7 +1822,22 @@ function nichiPrint(cls,date,o){
     +'<tr><td style="vertical-align:top;"><b>主な活動</b><div>'+esc(o.katsudo||'').replace(/\n/g,'<br>')+'</div></td>'
     +'<td style="vertical-align:top;"><b>ねらい</b><div>'+esc(o.nerai||'').replace(/\n/g,'<br>')+'</div></td></tr></table>'
     +'<table style="margin-bottom:8px;"><thead><tr><th style="width:60px;">時間</th><th>子どもの姿</th><th>保育士の配慮・援助</th></tr></thead><tbody>'+rows+'</tbody></table>'
-    +'<div><b>環境構成</b></div>'+env;
+    +'<div><b>環境構成</b></div>'+env
+    /* ★行に付いている src:'ai' を紙が一切見ておらず、
+       同じ一行が日案の紙では先生が書いたものに見え、
+       実施報告の紙では「AIやひな型が書いた」と書かれていた。
+       監査で書類同士が食い違うので、日案の紙にも出す。 */
+    +(function(){
+      var n=(o.rows||[]).filter(function(r){return r&&r.src==='ai';}).length;
+      var line='<div style="margin-top:10px;font-size:10px;">'
+        +'<table style="width:100%;font-size:10px;"><tbody><tr>'
+        +'<th style="width:80px;">作成</th><td style="width:150px;"></td>'
+        +'<th style="width:80px;">確認</th><td style="width:150px;"></td>'
+        +'<th style="width:80px;">承認</th><td></td></tr></tbody></table></div>';
+      if(n)line+='<p style="font-size:10px;">一日の流れのうち '+n+' 行は、AI・ひな型が書いた下書きです。'
+        +'内容は保育士が確かめ、必要に応じて直しています。</p>';
+      return line;
+    })();
   printDoc('日案（'+cls+'　'+(d.getMonth()+1)+'月'+d.getDate()+'日）',body);
 }
 
@@ -2123,7 +2138,13 @@ function auditCanGo(sys){
   if(typeof canView!=='function')return true;
   var p=String(sys||'').split(':')[0];
   if(p==='timecard')p='shift';
-  return canView(p);
+  if(!canView(p))return false;
+  /* ★書類格納は、画面は開けても監査書類のカードは園長・管理者しか出ない。
+     「開ける画面のボタンだけ出す」と言いながら、着いた先が
+     「監査書類の格納は、園長・管理者だけが開けます。」の一文だけ、
+     というボタンが6本出ていた。行き先まで開けるかを見る。 */
+  if(p==='docs'&&typeof docsBoss==='function')return docsBoss();
+  return true;
 }
 /* 監査の項目から、開く画面と記録の対応。ここに無いものは素の画面だけ開く */
 var AUDIT_REC={
@@ -2139,12 +2160,25 @@ var AUDIT_REC={
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
+/* 鍵から「その記録が属する月」を出す。
+   ★虐待防止と児童票は「2026-Q3」の形の鍵を使っている。
+     数字2けたしか通していなかったので全部ふるい落ち、
+     何件書いても「0回分」と出ていた。 */
+function auditKeyMonth(k){
+  k=String(k);
+  var q=k.match(/^([0-9]{4})-Q([1-4])$/);
+  if(q)return q[1]+'-'+pad((+q[2])*3-2);
+  if(/^[0-9]{4}-[0-9]{2}$/.test(k))return k;
+  if(/^[0-9]{4}-[0-9]{2}-/.test(k))return k.slice(0,7);
+  return '';
+}
 function auditPickFY(data,fy){
   var out={},k;
   for(k in data){
     if(!Object.prototype.hasOwnProperty.call(data,k))continue;
-    if(!/^[0-9]{4}-[0-9]{2}/.test(k))continue;
-    if(fyOf(k.length>7?k:(k+'-01'))!==fy)continue;
+    var mk=auditKeyMonth(k);
+    if(!mk)continue;
+    if(fyOf(mk+'-01')!==fy)continue;
     out[k]=data[k];
   }
   return out;
@@ -2168,8 +2202,20 @@ function auditDataInfo(key,fy){
     case 'shusseki': return lockInfo(auditPickFY(stGet('rec_登園シート',{}),fy),'日分',touenHas);
     case 'kenko': return lockInfo(auditPickFY(stGet('rec_健康チェック',{}),fy),'日分');
     case 'shintai': return Object.keys(auditPickFY(stGet('rec_身体測定',{}),fy)).length+'ヶ月分の記録あり';
-    case 'hattatsu': var dv=stGet('rec_発達',{}),dn=0;Object.keys(dv).forEach(function(k){dn+=Object.keys(dv[k]).length;});return dn+'件の記録あり';
-    case 'kega': return stGet('rec_hiyari',[]).length+'件の記録あり';
+    case 'hattatsu': {
+      /* ★年度を切り替えても数字が動かず、「◯◯年度」の紙に全年度の合計が載っていた */
+      var dv=stGet('rec_発達',{}),dn=0;
+      Object.keys(dv).forEach(function(k){ dn+=Object.keys(auditPickFY(dv[k]||{},fy)).length; });
+      return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'kega': {
+      var hy=stGet('rec_hiyari',[]),hn=0;
+      (Object.prototype.toString.call(hy)==='[object Array]'?hy:[]).forEach(function(r){
+        if(!r||!r.date)return;
+        if(fyOf(String(r.date))===fy)hn++;
+      });
+      return hn?(hn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
     case 'kujo': {
       /* 1文字も書いていない行は数えない（足しただけの空の行があるため） */
       var kj=stGet('rec_kujo',[]).filter(function(r){
@@ -2181,21 +2227,32 @@ function auditDataInfo(key,fy){
       /* 議事録は年度ごとに持っている。全年度を足すと、監査の一覧だけ
          年度の数と合わなくなる（紙は年度ごとに出る）。 */
       var kg=stGet('kaigi',{})[fy]||{};
-      return ((kg.rows||[]).length)+'回分の記録あり（'+fy+'年度）';}
+      /* ★「会議を追加」で入るのは空の行。押しただけで1件になっていた */
+      var kgn=(kg.rows||[]).filter(function(r){
+        if(!r)return false;
+        return !!(r.date||r.agenda||r.decided||r.attend||r.note||r.by);
+      }).length;
+      return kgn?(kgn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');}
     case 'nisshi': return lockInfo(auditPickFY(stGet('rec_日報',{}),fy),'日分');
-    case 'gyakutai': return Object.keys(auditPickFY(stGet('rec_虐待防止',{}),fy)).length+'回分の記録あり';
+    case 'gyakutai': {
+      var gyn=Object.keys(auditPickFY(stGet('rec_虐待防止',{}),fy)).length;
+      return gyn?(gyn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
     case 'kunren': {
       /* 避難訓練は年度ごとに分かれておらず、1年ぶんだけ持っている。
          年度を名乗ると嘘になるので、持っている年をそのまま出す。 */
-      var dd=drillData(),dr=dd.rows;
+      var dd=drillData(),dr=dd.rows,yrs={},ys=[];
+      dr.forEach(function(r){ if(r.record&&r.record.date)yrs[String(r.record.date).slice(0,4)]=1; });
+      Object.keys(yrs).sort().forEach(function(y2){ys.push(y2);});
+      /* ★dd.year は最初に開いた年のまま動かない。実際に入っている日付の年を出す */
       return dr.filter(function(r){return r.record&&r.record.date;}).length+' / '+dr.length
-        +'回 実施記録あり'+(dd.year?'（'+dd.year+'年）':'');}
+        +'回 実施記録あり'+(ys.length?'（'+ys.join('・')+'年）':'');}
     case 'shift': return Object.keys(auditPickFY(stGet('shifts',{}),fy)).length+'ヶ月分あり';
-    case 'kinkyu_b': return facGet().doctors.length+'件登録済み';
-    case 'jido_meibo': return enrolled().length+'名登録済み';
+    case 'kinkyu_b': return facGet().doctors.length+'件登録済み（現在）';
+    case 'jido_meibo': return enrolled().length+'名登録済み（現在）';
     case 'kinkyu_h': {
       var withE=enrolled().filter(function(c){var p=(typeof spStore==='function')?(spStore()[c.id]||{}):{};return p.emg1&&p.emg2;}).length;
-      return enrolled().length+'名中 '+withE+'名が緊急連絡先2件まで登録済み';
+      return enrolled().length+'名中 '+withE+'名が緊急連絡先2件まで登録済み（現在）';
     }
     case 'shobo': {
       /* 様式は自治体のものを使い、書き上げたら「書類格納」に置き場所を登録する形にした。
@@ -2220,18 +2277,23 @@ function auditDataInfo(key,fy){
                 :('まだそろった月がありません（対象 '+kbT+'名）');
     }
     case 'shukkin': {
-      var tc=stGet('timecards',{})[todayISO().slice(0,7)]||{};
-      var n=0;Object.keys(tc).forEach(function(sid){n+=Object.keys(tc[sid]||{}).length;});
-      return n?('今月 '+n+'日分の打刻あり'):'今月の打刻はまだありません';
+      /* ★年度を無視して今月の数を返し、それが「◯◯年度」の紙に載っていた */
+      var tcA=auditPickFY(stGet('timecards',{}),fy),tn=0,tk;
+      for(tk in tcA){
+        if(!Object.prototype.hasOwnProperty.call(tcA,tk))continue;
+        var tm=tcA[tk]||{},sid;
+        for(sid in tm){ if(Object.prototype.hasOwnProperty.call(tm,sid))tn+=Object.keys(tm[sid]||{}).length; }
+      }
+      return tn?(fy+'年度 '+tn+'日分の打刻あり'):(fy+'年度の打刻はまだありません');
     }
-    case 'roudou_meibo': return DB.staff.length+'名登録済み';
+    case 'roudou_meibo': return DB.staff.length+'名登録済み（現在）';
     case 'shikaku': {
       var withDoc=DB.staff.filter(function(st){return (typeof staffDocsOf==='function')&&staffDocsOf(st.id).length;}).length;
-      return DB.staff.length+'名登録済み'+(withDoc?'／証明書の控え '+withDoc+'名分あり':'／証明書の控え未登録');
+      return DB.staff.length+'名登録済み（現在）'+(withDoc?'／証明書の控え '+withDoc+'名分あり':'／証明書の控え未登録');
     }
     case 'kenshin': {
       var withK=DB.staff.filter(function(st){return st.kenshinDate;}).length;
-      return DB.staff.length+'名登録済み／健診日あり '+withK+'名';
+      return DB.staff.length+'名登録済み／健診日あり '+withK+'名（現在）';
     }
     case 'shidou': case 'daily': {
       /* 中身を見ずに「今月分あり」と言い切っていた */
@@ -2249,7 +2311,13 @@ function auditDataInfo(key,fy){
                :(thisFY?'今月分はまだありません':(fy+'年度の記録はありません'));}
     default:
       var slot=AUDIT_DOC_SLOT[key];
-      if(slot){var d=stGet('docs',{})[slot];return (d&&d.url)?'格納済み':'未格納';}
+      if(slot){
+        /* ★URLかどうかを見ずに「格納済み」と言っていた。
+           「あとで入れます」とメモを書いただけで格納済みに変わっていた。 */
+        var d=stGet('docs',{})[slot],u=(d&&d.url)?String(d.url):'';
+        if(!u)return '未格納';
+        return /^(https?:\/\/|file:|\/|[A-Za-z]:\\)/.test(u)?'格納済み':'未格納（メモのみ）';
+      }
       return '';
   }
 }
@@ -2636,18 +2704,27 @@ function actHasData(cls,name){
     if(m2&&(m2.theme||m2.teacher||m2.goal))has=true;
   }
   var sc=curSched();
-  if(sc[cls])for(d in sc[cls]){var r=sc[cls][d]||{};if(r.am===name||r.pm===name)has=true;}
+  /* 日ごとに書いた内容の文も「入力あり」に数える（週の欄をやめてからは、こちらが主） */
+  if(sc[cls])for(d in sc[cls]){
+    var r=sc[cls][d]||{};
+    if(r.am===name||r.pm===name)has=true;
+    if(r.am===name&&r.amText)has=true;
+    if(r.pm===name&&r.pmText)has=true;
+  }
   return has;
 }
 /* 一覧から消した活動が日別スケジュールに残ると、画面に出ない予定が残ってしまうので空にする。
    週の内容・月間のねらいは消さずに残す（同じ名前で足し直すと、また出てくる）。 */
 function actClearSched(cls,name){
   var sc=curSched();if(!sc[cls])return;
-  /* 活動名だけ消して内容の文が残ると、活動名の無い文が配信され続ける。
-     確認文どおり、その日は空にする。 */
+  /* ★活動名といっしょに、その日に書いた内容の文（amText/pmText）まで消していた。
+     確認文は「入れた内容は消さずに残す／同じ名前で足し直すとまた出てきます」と
+     言うのに、日ごとの内容は戻らなかった。週の欄をやめてからは、活動の中身を
+     書く場所はこの日ごとの欄が主なので、消してはいけない。
+     活動名だけ空にして、書いた文は残す。 */
   for(var d in sc[cls]){var r=sc[cls][d];if(!r)continue;
-    if(r.am===name){r.am='';r.amText='';}
-    if(r.pm===name){r.pm='';r.pmText='';}}
+    if(r.am===name)r.am='';
+    if(r.pm===name)r.pm='';}
   DB.curriculum=CUR;
 }
 /* 読み込み時に一度だけ：英語の呼び名で入っている分を、日本語の呼び名に読み替える */
@@ -2945,6 +3022,10 @@ function go(page){
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
   if(page!=='roster')rosterTab='list';   /* 生徒台帳は、別の画面へ行って戻ったら必ず一覧から始める */
+  /* ★職員管理の「書類の確認ビュー」を、監査のボタンの中だけで解いていた。
+     サイドバーから職員管理を開くと、資格証明書の保管状況が出続けていた。
+     入口が増えても漏れないよう、ここで解く（監査のボタンは go の直前で立てる）。 */
+  if(page!=='staff'&&typeof staffFocus!=='undefined')staffFocus=null;
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   var navOn=navActiveOf(page);
   document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===navOn);});
@@ -3201,16 +3282,56 @@ function lockYesNo(v){
   return String(v==null?'':v);
 }
 /* 塊を「読める名前 → 値」の一覧にほどく。深さは2段まで */
-function lockFlatten(o,lab,out,depth){
+/* 内部の英語キーを、監査員が読める言葉に直す */
+var LOCK_LABELS={att:'出欠',temp:'体温',opts:'オプション',h:'身長',w:'体重',
+  memo:'メモ',note:'備考',by:'記録者',other:'そのほか',action:'対応',
+  symptoms:'症状',cat:'種類',opt:'内容',parentNote:'保護者からの連絡',
+  charge:'担当',result:'結果',lab:'検査機関',date:'日づけ'};
+function lockLab(k){ return LOCK_LABELS[k]||String(k); }
+function lockFlatten(o,lab,out,depth,skip){
   if(o==null)return;
   if(typeof o!=='object'){ out[lab]=lockYesNo(o); return; }
-  if(depth>=2){ out[lab]=JSON.stringify(o); return; }
+  /* ★深さ2で打ち切って生の JSON を紙に刷っていた。
+     健康チェックの症状は {symptoms:[{cat,opts:[…]}]} と二重に入れ子なので、
+     監査書類に生の JSON がそのまま出ていた。もう1段ほどき、
+     配列の中身は「種類」で見出しを付ける。 */
+  if(Object.prototype.toString.call(o)==='[object Array]'){
+    var i,plain=true;
+    for(i=0;i<o.length;i++){ if(o[i]&&typeof o[i]==='object'){plain=false;break;} }
+    /* 文字列だけの並び（症状の内容など）は、番号を振らず1つにまとめる */
+    if(plain){
+      var ws=[];
+      for(i=0;i<o.length;i++){ if(o[i]!=null&&o[i]!=='')ws.push(String(o[i])); }
+      if(ws.length)out[lab]=ws.join('・');
+      return;
+    }
+    for(i=0;i<o.length;i++){
+      var it=o[i];
+      if(it==null||it==='')continue;
+      if(typeof it!=='object'){ out[lab+'／'+(i+1)]=String(it); continue; }
+      var nm=it.cat||it.name||it.t||('　'+(i+1));
+      var sk={cat:1,name:1,t:1};
+      /* 症状の「内容」は、見出し（症状の種類）にそのまま続けて出す。
+         ここで「オプション」と書くと、出欠の給食・延長と同じ言葉になって読み違える */
+      if(Object.prototype.toString.call(it.opts)==='[object Array]'&&it.opts.length&&typeof it.opts[0]!=='object'){
+        out[lab+'／'+nm]=it.opts.join('・');
+        sk.opts=1;
+      }
+      /* 見出しに使った名前を、中身でもう一度出さない */
+      lockFlatten(it,lab+'／'+nm,out,(depth||0)+1,sk);
+    }
+    return;
+  }
+  if(depth>=3){ out[lab]=JSON.stringify(o); return; }
   var k;
   for(k in o){
     if(!Object.prototype.hasOwnProperty.call(o,k))continue;
     var v=o[k];
     if(v==null||v==='')continue;
-    lockFlatten(v,lab+'／'+k,out,(depth||0)+1);
+    /* ★園児の内部番号を監査書類に出さない（見出しにすでに園児名が出ている） */
+    if(k==='childId'||k==='id')continue;
+    if(skip&&skip[k])continue;
+    lockFlatten(v,lab+'／'+lockLab(k),out,(depth||0)+1);
   }
 }
 /* 欄ごとの「鍵を読む係」 */
@@ -3236,15 +3357,6 @@ function lockListMap(arr,idKey){
     out[(id!=null&&id!=='')?String(id):('#'+(i+1))]=x;
   }
   return out;
-}
-function lockSnap(d,fields){
-  var o={},i;
-  if(!d)return o;
-  for(i=0;i<fields.length;i++){
-    var k=fields[i].k, v=d[k];
-    o[k]=(v==null)?'':((typeof v==='object')?JSON.stringify(v):String(v));
-  }
-  return o;
 }
 function lockDiff(d,before,fields){
   if(!d||!d.lock||!before)return;
@@ -3302,6 +3414,17 @@ function lockSameDay(t){
    locked … 「保存する」で閉じる。開けるのは「編集する」
    lock   … 「確定する」で閉じる。開けるのは園長の「修正を許可」
    両方の鍵が開いているときだけ書ける。 */
+/* 身体測定の結果を保護者へ送った日。記録そのものとは別に持つ。
+   記録の中に書くと、送信のたびに「最後に書いた人」が書き換わり、
+   確定ずみの記録が一般の先生の操作で変わってしまうため。 */
+function bmSharedAll(){return stGet('bmShared',{});}
+function bmSharedOf(mk,cid){ return ((bmSharedAll()[mk]||{})[String(cid)])||''; }
+function bmSharedSet(mk,cid,v){
+  var a=bmSharedAll();
+  a[mk]=a[mk]||{};
+  a[mk][String(cid)]=v;
+  stSet('bmShared',a);
+}
 function bmCanEdit(d){
   if(!d)return true;
   /* ★確定を上位に置く。確定ずみのときは「編集する」ボタンも出さない作りなので、
@@ -4467,8 +4590,16 @@ function aiAskServer(kind,klass,period,extra){
   var m=period||(String(+todayISO().slice(5,7))+'月');
   var body={
     kind:jp, klass:klass, period:m,
-    ageLabel:(function(){try{var f=aiProfile(klass).facts;
-      return (f.minAge!=null)?(f.minAge+'歳児'):'';}catch(e){return '';}})(),
+    /* ★「〇歳児」と書けば日本の保育では年度年齢（4月1日時点）のクラスを指す。
+       ここだけ満年齢の最小値を渡していたので、1歳児がいるクラスを
+       AIには「2歳児」と伝えていた。誤飲の注意は年度年齢で出しているので、
+       同じ製品の中で年齢が2通りになっていた。年度年齢にそろえる。 */
+    ageLabel:(function(){try{
+      var lo=aiYoungest(klass);
+      if(lo!=null)return lo+'歳児';
+      var f=aiProfile(klass).facts;
+      return (f.minAge!=null)?('満'+f.minAge+'歳'):'';
+    }catch(e){return '';}})(),
     season:AI_SEASON[m]||'',
     facts:aiFactsText(klass)
   };
@@ -4488,26 +4619,59 @@ var AI_LIST_KEYS={times:1,days:1,materials:1,prep:1,steps:1,help:1,safe:1,expect
 function aiText(x){
   if(x==null)return '';
   if(typeof x==='object'){
-    var ks=['t','text','name','n','label','title','item','value','材料','内容'],i;
+    /* ★決めたキーに当たらないとき、中身を総当たりして
+       最初に見つかった文字列を返していた。{数量:'20個',品名:'どんぐり'} のような
+       並びだと「20個」を返し、材料名が消える。名前が消えると
+       誤飲・窒息の注意（どんぐり＝口に入る大きさ）も出なくなっていた。
+       当たらないときは、名前らしいものを探し、それも無ければ
+       中身を全部つないで返す（消してしまうより、読める形で残す）。 */
+    var ks=['t','text','name','n','label','title','item','value','材料','内容','品名','名称'],i,v;
     for(i=0;i<ks.length;i++){ if(typeof x[ks[i]]==='string'&&x[ks[i]])return x[ks[i]]; }
-    for(i in x){ if(typeof x[i]==='string'&&x[i])return x[i]; }
-    return '';
+    var parts=[];
+    for(i in x){
+      if(!Object.prototype.hasOwnProperty.call(x,i))continue;
+      v=x[i];
+      if(typeof v==='string'&&v)parts.push(v);
+      else if(typeof v==='number')parts.push(String(v));
+    }
+    return parts.join(' ');
   }
   return String(x);
 }
 /* 一日の流れ・一週間の流れは「時刻と中身」の組で持っている。
    AIが1行の文字列で返してきたとき、そのまま入れると欄が空で出るので、
    先頭の時刻・曜日を切り分けて組に直す。 */
+/* 全角の数字を半角に直す */
+function aiHan(t){
+  return String(t==null?'':t).replace(/[０-９]/g,function(c){
+    return String.fromCharCode(c.charCodeAt(0)-0xFEE0);
+  });
+}
 function aiRowify(k,x){
   if(x&&typeof x==='object')return x;
-  var t=String(x==null?'':x).replace(/^\s+|\s+$/g,'');
+  /* ★半角の「9:00」しか読めず、「9時00分」「９:３０」「午前9時」は
+     すべて外れて、時刻の欄が空のまま紙に出ていた。
+     活動の欄に「9時00分　登園・視診」と時刻ごと入り、
+     実施報告の選択肢も時刻混じりの1項目になっていた。 */
+  var t=aiHan(x).replace(/^\s+|\s+$/g,'');
   if(k==='times'){
-    var m=t.match(/^([0-9]{1,2}[:：][0-9]{2})\s*[　\-–ー~〜]?\s*(.*)$/);
-    return m?{t:m[1].replace('：',':'),a:m[2],e:''}:{t:'',a:t,e:''};
+    var ampm=0,body=t;
+    var ap=body.match(/^(午前|午後|AM|PM|am|pm)\s*(.*)$/);
+    if(ap){ ampm=(ap[1]==='午後'||ap[1]==='PM'||ap[1]==='pm')?12:0; body=ap[2]; }
+    var m=body.match(/^([0-9]{1,2})\s*(?:[:：]\s*([0-9]{1,2})|時\s*(?:([0-9]{1,2})\s*分?)?)\s*[　:：\-–ー~〜]*\s*([\s\S]*)$/);
+    if(m){
+      var hh=+m[1],mm=+(m[2]||m[3]||0);
+      if(ampm&&hh<12)hh+=12;
+      if(hh>=0&&hh<=23&&mm>=0&&mm<=59){
+        return {t:hh+':'+('0'+mm).slice(-2),a:String(m[4]||'').replace(/^\s+/,''),e:''};
+      }
+    }
+    /* 読み取れなかった行は、そう分かるように出す */
+    return {t:'—',a:t,e:''};
   }
   if(k==='days'){
-    var d=t.match(/^([月火水木金土日])曜日?\s*[：:　\-]?\s*(.*)$/);
-    return d?{d:d[1]+'曜',main:d[2],env:'',help:''}:{d:'',main:t,env:'',help:''};
+    var d=t.match(/^([月火水木金土日])曜日?\s*[：:　\-–]?\s*([\s\S]*)$/);
+    return d?{d:d[1]+'曜',main:String(d[2]||'').replace(/^\s+/,''),env:'',help:''}:{d:'',main:t,env:'',help:''};
   }
   return t;
 }
@@ -4558,7 +4722,9 @@ var AI_WD=['月','火','水','木','金'];
 function aiPlanGen(klass,kind,period){
   var p=aiProfile(klass), f=p.facts;
   var m=period||(String(+todayISO().slice(5,7))+'月');
-  var aim=aiAimFor(f.minAge!=null?f.minAge:2);
+  /* ねらいの基準も、AIへ渡す年齢と同じ年度年齢にそろえる */
+  var _lo=(typeof aiYoungest==='function')?aiYoungest(klass):null;
+  var aim=aiAimFor(_lo!=null?_lo:(f.minAge!=null?f.minAge:2));
   var season=AI_SEASON[m]||'';
   var base={
     klass:klass, kind:kind, period:m, season:season,
@@ -5389,9 +5555,19 @@ function aipWire(k){
            aiCraft が返す組には無く、ここを読んでも空だった
            （＝古い材料の注意が1行も外れていなかった）。 */
         var matBefore=(base.materials||[]).slice();
-        d.materials=gotMat.map(function(x){return aiText(x)+'（'+base.count+'名分）';});
+        var matBad=0;
+        d.materials=gotMat.map(function(x){
+          var t=aiText(x);
+          if(!t){matBad++;t='（材料名が読み取れませんでした）';}
+          return t+'（'+base.count+'名分）';
+        });
         var oldNote=aiChokeNotes(matBefore,k);
-        var reNote=aiChokeNotes(d.materials,k);
+        /* ★材料名だけでなく、AIが返した生の形にも当てる。
+           名前を取り出せなかったときは、必ず先生に確かめてもらう */
+        var reNote=aiChokeNotes(d.materials.concat(gotMat.map(function(x){
+          try{return (x&&typeof x==='object')?JSON.stringify(x):String(x);}catch(e6){return '';}
+        })),k);
+        if(matBad)reNote=['材料名が読み取れませんでした。誤飲・窒息の確認は先生が行ってください。'].concat(reNote);
         var fixed=keepSafe.filter(function(x){
           return oldNote.indexOf(x)<0 && reNote.indexOf(x)<0;
         });
@@ -7738,7 +7914,12 @@ function renderCurriculum(){
     s.querySelectorAll('[data-rep]').forEach(function(b){b.onclick=function(){
       actRepModal(curClass,b.getAttribute('data-rep'));};});
   s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-cont')),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
-  s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-actm')),m=curActMGet(curClass,p[0]);m[p[1]]=inp.value;curActMSet(curClass,p[0],m);renderCurriculum();};});
+  /* ★ここで画面を作り直していたので、Tab で隣の欄へ移った瞬間に
+     欄ごと作り直され、焦点が外れて、続けて打った文字がどこにも入らなかった。
+     値は curActMSet で保存ずみ、画面の文字も打ったとおりなので、作り直さない。 */
+  s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){
+    var p=actSplitKey(inp.getAttribute('data-actm')),m=curActMGet(curClass,p[0]);
+    m[p[1]]=inp.value;curActMSet(curClass,p[0],m);};});
   s.querySelectorAll('[data-creset]').forEach(function(b){b.onclick=function(){
     var t=b.getAttribute('data-creset'),ct=curContGet(curClass,curWeek,t),m=curActMGet(curClass,t),back=[];
     /* 月間登録がある項目だけを戻す。戻す先が無い項目（＝消すと復元できない入力）はそのまま残す */
@@ -7762,7 +7943,7 @@ function renderCurriculum(){
     var list=actTypesOwn(curClass),i=+b.getAttribute('data-atx'),nm=list[i];
     /* 入力ずみのものを黙って消さない。何が起きるかを先に伝える */
     var msg=actHasData(curClass,nm)
-      ?'「'+nm+'」には、すでに入れた内容があります（週の内容・月間のねらい・担当）。\n一覧から消すと、この活動の入力欄は画面に出なくなります。日別スケジュールでこの活動を選んでいた日は、空になります。\n入れた内容は消さずに残すので、同じ名前で足し直すと、また出てきます。\n消してよろしいですか？'
+      ?'「'+nm+'」には、すでに入れた内容があります（日ごとの内容・月間のねらい・担当）。\n一覧から消すと、この活動の入力欄は画面に出なくなります。日別スケジュールでこの活動を選んでいた日は、活動名だけが空になります。\n書いた内容の文は消さずに残すので、同じ名前で足し直すと、また出てきます。\n消してよろしいですか？'
       :'「'+nm+'」を一覧から消します。よろしいですか？';
     if(!confirm(msg))return;
     actClearSched(curClass,nm);
@@ -8080,7 +8261,7 @@ function renderSettings(){
     $('#actTypeBox').querySelectorAll('[data-atd]').forEach(function(b){b.onclick=function(){
       var p=b.getAttribute('data-atd').split('|'),cls=p[0],list=actTypesOwn(cls),i=+p[1],nm=list[i];
       /* 入力ずみのものを黙って消さない。何が起きるかを先に伝える */
-      if(actHasData(cls,nm)&&!confirm('「'+nm+'」には、カリキュラムに入れた内容があります（週の内容・月間のねらい・担当）。\n一覧から消すと、この活動の入力欄は画面に出なくなります。日別スケジュールで選んでいた日は、空になります。\n入れた内容は消さずに残すので、同じ名前で足し直すと、また出てきます。\n消してよろしいですか？'))return;
+      if(actHasData(cls,nm)&&!confirm('「'+nm+'」には、カリキュラムに入れた内容があります（日ごとの内容・月間のねらい・担当）。\n一覧から消すと、この活動の入力欄は画面に出なくなります。日別スケジュールで選んでいた日は、活動名だけが空になります。\n書いた内容の文は消さずに残すので、同じ名前で足し直すと、また出てきます。\n消してよろしいですか？'))return;
       actClearSched(cls,nm);list.splice(i,1);actTypesSave(cls,list);renderActTypes();};});
     $('#actTypeBox').querySelectorAll('[data-atadd]').forEach(function(b){b.onclick=function(){
       var cls=b.getAttribute('data-atadd'),inp=$('#actTypeBox').querySelector('[data-atnew="'+cls+'"]'),v=inp.value.trim();if(!v)return;
@@ -8437,7 +8618,7 @@ function renderAudit(){
   s.innerHTML=
     '<div class="card" style="margin-bottom:14px;">'+recHead('監査対応',
       '<select id="auFY" style="width:150px;">'+auditFYList().map(function(y){return '<option value="'+y+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>')
-    +(isCur?'':'<div class="cal-banner" style="margin:0;background:#FAEEDA;border-color:#854F0B;"><div style="flex:1;"><div style="font-weight:600;color:#854F0B;">'+fy+'年度を見ています。いまは '+curFY()+'年度です。</div><div class="muted">保管先と「システム内データ」の件数は、年度で分けていません。</div></div><button class="btn btn-sm" id="auNow">今年度に戻す</button></div>')
+    +(isCur?'':'<div class="cal-banner" style="margin:0;background:#FAEEDA;border-color:#854F0B;"><div style="flex:1;"><div style="font-weight:600;color:#854F0B;">'+fy+'年度を見ています。いまは '+curFY()+'年度です。</div><div class="muted">保管先と、名簿・打刻・現在の登録状況を出す項目（末尾に「現在」と書いてあるもの）は、年度で分けていません。</div></div><button class="btn btn-sm" id="auNow">今年度に戻す</button></div>')
     +'</div>'+
     '<div class="cal-banner" style="margin-bottom:16px;background:'+ph.bg+';border-color:'+ph.color+';"><div style="width:42px;height:42px;border-radius:12px;background:#fff;color:'+ph.color+';display:flex;align-items:center;justify-content:center;">'+ic('audit')+'</div><div style="flex:1;"><div style="font-weight:600;">'+ph.label+'</div><div class="muted">'+ph.desc+'</div></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">'+
@@ -9563,6 +9744,7 @@ function edBody(){
     var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass)+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>'+lockFootHtml(d);
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
   };
+  /* 送信の控え。記録（rec_身体測定）の外に持つので、確定ずみでも記録は変わらない */
   $('#bmShare').onclick=function(){
     var targets=kids.filter(function(c){var r=d.rows[c.id]||{};return r.h&&r.w;});
     if(!targets.length){alert('身長・体重が入力された園児がいません。先に測定値を入力してください。');return;}
@@ -9573,12 +9755,15 @@ function edBody(){
       var subj='【'+SET.school+'】'+childFullName(c)+'さんの身体測定結果（'+ym+'）';
       var bd='いつもお世話になっております。\n'+ym+'の身体測定の結果をお知らせいたします。\n\nお名前：'+childFullName(c)+'（'+ageClassOf(c)+'）\n身長：'+r.h+' cm\n体重：'+r.w+' kg\nカウプ指数：'+kp+'\n\n保護者ページの「せいちょう」からも成長の記録をご覧いただけます。\n\n'+SET.school;
       h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'身体測定結果',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:bd});
-      /* 送った日は記録に残す。確定ずみの記録に足すときは、跡にも積む */
-      if(!lockCanEdit(d)&&r.sharedAt!==todayISO())lockNote(d,'保護者へ送信（'+childFullName(c)+'）',r.sharedAt||'（未送信）',todayISO());
-      r.sharedAt=todayISO();});
-    /* 送った控えは DB.history に残す。確定ずみの記録そのものは書き換えない
-       （送信は記録の中身を変える操作ではないため） */
-    DB.history=h;save();
+      /* ★送った日を記録そのものの中（r.sharedAt）に書き、そのあと save() が
+         「最後に書いた人」を押した人・今日に書き換えていた。帯は
+         「直すには園長・管理者の許可が要ります」と言うのに、一般の先生の
+         操作で確定ずみの記録が変わり、紙の確定者が入れ替わって見えた。
+         送信の控えは記録の外（bmShared）に持つ。 */
+      bmSharedSet(recMonth,c.id,todayISO());});
+    DB.history=h;
+    /* 記録そのものは触らないので save() は呼ばない（stampWho が走ってしまう） */
+    if(typeof saveAll==='function')saveAll();
     alert(targets.length+'名の保護者へ送信しました。\n保護者ページの「せいちょう」タブに反映され、各ご家庭ではお子様ご本人の記録のみが表示されます。');
     edBody();
   };
@@ -10589,6 +10774,18 @@ function haichiRatio(){
 }
 function haichiMin(){var n=+stGet('haichiMin',2);return (n>0)?n:2;}
 /* その日に来ていた園児を、歳児ごとに数える */
+/* 生年月日は連絡先（c.dob）が本体。入っていないときは生徒台帳も見る */
+function kidDob(c){
+  if(!c)return '';
+  if(c.dob)return c.dob;
+  try{
+    if(typeof spStore==='function'){
+      var p=spStore()[c.id]||{};
+      if(p.dob)return p.dob;
+    }
+  }catch(e){}
+  return '';
+}
 function haichiKids(date){
   var d=stGet('rec_登園シート',{})[date],by={},total=0,unknown=0;
   if(!d||!d.rows)return {by:by,total:0,unknown:0};
@@ -10603,11 +10800,31 @@ function haichiKids(date){
     /* ★生年月日が無い子を「5歳児」（25人に1人）として数えると、
        足りないのに足りていると出る。分からないときは一番きびしい側（0歳児）で数え、
        園に生年月日を入れてもらう。 */
-    var a=c.dob?String(ageClassOf(c,date)).replace(/[^0-9]/g,''):'';
+    var dob=kidDob(c);
+    var a=dob?String(ageClassOf({dob:dob},date)).replace(/[^0-9]/g,''):'';
     if(a===''){ a='0'; unknown++; }
     by[a]=(by[a]||0)+1; total++;
   });
-  return {by:by,total:total,unknown:unknown};
+  /* ★rows はそのクラスを開いて保存したときにしか作られない。
+     Pre の先生がまだ入れていない日は、Pre の園児が「登園していない」ものとして
+     扱われるのに、帯は「園ぜんぶで」と書いて緑で断定していた。
+     入っていないクラスを数えて、断定を止める材料にする。 */
+  var seenCls={},missCls=[];
+  (function(){
+    var k,c2,i;
+    for(k in (d.rows||{})){
+      if(!Object.prototype.hasOwnProperty.call(d.rows,k))continue;
+      c2=(DB.contacts||[]).filter(function(x){return String(x.id)===String(k);})[0];
+      if(c2&&c2.klass)seenCls[c2.klass]=1;
+    }
+    if(d.klass)seenCls[d.klass]=1;
+    for(i=0;i<CLASSES.length;i++){
+      if(seenCls[CLASSES[i]])continue;
+      if(!classOf(CLASSES[i]).length)continue;   /* そもそも園児のいないクラスは数えない */
+      missCls.push(CLASSES[i]);
+    }
+  })();
+  return {by:by,total:total,unknown:unknown,missCls:missCls};
 }
 /* 必要な保育士の数。歳児ごとに切り上げてから足す（国の数え方） */
 /* 必要な保育士の数。
@@ -10685,6 +10902,7 @@ function haichiStaff(date){
 function haichiFor(date){
   var kids=haichiKids(date),need=haichiNeed(kids.by),st=haichiStaff(date);
   return {date:date, by:kids.by, kids:kids.total, need:need, unknown:kids.unknown||0,
+          missCls:kids.missCls||[],
           staff:st.n, src:st.src, short:Math.max(0,need-st.n)};
 }
 /* その日の帯。登園（出席）の画面に出す */
@@ -10692,6 +10910,15 @@ function haichiBarHtml(date){
   var h=haichiFor(date);
   if(!h.kids)return '';
   var ages=Object.keys(h.by).sort().map(function(k){return k+'歳児 '+h.by[k]+'名';}).join('／');
+  /* ★登園がまだ入っていないクラスがある日は、足りているとも足りないとも言えない。
+     出勤側には「記録なし」の手当てがあるのに、登園側には無く、
+     1クラス分だけの日でも「園ぜんぶで…足りています」と緑で断定していた。 */
+  if((h.missCls||[]).length){
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#F1EFE8;color:#5F5E5A;border:1px solid #D3D1C7;">'
+      +'<span style="flex:1;min-width:200px;"><b>'+esc(h.missCls.join('・'))+' がまだ入っていません</b>'
+      +'　いま入っているぶんで 登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人'
+      +'　全クラス入れると、足りているか確かめられます。</span></div>';
+  }
   /* 出勤の記録がまだ無い日は、足りているとも足りないとも言えない */
   if(h.src==='なし'){
     return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#F1EFE8;color:#5F5E5A;border:1px solid #D3D1C7;">'
@@ -10728,6 +10955,8 @@ function haichiShortDays(mk){
     if(date>=today)continue;
     var h=haichiFor(date);
     if(h.src==='なし')continue;
+    /* 登園がまだ入っていないクラスがある日は、足りないとは言えない */
+    if((h.missCls||[]).length)continue;
     if(h.kids&&h.short>0)out.push(h);
   }
   return out;
@@ -11741,6 +11970,12 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
       .catch(function(e){keys.forEach(function(k){SYNC.queue[k]=true;});SYNC.setStatus('未保存：'+e.message);})
       .then(function(){SYNC.busy=false;});
   },
+  /* ★読み込み時に1回だけ作る控え（CUR・SET・DB のキャッシュ）は、
+     サーバから読み直しても作り直されない。画面は古いまま残り、
+     どこか1欄を触ると古い内容で丸ごと上書きされ、サーバへも送り返されていた。
+     読み直しで中身が変わった控えがあれば、印を立てて画面を作り直す。 */
+  CACHED_KEYS:{curriculum:1,settings:1},
+  stale:false,
   pull:function(){
     if(!API.online())return Promise.resolve();
     SYNC.setStatus('読み込み中…');
@@ -11749,7 +11984,13 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
         /* サーバ応答で接続先や職員アカウントを書き換えられないようにする（テナント乗っ取りの防止） */
         if(/^(apiToken|apiBase|apiTenant|psession|staffSession|staffAccounts|parentAccounts)$/.test(k))return;
         if(j.data[k]===null||j.data[k]===undefined)return;
-        (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_'+k,JSON.stringify(j.data[k]));
+        var nv=JSON.stringify(j.data[k]);
+        if(SYNC.CACHED_KEYS[k]){
+          var ov=null;
+          try{ov=localStorage.getItem('cocoas_'+k);}catch(e2){}
+          if(ov!==nv)SYNC.stale=true;
+        }
+        (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_'+k,nv);
       });
       SYNC.lastPull=j.serverTime;SYNC.setStatus('最新の状態です',true);
       return j;
@@ -12311,7 +12552,12 @@ function staffBoot(){
       else{hit.name=su.name;hit.role=su.role;stSet('staffAccounts',accs);}
       sessionStorage.setItem('cocoas_staffSession',hit.id);
     }
-    SYNC.pull().then(function(){return PSTATE.pull();}).catch(function(){});
+    SYNC.pull().then(function(){
+      /* 読み直しでカリキュラムや設定が変わっていたら、画面を作り直す。
+         作り直さないと、開いている画面の古い控えで上書きしてしまう。 */
+      if(SYNC.stale){location.reload();return;}
+      return PSTATE.pull();
+    }).catch(function(){});
   }
   if(!currentStaff()){showStaffLogin();return;}
   applyPerms();try{initSyncBar();}catch(e){}
@@ -13334,6 +13580,14 @@ function wireRosterProfile(){
       var arr2=DB.contacts,ch2=false;
       arr2.forEach(function(x){if(x.id===rosterSel&&x.withdrawDate!==obj.leaveDate){x.withdrawDate=obj.leaveDate;ch2=true;}});
       if(ch2)DB.contacts=arr2;
+    }
+    /* ★生年月日は studentProfiles にしか入らず、連絡先（c.dob）に返っていなかった。
+       配置基準も歳児も c.dob しか読まないので、帯の案内どおり生徒台帳に入れて
+       「保存しました」と出ても、その子は生年月日なしのまま数えられ続けていた。 */
+    if(obj.dob){
+      var arr3=DB.contacts,ch3=false;
+      arr3.forEach(function(x){if(x.id===rosterSel&&x.dob!==obj.dob){x.dob=obj.dob;ch3=true;}});
+      if(ch3)DB.contacts=arr3;
     }
     spSet(rosterSel,obj);rpGuards=obj.guardians;
     $('#rpMsg').textContent='保存しました';setTimeout(function(){if($('#rpMsg'))$('#rpMsg').textContent='';},1500);
@@ -16421,7 +16675,7 @@ function aiTasks(){
   return {text:lines.join('\n'),nav:[{label:'日常記録',page:'records'},{label:'避難訓練',page:'drill'},{label:'提出書類ナビ',page:'reqnav'},{label:'監査対応',page:'audit'}]};
 }
 function aiCurriculum(){
-  var t='🗓 今月のカリキュラム（'+(CUR.month||curMonthKey())+'）';
+  var t='🗓 今月のカリキュラム（'+curMonthKey()+'）';
   /* テーマは入力欄が画面に無い。空のまま「未設定」と出しても直しに行けないので、
      園が入れているときだけ出す */
   if(CUR.theme)t+='\nテーマ：'+CUR.theme;
