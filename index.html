@@ -1497,12 +1497,17 @@ function nichiHeads(cls){
 }
 /* 何歳児かは生徒台帳の生年月日から。ばらつくときは「〇〜〇歳児」 */
 function nichiAgeLabel(cls){
+  /* ★ここだけ満年齢で数えていた。日本の保育で「〇歳児」と書けば
+     年度年齢（4月1日時点）のクラスを指す。誤飲の注意もAIへ渡す年齢も
+     年度年齢なので、同じクラスが紙では「2〜3歳児」、注意書きでは「1歳児」と
+     出ていた。ほかとそろえる。 */
   var en=(typeof enrolled==='function')?enrolled():[],lo=null,hi=null;
   en.forEach(function(c){
     if(cls&&c.klass!==cls)return;
-    if(!c.dob)return;
-    var a=Math.floor((new Date()-new Date(c.dob))/31557600000);
-    if(a<0||a>12)return;
+    var dob=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
+    if(!dob)return;
+    var a=parseInt(String(ageClassOf({dob:dob})).replace(/[^0-9]/g,''),10);
+    if(isNaN(a)||a<0||a>12)return;
     if(lo===null||a<lo)lo=a; if(hi===null||a>hi)hi=a;
   });
   if(lo===null)return '';
@@ -1843,13 +1848,27 @@ function nichiModal(cls,date){
       var written=NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length;
       var rowsOK=(written===0)||(isAI&&byDraft.rows);
       if(t.length&&rowsOK){
-        NICHI.rows=t.map(function(x){return {t:x.t||'',c:x.a||'',h:x.e||'',src:'ai'};});
-        if(!isAI)byDraft.rows=1;
-        drawRows();
+        var made=t.map(function(x){return {t:x.t||'',c:x.a||'',h:x.e||'',src:'ai'};});
+        /* ★中身が1つも取れなかったときに、空の行で置き換えて
+           それまでの下書きを消していた */
+        if(made.filter(function(r){return (r.t&&r.t!=='—')||r.c||r.h;}).length){
+          NICHI.rows=made;
+          if(!isAI)byDraft.rows=1;
+          drawRows();
+        }
       }
     }
+    var b0=[$('#niSugata').value,$('#niJunbi').value,$('#niNerai').value,JSON.stringify(NICHI.rows)].join('\u0001');
     fill(base,false);
-    if(!aiCanServer()){ b.disabled=false; msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。'); return; }
+    var a0=[$('#niSugata').value,$('#niJunbi').value,$('#niNerai').value,JSON.stringify(NICHI.rows)].join('\u0001');
+    if(!aiCanServer()){
+      b.disabled=false;
+      /* ★1文字も入らなくても「下書きを作りました」と言っていた */
+      msg(b0===a0
+        ? '先生が書いた文があるため、下書きは入れませんでした。'
+        : 'AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。');
+      return;
+    }
     aiAskServer('day',cls,mLab).then(function(got){
       b.disabled=false;
       if(got){
@@ -2284,6 +2303,19 @@ function auditCanGo(sys){
   if(p==='docs'&&typeof docsBoss==='function')return docsBoss();
   return true;
 }
+/* その項目の行き先（記録の種類まで）が開けるか。
+   ★苦情の記録は一般の先生の一覧から外してあるのに監査にはボタンが出ており、
+     押すと黙って身体測定が開いていた。 */
+function auditCanGoItem(sys,key){
+  if(!auditCanGo(sys))return false;
+  if(!key||typeof AUDIT_REC==='undefined'||!AUDIT_REC[key])return true;
+  var page=AUDIT_REC[key][0],type=AUDIT_REC[key][1];
+  try{
+    if(page==='carerec'&&typeof recCareList==='function')return recCareList().indexOf(type)>-1;
+    if(page==='records'&&typeof REC_DAILY!=='undefined')return REC_DAILY.indexOf(type)>-1;
+  }catch(e){}
+  return true;
+}
 /* 監査の項目から、開く画面と記録の対応。ここに無いものは素の画面だけ開く */
 var AUDIT_REC={
   shusseki:['records','登園（出席）'],
@@ -2302,6 +2334,19 @@ var AUDIT_REC={
    ★虐待防止と児童票は「2026-Q3」の形の鍵を使っている。
      数字2けたしか通していなかったので全部ふるい落ち、
      何件書いても「0回分」と出ていた。 */
+/* 置き場所として使える形か（URL・ファイルの場所）。
+   ★「あとで入れます」のようなメモでも格納済みになっていた。
+     しかも書類格納の画面と監査の一覧で判定が違い、同じものを
+     片方は「格納済み」、片方は「未格納（メモのみ）」と言っていた。 */
+function docIsStored(u){
+  u=String(u||'');
+  if(!u)return false;
+  return /^(https?:\/\/|file:|\/|[A-Za-z]:\\)/.test(u);
+}
+function docStateLabel(u){
+  if(!String(u||''))return '未格納';
+  return docIsStored(u)?'格納済み':'未格納（メモのみ）';
+}
 function auditKeyMonth(k){
   k=String(k);
   var q=k.match(/^([0-9]{4})-Q([1-4])$/);
@@ -2334,9 +2379,9 @@ function auditDataInfo(key,fy){
         return false;
       });
     }
-    case 'gosui': return lockInfo(auditPickFY(stGet('rec_午睡チェック',{}),fy),'日分');
+    case 'gosui': return lockInfo(auditPickFY(stGet('rec_午睡チェック',{}),fy),'日分',napHas);
     case 'shusseki': return lockInfo(auditPickFY(stGet('rec_登園シート',{}),fy),'日分',touenHas);
-    case 'kenko': return lockInfo(auditPickFY(stGet('rec_健康チェック',{}),fy),'日分');
+    case 'kenko': return lockInfo(auditPickFY(stGet('rec_健康チェック',{}),fy),'日分',healthHas);
     case 'shintai': {
       /* ★画面を開いただけで在園児ぶんの空の行ができ、
          中身ゼロの月を「1ヶ月分の記録あり」と数えていた */
@@ -2365,9 +2410,12 @@ function auditDataInfo(key,fy){
       /* 1文字も書いていない行は数えない（足しただけの空の行があるため） */
       var kj=stGet('rec_kujo',[]).filter(function(r){
         if(!r||!(r.date||r.content||r.person))return false;
-        return !r.date||fyOf(r.date)===fy;
+        /* ★紙は「受付日が空の行は当年度だけ」に絞っているのに、
+           一覧は全年度で数えていた。記録が1件も無い年度の紙にも1件と載っていた。 */
+        if(!r.date)return fy===curFY();
+        return fyOf(r.date)===fy;
       });
-      return kj.length+'件の記録あり（'+fy+'年度）';}
+      return kj.length?(kj.length+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');}
     case 'kaigi': {
       /* 議事録は年度ごとに持っている。全年度を足すと、監査の一覧だけ
          年度の数と合わなくなる（紙は年度ごとに出る）。 */
@@ -2378,7 +2426,7 @@ function auditDataInfo(key,fy){
         return !!(r.date||r.agenda||r.decided||r.attend||r.note||r.by);
       }).length;
       return kgn?(kgn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');}
-    case 'nisshi': return lockInfo(auditPickFY(stGet('rec_日報',{}),fy),'日分');
+    case 'nisshi': return lockInfo(auditPickFY(stGet('rec_日報',{}),fy),'日分',nippoHas);
     case 'gyakutai': {
       var gyn=Object.keys(auditPickFY(stGet('rec_虐待防止',{}),fy)).length;
       return gyn?(gyn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
@@ -2406,7 +2454,8 @@ function auditDataInfo(key,fy){
       /* 様式は自治体のものを使い、書き上げたら「書類格納」に置き場所を登録する形にした。
          これまでこの画面に書いた分も、残っていれば分かるように書き添える。 */
       var sdoc=stGet('docs',{})[AUDIT_DOC_SLOT.shobo];
-      if(sdoc&&sdoc.url)return '格納済み';
+      if(sdoc&&docIsStored(sdoc.url))return '格納済み';
+      if(sdoc&&sdoc.url)return '未格納（メモのみ）';
       var bd=boukaGet(fy),n=BOUKA_MONTHS.filter(function(mo){return bd.rows[mo].date;}).length;
       return n?('未格納／この画面に '+fy+'年度 '+n+'ヶ月分の控えあり'):'未格納';
     }
@@ -2419,10 +2468,18 @@ function auditDataInfo(key,fy){
         if(fyOf(kbK+'-01')!==fy)continue;
         if(typeof kenbenDone==='function'&&kenbenDone(kbK))kbN++;
       }
-      var kbT=(typeof kenbenStaff==='function')?kenbenStaff(todayISO().slice(0,7)).length:0;
-      if(!kbT)return '調理に関わる職員の登録がありません（外から給食を運んでいる園は不要です）';
-      return kbN?(kbN+'ヶ月分そろっています（'+fy+'年度・対象 '+kbT+'名）')
-                :('まだそろった月がありません（対象 '+kbT+'名）');
+      /* ★「今日の月に調理職員が0名なら」記録があっても『不要です』と
+         言い切っていた。年度途中で調理職員が辞めた園では、実施した記録が
+         監査の画面と紙から丸ごと消えていた。年度で見る。 */
+      var kbT=0,kbM;
+      for(kbM=4;kbM<=15;kbM++){
+        var mm=(kbM<=12)?(fy+'-'+pad(kbM)):((fy+1)+'-'+pad(kbM-12));
+        var nn=(typeof kenbenStaff==='function')?kenbenStaff(mm).length:0;
+        if(nn>kbT)kbT=nn;
+      }
+      if(kbN)return kbN+'ヶ月分そろっています（'+fy+'年度・対象 最大'+kbT+'名）';
+      if(!kbT)return fy+'年度に、調理に関わる職員の登録がありません（外から給食を運んでいる園は不要です）';
+      return fy+'年度に、すべて陰性でそろった月はまだありません（対象 最大'+kbT+'名）';
     }
     case 'shukkin': {
       /* ★年度を無視して今月の数を返し、それが「◯◯年度」の紙に載っていた */
@@ -2462,9 +2519,8 @@ function auditDataInfo(key,fy){
       if(slot){
         /* ★URLかどうかを見ずに「格納済み」と言っていた。
            「あとで入れます」とメモを書いただけで格納済みに変わっていた。 */
-        var d=stGet('docs',{})[slot],u=(d&&d.url)?String(d.url):'';
-        if(!u)return '未格納';
-        return /^(https?:\/\/|file:|\/|[A-Za-z]:\\)/.test(u)?'格納済み':'未格納（メモのみ）';
+        var d=stGet('docs',{})[slot];
+        return docStateLabel(d&&d.url);
       }
       return '';
   }
@@ -2596,6 +2652,19 @@ function auditSet(k,v,fy){
 function auditDateOf(fy){var d=stGet('auditDates',{});return d[String(fy)]||'';}
 function auditDateSet(fy,v){var d=stGet('auditDates',{});d[String(fy)]=v||'';stSet('auditDates',d);}
 /* 選べる年度。前年度・今年度・来年度に、記録が入っている年度を足す */
+/* 記録が残っている年度を集める。★前後1年しか選べず、古い記録を開けなかった */
+function fyListWith(){
+  var out={},i,a,k;
+  out[curFY()-1]=1; out[curFY()]=1; out[curFY()+1]=1;
+  for(i=0;i<arguments.length;i++){
+    a=arguments[i]||{};
+    for(k in a){ if(Object.prototype.hasOwnProperty.call(a,k)&&/^[0-9]{4}$/.test(String(k)))out[+k]=1; }
+  }
+  var r=[];
+  for(k in out){ if(Object.prototype.hasOwnProperty.call(out,k))r.push(+k); }
+  r.sort(function(x,y){return y-x;});
+  return r;
+}
 function auditFYList(){
   var list=[curFY()-1,curFY(),curFY()+1];
   function add(o){var k,n;for(k in o){if(!Object.prototype.hasOwnProperty.call(o,k))continue;n=parseInt(k,10);if(n&&list.indexOf(n)<0)list.push(n);}}
@@ -3431,11 +3500,15 @@ function lockYesNo(v){
 }
 /* 塊を「読める名前 → 値」の一覧にほどく。深さは2段まで */
 /* 内部の英語キーを、監査員が読める言葉に直す */
-var LOCK_LABELS={att:'出欠',temp:'体温',opts:'オプション',h:'身長',w:'体重',
+var LOCK_LABELS={att:'出欠',temp:'体温',opts:'オプション',h:'身長',w:'体重',from:'時刻',by:'担当',
   memo:'メモ',note:'備考',by:'記録者',other:'そのほか',action:'対応',
   symptoms:'症状',cat:'種類',opt:'内容',parentNote:'保護者からの連絡',
   charge:'担当',result:'結果',lab:'検査機関',date:'日づけ'};
-function lockLab(k){ return LOCK_LABELS[k]||String(k); }
+var LOCK_LAB_OVERRIDE=null;
+function lockLab(k){
+  if(LOCK_LAB_OVERRIDE&&LOCK_LAB_OVERRIDE[k])return LOCK_LAB_OVERRIDE[k];
+  return LOCK_LABELS[k]||String(k);
+}
 function lockFlatten(o,lab,out,depth,skip){
   if(o==null)return;
   if(typeof o!=='object'){ out[lab]=lockYesNo(o); return; }
@@ -3486,6 +3559,7 @@ function lockFlatten(o,lab,out,depth,skip){
 var LOCK_KEYERS={
   kid:      function(k){ return lockKidName(k); },
   kidTime:  function(k){ var p=String(k).split('|'); return lockKidName(p[0])+(p[1]?'／'+p[1]:''); },
+  time:     function(k){ return String(k); },
   safety:   function(k){
               try{
                 var f=safetyFlat(),it=f[+k];
@@ -3528,9 +3602,15 @@ function lockDiff(d,before,fields){
       bo=lockListMap(bo,f.idKey); ao=lockListMap(ao,f.idKey);
     }
     var keyer=LOCK_KEYERS[f.keyer]||function(x){return String(x);};
+    /* 同じ英語の鍵でも、画面によって呼び名が違う（by は記録者にも担当にもなる） */
+    var labMap=f.labels||null;
+    /* 目印に使った欄（idKey）は、すでに見出しに出ているので中でもう一度出さない */
+    var sk0=f.idKey?{}:null;
+    if(sk0)sk0[f.idKey]=1;
+    LOCK_LAB_OVERRIDE=labMap;
     var b={},a={},kk;
-    for(kk in bo){ if(Object.prototype.hasOwnProperty.call(bo,kk))lockFlatten(bo[kk],keyer(kk),b,0); }
-    for(kk in ao){ if(Object.prototype.hasOwnProperty.call(ao,kk))lockFlatten(ao[kk],keyer(kk),a,0); }
+    for(kk in bo){ if(Object.prototype.hasOwnProperty.call(bo,kk))lockFlatten(bo[kk],keyer(kk),b,0,sk0); }
+    for(kk in ao){ if(Object.prototype.hasOwnProperty.call(ao,kk))lockFlatten(ao[kk],keyer(kk),a,0,sk0); }
     var seen={},n=0;
     for(kk in b)seen[kk]=1;
     for(kk in a)seen[kk]=1;
@@ -3540,6 +3620,7 @@ function lockDiff(d,before,fields){
       lockNote(d,f.l+'（'+kk+'）',b[kk]||'（空）',a[kk]||'（空）');
       n++;
     }
+    LOCK_LAB_OVERRIDE=null;
   }
 }
 function stampWho(d){
@@ -4819,7 +4900,28 @@ function aiHan(t){
   });
 }
 function aiRowify(k,x){
-  if(x&&typeof x==='object')return x;
+  if(x&&typeof x==='object'){
+    /* ★キー名が違うと（time/activity/help など）中身を確かめずそのまま入れ、
+       行が全部空になって、端末で作った下書きの流れごと消えていた。
+       それでも「下書きができました」と出ていた。別名を拾う。 */
+    function pick(o,ks){ var i2; for(i2=0;i2<ks.length;i2++){ if(typeof o[ks[i2]]==='string'&&o[ks[i2]])return o[ks[i2]]; } return ''; }
+    if(k==='times'){
+      var t2=pick(x,['t','time','時刻','時間','start']);
+      var a2=pick(x,['a','activity','act','content','内容','活動','子どもの姿','main']);
+      var e2=pick(x,['e','help','support','配慮','援助','保育士の配慮']);
+      if(t2||a2||e2)return {t:t2,a:a2,e:e2};
+      return aiRowify(k,aiText(x));
+    }
+    if(k==='days'){
+      var d2=pick(x,['d','day','曜日','weekday']);
+      var m2=pick(x,['main','activity','content','内容','活動']);
+      var v2=pick(x,['env','環境','環境構成']);
+      var h2=pick(x,['help','support','配慮','援助']);
+      if(d2||m2||v2||h2)return {d:d2,main:m2,env:v2,help:h2};
+      return aiRowify(k,aiText(x));
+    }
+    return x;
+  }
   /* ★半角の「9:00」しか読めず、「9時00分」「９:３０」「午前9時」は
      すべて外れて、時刻の欄が空のまま紙に出ていた。
      活動の欄に「9時00分　登園・視診」と時刻ごと入り、
@@ -4895,7 +4997,10 @@ function aiPlanGen(klass,kind,period){
   var m=period||(String(+todayISO().slice(5,7))+'月');
   /* ねらいの基準も、AIへ渡す年齢と同じ年度年齢にそろえる */
   var _lo=(typeof aiYoungest==='function')?aiYoungest(klass):null;
+  /* ★年齢の記録が1つも無いクラスでも、黙って2歳児のねらいを入れていた */
+  var _ageKnown=(_lo!=null)||(f.minAge!=null);
   var aim=aiAimFor(_lo!=null?_lo:(f.minAge!=null?f.minAge:2));
+  if(!_ageKnown)aim='（このクラスは生年月日の記録が無いため、ねらいは先生が入れてください）';
   var season=AI_SEASON[m]||'';
   var base={
     klass:klass, kind:kind, period:m, season:season,
@@ -5438,16 +5543,23 @@ function aiapModal(plan,klass){
       /* 入れ替えると、いまの行に書いてある配慮・援助ごと差し替わる。
          案の側は配慮を持っていないことが多いので、消えることを先に伝える */
       +(function(){
+        if(mode!=='rep')return '';
         var hn=(cur.rows||[]).filter(function(r){return r&&r.h;}).length;
-        if(!hn||mode!=='rep')return '';
+        var full=[];
+        if(cur.nerai)full.push('ねらい');
+        if(cur.sugata)full.push('子どもの姿');
+        if(cur.junbi)full.push('準備・材料');
+        if(!hn&&!full.length)return '';
+        var parts=[];
+        if(full.length)parts.push('<b>'+esc(full.join('・'))+'</b>に書いてある文');
+        if(hn)parts.push('<b>保育士の配慮・援助 '+hn+'行</b>');
         return '<div class="note note-warn" style="margin:-6px 0 14px;font-size:12.5px;">'
-          +'「入れ替える」を選んでいます。いまの一日の流れに書いてある'
-          +'<b>保育士の配慮・援助 '+hn+'行</b>も、あわせて差し替わります。'
-          +'残したいときは「今の文に足す」を選んでください。</div>';
+          +'「入れ替える」を選んでいます。いま '+parts.join('と')+' が入っています。'
+          +'これらも差し替わります。残したいときは「今の文に足す」を選んでください。</div>';
       })()
       +(rows||'<div class="empty">この案には、日案に入れられる項目がありません。</div>')
       +'<div class="muted" style="font-size:11.5px;margin-top:4px;">'
-        +'先生が書いた文は、勝手には消しません。入れたあと、画面の下に出る帯から取り消せます'
+        +(mode==='rep'?'<b>「入れ替える」を選んでいます。先生が書いた文も差し替わります。</b>':'「今の文に足す」を選んでいるあいだは、先生が書いた文は消しません。')+'入れたあと、画面の下に出る帯から取り消せます'
         +'（帯を閉じるまで残ります）。</div>'
       +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">'
         +'<button class="btn" id="aiapCancel">閉じる</button>'
@@ -6481,7 +6593,7 @@ function leadInPeriod(c){
   return fyOf(dt)===dashFY;
 }
 function renderDash(){
-  if(typeof spSeed==='function')spSeed();
+  if(typeof spSeed==='function')spSeed();   /* ダッシュボードでも作る（起動時にも作っている） */
   var cs=DB.contacts,hist=DB.history,en=enrolled();
   var thanksDue=cs.filter(function(c){return c.kind==='lead'&&c.date===todayISO();});
   var remindDue=cs.filter(function(c){return c.kind==='lead'&&c.date===iso(addDays(1));});
@@ -8446,6 +8558,13 @@ function renderSettings(){
       var ak=autoAttendKey(old);
       if(!SET.attendAutoMap)SET.attendAutoMap={};
       delete SET.attendAutoMap[old];SET.attendAutoMap[nv]=ak;
+      /* ★名前を変えると、過去の登園シートに付いていた印が紙から消えていた
+         （記録の鍵は名前そのもの）。園ごとの旧名の対応を覚えて、読めるようにする。 */
+      if(!SET.attendRenames)SET.attendRenames={};
+      var prev=(SET.attendRenames[old]||[]).slice();
+      prev.push(old);
+      SET.attendRenames[nv]=(SET.attendRenames[nv]||[]).concat(prev);
+      delete SET.attendRenames[old];
       SET.attendOptions[i]=nv;DB.settings=SET;renderOpts();};});
     $('#optList').querySelectorAll('[data-optauto]').forEach(function(sel){sel.onchange=function(){
       var nm=SET.attendOptions[+sel.getAttribute('data-optauto')];
@@ -8620,17 +8739,35 @@ function kenbenRow(mk,sid){
    ★対象が0名のときは「済」とは言わない。給食を作っていない園と、
      印を付け忘れている園を、記録の上で見分けられなくなるため。 */
 function kenbenDone(mk){
-  var list=kenbenStaff(mk);
-  if(!list.length)return false;
-  var i,r;
+  var st=kenbenState(mk);
+  return st.total>0&&st.ok===st.total;
+}
+/* その月の内訳。★結果が「陽性（要対応）」「再検査中」でも
+   「そろっています」「済」と言い切っていた。 */
+function kenbenState(mk){
+  var list=kenbenStaff(mk),out={total:list.length,ok:0,bad:[],retry:[],miss:[]},i,r;
   for(i=0;i<list.length;i++){
     r=kenbenRow(mk,list[i].id);
-    if(!r.date||!r.result)return false;
+    if(!r.date||!r.result){out.miss.push(list[i].name);continue;}
+    if(r.result==='陽性（要対応）'){out.bad.push(list[i].name);continue;}
+    if(r.result==='再検査中'){out.retry.push(list[i].name);continue;}
+    out.ok++;
   }
-  return true;
+  return out;
 }
 var kenbenMK=null;
 function kenbenMKNow(){return kenbenMK||todayISO().slice(0,7);}
+function kenbenNoteHtml(mk){
+  var st=kenbenState(mk);
+  if(!st.total)return '';
+  var msg=[];
+  if(st.miss.length)msg.push('まだ提出日か結果が入っていない職員が '+st.miss.length+'名（'+esc(st.miss.join('・'))+'）');
+  if(st.bad.length)msg.push('<b>陽性（要対応）が '+st.bad.length+'名（'+esc(st.bad.join('・'))+'）</b>。就業の可否と保健所への対応を記録してください');
+  if(st.retry.length)msg.push('再検査中が '+st.retry.length+'名（'+esc(st.retry.join('・'))+'）');
+  if(!msg.length)return '<div class="note" style="margin-bottom:10px;font-size:12.5px;background:#EAF3DE;border-color:#97C459;color:#27500A;">この月は '+st.total+'名ぶん、すべて陰性でそろっています。</div>';
+  var red=st.bad.length?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;':'';
+  return '<div class="note note-warn" style="margin-bottom:10px;font-size:12.5px;'+red+'">'+msg.join('<br>')+'</div>';
+}
 function kenbenCardHtml(){
   var mk=kenbenMKNow(),list=kenbenStaff(mk);
   var opts='',i,y=+todayISO().slice(0,4),mo;
@@ -8663,7 +8800,7 @@ function kenbenCardHtml(){
       }).join('')
       +'</tbody></table></div>';
   }
-  var nokori=list.filter(function(x){var r=kenbenRow(mk,x.id);return !r.date||!r.result;});
+
   return '<div class="card" style="margin-bottom:16px;">'
     +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
       +'<h3 style="margin:0;flex:1;">'+ic('check')+'調理職員の検便（腸内細菌検査）</h3>'
@@ -8672,23 +8809,24 @@ function kenbenCardHtml(){
     +'</div>'
     +'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">月に1回。大量調理施設衛生管理マニュアルにそった衛生管理として求められます。'
     +'保健所の指導と指導監査で、実施の記録を出すよう言われます。</div>'
-    +(list.length&&nokori.length
-      ?'<div class="note note-warn" style="margin-bottom:10px;font-size:12.5px;">この月、まだ提出日か結果が入っていない職員が '
-        +nokori.length+'名います（'+esc(nokori.map(function(x){return x.name;}).join('・'))+'）。</div>'
-      :(list.length?'<div class="note" style="margin-bottom:10px;font-size:12.5px;background:#EAF3DE;border-color:#97C459;color:#27500A;">この月は '+list.length+'名ぶん、そろっています。</div>':''))
+    +'<div id="kbNote">'+kenbenNoteHtml(mk)+'</div>'
     +body+'</div>';
 }
 function kenbenWire(){
   var mk=kenbenMKNow();
   var sel=$('#kbMonth');
   if(sel)sel.onchange=function(e){kenbenMK=e.target.value;renderStaff();};
+  /* ★保存のたびに画面を作り直していたので、Tab で隣の欄へ移った瞬間に
+     欄ごと作り直され、続けて打った文字がどこにも入らなかった。
+     値は kenbenSet で保存ずみ。知らせの帯だけ書き換える。 */
   document.querySelectorAll('[data-kb]').forEach(function(inp){
     inp.onchange=function(){
       var p=inp.getAttribute('data-kb').split('|');
       var r=kenbenRow(mk,p[0]);
       r[p[1]]=inp.value;
       kenbenSet(mk,p[0],r);
-      renderStaff();
+      var nb=$('#kbNote');
+      if(nb)nb.innerHTML=kenbenNoteHtml(mk);
     };
   });
   var pb=$('#kbPrint');
@@ -8843,7 +8981,7 @@ function renderAudit(){
         +'<div class="row-sub" style="display:flex;align-items:center;gap:3px;"><span>'+(auditPlaceOf(it)?'保管：':'')+'</span><input data-place="'+esc(it.key)+'" value="'+String(auditPlaceOf(it)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);width:auto;min-width:160px;">'+'</div>'
         +(function(){var di=auditDataInfo(it.key,fy);return di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
-        '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGo(it.sys))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?'この画面を見る権限がありません':(it.key==='gyakutai'?'下部で実施':'外部管理'))+'</span>')+'</td></tr>';}).join('')+
+        '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?'この画面を見る権限がありません':(it.key==='gyakutai'?'下部で実施':'外部管理'))+'</span>')+'</td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="card" style="margin-bottom:14px;"><div id="gyBox"></div></div>';
   renderGyakutai($('#gyBox'));
@@ -9002,8 +9140,10 @@ function isAutoAttendOpt(op){return !!autoAttendKey(op);}
    新しい名前で見つからないときだけ、前の名前をさがす。前の記録は消さない。 */
 var ATTEND_OLD_NAMES={'給食':['ランチ'],'延長保育':['ロングステイ','ロングスティ','ロング']};
 function attendOldVal(box,op){
-  var olds=ATTEND_OLD_NAMES[String(op==null?'':op)],i;
-  if(!box||!olds)return undefined;
+  var key=String(op==null?'':op);
+  /* こちらで用意した旧名と、園が設定で変えたときに覚えた旧名の両方を見る */
+  var olds=(ATTEND_OLD_NAMES[key]||[]).concat(((SET&&SET.attendRenames)||{})[key]||[]),i;
+  if(!box||!olds.length)return undefined;
   for(i=0;i<olds.length;i++){
     if(Object.prototype.hasOwnProperty.call(box,olds[i]))return box[olds[i]];
   }
@@ -9798,7 +9938,11 @@ function napBlock(klass){
   d.klass=klass;                       /* 登園側で選んだクラスに合わせる */
   var slots=napSlots(),kids=classOf(klass);
   /* 午睡も、確定のあとに直したら跡に積む（登園・健康と同じ形） */
-  var NAP_F=[{k:'cells',l:'午睡の記録',deep:true,keyer:'kidTime'},{k:'charge',l:'担当'},{k:'memo',l:'メモ'}];
+  /* 担当は [{from:'12:30',by:'田村'},…] の並び。deep を付けないと
+     生の JSON がそのまま監査の紙に刷られていた */
+  var NAP_F=[{k:'cells',l:'午睡の記録',deep:true,keyer:'kidTime'},
+             {k:'charge',l:'担当',deep:true,idKey:'from',keyer:'time',labels:{by:'担当の先生'}},
+             {k:'memo',l:'メモ'}];
   var _npSnap=lockSnap(d,NAP_F);
   function save(){
     lockDiff(d,_npSnap,NAP_F);
@@ -10532,9 +10676,14 @@ function touenDayBody(dk,d,kids){
   var p=String(dk).split('-'),wd=WD[new Date(+p[0],+p[1]-1,+p[2]).getDay()];
   return '<p>'+esc(String(d.klass||'').toUpperCase())+' SCHOOL 【'+wd+'曜日】　室温'+esc(d.temp||'　')+'℃ 湿度'+esc(d.hum||'　')+'%（天気：'+esc(d.weather||'　')+'）</p>'+
     '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
-    kids.map(function(c){var r=d.rows[c.id]||{opts:{}};var al=c.__gone?'—':ageClassOf(c,dk),ac=ageColor(al);
+    kids.map(function(c){
+      var r=d.rows[c.id]||{opts:{}};
+      /* ★生年月日が生徒台帳にしか無い子は、歳児の欄にクラス名が刷られていた
+         （同じ日の帯は「2歳児」と出すので食い違う）。台帳も見る。 */
+      var _dob=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
+      var al=(c.__gone||!_dob)?'—':ageClassOf({dob:_dob,klass:c.klass},dk),ac=ageColor(al);
       /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
-      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(bfDob(c.dob))+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
+      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(_dob?bfDob(_dob):'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
     +lockFootHtml(d);
 }
@@ -10689,13 +10838,27 @@ function periodBody(type,k){
         if(!byCls[kc]){byCls[kc]=[];order.push(kc);}
         byCls[kc].push(c);
       });
-      if(order.length<=1){
-        tb=touenDayBody(k,td,all);
+      /* ★出欠が1つも入っていないクラスの紙まで刷っていた。
+         日ごとの「名簿シートを出力」は1枚しか出さないので、枚数が食い違う。 */
+      function clsHas(list){
+        var i2,r3;
+        for(i2=0;i2<list.length;i2++){
+          r3=(td.rows||{})[list[i2].id]||{};
+          if(r3.att||r3.temp||r3.parentNote)return true;
+          var o3=r3.opts||{},ok3;
+          for(ok3 in o3){ if(o3[ok3]&&!isAutoAttendOpt(ok3))return true; }
+        }
+        return false;
+      }
+      var use=order.filter(function(kc){return clsHas(byCls[kc]);});
+      if(!use.length)use=order.slice(0,1);
+      if(use.length<=1){
+        tb=touenDayBody(k,Object.assign({},td,{klass:use[0]||td.klass}),byCls[use[0]]||all);
       }else{
-        for(ci=0;ci<order.length;ci++){
+        for(ci=0;ci<use.length;ci++){
           var one=Object.assign({},td);
-          one.klass=order[ci];
-          tb+=(ci?'<div style="page-break-before:always;"></div>':'')+touenDayBody(k,one,byCls[order[ci]]);
+          one.klass=use[ci];
+          tb+=(ci?'<div style="page-break-before:always;"></div>':'')+touenDayBody(k,one,byCls[use[ci]]);
         }
       }
     }
@@ -11088,8 +11251,8 @@ function kidDob(c){
   return '';
 }
 function haichiKids(date){
-  var d=stGet('rec_登園シート',{})[date],by={},total=0,unknown=0;
-  if(!d||!d.rows)return {by:by,total:0,unknown:0};
+  var d=stGet('rec_登園シート',{})[date],by={},total=0,unknown=0,gone=0;
+  if(!d||!d.rows)return {by:by,total:0,unknown:0,gone:0,missCls:[]};
   /* ★在園の子だけで数えると、退園・卒園したあとに過去の日を開いたとき
      その子が数から消え、足りていなかった日が足りていたことになる。
      紙（登園シート）はその日に記録がある子を全員出しているので、
@@ -11101,9 +11264,9 @@ function haichiKids(date){
     /* ★生年月日が無い子を「5歳児」（25人に1人）として数えると、
        足りないのに足りていると出る。分からないときは一番きびしい側（0歳児）で数え、
        園に生年月日を入れてもらう。 */
-    var dob=kidDob(c);
+    var dob=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
     var a=dob?String(ageClassOf({dob:dob},date)).replace(/[^0-9]/g,''):'';
-    if(a===''){ a='0'; unknown++; }
+    if(a===''){ a='0'; unknown++; if(c.__gone)gone++; }
     by[a]=(by[a]||0)+1; total++;
   });
   /* ★rows はそのクラスを開いて保存したときにしか作られない。
@@ -11145,7 +11308,7 @@ function haichiKids(date){
       missCls.push(CLASSES[i]);
     }
   })();
-  return {by:by,total:total,unknown:unknown,missCls:missCls};
+  return {by:by,total:total,unknown:unknown,gone:gone,missCls:missCls};
 }
 /* 必要な保育士の数。歳児ごとに切り上げてから足す（国の数え方） */
 /* 必要な保育士の数。
@@ -11223,14 +11386,28 @@ function haichiStaff(date){
 function haichiFor(date){
   var kids=haichiKids(date),need=haichiNeed(kids.by),st=haichiStaff(date);
   return {date:date, by:kids.by, kids:kids.total, need:need, unknown:kids.unknown||0,
-          missCls:kids.missCls||[],
+          gone:kids.gone||0, missCls:kids.missCls||[],
           staff:st.n, src:st.src, short:Math.max(0,need-st.n)};
 }
 /* その日の帯。登園（出席）の画面に出す */
+function haichiUnknownNote(h){
+  if(!h||!h.unknown)return '';
+  return '<br><b>生年月日が入っていない園児が '+h.unknown+'名います。いちばんきびしい0歳児として数えています。'
+    +'連絡先管理の「お子様の生年月日」に入れてください。</b>';
+}
 function haichiBarHtml(date){
   var h=haichiFor(date);
   if(!h.kids)return '';
   var ages=Object.keys(h.by).sort().map(function(k){return k+'歳児 '+h.by[k]+'名';}).join('／');
+  /* ★連絡先から消えた園児がいる日は、歳児が分からないので必要人数を出せない。
+     いまは「いちばんきびしい0歳児」として数えているが、それを根拠に
+     赤や緑で断定すると、名簿を触っただけで過去の結論が動く。 */
+  if(h.gone){
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#F1EFE8;color:#5F5E5A;border:1px solid #D3D1C7;">'
+      +'<span style="flex:1;min-width:200px;"><b>連絡先にない園児が '+h.gone+'名います</b>'
+      +'　その子の歳児が分からないため、この日は足りているか確かめられません。'
+      +'　園ぜんぶで 登園 '+h.kids+'名／'+esc(h.src)+' '+h.staff+'人'+haichiUnknownNote(h)+'</span></div>';
+  }
   /* ★登園がまだ入っていないクラスがある日は、足りているとも足りないとも言えない。
      出勤側には「記録なし」の手当てがあるのに、登園側には無く、
      1クラス分だけの日でも「園ぜんぶで…足りています」と緑で断定していた。 */
@@ -11238,20 +11415,20 @@ function haichiBarHtml(date){
     return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#F1EFE8;color:#5F5E5A;border:1px solid #D3D1C7;">'
       +'<span style="flex:1;min-width:200px;"><b>'+esc(h.missCls.join('・'))+' がまだ入っていません</b>'
       +'　いま入っているぶんで 登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人'
-      +'　全クラス入れると、足りているか確かめられます。</span></div>';
+      +'　全クラス入れると、足りているか確かめられます。'+haichiUnknownNote(h)+'</span></div>';
   }
   /* 出勤の記録がまだ無い日は、足りているとも足りないとも言えない */
   if(h.src==='なし'){
     return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#F1EFE8;color:#5F5E5A;border:1px solid #D3D1C7;">'
       +'<span style="flex:1;min-width:200px;"><b>出勤の記録がまだありません</b>'
       +'　園ぜんぶで 登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人'
-      +'　打刻かシフト表を入れると、足りているか確かめられます。</span></div>';
+      +'　打刻かシフト表を入れると、足りているか確かめられます。'+haichiUnknownNote(h)+'</span></div>';
   }
   /* きょうは、まだ全員の打刻がそろっていない。赤で断定しない */
   if(date===todayISO()&&h.short>0){
     return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;background:#FAEEDA;color:#854F0B;border:1px solid #EF9F27;">'
       +'<span style="flex:1;min-width:200px;"><b>まだ全員の打刻がそろっていません</b>'
-      +'　園ぜんぶで 登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人／'+esc(h.src)+' '+h.staff+'人</span></div>';
+      +'　園ぜんぶで 登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人／'+esc(h.src)+' '+h.staff+'人'+haichiUnknownNote(h)+'</span></div>';
   }
   var ok=(h.short===0);
   return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;'
@@ -11261,7 +11438,7 @@ function haichiBarHtml(date){
     +'　園ぜんぶで 登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人／'+esc(h.src)+' '+h.staff+'人</span>'
     +'<span style="opacity:.8;font-size:11.5px;">配置基準はクラス単位ではなく園ぜんぶで見るので、この帯の数はクラスを分けずに数えています。'
     +'出勤の記録の人数です。保育士の資格までは見ていません。数は目安なので自治体にご確認ください'
-    +(h.unknown?'<br><b>生年月日が入っていない園児が '+h.unknown+'名います。いちばんきびしい0歳児として数えています。生徒台帳に入れてください。</b>':'')
+    +haichiUnknownNote(h)
     +'</span></div>';
 }
 /* 月ぶんの足りない日 */
@@ -11269,17 +11446,20 @@ function haichiBarHtml(date){
    ★当日と、これから先の日は数えない。
      朝いちばんは、まだ全員が打刻していないので必ず「足りない」と出てしまう。
      出勤の記録が1件も無い日も数えない（足りているとも足りないとも言えないため）。 */
+var HAICHI_SKIPPED=[];
 function haichiShortDays(mk){
-  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),out=[],d,today=todayISO();
+  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),out=[],skip=[],d,today=todayISO();
   for(d=1;d<=dim;d++){
     var date=mk+'-'+pad(d);
     if(date>=today)continue;
     var h=haichiFor(date);
     if(h.src==='なし')continue;
-    /* 登園がまだ入っていないクラスがある日は、足りないとは言えない */
-    if((h.missCls||[]).length)continue;
+    /* 登園がまだ入っていないクラス・連絡先にない園児がいる日は、足りないとは言えない */
+    if((h.missCls||[]).length){skip.push(h.date+'（'+h.missCls.join('・')+' がまだ）');continue;}
+    if(h.gone){skip.push(h.date+'（連絡先にない園児 '+h.gone+'名）');continue;}
     if(h.kids&&h.short>0)out.push(h);
   }
+  HAICHI_SKIPPED=skip;
   return out;
 }
 
@@ -11437,6 +11617,15 @@ function tcBossBox(mk){
         +(sd.length>12?'<div class="muted" style="font-size:12px;">ほか '+(sd.length-12)+'日</div>':'')
       :'<div class="muted">数えられた日は、すべて足りています。'
         +'<br>当日とこれから先の日、出勤の記録がまだ無い日は数えていません。</div>')
+    /* ★数えなかった日を黙って外していたので、カードは「すべて足りています」と
+       言い切っていた。どの日を埋めれば確かめられるかを出す。 */
+    +((HAICHI_SKIPPED&&HAICHI_SKIPPED.length)
+      ?'<div class="muted" style="font-size:12px;margin-top:8px;">'
+        +'このほか <b>'+HAICHI_SKIPPED.length+'日</b> は、記録がそろっていないため数えていません。<br>'
+        +HAICHI_SKIPPED.slice(0,8).map(function(x){return esc(x);}).join('<br>')
+        +(HAICHI_SKIPPED.length>8?'<br>ほか '+(HAICHI_SKIPPED.length-8)+'日':'')
+        +'</div>'
+      :'')
     +'<div class="muted" style="font-size:11.5px;margin-top:8px;">子ども何人につき保育士1人かは、設定 → 保育士の配置 で直せます。数は目安なので、実際の扱いは園の自治体にご確認ください。</div>'
     +'</div>';
   h+='<div class="card" style="max-width:520px;margin:16px auto 0;">'
@@ -12098,7 +12287,7 @@ function docsBoss(){ return (typeof isBoss==='function')?isBoss():true; }
 function renderDocsHub(){
   var s=$('section[data-page="docs"]');
   var docs=stGet('docs',{});
-  var nAudit=docSlotsAll().filter(function(n){return docs[n]&&docs[n].url;}).length;
+  var nAudit=docSlotsAll().filter(function(n){return docs[n]&&docIsStored(docs[n].url);}).length;
   var nAll=docSlotsAll().length;
   var gf=stGet('guide_files',{})||{};
   var nGuide=Object.keys(gf).length;
@@ -12144,7 +12333,7 @@ function renderDocsAudit(){
     +'<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
     '<div class="muted" style="margin-bottom:12px;">PDF等はDriveに保存し、そのURLをここに登録。監査チェックリスト・最終チェックリスト出力に「格納済み」として反映されます。</div>'+
     '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
-    docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td style="white-space:nowrap;"><input data-dname="'+esc(name)+'" value="'+esc(docLabel(name)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="font-weight:600;border:none;background:transparent;padding:2px 3px;min-width:180px;" title="書類名を変更できます">'+(isCustom?'<span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(r.url?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>')+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
+    docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td style="white-space:nowrap;"><input data-dname="'+esc(name)+'" value="'+esc(docLabel(name)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="font-weight:600;border:none;background:transparent;padding:2px 3px;min-width:180px;" title="書類名を変更できます">'+(isCustom?'<span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(docIsStored(r.url)?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':(r.url?'<span class="pill" style="background:#FAEEDA;color:#854F0B;">未格納（メモのみ）</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>'))+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
     '</tbody></table>'+
     '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;">'+
       '<span class="muted" style="font-size:12px;font-weight:600;">書類を追加</span>'+
@@ -12920,6 +13109,13 @@ function staffBoot(){
       else{hit.name=su.name;hit.role=su.role;stSet('staffAccounts',accs);}
       sessionStorage.setItem('cocoas_staffSession',hit.id);
     }
+    /* ★生徒情報（健康・アレルギー）は、ダッシュボードか生徒台帳を開くまで
+       作られず、それまで先生用の一覧と監査用の紙が全員空欄で出ていた。
+       空欄を「アレルギーなし」と読ませないよう、起動時に作る。
+       この間の書き込みは、人の操作ではないので証跡でも分ける。 */
+    window.__migrating=1;
+    try{ if(typeof spSeed==='function')spSeed(); }catch(e){}
+    window.__migrating=0;
     SYNC.pull().then(function(){
       /* 読み直しでカリキュラムや設定が変わっていたら、画面を作り直す。
          作り直さないと、開いている画面の古い控えで上書きしてしまう。 */
@@ -14926,7 +15122,8 @@ function boukaMonthYear(fy,mo){return (mo>=4?fy:fy+1);}
 function renderBouka(){
   var fy=boukaFY(),d=boukaGet(fy),s=$('section[data-page="bouka"]');
   function save(){boukaSet(fy,d);}
-  var fys=[curFY()-1,curFY(),curFY()+1];
+  /* 記録が残っている年度も選べるようにする（前後1年しか出ていなかった） */
+  var fys=fyListWith(boukaAll(),kaigiAll(),kenshuAll());
   var doneN=BOUKA_MONTHS.filter(function(mo){return d.rows[mo].date;}).length;
   var head='<div class="card" style="margin-bottom:14px;">'+recHead('研修・訓練の記録',
       '<select id="bkYear" style="width:140px;">'+fys.map(function(y){return '<option value="'+esc(y)+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>'
@@ -15105,7 +15302,7 @@ var kenshuYear=null;
 function kenshuFY(){if(kenshuYear==null)kenshuYear=curFY();return kenshuYear;}
 function renderKenshu(){
   var fy=kenshuFY(),kd=kenshuGet(fy),s=$('section[data-page="kenshu"]');
-  var fys=[curFY()-1,curFY(),curFY()+1];
+  var fys=fyListWith(kenshuAll(),kaigiAll(),boukaAll());
   var head='<div class="card" style="margin-bottom:14px;">'+recHead('保育研修の記録',
       '<select id="ksYear" style="width:140px;">'+fys.map(function(y){return '<option value="'+esc(y)+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>')
     +'<div class="muted" style="line-height:1.9;">園でおこなった研修と、外に出て受けた研修を、その年度の分としてまとめて残せます。監査では、職員がどのような研修を受けたかを見られます。</div></div>';
@@ -15418,6 +15615,10 @@ function taskSetDone(mk,name,v){var a=taskDoneAll(),k=taskKey(mk,name),ks=taskOl
 /* システム内の記録から自動判定できるものは自動で「済」にする */
 function taskAutoDone(t,mk){
   var p=t.page||'';
+  /* ★園が自分で足した項目まで、同じ画面を使うというだけで自動「済」になり、
+     自動のときはチェック欄が消えるので園長が手で直せなかった。
+     自動で決めてよいのは、こちらが用意した項目だけ。 */
+  if(t.own)return false;
   try{
     if(p==='身体測定')return !!stGet('rec_身体測定',{})[mk];
     if(p==='避難訓練'){var D=drillData();return (D.rows||[]).some(function(r){return r.record&&r.record.date&&r.record.date.slice(0,7)===mk;});}
@@ -15435,8 +15636,11 @@ function taskAutoDone(t,mk){
         var ar=stGet('act_reports',{}),ak;
         for(ak in ar){
           if(!Object.prototype.hasOwnProperty.call(ar,ak))continue;
-          if(String(ak).indexOf('|')<0)continue;
-          if(String(ak).split('|')[1].slice(0,7)!==mk)continue;
+          /* 鍵は「クラス|日付」。クラス名に | が入っても日付を取り違えないよう、
+             いちばん後ろの | から切り出す */
+          var cut=String(ak).lastIndexOf('|');
+          if(cut<0)continue;
+          if(String(ak).slice(cut+1).slice(0,7)!==mk)continue;
           var av=ar[ak]||{};
           if(av.done||av.free||av.muzu||av.tsugi)return true;
         }
@@ -15884,7 +16088,11 @@ function logStamp(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()
     busy=true;
     try{
       var l=[];try{l=JSON.parse(localStorage.getItem('cocoas_eventLog'))||[];}catch(e){l=[];}
-      var who='';try{who=(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:'';}catch(e){}
+      /* ★起動時の自動移行・土台づくりまで、開いていた職員の操作として
+         証跡に残っていた。人がやったことと分けて書く。 */
+      var who='';
+      if(window.__migrating)who='システム（自動）';
+      else{try{who=(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:'';}catch(e){}}
       var size=(v==null?0:String(v).length);
       var last=l[l.length-1];
       /* 同じ項目の連続保存は1件にまとめる（入力中の連打でログが膨らむのを防ぐ） */
