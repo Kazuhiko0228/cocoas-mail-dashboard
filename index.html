@@ -6580,6 +6580,17 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre,'例：pre2026')+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder,'例：kinder2026')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal,'例：5,500')+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt,'例：6,600')+f('s_dcL','預かり保育 給食費',SET.daycareLunch,'例：550')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl,'例：https://（申込フォーム）')+f('s_survey','アンケートURL',SET.surveyUrl,'例：https://（アンケート）')+'</div></div>'+
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('users')+'保育士の配置</h3>'+
+      '<div class="muted" style="margin-bottom:10px;">子ども何人につき保育士1人か。国が決めている数を入れてありますが、'
+      +'3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。'
+      +'園の自治体にご確認のうえ、必要なら直してください。</div>'+
+      '<div class="grid" style="grid-template-columns:repeat(3,1fr);">'
+      +['0','1','2','3','4','5'].map(function(a){
+        return '<div class="field"><label>'+a+'歳児</label><input type="number" min="1" data-haichi="'+a+'" value="'+esc(haichiRatio()[a])+'"></div>';
+      }).join('')+'</div>'+
+      '<div class="field" style="max-width:220px;"><label>最低の人数（園全体）</label><input type="number" min="1" id="s_haichiMin" value="'+esc(haichiMin())+'"></div>'+
+      '<div class="muted" style="font-size:11.5px;">登園（出席）の画面に、その日の必要人数と出勤人数を出します。足りない日は打刻の画面にまとめて出ます。</div>'+
+      '</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。給食・延長保育など、園に合わせて自由に追加・変更・削除できます。</div><div class="muted" style="margin-bottom:10px;font-size:11.5px;">「通園曜日から自動」にしたオプションは、登園シートでは変更できません（すでに記録がある日は、その日の記録がそのまま残ります）。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('book')+'アクティビティ種類（クラス別・カリキュラム用）</h3><div class="muted" style="margin-bottom:10px;">カリキュラムの日別入力で使う種類です。園に合わせて足したり、名前を変えたりできます。</div><div id="actTypeBox"></div></div>'+
     (function(){var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};return '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'料金設定（請求書作成に連携）</h3><div class="muted" style="margin-bottom:10px;">コースプラン・オプションの単価。請求書作成で自動計算に使われます。</div>'+
@@ -6618,6 +6629,16 @@ function renderSettings(){
     SET.invGreeting=$('#s_greet').value;SET.invFooter=$('#s_ifoot').value;SET.invUseAgency=$('#s_useAgency').checked;
     SET.invAgencyName=$('#s_agName').value;SET.invAgencyTel=$('#s_agTel').value;SET.invAgencyAddr=$('#s_agAddr').value;SET.invAgencyBank=$('#s_agBank').value;
     SET.daycareFeeNormal=$('#s_dcN').value;SET.daycareFeeExt=$('#s_dcE').value;SET.daycareLunch=$('#s_dcL').value;SET.daycareFormUrl=$('#s_form').value;SET.surveyUrl=$('#s_survey').value;
+    /* 保育士の配置。数を入れ違えると足りているのに足りないと出るので、1以上のときだけ受け取る */
+    var hr={},hok=true;
+    document.querySelectorAll('[data-haichi]').forEach(function(inp){
+      var a=inp.getAttribute('data-haichi'),n=parseInt(inp.value,10);
+      if(!(n>0)){hok=false;return;}
+      hr[a]=n;
+    });
+    if(hok)stSet('haichiRatio',hr);
+    var hm=parseInt(($('#s_haichiMin')||{}).value,10);
+    if(hm>0)stSet('haichiMin',hm);
     DB.settings=SET;
     /* サイドバーの園名と送信元を、その場で新しくする */
     try{applyBrand();}catch(e){}
@@ -7592,7 +7613,7 @@ function edTouen(){
   var WOPT=['','晴','曇','雨'],wNow=d.weather||'',wList=WOPT;
   if(wNow&&WOPT.indexOf(wNow)<0)wList=WOPT.concat([wNow]);
   var wOptHtml=wList.map(function(x){return '<option value="'+esc(x)+'"'+(x===wNow?' selected':'')+'>'+esc(x)+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+haichiBarHtml(recDate)+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
@@ -8767,6 +8788,94 @@ function tcStaffName(sid){
 /* いまの時刻を「08:05」の形で */
 function tcNow(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 
+/* ══ 保育士の配置基準 ═══════════════════════════
+   「子ども何人につき保育士1人」は国が決めている。
+   2024年度から 3歳児は15人に1人、4・5歳児は25人に1人になったが、
+   当分のあいだ 従前（20人・30人）でもよいという扱いがあり、
+   自治体によって運用が違う。そこで園が数を直せるようにしてある。
+   最低2人という決まりも別に持つ。
+
+   ★この画面の数は目安です。実際の扱いは、必ず園の自治体にご確認ください。 */
+var HAICHI_DEFAULT={'0':3,'1':6,'2':6,'3':15,'4':25,'5':25};
+function haichiRatio(){
+  var r=stGet('haichiRatio',null),k;
+  if(!r||typeof r!=='object')r={};
+  for(k in HAICHI_DEFAULT){if(r[k]==null)r[k]=HAICHI_DEFAULT[k];}
+  return r;
+}
+function haichiMin(){var n=+stGet('haichiMin',2);return (n>0)?n:2;}
+/* その日に来ていた園児を、歳児ごとに数える */
+function haichiKids(date){
+  var d=stGet('rec_登園シート',{})[date],by={},total=0;
+  if(!d||!d.rows)return {by:by,total:0};
+  var en=enrolled();
+  en.forEach(function(c){
+    var r=d.rows[c.id];
+    if(!r||['●','早','遅'].indexOf(r.att)<0)return;
+    var a=String(ageClassOf(c)).replace(/[^0-9]/g,'');
+    if(a==='')a='5';
+    by[a]=(by[a]||0)+1; total++;
+  });
+  return {by:by,total:total};
+}
+/* 必要な保育士の数。歳児ごとに切り上げてから足す（国の数え方） */
+function haichiNeed(by){
+  var r=haichiRatio(),n=0,k;
+  for(k in by){
+    if(!Object.prototype.hasOwnProperty.call(by,k))continue;
+    var per=+r[k]||+HAICHI_DEFAULT[k]||25;
+    n+=Math.ceil(by[k]/per);
+  }
+  if(n<haichiMin())n=haichiMin();
+  return n;
+}
+/* その日に出ていた職員の数。打刻があればそれ、無ければシフトで数える */
+function haichiStaff(date){
+  var mk=date.slice(0,7),day=+date.slice(8,10);
+  var tc=tcMonth(mk),n=0,src='打刻',sh=shiftCells(mk),k;
+  for(k in tc){
+    if(!Object.prototype.hasOwnProperty.call(tc,k))continue;
+    var v=tc[k][day];
+    if(v&&(v.in||v.out))n++;
+  }
+  if(!n){
+    src='シフト'; n=0;
+    for(k in sh){
+      if(!Object.prototype.hasOwnProperty.call(sh,k))continue;
+      var p=sh[k][day];
+      if(p&&p!=='休')n++;
+    }
+  }
+  return {n:n,src:src};
+}
+function haichiFor(date){
+  var kids=haichiKids(date),need=haichiNeed(kids.by),st=haichiStaff(date);
+  return {date:date, by:kids.by, kids:kids.total, need:need,
+          staff:st.n, src:st.src, short:Math.max(0,need-st.n)};
+}
+/* その日の帯。登園（出席）の画面に出す */
+function haichiBarHtml(date){
+  var h=haichiFor(date);
+  if(!h.kids)return '';
+  var ok=(h.short===0);
+  var ages=Object.keys(h.by).sort().map(function(k){return k+'歳児 '+h.by[k]+'名';}).join('／');
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;'
+    +(ok?'background:#EAF3DE;color:#27500A;border:1px solid #97C459;':'background:#FCEBEB;color:#A32D2D;border:1px solid #F09595;')+'">'
+    +'<span style="flex:1;min-width:200px;"><b>'+(ok?'配置は足りています':'保育士が '+h.short+'人 足りません')+'</b>'
+    +'　登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人／'+esc(h.src)+' '+h.staff+'人</span>'
+    +'<span style="opacity:.8;font-size:11.5px;">数は目安です。自治体にご確認ください</span>'
+    +'</div>';
+}
+/* 月ぶんの足りない日 */
+function haichiShortDays(mk){
+  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),out=[],d;
+  for(d=1;d<=dim;d++){
+    var date=mk+'-'+pad(d),h=haichiFor(date);
+    if(h.kids&&h.short>0)out.push(h);
+  }
+  return out;
+}
+
 var TCARD={pin:'',msg:'',who:null,at:''};
 /* 名前は renderPunch。出勤簿の renderTimecard（シフト表の中）とは別物 */
 function renderPunch(){
@@ -8856,8 +8965,9 @@ function renderPunch(){
 }
 
 /* 打刻とシフトのずれ。監査でいちばん見られるところ */
+function shiftCells(mk){var m=stGet('shifts',{})[mk];return (m&&m.cells)?m.cells:{};}
 function tcGapRows(mk){
-  var sh=stGet('shifts',{})[mk]||{},out=[],dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
+  var sh=shiftCells(mk),out=[],dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
   (DB.staff||[]).forEach(function(st){
     var d;
     for(d=1;d<=dim;d++){
@@ -8884,6 +8994,21 @@ function tcGapBody(mk){
 }
 function tcBossBox(mk){
   var g=tcGapRows(mk),h='';
+  var sd=haichiShortDays(mk);
+  h+='<div class="card" style="max-width:520px;margin:16px auto 0;">'
+    +'<h3 style="margin:0 0 10px;">'+ic('users')+'保育士の配置（'+esc(mk)+'）</h3>'
+    +(sd.length
+      ?'<div class="muted" style="margin-bottom:8px;">足りていない日が <b>'+sd.length+'日</b> あります。監査では、その日の子どもの人数に対して保育士がそろっていたかが細かく見られます。</div>'
+        +'<div class="scrollx"><table><thead><tr><th>日</th><th>登園</th><th>必要</th><th>出勤</th><th>不足</th></tr></thead><tbody>'
+        +sd.slice(0,12).map(function(x){
+          return '<tr><td>'+(+x.date.slice(8,10))+'日</td><td>'+x.kids+'名</td><td>'+x.need+'人</td>'
+            +'<td>'+x.staff+'人<div class="row-sub">'+esc(x.src)+'</div></td>'
+            +'<td><span class="pill" style="background:#FCEBEB;color:#A32D2D;">'+x.short+'人</span></td></tr>';}).join('')
+        +'</tbody></table></div>'
+        +(sd.length>12?'<div class="muted" style="font-size:12px;">ほか '+(sd.length-12)+'日</div>':'')
+      :'<div class="muted">登園の記録がある日は、すべて足りています。</div>')
+    +'<div class="muted" style="font-size:11.5px;margin-top:8px;">子ども何人につき保育士1人かは、設定 → 保育士の配置 で直せます。数は目安なので、実際の扱いは園の自治体にご確認ください。</div>'
+    +'</div>';
   h+='<div class="card" style="max-width:520px;margin:16px auto 0;">'
     +'<h3 style="margin:0 0 10px;">'+ic('alert')+'シフト表との照らし合わせ（'+esc(mk)+'）</h3>'
     +(g.length
