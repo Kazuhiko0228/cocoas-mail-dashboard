@@ -253,6 +253,7 @@
   .lockbar .lkfix{background:#FCEBEB;color:#A32D2D;border:1px solid #F09595;border-radius:6px;padding:1px 8px;font-size:11.5px;}
   .tkitem{border-bottom:1px solid var(--line2);}
   .tkitem:last-child{border-bottom:none;}
+  .t-own{font-size:10.5px;border-radius:5px;padding:1px 7px;margin-left:6px;flex-shrink:0;font-weight:500;}
   .tked{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line2);flex-wrap:wrap;}
   .tked:last-child{border-bottom:none;}
   .tked .tkedn{flex:1;min-width:150px;font-size:13.5px;}
@@ -2793,6 +2794,8 @@ var EG_NAV=[
      {p:'carerec', l:'身体測定',          rec:'身体測定',           navHide:true},
      {p:'carerec', l:'事故・ヒヤリハットの記録', rec:'事故・ヒヤリハットの記録', navHide:true},
      {p:'carerec', l:'児童票（成長の記録）',   rec:'児童票（成長の記録）',   navHide:true},
+     /* 避難訓練は監査の必須記録なので、左のタブから外しても
+        ホームの活動記録の中には残す（道が年間スケジュール経由だけになるのを防ぐ） */
      {p:'drill',   l:'避難訓練',          navHide:true},
      /* 保育研修は先生が書くものなので、活動記録の中に置く（2026-08-22）。
         記録の保存先は これまでどおり hoiku_kenshu のまま。 */
@@ -2943,7 +2946,9 @@ function salesStats(){
   /* 離脱の理由。メモから拾う */
   var reasons={};
   leads.filter(function(c){return SALES_GROUP['離脱'].indexOf(c.status)>-1;}).forEach(function(c){
-    var t=(c.note||c.memo||'').trim();
+    /* 顧客リストのメモ欄をやめ、共有事項に一本化した。
+       これまでメモに書かれた理由も読めるよう、両方を見る。 */
+    var t=(c.concerns||c.note||c.memo||'').trim();
     var key=t?t.slice(0,18):'理由の記録なし';
     reasons[key]=(reasons[key]||0)+1;
   });
@@ -4426,6 +4431,8 @@ function aipPrint(kind,d,k){
 /* ---------- ホーム（アプリ一覧） ----------
    保育士はPCの業務システムに慣れているとは限らないので、大きなタイルで選べるようにする。
    ただ並べるだけでなく、タイルに「いま何件やることがあるか」を出して、開く前に分かるようにした。 */
+/* ※いまは使っていません。ホームのマスは EG_NAV から作ります。
+   消しても害はありませんが、戻せなくなるので残してあります。触らないでください。 */
 var HOME_GROUPS=[
   {t:'よく使う',items:[
     {p:'records',i:'activity',l:'日常チェック',c:'#0B5F8F',bg:'#E3F1F9'},
@@ -5592,13 +5599,19 @@ function contactModal(id){
         +'<div class="muted" style="font-size:11.5px;margin-top:3px;">特別料金と引落日は「請求書発行」の上の表で直します。</div>'
         +'</div>';
     })()+
-    '<div class="field"><label>メモ</label><input id="f_note" value="'+esc((c.note||''))+'"></div>'+
+    /* リード（営業）のときはメモ欄を出さない。共有事項に一本化したため。
+       これまでメモに書いた内容は消さず、隠して持っておく。 */
+   '<div class="field" id="f_noteRow"><label>メモ</label><input id="f_note" value="'+esc((c.note||''))+'"></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="f_cancel">キャンセル</button><button class="btn btn-primary" id="f_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
   function applyStatus(){var el=$('#f_status');var g=statusGroup(el?el.value:c.status);var lc=$('#leadConfirm'),lp=$('#leadPost');if(lc)lc.style.display=g==='confirmed'?'':'none';if(lp)lp.style.display=g==='post'?'':'none';}
   /* 休園の期間は、休園中に印を付けたときだけ出す。 */
   function applyPause(){var pw=$('#f_pauseWrap'),cb=$('#f_paused');if(!pw||!cb)return;pw.style.display=cb.checked?'':'none';}
-  function applyKind(){$('#leadFields').style.display=kind==='lead'?'':'none';$('#enrolledFields').style.display=(kind==='enrolled'||kind==='withdrawn')?'':'none';var wr=$('#withdrawRow');if(wr)wr.style.display=kind==='withdrawn'?'':'none';var pr=$('#pausedRow');if(pr)pr.style.display=kind==='enrolled'?'':'none';applyPause();applyStatus();}
+  function applyKind(){$('#leadFields').style.display=kind==='lead'?'':'none';$('#enrolledFields').style.display=(kind==='enrolled'||kind==='withdrawn')?'':'none';var wr=$('#withdrawRow');if(wr)wr.style.display=kind==='withdrawn'?'':'none';var pr=$('#pausedRow');if(pr)pr.style.display=kind==='enrolled'?'':'none';
+    /* リードのときはメモ欄を出さない（共有事項に一本化したため）。
+       これまで書いた内容は消さず、隠したまま持っておく。 */
+    var nr=$('#f_noteRow');if(nr)nr.style.display=(kind==='lead')?'none':'';
+    applyPause();applyStatus();}
   applyKind();
   if($('#f_paused'))$('#f_paused').onchange=applyPause;
   var pendingPhoto=null,photoCleared=false;
@@ -6554,7 +6567,9 @@ function helpLogHTML(){
 /* 園の基本情報のうち、まだ入っていないものを並べる。
    空のまま送ると、園名や連絡先が抜けたメールが保護者に届いてしまうため。 */
 function setupMissing(){
-  var need=[{k:'school',l:'学校名'},{k:'sender',l:'送信元アドレス'},{k:'manager',l:'担当者名'},
+  /* 担当者名は、送るたびに変わるので配信の画面へ移した。
+     設定に欄が無いのに「未設定です」と出し続けてしまうので、ここからは外す。 */
+  var need=[{k:'school',l:'学校名'},{k:'sender',l:'送信元アドレス'},
             {k:'tel',l:'電話番号'},{k:'address',l:'所在地'}];
   var out=[];
   need.forEach(function(x){if(!String(SET[x.k]||'').trim())out.push(x.l);});
@@ -6580,8 +6595,11 @@ function renderSettings(){
     setupWarnHTML()+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('send')+'送信設定</h3>'+
       '<div class="muted" style="margin-bottom:10px;font-size:12px;">メールや請求書に差し込まれる、園の基本情報です。ここが空のままだと、保護者に届く文面も空欄になります。</div>'+
-      f('s_sender','送信元アドレス',SET.sender,'例：info@（園のメールアドレス）')+f('s_bcc','BCC（本部共有・全送信に自動付与）',SET.bcc,'例：honbu@（控えを受け取るメールアドレス）')+
-      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_school','学校名',SET.school,'例：〇〇インターナショナルスクール 〇〇校')+f('s_manager','担当者名（署名）',SET.manager,'例：山田')+'</div>'+
+      f('s_sender','送信元アドレス',SET.sender,'例：info@（園のメールアドレス）')+/* BCCと担当者は、送るたびに変わるので配信の画面へ移した。
+          ここに残すと、どちらが効くのか分からなくなる。
+          SET.bcc / SET.manager の鍵は消さないので、これまでの値は残る。 */
+       '<input type="hidden" id="s_bcc" value="'+esc(SET.bcc||'')+'">'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_school','学校名',SET.school,'例：〇〇インターナショナルスクール 〇〇校')+'<input type="hidden" id="s_manager" value="'+esc(SET.manager||'')+'">'+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_tel','電話番号',SET.tel,'例：03-1234-5678')+f('s_access','最寄り駅からの道のり',SET.access,'例：〇〇線 〇〇駅 徒歩約5分')+'</div>'+
       f('s_address','所在地',SET.address,'〒000-0000 〇〇県〇〇市〇〇1-2-3 〇〇ビル2階')+'</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'振込口座（請求書・振込お願いで自動差し込み）</h3>'+
@@ -6602,6 +6620,11 @@ function renderSettings(){
         return '<div class="field"><label>'+a+'歳児</label><input type="number" min="1" data-haichi="'+a+'" value="'+esc(haichiRatio()[a])+'"></div>';
       }).join('')+'</div>'+
       '<div class="field" style="max-width:220px;"><label>最低の人数（園全体）</label><input type="number" min="1" id="s_haichiMin" value="'+esc(haichiMin())+'"></div>'+
+      '<div class="field" style="max-width:260px;"><label>午睡を確かめる間隔</label><select id="s_napStep">'
+      +[5,10,15,20,30].map(function(n){return '<option value="'+n+'"'+(n===napStep()?' selected':'')+'>'+n+'分ごと</option>';}).join('')
+      +'</select></div>'+
+      '<div class="muted" style="font-size:11.5px;margin-bottom:10px;">午睡の国の目安は 0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回。'
+      +'5分にすると午睡チェック表の列が増えるので、紙に出すときは横向きでお使いください。</div>'+
       '<div class="muted" style="font-size:11.5px;">登園（出席）の画面に、その日の必要人数と出勤人数を出します。足りない日は打刻の画面にまとめて出ます。</div>'+
       '</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('activity')+'登園記録のオプション（園ごとに設定）</h3><div class="muted" style="margin-bottom:10px;">登園（出席）シートで先生が選択できるオプション。給食・延長保育など、園に合わせて自由に追加・変更・削除できます。</div><div class="muted" style="margin-bottom:10px;font-size:11.5px;">「通園曜日から自動」にしたオプションは、登園シートでは変更できません（すでに記録がある日は、その日の記録がそのまま残ります）。</div><div id="optList"></div><div style="display:flex;gap:8px;margin-top:10px;"><input id="optNew" placeholder="新しいオプション名（自由入力）" style="max-width:280px;"><button class="btn" id="optAdd">'+ic('plus')+'追加</button></div></div>'+
@@ -6652,6 +6675,8 @@ function renderSettings(){
     if(hok)stSet('haichiRatio',hr);
     var hm=parseInt(($('#s_haichiMin')||{}).value,10);
     if(hm>0)stSet('haichiMin',hm);
+    var ns=parseInt(($('#s_napStep')||{}).value,10);
+    if(ns>0)stSet('napStep',ns);
     DB.settings=SET;
     /* サイドバーの園名と送信元を、その場で新しくする */
     try{applyBrand();}catch(e){}
@@ -6977,7 +7002,13 @@ function renderAudit(){
 /* ---------- 日常記録 ---------- */
 var recType='登園（出席）',recDate=null,recMonth=null,recQuarter=null,bmKlass='すべて';
 function curQuarter(){var m=addDays(0).getMonth()+1;return addDays(0).getFullYear()+'-Q'+Math.ceil(m/3);}
-function napSlots(){var a=[],t;for(t=11*60+30;t<=13*60+30;t+=10)a.push(pad(Math.floor(t/60))+':'+pad(t%60));return a;}
+/* 午睡を確かめる間隔。国の目安は 0歳児5分／1〜2歳児10分／3歳以上15〜30分。
+   0歳児のいる園は5分が要るが、そうすると列が25本になり紙に収まらない園もある。
+   園が選べるようにして、既定はこれまでどおり10分にしてある。
+   マスの鍵は「園児の番号|時刻」なので、刻みを変えても前の記録は消えない
+   （その時刻の列が出なくなるだけで、値は残る）。 */
+function napStep(){var n=+stGet('napStep',10);return (n===5||n===10||n===15||n===20||n===30)?n:10;}
+function napSlots(){var a=[],t,st=napStep();for(t=11*60+30;t<=13*60+30;t+=st)a.push(pad(Math.floor(t/60))+':'+pad(t%60));return a;}
 function ageClassOf(c){
   if(!c||!c.dob)return (c&&c.klass)||'';
   var p=c.dob.split('-'),by=+p[0],bm=+p[1],bd=+p[2];
@@ -7726,7 +7757,7 @@ function napGuide(klass){
     }
     if(lo===null)return '';
     var need=(lo<=0)?'5分':(lo<=2?'10分':'15〜30分');
-    return '<br>このクラスは'+lo+'歳児がいるので、目安は<b>'+need+'に1回</b>です（いまの表は10分ごと）。';
+    return '<br>このクラスは'+lo+'歳児がいるので、目安は<b>'+need+'に1回</b>です（いまの表は'+napStep()+'分ごと）。';
   }catch(e){ return ''; }
 }
 function napBlock(klass){
@@ -7786,7 +7817,7 @@ function napBlock(klass){
     if(pr)pr.onclick=function(){
       var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childFullName(c)+'</td>'+slots.map(function(t){return '<td>'+(NAP_MARK[d.cells[c.id+'|'+t]||'']||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'
         +(d.memo?'<p>メモ：'+esc(d.memo)+'</p>':'')
-        +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>';
+        +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　この表は'+napStep()+'分ごと　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>';
       printDoc('午睡チェック表（'+fmt(recDate)+'・'+klass+'）',body);
     };
   }
@@ -10948,7 +10979,8 @@ var SP_GROUPS=[
     {k:'telHome',label:'自宅の電話'}
   ]},
   {g:'その他',f:[
-    {k:'applyDate',label:'お申し込み日',type:'date'},
+    /* 「お申し込み日」は、連絡先の「問い合わせ日」と同じ日付になり二重だった。
+       生徒台帳からは出さない。これまでに入れた値（applyDate）は消していない。 */
     {k:'schoolMail',label:'園からのお知らせ 送り先メール'},
     {k:'parentNote',label:'保護者からの連絡事項',type:'textarea',wide:true}
   ]}
@@ -12818,6 +12850,28 @@ var TASK_REQ_WHY={
  '発達の記録':'保育所保育指針（一人ひとりの育ちの記録）',
  '年末調整の事務':'所得税法'};
 function taskRequired(n){return TASK_REQUIRED.indexOf(n)>-1;}
+/* やることの担当。丸（●）は「済／未」を表しているので、
+   担当は丸の色ではなく、名前の横の札で分ける。
+   はじめの割り当ては、先生が手を動かす4件を「先生」、
+   本部でまとめて出すものを「本部」、残りを「園長」にしてある。
+   園が変えられる。 */
+var TASK_OWNER_LIST=['先生','園長','本部'];
+var TASK_OWNER_HONBU=['現況報告書の提出','処遇改善等加算の計画書提出','決算・事業報告','年末調整の事務','翌年度の事業計画・予算'];
+var TASK_OWNER_STYLE={'先生':'background:#FCEBEB;color:#A32D2D;','園長':'background:#EAF3DE;color:#27500A;','本部':'background:#FAEEDA;color:#854F0B;'};
+function taskOwnerDefault(name){
+  if(TASK_IPPAN.indexOf(name)>-1)return '先生';
+  if(TASK_OWNER_HONBU.indexOf(name)>-1)return '本部';
+  return '園長';
+}
+function taskOwnerAll(){var a=stGet('taskOwner',{});return (a&&typeof a==='object')?a:{};}
+function taskOwnerOf(name){var a=taskOwnerAll();return a[name]||taskOwnerDefault(name);}
+function taskOwnerSet(name,v){var a=taskOwnerAll();
+  if(v&&v!==taskOwnerDefault(name))a[name]=v;else delete a[name];
+  stSet('taskOwner',a);}
+function taskOwnerTag(name){
+  var o=taskOwnerOf(name);
+  return '<span class="t-own" style="'+(TASK_OWNER_STYLE[o]||'')+'">'+esc(o)+'</span>';
+}
 /* 担当の色分け。赤＝先生、緑＝園長、黄＝本社。
    見た目だけのもので、誰にどの画面を見せるか（権限）は今までどおり変えていない。
    ここの割りふりは仮の目安なので、園に合わないものは足し引きしてよい。 */
@@ -13012,6 +13066,9 @@ function renderTasks(){
     for(i=0;i<list.length;i++){
       t=list[i];
       h+='<div class="tked"><span class="tkedn">'+esc(t.name)+'</span>'
+        +'<select data-tkown="'+esc(t.name)+'" style="width:88px;font-size:12px;padding:3px 5px;">'
+        +TASK_OWNER_LIST.map(function(o){return '<option'+(o===taskOwnerOf(t.name)?' selected':'')+'>'+o+'</option>';}).join('')
+        +'</select>'
         +(taskRequired(t.name)
           ?'<span class="pill" style="background:var(--bg);color:var(--tx3);">消せません</span>'
            +'<span class="tkedw">'+esc(TASK_REQ_WHY[t.name]||'')+'</span>'
@@ -13054,6 +13111,7 @@ function renderTasks(){
       +'<button class="tkhead" data-tkhead="'+i+'">'
       +'<span class="tdot" style="background:'+(ok?'#639922':'#E24B4A')+';"></span>'
       +'<span class="tkname">'+esc(t.name)+'</span>'
+      +taskOwnerTag(t.name)
       +taskTanTag(t)
       +'<span class="tag">'+(dd?dd+'日':'毎日')+'</span>'
       +(ok?'<span class="pill" style="background:var(--green-b);color:var(--green-t);">'+(auto?'記録あり':'済')+'</span>':'')
@@ -13100,7 +13158,7 @@ function renderTasks(){
       /* 題名だけを出し、押すと「なぜ必要か」が開く。上の「毎月やること」と同じ動きにそろえる */
       var ai=ANNUAL_TASKS.indexOf(t),ao=!!annOpen[ai],wy=t.why||'';
       return '<tr><td class="row-sub">'+esc(t.month)+'</td>'
-        +'<td class="row-name">'
+        +'<td class="row-name">'+taskOwnerTag(t.name)+' '
         +(wy
           ?'<button type="button" class="anhead" data-anhead="'+ai+'"><span>'+esc(t.name)+'</span><span class="anarw">'+(ao?'▲':'▼')+'</span></button>'
             +'<div class="anbody" data-anbody="'+ai+'"'+(ao?'':' style="display:none;"')+'>'+esc(wy)+'</div>'
@@ -13122,6 +13180,8 @@ function renderTasks(){
     if(!confirm('「'+n+'」を、この園のやることから消します。よろしいですか。'))return;
     if(own)taskAddDel(n);else taskHideSet(n,true);
     renderTasks();};});
+  s.querySelectorAll('[data-tkown]').forEach(function(sl){sl.onchange=function(){
+    taskOwnerSet(sl.getAttribute('data-tkown'),sl.value);renderTasks();};});
   s.querySelectorAll('[data-tkback]').forEach(function(b){b.onclick=function(){
     taskHideSet(b.getAttribute('data-tkback'),false);renderTasks();};});
   s.querySelectorAll('[data-tkaddgo]').forEach(function(b){b.onclick=function(){
@@ -13703,7 +13763,7 @@ var HELP_NEW={
    '検索は、保護者名・お子様名・メールアドレスで探せます。',
    '行の右のプリンタで、体験当日のヒアリング用紙を紙に出せます。',
    '行の右の封筒で、その方あてのメール作成へそのまま移れます。',
-   '「営業分析」の数字は、この画面の内容から出ます。離脱の理由には、連絡先の「メモ」に書いた文が使われます。',
+   '「営業分析」の数字は、この画面の内容から出ます。離脱の理由には「共有事項」に書いた文が使われます。',
    '一般の先生の画面には、この画面は出ません。'],
   faq:[{q:'入園が決まった方は、どうすればよいですか。',
     a:'その方の鉛筆を押して、いちばん下の「在園児に移す」を押してください。クラス・入園日・通園曜日を入れて保存すると、連絡先管理と請求書発行に出るようになります。'},
@@ -13719,11 +13779,11 @@ var HELP_NEW={
    'この画面を開くと、その内容から数字が出ます。',
    '「いまの段階」で、どこに人が溜まっているかを見ます。',
    '「AIが気づいたこと」を読み、次の打ち手を決めます。',
-   '「離脱の理由」を見て、理由が残っていない件は、顧客リストの「メモ」に理由を書きます。'],
+   '「離脱の理由」を見て、理由が残っていない件は、顧客リストの「共有事項」に理由を書きます。'],
   tips:['「体験まで進んだ」は、体験後と入園を合わせた割合です。',
    '「入園の決定」は、リード全体に対しての割合です。',
    '「離脱」は、連絡不通とNGを合わせた割合です。',
-   '「離脱の理由」は、顧客リストの「メモ」の先頭18文字でまとめます。メモが空の件は「理由の記録なし」に入ります。',
+   '「離脱の理由」は、顧客リストの「共有事項」の先頭18文字でまとめます。空の件は「理由の記録なし」に入ります。',
    '「AIが気づいたこと」は、この画面に出ている数字だけから出しています。',
    '一般の先生の画面には、この画面は出ません。'],
   faq:[{q:'数字が「—」になります。',
