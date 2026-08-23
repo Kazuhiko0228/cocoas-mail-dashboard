@@ -9701,13 +9701,14 @@ function edBody(){
       ?''
       :(d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>'))+
     '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
-    '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+
+    '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
       return '<tr><td class="row-name">'+esc(childFullName(c))+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+esc(c.klass)+'</td>'+
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
-      '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
+      '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td>'+
+      '<td class="row-sub">'+(function(){var sd=bmSharedOf(recMonth,c.id);return sd?esc(fmt(sd)):'<span class="muted">—</span>';})()+'</td></tr>';}).join(''):'<tr><td colspan="6" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   /* ★控えを BM_F（by と locked だけ）で取り、差分を BM_F2（rows を含む）で
      取っていた。before.rows が毎回 undefined になり、触っていない園児まで
@@ -11069,7 +11070,14 @@ function renderPunch(){
 function shiftCells(mk){var m=stGet('shifts',{})[mk];return (m&&m.cells)?m.cells:{};}
 function tcGapRows(mk){
   var sh=shiftCells(mk),out=[],dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
-  (DB.staff||[]).forEach(function(st){
+  /* ★名簿から消した職員も、打刻とシフトには記録が残る（削除の確認でそう約束している）。
+     名簿だけを回すと、その人のずれが一覧から落ちて監査で見えなくなる。 */
+  var list=(DB.staff||[]).slice(),seen={},k;
+  list.forEach(function(x){seen[String(x.id)]=1;});
+  var tcm=tcMonth(mk)||{};
+  for(k in tcm){ if(Object.prototype.hasOwnProperty.call(tcm,k)&&!seen[k]){seen[k]=1;list.push({id:k,name:haichiStaffName(k)});} }
+  for(k in sh){ if(Object.prototype.hasOwnProperty.call(sh,k)&&!seen[k]){seen[k]=1;list.push({id:k,name:haichiStaffName(k)});} }
+  list.forEach(function(st){
     var d;
     for(d=1;d<=dim;d++){
       var plan=((sh[st.id]||{})[d])||'';
