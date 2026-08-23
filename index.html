@@ -4295,6 +4295,7 @@ function aipPlanHTML(k){
     +'<h3 style="margin:0;">'+esc(k)+' '+esc(d.period)+' の'+nm+'</h3>'
     +'<div style="margin-left:auto;display:flex;gap:8px;">'
     +'<button class="btn btn-primary btn-sm" id="pSave">下書きとして保存</button>'
+    +'<button class="btn btn-sm" id="pApply">日案に入れる</button>'
     +'<button class="btn btn-sm" id="pPrint">印刷する</button></div></div>'
     +'<div style="margin-top:10px;font-size:13.5px;line-height:1.9;"><b>ねらい</b>　'+esc(d.aim)+'</div>'
     +aipList('予想される子どもの姿',d.expect)
@@ -4392,6 +4393,161 @@ function actRepYears(cls){
 var AIMEM_FY=null;
 function aiMemFY(){ if(AIMEM_FY==null)AIMEM_FY=curFY(); return AIMEM_FY; }
 
+
+/* ══ 案を書類へ入れる ═══════════════════════════
+   実装指示書の完成条件に「採用した活動を書類へ反映できる」
+   「既存文章を無断で上書きしない」がある。
+   案が出ても書類に入れられないと、そこで行き止まりになっていた。
+
+   ★先生が書いた文を黙って消さない。
+     入れる前に「いまの内容」と「入れる内容」を並べて見せ、
+     追記か置き換えかを選んでもらう。
+     置き換えたときは前の内容を控えておき、その場で取り消せる。 */
+var AIAP_MAP=[
+  {k:'nerai', l:'ねらい',        from:'aim'},
+  {k:'sugata',l:'子どもの姿',    from:'expect'},
+  {k:'junbi', l:'準備・材料',    from:'prep'},
+  {k:'rows',  l:'一日の流れ',    from:'times'}
+];
+function aiapText(v){
+  if(v==null)return '';
+  if(Object.prototype.toString.call(v)==='[object Array]'){
+    return v.map(function(x){
+      if(x&&typeof x==='object')return [x.t,x.a].filter(Boolean).join('　');
+      return String(x);
+    }).join('\n');
+  }
+  return String(v);
+}
+/* 案の中身から、日案の各欄に入れる文を作る */
+function aiapPick(data,key){
+  var i;
+  for(i=0;i<AIAP_MAP.length;i++){
+    if(AIAP_MAP[i].k!==key)continue;
+    return data[AIAP_MAP[i].from];
+  }
+  return null;
+}
+function aiapModal(plan,klass){
+  var data=plan.data||{},cls=klass||plan.klass||'';
+  var date=todayISO();
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+
+  function draw(){
+    var cur=curDailyGet(cls,date);
+    var rows=AIAP_MAP.map(function(f){
+      var now=(f.k==='rows')
+        ? (cur.rows||[]).map(function(r){return [r.t,r.c].filter(Boolean).join('　');}).join('\n')
+        : (cur[f.k]||'');
+      var add=aiapText(aiapPick(data,f.k));
+      if(!add)return '';
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
+        +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap;">'
+          +'<b style="font-size:13px;">'+esc(f.l)+'</b>'
+          +'<span style="flex:1;"></span>'
+          +'<label class="tkchk" style="font-size:12px;"><input type="checkbox" data-aiapon="'+esc(f.k)+'" checked style="width:auto;">入れる</label>'
+        +'</div>'
+        +'<div class="grid grid-2col" style="gap:10px;">'
+          +'<div><div class="tkq">いまの内容</div><div class="tka" style="white-space:pre-wrap;font-size:12.5px;">'
+            +(now?esc(now):'<span class="muted">（空）</span>')+'</div></div>'
+          +'<div><div class="tkq">入れる内容</div><div class="tka" style="white-space:pre-wrap;font-size:12.5px;">'+esc(add)+'</div></div>'
+        +'</div></div>';
+    }).join('');
+
+    m.innerHTML='<div class="modal" style="width:760px;">'
+      +'<h2>'+ic('doc')+'この案を日案に入れる</h2>'
+      +'<div class="muted" style="margin:-8px 0 14px;font-size:12.5px;">'
+        +esc(cls)+'　'+esc({month:'月案',week:'週案',day:'日案',craft:'制作物',year:'年間発達マップ'}[plan.kind]||plan.kind)
+        +'　'+esc(plan.title||'')
+        +(plan.byAI?'　<span class="badge" style="background:#EEEDFE;color:#3C3489;">AIが下書き</span>':'　<span class="badge" style="background:#F1EFE8;color:#5F5E5A;">記録から</span>')
+      +'</div>'
+      +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">'
+        +'<span class="muted" style="font-size:12px;">入れる日</span>'
+        +'<input type="date" id="aiapDate" value="'+esc(date)+'" style="width:170px;">'
+        +'<span style="flex:1;"></span>'
+        +'<span class="muted" style="font-size:12px;">入れ方</span>'
+        +'<button class="btn btn-sm btn-primary" data-aiapmode="add">今の文に足す</button>'
+        +'<button class="btn btn-sm" data-aiapmode="rep">今の文と入れ替える</button>'
+      +'</div>'
+      +(rows||'<div class="empty">この案には、日案に入れられる項目がありません。</div>')
+      +'<div class="muted" style="font-size:11.5px;margin-top:4px;">'
+        +'先生が書いた文は、勝手には消しません。入れ替えたときは、そのあと取り消せます。</div>'
+      +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">'
+        +'<button class="btn" id="aiapCancel">閉じる</button>'
+        +'<button class="btn btn-primary" id="aiapGo">入れる</button></div>'
+      +'</div>';
+
+    var mode='add';
+    function markMode(){
+      m.querySelectorAll('[data-aiapmode]').forEach(function(b){
+        b.className='btn btn-sm'+(b.getAttribute('data-aiapmode')===mode?' btn-primary':'');});
+    }
+    m.querySelectorAll('[data-aiapmode]').forEach(function(b){b.onclick=function(){
+      mode=b.getAttribute('data-aiapmode');markMode();};});
+    markMode();
+    m.querySelector('#aiapDate').onchange=function(e){date=e.target.value;draw();};
+    m.querySelector('#aiapCancel').onclick=function(){m.remove();};
+    m.querySelector('#aiapGo').onclick=function(){
+      var on={};
+      m.querySelectorAll('[data-aiapon]').forEach(function(c){on[c.getAttribute('data-aiapon')]=c.checked;});
+      var cur2=curDailyGet(cls,date);
+      /* 取り消せるように、入れる前の中身を控える */
+      var before={nerai:cur2.nerai,sugata:cur2.sugata,junbi:cur2.junbi,
+                  rows:(cur2.rows||[]).slice()};
+      var n=0;
+      AIAP_MAP.forEach(function(f){
+        if(!on[f.k])return;
+        var add=aiapPick(data,f.k);
+        if(add==null||add==='')return;
+        if(f.k==='rows'){
+          var list=(Object.prototype.toString.call(add)==='[object Array]')?add:[];
+          var made=list.map(function(x){
+            if(x&&typeof x==='object')return {t:x.t||'',c:x.a||'',h:x.e||''};
+            return {t:'',c:String(x),h:''};
+          });
+          cur2.rows=(mode==='add')?(cur2.rows||[]).concat(made):made;
+        }else{
+          var t=aiapText(add);
+          cur2[f.k]=(mode==='add'&&cur2[f.k])?(cur2[f.k]+'\n'+t):t;
+        }
+        n++;
+      });
+      if(!n){alert('入れる項目が選ばれていません。');return;}
+      curDailySet(cls,date,cur2);
+      AIAP_UNDO={cls:cls,date:date,before:before,at:lockNow()};
+      if(typeof saveAll==='function')saveAll();
+      aiLog('案を日案に入れた（'+(mode==='add'?'足す':'入れ替え')+'）',fmt(date)+' '+n+'項目',cls);
+      m.remove();
+      aiapToastUndo();
+      if(typeof renderCurriculum==='function'&&$('section[data-page="curriculum"]')&&!$('section[data-page="curriculum"]').hidden)renderCurriculum();
+    };
+  }
+  draw();
+}
+/* 直前に入れたものを取り消す */
+var AIAP_UNDO=null;
+function aiapToastUndo(){
+  var old=document.getElementById('aiapUndo'); if(old)old.remove();
+  var d=el('div',{id:'aiapUndo'});
+  d.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;'
+    +'background:#16202B;color:#fff;border-radius:10px;padding:11px 16px;display:flex;align-items:center;gap:14px;font-size:13px;';
+  d.innerHTML='<span>日案に入れました。</span><button class="btn btn-sm" id="aiapUndoBtn" style="background:#fff;">取り消す</button>';
+  document.body.appendChild(d);
+  document.getElementById('aiapUndoBtn').onclick=function(){
+    if(!AIAP_UNDO){d.remove();return;}
+    var u=AIAP_UNDO,cur=curDailyGet(u.cls,u.date);
+    cur.nerai=u.before.nerai; cur.sugata=u.before.sugata;
+    cur.junbi=u.before.junbi; cur.rows=u.before.rows;
+    curDailySet(u.cls,u.date,cur);
+    if(typeof saveAll==='function')saveAll();
+    aiLog('日案に入れたものを取り消した',fmt(u.date),u.cls);
+    AIAP_UNDO=null; d.remove();
+    if(typeof renderCurriculum==='function'&&$('section[data-page="curriculum"]')&&!$('section[data-page="curriculum"]').hidden)renderCurriculum();
+  };
+  setTimeout(function(){ var x=document.getElementById('aiapUndo'); if(x)x.remove(); },12000);
+}
+
 function aipMemoHTML(k){
   var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=aiLogVisible();
   var ps=aiPlans().filter(function(x){return x.klass===k;});
@@ -4473,6 +4629,7 @@ function aipMemoHTML(k){
           +'<td style="padding:8px 0;width:88px;"><span class="badge" style="background:'
           +(x.status==='承認済み'?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'+esc(x.status)+'</span></td>'
           +'<td style="padding:8px 0;width:150px;text-align:right;white-space:nowrap;">'
+          +(/^(month|week|day)$/.test(x.kind)?'<button class="btn btn-sm" data-aiap="'+esc(x.id)+'">日案に入れる</button> ':'')
           +'<button class="btn btn-sm" data-apr="'+esc(x.id)+'">印刷</button> '
           +(x.status==='承認済み'?'':'<button class="btn btn-sm" data-apv="'+esc(x.id)+'">承認する</button>')+'</td></tr>';
       }).join('')+'</tbody></table>'
@@ -4631,6 +4788,11 @@ function aipWire(k){
     aiLog('計画を下書き保存',k+' '+d.period); renderAIPlan(); aiToast('下書きとして保存しました');
   };
   var pp=$$('#pPrint'); if(pp)pp.onclick=function(){ aipPrint(AIP.res.kind,AIP.res.data,k,AIP.res); };
+  var pa=$$('#pApply');
+  if(pa)pa.onclick=function(){
+    aiapModal({kind:AIP.res.kind,klass:k,title:(AIP.res.data&&AIP.res.data.period)||'',
+      data:AIP.res.data,byAI:!!AIP.res.byAI,aiFields:AIP.res.aiFields||[]},k);
+  };
 
   /* 相談 */
   s.querySelectorAll('[data-aipre]').forEach(function(b){b.onclick=function(){
@@ -4679,6 +4841,12 @@ function aipWire(k){
     var p=aiPlans().filter(function(x){return x.id===id;})[0];
     if(!p)return;
     aipPrint(p.kind,p.data,p.klass||k,{byAI:!!p.byAI,aiFields:p.aiFields||[]});
+  };});
+  s.querySelectorAll('[data-aiap]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-aiap');
+    var p=aiPlans().filter(function(x){return x.id===id;})[0];
+    if(!p)return;
+    aiapModal(p,p.klass||k);
   };});
   /* 覚えていることの年度・直す・消す */
   var mfy=$$('#mFy');
