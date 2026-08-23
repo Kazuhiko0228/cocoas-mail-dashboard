@@ -3765,6 +3765,57 @@ var AI_CRAFT={
  '2月':{n:'おにのおめん',mat:['紙皿','毛糸','クレヨン'],aim:'行事の由来に親しみ、表情を表す'},
  '3月':{n:'おもいで写真たて',mat:['厚紙','折り紙','写真'],aim:'一年をふり返り、次への期待を持つ'}
 };
+/* ══ 誤飲・窒息の注意 ═══════════════════════════
+   相談の画面では、誤飲・窒息・アレルギーは「その場で確かめられていない文章を
+   出すと取り返しがつかない」として、AIに聞かずに手順書へ回している（AI_URGENT）。
+   ところが活動の提案では、同じ題材をAIに書かせる形になっていた。
+   そこで、素材と年齢の対応は画面側で持つ。AIが書いた注意は、この上に足すだけ。
+
+   目安：直径39mm・長さ51mm 未満のものは、3歳未満の子どもが飲み込める大きさ
+   （子どもの誤えん防止のための目安として広く使われている）。
+   ここに挙げた素材は、その大きさに当たりやすいもの。 */
+var AI_CHOKE=[
+  {m:['どんぐり','木の実','ビーズ','おはじき','ボタン','小石','シール'],
+   t:'口に入る大きさです。3歳未満のクラスでは、先生が配って手元で使い、余りはその場で回収してください。'},
+  {m:['綿','毛糸','たこ糸','ひも','リボン'],
+   t:'口や鼻に入ったり、首に巻きついたりすることがあります。短く切って渡し、使い終わったらその場で集めてください。'},
+  {m:['ポリ袋','ビニール','透明フィルム','ラップ'],
+   t:'顔にかぶると息ができなくなります。かぶらない大きさに切り、先生が見ていられる場面だけで使ってください。'},
+  {m:['色水を凍らせたもの','氷'],
+   t:'口に入れると溶けて詰まることがあります。手で持つ大きさにし、口に入れないよう声をかけてください。'},
+  {m:['絵の具','のり','クレヨン','油性ペン'],
+   t:'口に入れないよう見守り、使い終わったら手を洗ってください。'}
+];
+/* そのクラスにいる一番小さい歳児を返す。分からなければ null */
+function aiYoungest(klass){
+  try{
+    var ks=classOf(klass),i,lo=null,a;
+    if(typeof ageClassOf!=='function')return null;
+    for(i=0;i<ks.length;i++){
+      a=parseInt(String(ageClassOf(ks[i])).replace(/[^0-9]/g,''),10);
+      if(isNaN(a))continue;
+      if(lo===null||a<lo)lo=a;
+    }
+    return lo;
+  }catch(e){ return null; }
+}
+/* 使う素材から、必ず出す注意を組み立てる。AIには作らせない */
+function aiChokeNotes(mats,klass){
+  var out=[],i,j,lo=aiYoungest(klass);
+  var list=(Object.prototype.toString.call(mats)==='[object Array]')?mats:[];
+  for(i=0;i<AI_CHOKE.length;i++){
+    var hit=false;
+    for(j=0;j<list.length;j++){
+      var t=String(list[j]);
+      if(AI_CHOKE[i].m.filter(function(w){return t.indexOf(w)>-1;}).length){hit=true;break;}
+    }
+    if(hit)out.push(AI_CHOKE[i].t);
+  }
+  if(out.length&&lo!==null&&lo<=2){
+    out.unshift('このクラスには'+lo+'歳児がいます。誤飲・窒息に特に気をつけてください。');
+  }
+  return out;
+}
 function aiCraft(klass,opt){
   opt=opt||{};
   var m=opt.month||(String(+todayISO().slice(5,7))+'月');
@@ -3800,9 +3851,12 @@ function aiCraft(klass,opt){
     staffPlan:staffPlan,
     help:['「どれにする？」と選ぶ時間をとります','できた形を言葉にして返します',
           'うまくいかないときは、手を添えるより先に、やり方を一緒に見ます'],
-    safe:['はさみは使うときだけ配り、使い終わったらすぐ回収します',
+    /* 誤飲・窒息の注意は、使う素材とクラスの年齢から画面側で出す。
+       AIには作らせない（相談ではAIに聞かせない題材のため）。 */
+    safe:aiChokeNotes(base.mat,klass).concat(
+         ['はさみは使うときだけ配り、使い終わったらすぐ回収します',
           'のりを口に入れないよう、そばで見守ります',
-          (f.hiyari.n?'これまでのヒヤリハット '+f.hiyari.n+'件をふまえ、机のまわりの動線を確認します':'机のまわりの動線を確認します')],
+          (f.hiyari.n?'これまでのヒヤリハット '+f.hiyari.n+'件をふまえ、机のまわりの動線を確認します':'机のまわりの動線を確認します')]),
     display:'廊下の掲示板に、名前を伏せて並べます。持ち帰りは月末にまとめて行います。',
     letter:'今月は'+AI_SEASON[m]+'を題材に「'+base.n+'」に取り組みました。'
       +'お子さまが自分で素材を選び、'+base.aim+'ことをねらいとしています。'
@@ -4420,6 +4474,12 @@ function aipWire(k){
       }
       var filled2=[];
       if(got)['name','aim','prep','steps','help','safe'].forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled2.push(kk); });
+      /* 誤飲・窒息をふくむ安全の注意は、画面側で出したものを消さない。
+         AIが書いた分は下へ足すだけにする。 */
+      if(got&&got.safe){
+        var addS=(Object.prototype.toString.call(got.safe)==='[object Array]')?got.safe:[String(got.safe)];
+        d.safe=(base.safe||[]).concat(addS.map(function(x){return 'AIからの追加：'+String(x);}));
+      }else{ d.safe=base.safe; }
       AIP.res={kind:'craft',data:d,byAI:!!got,aiFields:filled2};
       aiLog('制作物アイディアをつくった'+(got?'（AI）':'（下書き）'),k+' '+m); renderAIPlan();
     });
@@ -4460,8 +4520,13 @@ function aipWire(k){
     aiAskServer(kind,k).then(function(got){
       AI_NET.busy=false;
       /* AIが書くのは文章だけ。先生の配置・参加のしかた・個別の配慮は
-         記録から出しているので、重ねずにそのまま残す。 */
-      var keys=['aim','expect','env','prep','help','safe','review'];
+         記録から出しているので、重ねずにそのまま残す。
+         ★safe（安全上の注意）も上書きしない。
+           記録から作った safe は「これまでのヒヤリハット○件をふまえ…」のように
+           その園で実際に起きたことから出た一文で、AIの一般論に差し替わると
+           園の実態から出た唯一の安全の一文が消えてしまう。
+           AIが書いた安全の注意は、消さずに下へ足すだけにする。 */
+      var keys=['aim','expect','env','prep','help','review'];
       if(kind==='week')keys=keys.concat(['days','rain']);
       if(kind==='day') keys=keys.concat(['times']);
       /* どの項目をAIが埋めたかを控えておく。
@@ -4469,7 +4534,14 @@ function aipWire(k){
          AIが返さなかった項目は、園の記録から作った下書きのまま。 */
       var filled=[];
       if(got)keys.forEach(function(kk){ if(got[kk]!=null&&got[kk]!=='')filled.push(kk); });
-      AIP.res={kind:kind,data:aiMerge(base,got,keys),byAI:!!got,aiFields:filled};
+      var merged=aiMerge(base,got,keys);
+      /* AIの安全の注意は、園の記録から出した一文を消さずに後ろへ足す */
+      if(got&&got.safe){
+        var add=(Object.prototype.toString.call(got.safe)==='[object Array]')?got.safe:[String(got.safe)];
+        merged.safe=(merged.safe||[]).concat(add.map(function(x){return 'AIからの追加：'+String(x);}));
+        if(filled.indexOf('safe')<0)filled.push('safe');
+      }
+      AIP.res={kind:kind,data:merged,byAI:!!got,aiFields:filled};
       aiLog(nm+'をつくった'+(got?'（AI）':'（下書き）'),k); renderAIPlan();
     });
   };});
