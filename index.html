@@ -1242,6 +1242,140 @@ function nichiEnvHTML(env,scale,edit){
   return h;
 }
 
+
+/* ══ 活動の実施報告 ═══════════════════════════
+   園はいま「その日の活動を実際にやったかどうか」をどこにも残せていない。
+   計画（カリキュラム・日案）はあるが、実施の記録が無いので、
+   監査で「計画と実際が合っているか」を聞かれたときに示せない。
+
+   ★選択肢はAIに作らせない。
+     その日の日案に先生が書いた「一日の流れ」の行から作る。
+     誰も見ていない場面をAIが作文し、それを先生が押して
+     「観察した事実」として残ってしまうのを避けるため。
+     当てはまるものが無ければ、自由に書ける欄を使う。
+     選んだものには「先生が選んだ」ことが分かる形で残す。 */
+var ACTREP_MUZU=['ちょうどよかった','むずかしかった','やさしかった'];
+var ACTREP_JIKAN=['予定どおり','短かった','長かった'];
+var ACTREP_TSUGI=['同じ活動をもう一度','発展させる','別の活動にする'];
+function actRepAll(){return stGet('act_reports',{});}
+function actRepKey(cls,date){return cls+'|'+date;}
+function actRepGet(cls,date){
+  var o=actRepAll()[actRepKey(cls,date)];
+  if(!o)o={};
+  return {done:o.done||'', picks:(o.picks&&o.picks.length)?o.picks:[],
+          free:o.free||'', muzu:o.muzu||'', jikan:o.jikan||'', tsugi:o.tsugi||'',
+          at:o.at||'', by:o.by||''};
+}
+function actRepSet(cls,date,o){
+  var a=actRepAll();
+  o.at=lockNow(); o.by=lockWho();
+  a[actRepKey(cls,date)]=o; stSet('act_reports',a);
+}
+function actRepHas(cls,date){return !!actRepGet(cls,date).done;}
+/* 選択肢は、その日の日案に書かれた「一日の流れ」から作る。AIの作文は入らない */
+function actRepChoices(cls,date){
+  var o=curDailyGet(cls,date),out=[],i,t;
+  for(i=0;i<(o.rows||[]).length;i++){
+    t=String(o.rows[i].c||'').replace(/^\s+|\s+$/g,'');
+    if(t&&out.indexOf(t)<0)out.push(t);
+  }
+  return out;
+}
+
+function actRepModal(cls,date){
+  var o=actRepGet(cls,date),ch=actRepChoices(cls,date);
+  var d=new Date(date+'T00:00:00'),WDJ=['日','月','火','水','木','金','土'];
+  var a=curDayActivities(cls,date);
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+
+  function seg(name,list,cur){
+    return list.map(function(x){
+      return '<button class="btn btn-sm'+(x===cur?' btn-primary':'')+'" data-'+name+'="'+esc(x)+'">'+esc(x)+'</button>';
+    }).join('');
+  }
+  m.innerHTML='<div class="modal" style="width:560px;">'
+    +'<h2>'+ic('check')+'この活動をやりましたか</h2>'
+    +'<div class="muted" style="margin:-8px 0 14px;font-size:12.5px;">'
+      +esc(cls)+'　'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+WDJ[d.getDay()]+'）'
+      +((a.morning||a.afternoon)?'<br>'+esc([a.morning,a.afternoon].filter(Boolean).join(' / ')):'')
+      +'</div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:16px;">'
+      +'<button class="btn'+(o.done==='やった'?' btn-primary':'')+'" data-rdone="やった" style="flex:1;padding:14px;">やった</button>'
+      +'<button class="btn'+(o.done==='できなかった'?' btn-primary':'')+'" data-rdone="できなかった" style="flex:1;padding:14px;">できなかった</button>'
+    +'</div>'
+    +'<div id="rpBody"'+(o.done?'':' style="display:none;"')+'>'
+      +(ch.length
+        ?'<div class="field"><label>よく取り組んでいたところ（当てはまるものを押す）</label>'
+          +'<div class="chips" style="margin:0;">'
+          +ch.map(function(x){return '<span class="chip'+(o.picks.indexOf(x)>-1?' on':'')+'" data-rpick="'+esc(x)+'">'+esc(x)+'</span>';}).join('')
+          +'</div>'
+          +'<div class="muted" style="font-size:11.5px;margin-top:5px;">この一覧は、日案の「一日の流れ」に先生が書いた内容から作っています。</div></div>'
+        :'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">日案の「一日の流れ」がまだ空なので、下の欄に書いてください。</div>')
+      +'<div class="field"><label>そのほか気づいたこと</label><input id="rpFree" value="'+esc(o.free)+'" placeholder="見たことを、そのまま書いてください"></div>'
+      +'<div class="field"><label>むずかしさ</label><div style="display:flex;gap:8px;flex-wrap:wrap;">'+seg('rmuzu',ACTREP_MUZU,o.muzu)+'</div></div>'
+      +'<div class="field"><label>時間</label><div style="display:flex;gap:8px;flex-wrap:wrap;">'+seg('rjikan',ACTREP_JIKAN,o.jikan)+'</div></div>'
+      +'<div class="field"><label>次はどうする</label><div style="display:flex;gap:8px;flex-wrap:wrap;">'+seg('rtsugi',ACTREP_TSUGI,o.tsugi)+'</div></div>'
+    +'</div>'
+    +(o.at?'<div class="muted" style="font-size:11.5px;">最後に書いた人：'+esc(o.by||'')+'　'+esc(lockFmt(o.at))+'</div>':'')
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">'
+      +'<button class="btn" id="rpCancel">閉じる</button>'
+      +'<button class="btn btn-primary" id="rpSave">保存</button></div>'
+    +'</div>';
+
+  var cur={done:o.done,picks:o.picks.slice(),muzu:o.muzu,jikan:o.jikan,tsugi:o.tsugi};
+  function mark(name,v){
+    m.querySelectorAll('[data-'+name+']').forEach(function(b){
+      b.className='btn btn-sm'+(b.getAttribute('data-'+name)===v?' btn-primary':'');});
+  }
+  m.querySelectorAll('[data-rdone]').forEach(function(b){b.onclick=function(){
+    cur.done=b.getAttribute('data-rdone');
+    m.querySelectorAll('[data-rdone]').forEach(function(x){
+      x.className='btn'+(x.getAttribute('data-rdone')===cur.done?' btn-primary':'');
+      x.style.flex='1';x.style.padding='14px';});
+    var bd=m.querySelector('#rpBody'); if(bd)bd.style.display='';
+  };});
+  m.querySelectorAll('[data-rpick]').forEach(function(b){b.onclick=function(){
+    var v=b.getAttribute('data-rpick'),i=cur.picks.indexOf(v);
+    if(i>-1)cur.picks.splice(i,1);else cur.picks.push(v);
+    b.className='chip'+(cur.picks.indexOf(v)>-1?' on':'');
+  };});
+  m.querySelectorAll('[data-rmuzu]').forEach(function(b){b.onclick=function(){cur.muzu=b.getAttribute('data-rmuzu');mark('rmuzu',cur.muzu);};});
+  m.querySelectorAll('[data-rjikan]').forEach(function(b){b.onclick=function(){cur.jikan=b.getAttribute('data-rjikan');mark('rjikan',cur.jikan);};});
+  m.querySelectorAll('[data-rtsugi]').forEach(function(b){b.onclick=function(){cur.tsugi=b.getAttribute('data-rtsugi');mark('rtsugi',cur.tsugi);};});
+  m.querySelector('#rpCancel').onclick=function(){m.remove();};
+  m.querySelector('#rpSave').onclick=function(){
+    if(!cur.done){alert('「やった」か「できなかった」を押してください。');return;}
+    actRepSet(cls,date,{done:cur.done,picks:cur.picks,
+      free:(m.querySelector('#rpFree')||{}).value||'',
+      muzu:cur.muzu,jikan:cur.jikan,tsugi:cur.tsugi});
+    if(typeof saveAll==='function')saveAll();
+    m.remove();
+    if(typeof renderCurriculum==='function')renderCurriculum();
+  };
+}
+/* 紙に出す（監査で「計画と実際が合っているか」を聞かれたとき用） */
+function actRepBody(cls,mk){
+  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),rows='',d,date,r,a;
+  for(d=1;d<=dim;d++){
+    date=mk+'-'+pad(d);
+    r=actRepGet(cls,date);
+    a=curDayActivities(cls,date);
+    if(!r.done&&!a.morning&&!a.afternoon)continue;
+    rows+='<tr><td>'+d+'日</td>'
+      +'<td>'+esc([a.morning,a.afternoon].filter(Boolean).join(' / ')||'—')+'</td>'
+      +'<td>'+esc(r.done||'未記入')+'</td>'
+      +'<td>'+esc(r.picks.join('／'))+(r.free?'<div style="font-size:10px;">'+esc(r.free)+'</div>':'')+'</td>'
+      +'<td>'+esc([r.muzu,r.jikan,r.tsugi].filter(Boolean).join('／'))+'</td>'
+      +'<td style="font-size:10px;">'+esc(r.by||'')+'</td></tr>';
+  }
+  if(!rows)rows='<tr><td colspan="6">記録がありません</td></tr>';
+  return '<table><thead><tr><th style="width:44px;">日</th><th>予定していた活動</th><th style="width:80px;">実施</th>'
+    +'<th>子どもの様子（先生が選んだもの）</th><th style="width:150px;">ふりかえり</th><th style="width:90px;">書いた人</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>'
+    +'<p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。</p>';
+}
+
 var NICHI={cls:null,date:null,env:[],rows:[]};
 function nichiModal(cls,date){
   var o=curDailyGet(cls,date);
@@ -6397,8 +6531,8 @@ function renderCurriculum(){
   var bodyHtml;
   {
     var dim=new Date(y,mo,0).getDate(),rows='';
-    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select><input data-samt="'+esc(date)+'" value="'+esc(v(sc.amText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select><input data-spmt="'+esc(date)+'" value="'+esc(v(sc.pmText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><input data-stea="'+esc(date)+'" value="'+esc(v(sc.teacher))+'" placeholder="担当"></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
-    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:110px;">担当</th><th style="width:76px;">日案</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select><input data-samt="'+esc(date)+'" value="'+esc(v(sc.amText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select><input data-spmt="'+esc(date)+'" value="'+esc(v(sc.pmText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><input data-stea="'+esc(date)+'" value="'+esc(v(sc.teacher))+'" placeholder="担当"></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><button class="btn btn-sm'+(actRepGet(curClass,date).done==='やった'?' btn-primary':'')+'" data-rep="'+esc(date)+'">'+(actRepGet(curClass,date).done?esc(actRepGet(curClass,date).done):'記録')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
+    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:110px;">担当</th><th style="width:76px;">日案</th><th style="width:88px;">実施</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   }
   /* 週ごとの欄はやめて、月間のねらいと日別を1つの画面にまとめた（2026-08-22）。
      いま書いてある週の内容は、上の curMigrateWeekToDay() で各日へ写してある。
@@ -6425,6 +6559,8 @@ function renderCurriculum(){
   s.querySelectorAll('[data-stea]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-stea'),sc=curSchedGet(curClass,d);sc.teacher=inp.value;curSchedSet(curClass,d,sc);};});
     s.querySelectorAll('[data-nichi]').forEach(function(b){b.onclick=function(){
       nichiModal(curClass,b.getAttribute('data-nichi'));};});
+    s.querySelectorAll('[data-rep]').forEach(function(b){b.onclick=function(){
+      actRepModal(curClass,b.getAttribute('data-rep'));};});
   s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-cont')),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
   s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-actm')),m=curActMGet(curClass,p[0]);m[p[1]]=inp.value;curActMSet(curClass,p[0],m);renderCurriculum();};});
   s.querySelectorAll('[data-creset]').forEach(function(b){b.onclick=function(){
