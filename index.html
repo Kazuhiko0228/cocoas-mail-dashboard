@@ -3846,7 +3846,9 @@ function lockNote(d,field,before,after,isNote){
 /* 画面に出す帯 */
 function lockBarHtml(d){
   if(!isLocked(d)){
-    return '<div class="lockbar open"><span class="lkmsg">まだ確定していません。書き終わったら確定してください。</span>'
+    /* 「保存ボタンが無いけれど、これで残っているのか」は先生がいちばん不安になるところ。
+       業務日報にだけ書いてあった案内を、記録6画面ぜんぶに出す。 */
+    return '<div class="lockbar open"><span class="lkmsg">入力は自動保存されます。まだ確定していません。書き終わったら確定してください。</span>'
       +'<button class="btn btn-sm btn-primary lk-skip" data-lkdo="1">この記録を確定する</button></div>';
   }
   var nf=(d.fixes||[]).length;
@@ -10849,7 +10851,7 @@ function edNippo(){
       '<div class="field"><label>早退</label><input id="npoEarly" value="'+esc((d.early||''))+'"></div></div>'+
     '<div class="muted" style="margin-bottom:8px;">※ 体調不良・怪我は「健康チェック」「事故・ヒヤリハットの記録」で記録します（二重入力を避けるため業務日報からは削除）。</div>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+esc((d.note||''))+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+esc((d.by||''))+'"></div></div>'+
-    '<div class="muted">'+(isLocked(d)?'この記録は確定ずみです。':'入力は自動保存されます。書き終わったら上の「この記録を確定する」を押してください。')+'</div></div>';
+    '<div class="muted">'+(isLocked(d)?'この記録は確定ずみです。':'')+'</div></div>';
   function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#npoCurr').onclick=function(){if(!lockCanEdit(d))return;lockNote(d,'活動内容',d.actual,currText);$('#npoActual').value=currText;d.actual=currText;save();};
