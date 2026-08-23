@@ -4015,20 +4015,19 @@ function homeHTML(c){
 var attKind='欠席';
 function attStoreKey(){return 'rec_登園シート';}
 function submitAbsence(c,date,kind,reason){
-  var K=attStoreKey();var data=stGet(K,{});
-  var day=data[date]||{klass:c.klass,rows:{},weather:'',temp:'',hum:'',memo:'',by:''};
-  if(!day.rows)day.rows={};
-  /* 職員側の登園シートと同じ記号にする。ここがずれると、保護者の連絡が園の画面に反映されない。
-     職員側は ['','●','早','遅','休'] を使う（index.html の登園シート） */
-  /* お迎え変更は出欠そのものではないので、記号は書き換えず連絡だけ残す */
-  var mark = kind==='欠席'?'休':(kind==='遅刻'?'遅':(kind==='早退'?'早':null));
-  var prev=day.rows[c.id]||{};
-  var upd={parentNote:{kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')}};
-  if(mark){upd.att=mark;upd.absent=(kind==='欠席');}
-  day.rows[c.id]=Object.assign(prev,upd);
-  data[date]=day;stSet(K,data);
-  // parent-side log
-  var log=stGet('absence_log',[]);log.push({childId:c.id,date:date,kind:kind,reason:reason,at:new Date().toLocaleString('ja-JP')});stSet('absence_log',log);
+  /* ★ここで園の登園シート（rec_登園シート）の出欠記号を直に書き換えていた。
+     確定（lock）を一切見ないので、園長が確定した日の記号が保護者の操作で入れ替わり、
+     しかも直した跡（fixes）も残らなかった。監査の紙が嘘になる。
+     この画面も園のホームも「登園シートには園の先生が書き写します」
+     「自動では入りません」と書いてあるのに、実際は入っていた。
+
+     園の帳簿には書かない。連絡は保護者側の控え（absence_log）にだけ残し、
+     園のホームの一覧（PSTATE.list('absence_log')）から先生が書き写す。 */
+  var log=stGet('absence_log',[]);
+  log.push({childId:c.id,date:date,kind:kind,reason:reason,
+            klass:c.klass,name:(c.child||c.name||''),
+            at:new Date().toLocaleString('ja-JP')});
+  stSet('absence_log',log);
 }
 function myAbsences(c){return (stGet('absence_log',[])||[]).filter(function(a){return a.childId===c.id;}).sort(function(a,b){return a.date<b.date?1:-1;});}
 function attHTML(c){

@@ -835,6 +835,17 @@ function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate
 function addDays(n){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+n);return d;}
 function todayISO(){return iso(addDays(0));}
 function fmt(s){if(!s)return'';var p=s.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);return (+p[1])+'/'+(+p[2])+'（'+WD[d.getDay()]+'）';}
+/* ★監査に出す名簿の日付に fmt をそのまま使っていたので、年が落ちていた。
+   児童名簿の生年月日が「5/10（水）」では年齢を裏取りできず、
+   労働者名簿（労基法107条の法定帳簿）の生年月日・入社日・退職日も同じだった。
+   紙にはこちらを使う。 */
+function fmtY(s){
+  if(!s)return'';
+  var p=String(s).split('-');
+  if(p.length<3)return String(s);
+  var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return (+p[0])+'年'+(+p[1])+'月'+(+p[2])+'日（'+WD[d.getDay()]+'）';
+}
 function fmtShort(s){var p=s.split('-');return {d:+p[2],m:(+p[1])+'月'};}
 function yen(n){return '¥'+Number(n||0).toLocaleString();}
 
@@ -2198,6 +2209,17 @@ function classRename(oldName,newName){
     for(dk in dd){ if(Object.prototype.hasOwnProperty.call(dd,dk)&&dd[dk]&&dd[dk].klass===oldName){dd[dk].klass=newName;c2=true;} }
     if(c2)stSet(RK,dd);
   });
+  /* 配信のひな形の宛先クラス（園が作ったもの） */
+  try{
+    var tu=stGet('tplUser',null);
+    if(tu&&tu.custom){
+      (tu.custom||[]).forEach(function(c4){
+        if(!c4||!c4.cls)return;
+        for(i=0;i<c4.cls.length;i++){ if(c4.cls[i]===oldName)c4.cls[i]=newName; }
+      });
+      stSet('tplUser',tu);
+    }
+  }catch(e){}
   /* 避難訓練の対象クラス */
   try{
     var D=drillData(),c3=false;
@@ -2550,10 +2572,15 @@ function printDoc(title,bodyHtml){
   var area=$('#printArea');
   if(!area){area=el('div',{id:'printArea'});document.body.appendChild(area);}
   area.innerHTML='<h1>'+esc(title)+'</h1>'+printSanitize(bodyHtml)
-    +'<div class="print-foot">'+esc(SET.school)+'　／　出力日：'+esc(fmt(todayISO()))+'</div>';
+    +'<div class="print-foot">'+esc(SET.school)+'　／　出力日：'+esc(fmtY(todayISO()))+'</div>';
   window.print();
 }
-function dlFile(name,content,mime){var blob=new Blob(["﻿"+content],{type:(mime||'text/html')+';charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
+function dlFile(name,content,mime){
+  /* ★JSON にも BOM（Excel が文字化けしないための印）を付けていたので、
+     Python や Node のふつうの読み方では開けないファイルになっていた。
+     BOM が要るのは Excel で開く表だけ。 */
+  var bom=(/\.json$/i.test(String(name))||/json/i.test(String(mime||'')))?'':'﻿';
+  var blob=new Blob([bom+content],{type:(mime||'text/html')+';charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
 /* 画面にだけ出す補足表示（列見出しの「（自動）」など）は data-noexport を付けておき、
    Excel保存では列名に混ざらないよう取り除く。データそのものには一切触れない。 */
 function exportCellText(cell){
@@ -4277,7 +4304,7 @@ function thFlowGot(v){
 function thFlowSave(v){
   try{
     var K='rec_登園シート', data=stGet(K,{}), day=(typeof recDate!=='undefined'&&recDate)?recDate:todayISO();
-    var d=data[day]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
+    var d=data[day]||{klass:(CLASSES[0]||'Pre'),weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
     /* この吹き出しは画面の外（body直下）に出るので、
        確定したときに止まる仕組みが効かない。ここで自分で見る。 */
     if(typeof lockCanEdit==='function'&&!lockCanEdit(d)){
@@ -6301,10 +6328,43 @@ function renderHome(){
           +'<span style="min-width:96px;">'+esc(c?childFullName(c):'（登録のない園児）')+'</span>'
           +'<span class="tag" style="background:#E6F1FB;color:#123E6B;border-color:#C6DEF4;">'+esc((c&&c.klass)||'クラス未設定')+'</span>'
           +'<span class="tag">'+esc(a.kind||'欠席')+'</span>'
-          +'<span class="muted" style="flex:1;">'+esc(a.reason||'')+'</span></div>';
+          +'<span class="muted" style="flex:1;">'+esc(a.reason||'')+'</span>'
+          /* 保護者の連絡は園の帳簿には入らない（入れると確定した記録が
+             保護者の操作で書き換わる）。先生が中身を見て、ここから書き写す。 */
+          +(c?('<button class="btn btn-sm" data-abscopy="'+esc(a.date+'|'+a.childId+'|'+(a.kind||'欠席'))+'">登園シートに書き写す</button>'):'')
+          +'</div>';
       }).join('')
       +(abs.length>12?'<div class="muted" style="margin-top:8px;font-size:12px;">ほか'+(abs.length-12)+'件</div>':'')
       +'</div>';
+  }
+  /* 保護者の連絡を、先生の操作として登園シートへ書き写す。
+     確定ずみの日は、ほかの直しと同じく許可が要り、跡も残る。 */
+  function absCopyWire(){
+    document.querySelectorAll('[data-abscopy]').forEach(function(b){b.onclick=function(){
+      var p=b.getAttribute('data-abscopy').split('|'),date=p[0],cid=p[1],kind=p[2];
+      var mark=(kind==='欠席')?'休':(kind==='遅刻')?'遅':(kind==='早退')?'早':'';
+      if(!mark){alert('この連絡は出欠の記号を決めるものではありません（送迎時間の変更など）。\n登園シートのMEMOに書き入れてください。');return;}
+      var K='rec_登園シート',data=stGet(K,{});
+      var d=data[date];
+      if(!d){d={klass:(CLASSES[0]||'Pre'),weather:'',temp:'',hum:'',rows:{},memo:'',by:''};}
+      if(!d.rows)d.rows={};
+      if(typeof lockCanEdit==='function'&&!lockCanEdit(d)){
+        alert('この日の登園シートは確定ずみです。\n直すには、登園（出席）の画面で園長・管理者の「修正を許可」が要ります。');
+        return;
+      }
+      var before=(d.rows[cid]||{}).att||'';
+      if(before===mark){alert('すでに同じ記号が入っています。');return;}
+      if(!confirm(fmt(date)+' の登園シートに「'+kind+'」を書き写します。よろしいですか。'))return;
+      d.rows[cid]=d.rows[cid]||{};
+      d.rows[cid].att=mark;
+      if(typeof isLocked==='function'&&isLocked(d)&&typeof lockNote==='function'){
+        lockNote(d,'園児ごとの記録（'+lockKidName(cid)+'／出欠）',before||'（空）',mark);
+      }
+      if(typeof stampWho==='function')stampWho(d);
+      data[date]=d;stSet(K,data);
+      alert('書き写しました。');
+      renderHome();
+    };});
   }
   /* マスの中に複数の機能があるものは、押すとその場でひらく（画面を移らない）。
      マスの数を減らしつつ、たどり着くまでの手数は増やさないため。 */
@@ -6364,6 +6424,7 @@ function renderHome(){
   s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){
     goRec(b.getAttribute('data-tile'),b.getAttribute('data-rec'),b.getAttribute('data-tab2'));};});
   var htc=$('#hmTc'); if(htc)htc.onclick=function(){go('timecard');};
+  absCopyWire();
 }
 
 /* ---------- 未来WA の案内 ----------
@@ -6800,7 +6861,7 @@ function contactAuditPrint(kind){
   var en=enrolled(),P=function(id){return (typeof spStore==='function')?(spStore()[id]||{}):{};};
   if(kind==='roster'){
     var body='<table><thead><tr><th>No.</th><th>氏名</th><th>ふりがな</th><th>性別</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>入園日</th><th>通園曜日</th><th>保護者</th><th>住所</th></tr></thead><tbody>'
-      +en.map(function(c,i){var p=P(c.id);return '<tr><td>'+(i+1)+'</td><td>'+esc(childFullName(c))+'</td><td>'+esc(spKanaText(p))+'</td><td>'+esc(p.sex||'')+'</td><td>'+(c.dob?fmt(c.dob):'')+'</td><td>'+(typeof ageClassOf==='function'?ageClassOf(c):'')+'</td><td>'+esc(c.klass||'')+'</td><td>'+(c.admissionDate?fmt(c.admissionDate):'')+'</td><td>'+esc(c.days||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(p.address||'')+'</td></tr>';}).join('')+'</tbody></table>';
+      +en.map(function(c,i){var p=P(c.id);return '<tr><td>'+(i+1)+'</td><td>'+esc(childFullName(c))+'</td><td>'+esc(spKanaText(p))+'</td><td>'+esc(p.sex||'')+'</td><td>'+(c.dob?fmtY(c.dob):'')+'</td><td>'+(typeof ageClassOf==='function'?ageClassOf(c):'')+'</td><td>'+esc(c.klass||'')+'</td><td>'+(c.admissionDate?fmtY(c.admissionDate):'')+'</td><td>'+esc(c.days||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc(p.address||'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('児童名簿（在園児 '+en.length+'名）',body);return;
   }
   if(kind==='emg'){
@@ -6817,9 +6878,9 @@ function contactAuditPrint(kind){
   var joined=DB.contacts.filter(function(c){return c.admissionDate&&c.admissionDate>=fyStart&&c.admissionDate<=fyEnd;});
   var left=DB.contacts.filter(function(c){return c.withdrawDate&&c.withdrawDate>=fyStart&&c.withdrawDate<=fyEnd;});
   var body4='<h2>入園（'+joined.length+'名）</h2><table><thead><tr><th>氏名</th><th>クラス</th><th>入園日</th><th>保護者</th></tr></thead><tbody>'
-    +(joined.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmt(c.admissionDate)+'</td><td>'+esc(c.name||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')
+    +(joined.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmtY(c.admissionDate)+'</td><td>'+esc(c.name||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')
     +'</tbody></table><h2>退園（'+left.length+'名）</h2><table><thead><tr><th>氏名</th><th>クラス</th><th>退園日</th><th>備考</th></tr></thead><tbody>'
-    +(left.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmt(c.withdrawDate)+'</td><td>'+esc(c.note||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')+'</tbody></table>';
+    +(left.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+fmtY(c.withdrawDate)+'</td><td>'+esc(c.note||'')+'</td></tr>';}).join('')||'<tr><td colspan="4">なし</td></tr>')+'</tbody></table>';
   printDoc('入退園一覧（'+fy+'年度）',body4);
 }
 /* ===== 体験当日のヒアリング用紙（顧客リストから紙に出す） =====
@@ -7544,7 +7605,16 @@ function renderBroadcast(){
   var avail=bcastList();
   if(!avail.filter(function(x){return x.key===bTpl;}).length){bTpl=avail[0].key;bSel=null;}
   var def=bcastAll().filter(function(x){return x.key===bTpl;})[0];
-  if(!bSel){bSel={};(def.cls||['Pre','Kinder']).forEach(function(k){bSel[k]=true;});}
+  if(!bSel){
+    /* ★ひな形に埋め込まれた 'Pre'/'Kinder' をそのまま既定にしていたので、
+       クラス名を変えた園では一斉配信からその家庭が丸ごと外れていた
+       （名札には「ぱんだ組（3名）」と出るので気づけない）。
+       いまあるクラス名に無いものは落とし、1つも残らなければ全クラスを既定にする。 */
+    bSel={};
+    var _cl=(def.cls||CLASSES).filter(function(k){return CLASSES.indexOf(k)>-1;});
+    if(!_cl.length)_cl=CLASSES.slice();
+    _cl.forEach(function(k){bSel[k]=true;});
+  }
   var s=$('section[data-page="broadcast"]');
   s.innerHTML=
     '<div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><div style="display:flex;gap:8px;align-items:center;"><span class="muted">ひな形</span><select id="bTpl" style="max-width:280px;">'+avail.map(function(x){return '<option value="'+esc(x.key)+'"'+(x.key===bTpl?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div><span class="muted" style="margin-left:auto;">'+(avail.length<bcastAll().length?'デイリーメールのみ編集できます。':'')+'</span></div>'+
@@ -8174,6 +8244,10 @@ function curLegacyWire(){
 }
 function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
+  /* ★クラス名を変えたあとも 'Pre' のまま開き、名札はどれも消灯、
+     そこに書いた予定・日案・実施報告が、どの画面からも見えない場所へ入っていた
+     （同じ手当ては生徒台帳・児童票にはあり、ここだけ漏れていた）。 */
+  if(CLASSES.indexOf(curClass)<0)curClass=CLASSES[0]||curClass;
   /* ★月の欄は空にも 0002-08 にもできる。そのまま棚の鍵になると、
      入れた内容が二度と開けない場所へ入る。ここで必ず正す。 */
   if(!/^[0-9]{4}-[0-9]{2}$/.test(String(CUR.month||''))||+String(CUR.month).slice(0,4)<2000){
@@ -8696,7 +8770,7 @@ function renderStaff(){
   $('#addStaff').onclick=function(){staffModal();};
   $('#staffPrint').onclick=function(){
     var body='<table><thead><tr><th>氏名</th><th>ふりがな</th><th>生年月日</th><th>年齢</th><th>性別</th><th>配偶者</th><th>住所</th><th>電話</th><th>緊急連絡先</th><th>役職</th><th>雇用形態</th><th>保有資格</th><th>入社日</th><th>勤続</th><th>退職日</th><th>健康診断</th></tr></thead><tbody>'
-      +DB.staff.map(function(x){return '<tr><td>'+esc(x.name)+'</td><td>'+esc(x.kana||'')+'</td><td>'+(x.dob?fmt(x.dob):'')+'</td><td>'+(x.dob?ageOf(x.dob):'')+'</td><td>'+esc(x.sex||'')+'</td><td>'+esc(x.spouse||'')+'</td><td>'+esc([x.zip,x.address].filter(Boolean).join(' '))+'</td><td>'+esc(x.tel||'')+'</td><td>'+esc([x.emgName,x.emgRel,x.emgTel].filter(Boolean).join(' '))+'</td><td>'+esc(x.role||'')+'</td><td>'+esc(x.employ||'')+'</td><td>'+esc([x.qual,x.qualNo].filter(Boolean).join(' '))+'</td><td>'+(x.joinDate?fmt(x.joinDate):'')+'</td><td>'+(x.joinDate?tenureText(x.joinDate,x.leaveDate):'')+'</td><td>'+(x.leaveDate?fmt(x.leaveDate):'')+'</td><td>'+(x.kenshinDate?fmt(x.kenshinDate):'')+'</td></tr>';}).join('')
+      +DB.staff.map(function(x){return '<tr><td>'+esc(x.name)+'</td><td>'+esc(x.kana||'')+'</td><td>'+(x.dob?fmtY(x.dob):'')+'</td><td>'+(x.dob?ageOf(x.dob):'')+'</td><td>'+esc(x.sex||'')+'</td><td>'+esc(x.spouse||'')+'</td><td>'+esc([x.zip,x.address].filter(Boolean).join(' '))+'</td><td>'+esc(x.tel||'')+'</td><td>'+esc([x.emgName,x.emgRel,x.emgTel].filter(Boolean).join(' '))+'</td><td>'+esc(x.role||'')+'</td><td>'+esc(x.employ||'')+'</td><td>'+esc([x.qual,x.qualNo].filter(Boolean).join(' '))+'</td><td>'+(x.joinDate?fmtY(x.joinDate):'')+'</td><td>'+(x.joinDate?tenureText(x.joinDate,x.leaveDate):'')+'</td><td>'+(x.leaveDate?fmtY(x.leaveDate):'')+'</td><td>'+(x.kenshinDate?fmtY(x.kenshinDate):'')+'</td></tr>';}).join('')
       +'</tbody></table>';
     printDoc('労働者名簿',body);
   };
@@ -9775,7 +9849,10 @@ function parentNoteText(r){
   return body+(n.at?'<div style="color:var(--tx3);font-size:11px;">'+esc(n.at)+'</div>':'');
 }
 function edTouen(){
-  var K='rec_登園シート',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
+  var K='rec_登園シート',data=stGet(K,{}),d=data[recDate]||{klass:(CLASSES[0]||'Pre'),weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
+  /* ★既定が 'Pre' 固定で、クラス名を変えた園では園児0名の空シートになり、
+     しかも横のプルダウンは先頭のクラスを選んでいるように見えていた。 */
+  if(d.klass&&CLASSES.indexOf(d.klass)<0&&CLASSES.length)d.klass=CLASSES[0];
   /* 確定したあとに何が変わったかを、保存の直前に見比べて跡に積む */
   var TOUEN_F=[{k:'weather',l:'天気'},{k:'temp',l:'室温'},{k:'hum',l:'湿度'},
                {k:'memo',l:'MEMO'},{k:'by',l:'記録者'},{k:'klass',l:'クラス'},{k:'rows',l:'園児ごとの記録',deep:true,keyer:'kid'}];
@@ -10883,7 +10960,7 @@ function periodXls(type,keys,label,from,to){
   if(!keys.length)return;
   var html='<html><head><meta charset="utf-8"></head><body><h2>'+esc(type)+'（'+esc(label)+'）</h2>'+
     periodHtml(type,keys)+
-    '<p style="font-size:11px;color:#888;">'+esc(SET.school)+'　出力日 '+fmt(todayISO())+'</p></body></html>';
+    '<p style="font-size:11px;color:#888;">'+esc(SET.school)+'　出力日 '+fmtY(todayISO())+'</p></body></html>';
   dlFile(type+'_'+from+'_'+to+'.xls',html,'application/vnd.ms-excel');
 }
 /* 記録の画面の下に出す「期間をまとめて出力」の口。
@@ -12209,7 +12286,7 @@ function dgUnei(){
       +DB.staff.map(function(x){
         var left=x.leaveDate&&String(x.leaveDate)<=todayISO();
         return '<tr><td>'+esc(x.name)+'</td><td>'+esc(x.role)+'</td><td>'+esc(x.employ)+'</td><td>'+esc(x.qual)+'</td>'
-          +'<td>'+(left?('退職 '+esc(fmt(x.leaveDate))):'在職')+'</td></tr>';
+          +'<td>'+(left?('退職 '+esc(fmtY(x.leaveDate))):'在職')+'</td></tr>';
       }).join('')+'</tbody></table>'+
     '<h2>4. 前年度からの変更点</h2><p>'+(d.changes||'特になし').replace(/\n/g,'<br>')+'</p>';
     return rows;
@@ -14518,7 +14595,7 @@ function invHTML(mk,c,r){
   var co=[SET.invCoName||SET.school||'',SET.invCoAddr||'',[SET.invCoTel?'TEL '+SET.invCoTel:'',SET.invCoMail||''].filter(Boolean).join('　'),SET.invCoRep?'代表者　'+SET.invCoRep:''].filter(Boolean);
   var head='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:10px;">'
     +'<div><div style="font-size:19px;font-weight:700;letter-spacing:.08em;">請求書</div>'
-      +'<div style="font-size:12px;color:#555;margin-top:2px;">'+(+ym[1])+'月分 保育料　／　発行日 '+fmt(r.issuedAt||todayISO())+'</div></div>'
+      +'<div style="font-size:12px;color:#555;margin-top:2px;">'+(+ym[1])+'月分 保育料　／　発行日 '+fmtY(r.issuedAt||todayISO())+'</div></div>'
     +'<div style="text-align:right;font-size:11.5px;line-height:1.6;">'
       +(SET.invLogo?'<img src="'+SET.invLogo+'" alt="" style="max-width:150px;max-height:52px;object-fit:contain;display:block;margin:0 0 4px auto;">':'')
       +co.map(function(x){return esc(x);}).join('<br>')
@@ -16158,8 +16235,14 @@ function backupRestoreFile(file,done){
       /* 控えから戻さないもの。
          接続先とトークンは端末ごとのものなので、他の端末の控えで上書きすると繋がらなくなる。
          変更ログとスナップショットは「いつ誰が何をしたか」の証跡なので、上書きしない。 */
+      /* ★ログインアカウントの表が守られておらず、控えのファイルを読み込むと
+         自園の管理者が消えて、ファイルに書いてあるアカウントに入れ替わっていた。
+         しかも古いアカウントは平文のパスワードでも通るので、
+         別の端末の控えを持ち込むだけで園の中に入れてしまう。 */
       var NO_RESTORE={'cocoas_apiToken':1,'cocoas_apiBase':1,'cocoas_apiTenant':1,
-                      'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1};
+                      'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1,
+                      'cocoas_staffAccounts':1,'cocoas_parentAccounts':1,
+                      'cocoas_staffSession':1,'cocoas_psession':1};
       Object.keys(p.data).forEach(function(k){if(NO_RESTORE[k])return;if(String(k).indexOf('cocoas_')===0)(window.__rawSet||localStorage.setItem.bind(localStorage))(k,p.data[k]);});
       done(null,Object.keys(p.data).length);
     }catch(e){done(e);}
