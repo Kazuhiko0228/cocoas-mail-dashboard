@@ -4347,6 +4347,51 @@ function aipChatHTML(k){
 }
 
 /* ── AI記録管理 ────────────────────────── */
+
+/* ══ 覚えていること（活動の記録） ══════════════════
+   実装指示書の完成条件に「記憶を確認・修正・削除できる」
+   「年度やクラス変更時に記憶を分離」がある。
+
+   いま覚えているのは、活動の実施報告（act_reports）。
+   園から見えないところに貯まっていくと、あとで
+   「何をもとに提案しているのか分からない」状態になる。
+   1件ずつ見えて、直せて、消せる形にする。
+
+   年度は4月はじまり。年度が変わったら、前の年度のぶんは
+   自動では使わない（子どもが入れ替わるため）。使いたい年度は園が選ぶ。 */
+function actRepFY(date){ return fyOf(date); }
+function actRepList(cls,fy){
+  var a=actRepAll(),out=[],k;
+  for(k in a){
+    if(!Object.prototype.hasOwnProperty.call(a,k))continue;
+    var p=k.split('|');
+    if(p[0]!==cls)continue;
+    if(fy!=null&&actRepFY(p[1])!==fy)continue;
+    out.push({date:p[1], v:a[k]});
+  }
+  out.sort(function(x,y){return x.date<y.date?1:-1;});
+  return out;
+}
+function actRepDel(cls,date){
+  var a=actRepAll(); delete a[actRepKey(cls,date)]; stSet('act_reports',a);
+}
+/* その学級の記録がある年度の一覧 */
+function actRepYears(cls){
+  var a=actRepAll(),ys={},k,out=[];
+  for(k in a){
+    if(!Object.prototype.hasOwnProperty.call(a,k))continue;
+    var p=k.split('|');
+    if(p[0]!==cls)continue;
+    ys[actRepFY(p[1])]=1;
+  }
+  for(k in ys)out.push(+k);
+  out.sort(function(x,y){return y-x;});
+  if(out.indexOf(curFY())<0)out.unshift(curFY());
+  return out;
+}
+var AIMEM_FY=null;
+function aiMemFY(){ if(AIMEM_FY==null)AIMEM_FY=curFY(); return AIMEM_FY; }
+
 function aipMemoHTML(k){
   var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=aiLogVisible();
   var ps=aiPlans().filter(function(x){return x.klass===k;});
@@ -4384,6 +4429,39 @@ function aipMemoHTML(k){
     +'ここに出ているのは、EduGrow に記録されている事実です。'
     +'上の「クラス像」は、これをもとにAIが読み取ったものです。分けて見てください。</div></div>'
 
+
+    +(function(){
+      /* 覚えていること。1件ずつ直せて消せる。年度で分かれる */
+      var fy=aiMemFY(), ls=actRepList(k,fy), ys=actRepYears(k);
+      return '<div class="card"><h3 style="margin-top:0;">'+ic('clipboard')+'覚えていること（'+ls.length+'件）</h3>'
+        +'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;line-height:1.75;">'
+        +'カリキュラムの「実施」で書いた記録です。次の活動を考えるときの材料になります。'
+        +'<br>年度は4月はじまり。<b>年度が変わると、前の年度のぶんは自動では使いません</b>（子どもが入れ替わるため）。</div>'
+        +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">'
+        +'<span class="muted" style="font-size:12px;">年度</span>'
+        +'<select id="mFy" style="width:130px;">'
+        +ys.map(function(y){return '<option value="'+y+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')
+        +'</select></div>'
+        +(ls.length
+          ?'<div class="scrollx"><table><thead><tr><th style="width:86px;">日</th><th style="width:88px;">実施</th>'
+            +'<th>子どもの様子（先生が選んだもの）</th><th style="width:120px;">書いた人</th><th style="width:120px;"></th></tr></thead><tbody>'
+            +ls.map(function(x){
+              var v=x.v;
+              return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(fmt(x.date))+'</td>'
+                +'<td>'+esc(v.done||'')+'</td>'
+                +'<td style="font-size:12.5px;">'+esc((v.picks||[]).join('／'))
+                  +(v.free?'<div class="row-sub">'+esc(v.free)+'</div>':'')
+                  +(v.muzu||v.jikan||v.tsugi?'<div class="row-sub">'+esc([v.muzu,v.jikan,v.tsugi].filter(Boolean).join('／'))+'</div>':'')
+                +'</td>'
+                +'<td class="row-sub">'+esc(v.by||'')+'<div class="row-sub">'+esc(lockFmt(v.at||''))+'</div></td>'
+                +'<td style="white-space:nowrap;text-align:right;">'
+                  +'<button class="btn btn-sm" data-mred="'+esc(x.date)+'">直す</button> '
+                  +'<button class="btn btn-sm btn-ghost" data-mrdel="'+esc(x.date)+'">'+ic('trash')+'</button></td></tr>';
+            }).join('')+'</tbody></table></div>'
+            +'<button class="btn btn-sm" id="mrPrint" style="margin-top:10px;">'+ic('printer')+'この年度ぶんを印刷</button>'
+          :'<div class="empty">この年度の記録はまだありません。カリキュラムの「実施」から書けます。</div>')
+        +'</div>';
+    })()
     +'<div class="card"><h3 style="margin-top:0;">つくった計画（'+ps.length+'件）</h3>'
     +(ps.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
       +ps.slice().reverse().map(function(x){
@@ -4602,6 +4680,31 @@ function aipWire(k){
     if(!p)return;
     aipPrint(p.kind,p.data,p.klass||k,{byAI:!!p.byAI,aiFields:p.aiFields||[]});
   };});
+  /* 覚えていることの年度・直す・消す */
+  var mfy=$$('#mFy');
+  if(mfy)mfy.onchange=function(){ AIMEM_FY=+mfy.value; renderAIPlan(); };
+  s.querySelectorAll('[data-mred]').forEach(function(b){b.onclick=function(){
+    actRepModal(k,b.getAttribute('data-mred'));
+  };});
+  s.querySelectorAll('[data-mrdel]').forEach(function(b){b.onclick=function(){
+    var dt=b.getAttribute('data-mrdel');
+    if(!confirm(fmt(dt)+' の記録を消します。元に戻せません。よろしいですか。'))return;
+    actRepDel(k,dt); aiLog('覚えていることを1件消した',fmt(dt),k); renderAIPlan();
+  };});
+  var mrp=$$('#mrPrint');
+  if(mrp)mrp.onclick=function(){
+    var fy=aiMemFY(),ls=actRepList(k,fy);
+    var b5='<table><thead><tr><th>日</th><th>実施</th><th>子どもの様子（先生が選んだもの）</th><th>ふりかえり</th><th>書いた人</th></tr></thead><tbody>'
+      +(ls.length?ls.map(function(x){var v=x.v;
+        return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+esc(v.done||'')+'</td>'
+          +'<td>'+esc((v.picks||[]).join('／'))+(v.free?'<div style="font-size:10px;">'+esc(v.free)+'</div>':'')+'</td>'
+          +'<td>'+esc([v.muzu,v.jikan,v.tsugi].filter(Boolean).join('／'))+'</td>'
+          +'<td>'+esc(v.by||'')+'</td></tr>';}).join('')
+        :'<tr><td colspan="5">記録がありません</td></tr>')
+      +'</tbody></table><p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。AIが作った文は入っていません。</p>';
+    printDoc('活動の記録（'+esc(k)+'・'+fy+'年度）',b5);
+  };
+
 }
 
 /* ── 印刷 ────────────────────────────────
