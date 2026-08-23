@@ -1768,7 +1768,7 @@ var AUDIT_CATS=[
     {key:'kondate',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'},
     {key:'seikatsu',name:'アレルギー児の生活管理指導表',place:'',when:'年度前',sys:'docs',note:'食物アレルギーのある園児について、お医者さんに書いてもらう用紙です。園児ごとにそろえて保管します。'},
     {key:'kenshoku',name:'検食簿',place:'',when:'運営中',sys:null,note:'給食を出す前に職員が食べて確かめ、日づけ・献立・時こく・確かめた人・気づいたことを書き残します。'},
-    {key:'kenben',name:'調理職員の検便（腸内細菌検査）',place:'',when:'運営中',sys:null,note:'月に1回。実施の予定は「年間スケジュール」に出ています。外から給食を運んでいる園は要りません。'}
+    {key:'kenben',name:'調理職員の検便（腸内細菌検査）',place:'',when:'運営中',sys:'staff',note:'月に1回。職員管理の下にある「調理職員の検便」に書きます。外から給食を運んでいる園は要りません。'}
   ]}
 ];
 var SYS_PAGE={contacts:'連絡先',roster:'生徒台帳',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
@@ -2075,6 +2075,20 @@ function auditDataInfo(key,fy){
       if(sdoc&&sdoc.url)return '格納済み';
       var bd=boukaGet(fy),n=BOUKA_MONTHS.filter(function(mo){return bd.rows[mo].date;}).length;
       return n?('未格納／この画面に '+fy+'年度 '+n+'ヶ月分の控えあり'):'未格納';
+    }
+    case 'kenben': {
+      /* ★対象が0名の月を「済」とは言わない。給食を作っていない園と、
+         印を付け忘れている園を、記録の上で見分けられなくなるため。 */
+      var kbA=stGet('kenben',{}),kbN=0,kbK;
+      for(kbK in kbA){
+        if(!Object.prototype.hasOwnProperty.call(kbA,kbK))continue;
+        if(fyOf(kbK+'-01')!==fy)continue;
+        if(typeof kenbenDone==='function'&&kenbenDone(kbK))kbN++;
+      }
+      var kbT=(typeof kenbenStaff==='function')?kenbenStaff(todayISO().slice(0,7)).length:0;
+      if(!kbT)return '調理に関わる職員の登録がありません（外から給食を運んでいる園は不要です）';
+      return kbN?(kbN+'ヶ月分そろっています（'+fy+'年度・対象 '+kbT+'名）')
+                :('まだそろった月がありません（対象 '+kbT+'名）');
     }
     case 'shukkin': {
       var tc=stGet('timecards',{})[todayISO().slice(0,7)]||{};
@@ -7947,7 +7961,9 @@ function renderStaff(){
         '<td>'+(x.kenshinDate?fmt(x.kenshinDate):'未登録')+(nd?'<div class="row-sub">→ '+fmt(iso(nd))+'</div>':'')+' <span class="pill" style="background:'+ks.bg+';color:'+ks.fg+';">'+ks.lab+'</span></td>'+
         '<td>'+(function(){var a=acctOfStaff(x);if(!a)return '<button class="btn btn-sm" data-mkacct="'+esc(x.id)+'">'+ic('plus')+'アカウント作成</button>';var col=roleColor(a.role);return '<span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span><div class="row-sub">ID: '+esc(a.loginId)+'</div><button class="btn btn-sm btn-ghost" data-editacct="'+esc(a.id)+'" style="padding:2px 8px;font-size:11px;">編集</button>';})()+'</td>'+
         '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+esc(x.id)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(x.id)+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="8" class="empty">職員が登録されていません</td></tr>')+
-      '</tbody></table></div>';
+      '</tbody></table></div>'+
+    kenbenCardHtml();
+  kenbenWire();
   $('#addStaff').onclick=function(){staffModal();};
   $('#staffPrint').onclick=function(){
     var body='<table><thead><tr><th>氏名</th><th>ふりがな</th><th>生年月日</th><th>年齢</th><th>性別</th><th>配偶者</th><th>住所</th><th>電話</th><th>緊急連絡先</th><th>役職</th><th>雇用形態</th><th>保有資格</th><th>入社日</th><th>勤続</th><th>退職日</th><th>健康診断</th></tr></thead><tbody>'
@@ -7963,6 +7979,127 @@ function renderStaff(){
     /* 番号を残すと、名前が空欄のまま打刻できてしまう */
     try{ if(typeof pinSetHash==='function')pinSetHash(_id,null); }catch(e){}
     DB.staff=DB.staff.filter(function(x){return x.id!==_id;});renderStaff();}};});
+}
+/* ══ 調理職員の検便（腸内細菌検査） ═══════════════════
+   大量調理施設衛生管理マニュアルにそって、調理に関わる職員は月に1回。
+   保健所の指導と指導監査で、実施の記録を出すよう求められる。
+   置き場は kenben。{ '2026-08': { 職員ID: {date,result,lab,note} } } */
+var KENBEN_RESULTS=['','陰性（異常なし）','陽性（要対応）','再検査中'];
+function kenbenAll(){return stGet('kenben',{});}
+function kenbenMonth(mk){return kenbenAll()[mk]||{};}
+function kenbenSet(mk,sid,obj){
+  var a=kenbenAll();
+  a[mk]=a[mk]||{};
+  a[mk][String(sid)]=obj;
+  stSet('kenben',a);
+}
+/* 調理に関わる職員。退職した人は、退職日より前の月にだけ出す */
+function kenbenStaff(mk){
+  return (DB.staff||[]).filter(function(x){
+    if(!x.chouri)return false;
+    if(x.leaveDate&&String(x.leaveDate).slice(0,7)<mk)return false;
+    if(x.joinDate&&String(x.joinDate).slice(0,7)>mk)return false;
+    return true;
+  });
+}
+function kenbenRow(mk,sid){
+  var r=kenbenMonth(mk)[String(sid)]||{};
+  return {date:r.date||'',result:r.result||'',lab:r.lab||'',note:r.note||''};
+}
+/* その月の検便が「済んだ」と言えるか。
+   ★対象が0名のときは「済」とは言わない。給食を作っていない園と、
+     印を付け忘れている園を、記録の上で見分けられなくなるため。 */
+function kenbenDone(mk){
+  var list=kenbenStaff(mk);
+  if(!list.length)return false;
+  var i,r;
+  for(i=0;i<list.length;i++){
+    r=kenbenRow(mk,list[i].id);
+    if(!r.date||!r.result)return false;
+  }
+  return true;
+}
+var kenbenMK=null;
+function kenbenMKNow(){return kenbenMK||todayISO().slice(0,7);}
+function kenbenCardHtml(){
+  var mk=kenbenMKNow(),list=kenbenStaff(mk);
+  var opts='',i,y=+todayISO().slice(0,4),mo;
+  for(i=0;i<15;i++){
+    var d=new Date(y,+todayISO().slice(5,7)-1-i,1);
+    var k=d.getFullYear()+'-'+pad(d.getMonth()+1);
+    opts+='<option value="'+k+'"'+(k===mk?' selected':'')+'>'+d.getFullYear()+'年'+(d.getMonth()+1)+'月</option>';
+  }
+  var body;
+  if(!list.length){
+    body='<div class="empty">この月に、調理に関わる職員が登録されていません。<br>'
+      +'給食を外から運んでいる園は、このままでかまいません。<br>'
+      +'園で調理している場合は、上の職員名簿から「編集」を開き、'
+      +'「調理に関わる（検便の対象）」に印を付けてください。</div>';
+  }else{
+    body='<div class="tablewrap scrollx"><table style="min-width:760px;"><thead><tr>'
+      +'<th style="width:150px;">氏名</th><th style="width:150px;">提出日</th>'
+      +'<th style="width:170px;">結果</th><th style="width:180px;">検査機関</th><th>備考</th>'
+      +'</tr></thead><tbody>'
+      +list.map(function(x){
+        var r=kenbenRow(mk,x.id);
+        return '<tr><td><div class="row-name">'+esc(x.name)+'</div>'
+          +'<div class="row-sub">'+esc(x.role||'')+'</div></td>'
+          +'<td><input type="date" data-kb="'+esc(x.id)+'|date" value="'+esc(r.date)+'"></td>'
+          +'<td><select data-kb="'+esc(x.id)+'|result">'
+            +KENBEN_RESULTS.map(function(v){return '<option value="'+esc(v)+'"'+(v===r.result?' selected':'')+'>'+(v||'—')+'</option>';}).join('')
+          +'</select></td>'
+          +'<td><input data-kb="'+esc(x.id)+'|lab" value="'+esc(r.lab)+'" placeholder="例：〇〇臨床検査センター"></td>'
+          +'<td><input data-kb="'+esc(x.id)+'|note" value="'+esc(r.note)+'" placeholder="陽性のときの対応など"></td></tr>';
+      }).join('')
+      +'</tbody></table></div>';
+  }
+  var nokori=list.filter(function(x){var r=kenbenRow(mk,x.id);return !r.date||!r.result;});
+  return '<div class="card" style="margin-bottom:16px;">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
+      +'<h3 style="margin:0;flex:1;">'+ic('check')+'調理職員の検便（腸内細菌検査）</h3>'
+      +'<select id="kbMonth" style="width:150px;">'+opts+'</select>'
+      +'<button class="btn btn-sm" id="kbPrint">'+ic('printer')+'この月ぶんを印刷</button>'
+    +'</div>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12.5px;">月に1回。大量調理施設衛生管理マニュアルにそった衛生管理として求められます。'
+    +'保健所の指導と指導監査で、実施の記録を出すよう言われます。</div>'
+    +(list.length&&nokori.length
+      ?'<div class="note note-warn" style="margin-bottom:10px;font-size:12.5px;">この月、まだ提出日か結果が入っていない職員が '
+        +nokori.length+'名います（'+esc(nokori.map(function(x){return x.name;}).join('・'))+'）。</div>'
+      :(list.length?'<div class="note" style="margin-bottom:10px;font-size:12.5px;background:#EAF3DE;border-color:#97C459;color:#27500A;">この月は '+list.length+'名ぶん、そろっています。</div>':''))
+    +body+'</div>';
+}
+function kenbenWire(){
+  var mk=kenbenMKNow();
+  var sel=$('#kbMonth');
+  if(sel)sel.onchange=function(e){kenbenMK=e.target.value;renderStaff();};
+  document.querySelectorAll('[data-kb]').forEach(function(inp){
+    inp.onchange=function(){
+      var p=inp.getAttribute('data-kb').split('|');
+      var r=kenbenRow(mk,p[0]);
+      r[p[1]]=inp.value;
+      kenbenSet(mk,p[0],r);
+      renderStaff();
+    };
+  });
+  var pb=$('#kbPrint');
+  if(pb)pb.onclick=function(){
+    var list=kenbenStaff(mk);
+    var body='<p style="text-align:center;font-size:19px;font-weight:700;">調理職員 検便（腸内細菌検査）実施記録</p>'
+      +'<p>'+esc(mk.replace('-','年')+'月')+'　'+esc(SET.school||'')+'</p>'
+      +'<table><thead><tr><th style="width:130px;">氏名</th><th style="width:70px;">役職</th>'
+      +'<th style="width:90px;">提出日</th><th style="width:110px;">結果</th>'
+      +'<th style="width:130px;">検査機関</th><th>備考</th></tr></thead><tbody>'
+      +(list.length?list.map(function(x){
+        var r=kenbenRow(mk,x.id);
+        return '<tr><td>'+esc(x.name)+'</td><td>'+esc(x.role||'')+'</td>'
+          +'<td>'+esc(r.date?fmt(r.date):'')+'</td><td>'+esc(r.result||'')+'</td>'
+          +'<td>'+esc(r.lab||'')+'</td><td>'+esc(r.note||'')+'</td></tr>';
+      }).join('')
+      :'<tr><td colspan="6">この月に、調理に関わる職員の登録がありません。</td></tr>')
+      +'</tbody></table>'
+      +'<p style="font-size:10px;">月に1回。大量調理施設衛生管理マニュアルにそった衛生管理として実施しています。</p>';
+    printDoc('調理職員の検便・'+mk,body);
+  };
 }
 /* 勤続年数・年齢の自動算出 */
 function yearsBetween(from,to){
@@ -7994,6 +8131,9 @@ function staffModal(id){
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>氏名</label><input id="st_name" value="'+esc(x.name)+'"></div><div class="field"><label>ふりがな</label><input id="st_kana" value="'+esc((x.kana||''))+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>役職</label><input id="st_role" value="'+esc(x.role)+'"></div><div class="field"><label>雇用形態</label><select id="st_emp">'+emOpts+'</select></div></div>'+
     '<div class="field"><label>保有資格</label><input id="st_qual" value="'+esc((x.qual||''))+'" placeholder="保育士 等"></div>'+
+    '<div class="field"><label class="tkchk" style="font-size:13px;"><input type="checkbox" id="st_chouri"'+(x.chouri?' checked':'')+' style="width:auto;">調理に関わる（検便の対象）</label>'
+      +'<div class="muted" style="font-size:11.5px;margin-top:2px;">印を付けた職員が、下の「調理職員の検便」に並びます。'
+      +'給食を外から運んでいる園は、だれにも付けなくてかまいません。</div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>生年月日<span id="st_ageLab" class="muted"></span></label><input type="date" id="st_dob" value="'+esc((x.dob||''))+'"></div><div class="field"><label>性別</label><select id="st_sex">'+op(['','女性','男性','回答しない'],x.sex)+'</select></div><div class="field"><label>配偶者</label><select id="st_spouse">'+op(['','無','有'],x.spouse)+'</select></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 2fr;"><div class="field"><label>郵便番号</label><input id="st_zip" value="'+(x.zip||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>住所</label><input id="st_addr" value="'+(x.address||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>本人 電話番号</label><input id="st_tel" value="'+(x.tel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>緊急連絡先 氏名</label><input id="st_emgName" value="'+(x.emgName||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>続柄</label><input id="st_emgRel" value="'+(x.emgRel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="例：配偶者"></div></div>'+
@@ -8055,7 +8195,8 @@ function staffModal(id){
   $('#st_save').onclick=function(){
     var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,qual:$('#st_qual').value.trim(),qualNo:(x.qualNo||''),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value,
       dob:$('#st_dob').value,sex:$('#st_sex').value,spouse:$('#st_spouse').value,zip:$('#st_zip').value.trim(),address:$('#st_addr').value.trim(),tel:$('#st_tel').value.trim(),
-      emgName:$('#st_emgName').value.trim(),emgRel:$('#st_emgRel').value.trim(),emgTel:$('#st_emgTel').value.trim(),leaveDate:$('#st_leave').value,note:$('#st_note').value.trim()};
+      emgName:$('#st_emgName').value.trim(),emgRel:$('#st_emgRel').value.trim(),emgTel:$('#st_emgTel').value.trim(),leaveDate:$('#st_leave').value,note:$('#st_note').value.trim(),
+      chouri:!!($('#st_chouri')&&$('#st_chouri').checked)};
     if(!nx.name){alert('氏名は必須です');return;}
     var a=DB.staff;if(id){a=a.map(function(o){return o.id===id?nx:o;});}else{a.push(nx);}DB.staff=a;m.remove();renderStaff();
   };
@@ -14386,6 +14527,7 @@ function taskAutoDone(t,mk){
       }
       return has;
     }
+    if(t.name==='調理職員の検便')return (typeof kenbenDone==='function')&&kenbenDone(mk);
     if(p==='シフト表'||p==='出勤簿')return !!stGet('shifts',{})[mk];
     if(p==='経費管理'){var ex=stGet('expenses',{})[mk];return !!(ex&&(ex.rows||[]).length);}
     if(p==='請求書発行'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
