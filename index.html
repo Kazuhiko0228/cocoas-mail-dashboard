@@ -1210,7 +1210,10 @@ function curDayActivities(cls,date){
     if(!t)return own?String(own):'';
     if(t==='Daycare')return '1日託児保育（Daycare）';
     var d=own||'';
-    if(!d){var e=curEff(cls,wk,t);d=e.plan||e.theme||'';}
+    /* 画面にあるのは「ねらい・目標」（goal）なので、それも補完に使う。
+       これまでは plan と theme しか見ておらず、どちらも入力欄が無くなっていたため
+       「無ければ月間のねらいから補う」が一度も起きていなかった。 */
+    if(!d){var e=curEff(cls,wk,t);d=e.plan||e.theme||e.goal||'';}
     return t+(d?'：'+d:'');
   }
   if(sc.daycare)return {morning:'1日託児保育（Daycare）',afternoon:'',teacher:sc.teacher||''};
@@ -1935,7 +1938,10 @@ function auditDataInfo(key){
     case 'shintai': return Object.keys(stGet('rec_身体測定',{})).length+'ヶ月分の記録あり';
     case 'hattatsu': var dv=stGet('rec_発達',{}),dn=0;Object.keys(dv).forEach(function(k){dn+=Object.keys(dv[k]).length;});return dn+'件の記録あり';
     case 'kega': return stGet('rec_hiyari',[]).length+'件の記録あり';
-    case 'kujo': return stGet('rec_kujo',[]).length+'件の記録あり';
+    case 'kujo': {
+      /* 1文字も書いていない行は数えない（足しただけの空の行があるため） */
+      var kj=stGet('rec_kujo',[]).filter(function(r){return r&&(r.date||r.content||r.person);});
+      return kj.length+'件の記録あり';}
     case 'kaigi': {
       /* 議事録は年度ごとに持っている。全年度を足すと、監査の一覧だけ
          年度の数と合わなくなる（紙は年度ごとに出る）。 */
@@ -3943,8 +3949,10 @@ function aiChokeNotes(mats,klass){
     }
     if(hit)out.push(AI_CHOKE[i].t);
   }
-  if(out.length&&lo!==null&&lo<=2){
-    out.unshift('このクラスには'+lo+'歳児がいます。誤飲・窒息に特に気をつけてください。');
+  /* 素材の一覧に当たらない月でも、3歳未満のクラスには必ず声をかける。
+     当たらない＝安全、ではない（小さくちぎった紙なども口に入る）。 */
+  if(lo!==null&&lo<=2){
+    out.unshift('このクラスには'+lo+'歳児がいます。小さくちぎれるもの・口に入る大きさのものに気をつけてください。');
   }
   return out;
 }
@@ -4644,8 +4652,10 @@ function aiapModal(plan,klass){
       m.querySelectorAll('[data-aiapon]').forEach(function(c){on[c.getAttribute('data-aiapon')]=c.checked;});
       var cur2=curDailyGet(cls,date);
       /* 取り消せるように、入れる前の中身を控える */
+      /* .slice() だと行そのものは元と同じものを指すので、
+         あとで行の中身が変わると「入れる前」に戻らなくなる。1行ずつ写す。 */
       var before={nerai:cur2.nerai,sugata:cur2.sugata,junbi:cur2.junbi,
-                  rows:(cur2.rows||[]).slice()};
+                  rows:JSON.parse(JSON.stringify(cur2.rows||[]))};
       var n=0;
       AIAP_MAP.forEach(function(f){
         if(!on[f.k])return;
@@ -4671,7 +4681,8 @@ function aiapModal(plan,klass){
       curDailySet(cls,date,cur2);
       /* 入れる前と、入れた直後の両方を控える。
          取り消すときに「そのあと直されたか」を見分けるため */
-      var after={nerai:cur2.nerai,sugata:cur2.sugata,junbi:cur2.junbi,rows:(cur2.rows||[]).slice()};
+      var after={nerai:cur2.nerai,sugata:cur2.sugata,junbi:cur2.junbi,
+                 rows:JSON.parse(JSON.stringify(cur2.rows||[]))};
       AIAP_UNDO={cls:cls,date:date,before:before,after:after,at:lockNow()};
       if(typeof saveAll==='function')saveAll();
       aiLog('案を日案に入れた（'+(mode==='add'?'足す':'入れ替え')+'）',fmt(date)+' '+n+'項目',cls);
@@ -4691,7 +4702,7 @@ function aiapToastUndo(){
     +'background:#16202B;color:#fff;border-radius:10px;padding:11px 16px;display:flex;align-items:center;gap:14px;font-size:13px;';
   /* 自動で消さない。消えると取り消せなくなるのに、期限をどこにも書いていなかった。
      先生が閉じるまで出しておく。 */
-  d.innerHTML='<span>日案に入れました。</span>'
+  d.innerHTML='<span>日案に入れました。<b>直前に入れたぶん</b>を取り消せます。</span>'
     +'<button class="btn btn-sm" id="aiapUndoBtn" style="background:#fff;">取り消す</button>'
     +'<button class="btn btn-sm" id="aiapUndoClose" style="background:transparent;color:#fff;border-color:#5B6875;">閉じる</button>';
   document.body.appendChild(d);
@@ -4812,7 +4823,8 @@ function aipMemoHTML(k){
       :'<div class="muted" style="text-align:center;padding:22px 0;">まだありません</div>')+'</div>'
 
     +'<div class="card"><h3 style="margin-top:0;">あしあと</h3>'
-    +'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;">'+esc(aiLogScope())+'</div>'
+    +'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;">'+esc(aiLogScope())
+    +'　直近15件を出しています（残しているのは600件まで。全部は設定の書き出しから取れます）。</div>'
     +(lg.length?'<table style="width:100%;font-size:12px;"><tbody>'
       +lg.slice(-15).reverse().map(function(x){
         return '<tr><td class="muted" style="padding:6px 0;white-space:nowrap;">'+esc(x.at)+'</td>'
@@ -6318,7 +6330,7 @@ function contactModal(id){
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|go" style="width:auto;"'+(o.go?' checked':'')+'></td>'
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|lunch" style="width:auto;"'+(o.lunch?' checked':'')+(o.go?'':' disabled')+'></td>'
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|long" style="width:auto;"'+(o.long?' checked':'')+(o.go?'':' disabled')+'></td></tr>';}).join('')
-      +'</tbody></table></div><div class="muted" style="margin-top:6px;font-size:11.5px;">「通園」にチェックした曜日だけ 給食 / 延長保育 を選べます。登園シートの初期値と、請求の給食・延長保育の回数に反映されます。</div></div>';})()+
+      +'</tbody></table></div><div class="muted" style="margin-top:6px;font-size:11.5px;">「通園」にチェックした曜日だけ 給食 / 延長保育 を選べます。登園シートの初期値と、<b>まだ発行していない</b>請求書の給食・延長保育の回数に反映されます。発行ずみの月は、請求書発行の「明細」から直してください。</div></div>';})()+
     /* お金の欄（特別料金・引落日）は請求書発行へ移した。入れる場所を2つにすると食い違うため。
        ここは、いま使っている額と引落日を見せるだけにする。 */
     (function(){
@@ -7106,11 +7118,16 @@ function renderCurriculum(){
       (types.length?'':'<div class="empty">まだ活動がありません。下の「活動内容を編集」から足すと、ここに入ります。</div>')+
       curActTypeBox(types)+'</div>';
   bodyHtml=monthHtml+bodyHtml;
-  s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curPrint">'+ic('printer')+'印刷（MTG配布用）</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
+  s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curJissi">'+ic('printer')+'計画と実際を印刷</button><button class="btn" id="curPrint">'+ic('printer')+'印刷（MTG配布用）</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーメールを作成</button><span class="muted" id="curMsg"></span></div>';
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
   /* 週のタブは無くなったが、古い呼び出しが残っていても落ちないよう配線だけ残す */
   s.querySelectorAll('[data-ctab]').forEach(function(b){b.onclick=function(){curTab=b.getAttribute('data-ctab');renderCurriculum();};});
   s.querySelectorAll('[data-cw]').forEach(function(b){b.onclick=function(){curWeek=b.getAttribute('data-cw');renderCurriculum();};});
+  /* 監査で「計画と実際が合っているか」を聞かれたとき用の紙 */
+  var cj=$('#curJissi');
+  if(cj)cj.onclick=function(){
+    printDoc('計画と実際（'+curClass+'・'+CUR.month+'）',actRepBody(curClass,CUR.month));
+  };
   var cm=$('#curMonth');if(cm)cm.onchange=function(e){CUR.month=e.target.value;DB.curriculum=CUR;renderCurriculum();};
   s.querySelectorAll('[data-sam]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-sam'),sc=curSchedGet(curClass,d);sc.am=sl.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
@@ -9209,7 +9226,7 @@ function napDayBody(dk){
   });
   return '<h3>午睡チェック（'+esc(nd.klass||'')+'）</h3><table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td>'+slots.map(function(t){return '<td>'+esc(cells[c.id+'|'+t]||'')+'</td>';}).join('')+'</tr>';}).join('')+
-    '</tbody></table><p>確認間隔：10分</p>';
+    '</tbody></table><p>確認間隔：'+napStep()+'分</p>';
 }
 /* 安全点検の月間表。もとは印刷ボタンの中に書いてあったものを、そのままここへ移した */
 function safetyMonthBody(mo){
@@ -13825,7 +13842,7 @@ function taskAddDel(name){var a=taskAddAll(),i;
 function taskNameUsed(n){var i;
   for(i=0;i<ANNUAL_TASKS.length;i++){if(ANNUAL_TASKS[i].name===n)return true;}
   return false;}
-var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
+var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'苦情・要望の記録':['carerec','苦情・要望の記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
 /* 記録の呼び名を変えたので、前の名前で保存されているものからも同じ画面へ行けるようにする */
 var TASK_PAGE_OLD={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録'};
 function taskPageOf(n){return TASK_PAGE[n]||TASK_PAGE[TASK_PAGE_OLD[n]]||null;}
