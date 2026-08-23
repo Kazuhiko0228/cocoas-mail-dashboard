@@ -1116,36 +1116,132 @@ function defaultCurriculum(){return {month:curMonthKey(),
    開いたときは今月を見せる。前の月は、月を選び直せば出る。 */
 var CUR=Object.assign(defaultCurriculum(),DB.curriculum||{});
 /* 月ごとに分ける前の置き場（actMonthly＝月間のねらい／content＝週の内容）は
-   月の鍵を持っていない。「その月に無ければ古い方を読む」にしていたので、
-   8月に書いた内容が12月の画面・紙・保護者へのメールにも出ていた。
-   保存されていた月（CUR.month をここで上書きする前の値）の棚へ、一度だけ移す。
-   古い方は消さない。読めなくなるのが怖いため。 */
+   月の鍵を持っていない。
+
+   ★はじめ「保存されていた CUR.month の棚へ自動で移す」形にしたが、これは誤り。
+     CUR.month は“書いた月”ではなく“先生が最後に月の欄で選んだ月”で、
+     月の欄を触るたびに保存されている。翌月を見て閉じた端末では、
+     8月に書いた月案がまるごと12月の棚へ入り、8月の紙が白紙になっていた。
+
+   どの月のものかはデータから決められない。だから勝手に置かない。
+   古い置き場はそのまま残し、園に「どの月のものか」を選んでもらう。
+   （置き直しの入口は、カリキュラム画面の上に出す） */
 (function(){
-  var mk=String(CUR.month||'').slice(0,7),cls,type;
-  if(!/^[0-9]{4}-[0-9]{2}$/.test(mk))mk=curMonthKey();
-  if(CUR.actMonthly&&!CUR.actMonthlyMoved){
-    CUR.actMonthlyM=CUR.actMonthlyM||{};
-    CUR.actMonthlyM[mk]=CUR.actMonthlyM[mk]||{};
-    for(cls in CUR.actMonthly){
-      if(!Object.prototype.hasOwnProperty.call(CUR.actMonthly,cls))continue;
-      CUR.actMonthlyM[mk][cls]=CUR.actMonthlyM[mk][cls]||{};
-      for(type in CUR.actMonthly[cls]){
-        if(!Object.prototype.hasOwnProperty.call(CUR.actMonthly[cls],type))continue;
-        if(CUR.actMonthlyM[mk][cls][type]==null)CUR.actMonthlyM[mk][cls][type]=CUR.actMonthly[cls][type];
+  /* いちど自動で移してしまった端末を、元へ戻す。
+     移したあとに園が直したものまで消さないよう、
+     古い置き場とそっくり同じままのものだけを取り消す。 */
+  function same(a,b){
+    if(!a||!b)return false;
+    return (a.theme||'')===(b.theme||'')&&(a.teacher||'')===(b.teacher||'')&&(a.goal||'')===(b.goal||'');
+  }
+  var mk,cls,type;
+  if(CUR.actMonthlyMoved&&CUR.actMonthly&&CUR.actMonthlyM){
+    for(mk in CUR.actMonthlyM){
+      if(!Object.prototype.hasOwnProperty.call(CUR.actMonthlyM,mk))continue;
+      for(cls in CUR.actMonthly){
+        if(!Object.prototype.hasOwnProperty.call(CUR.actMonthly,cls))continue;
+        var mm=CUR.actMonthlyM[mk][cls];
+        if(!mm)continue;
+        for(type in CUR.actMonthly[cls]){
+          if(!Object.prototype.hasOwnProperty.call(CUR.actMonthly[cls],type))continue;
+          if(same(mm[type],CUR.actMonthly[cls][type]))delete mm[type];
+        }
+        var left=0,t2;
+        for(t2 in mm){ if(Object.prototype.hasOwnProperty.call(mm,t2))left++; }
+        if(!left)delete CUR.actMonthlyM[mk][cls];
       }
     }
-    CUR.actMonthlyMoved=1;
+    delete CUR.actMonthlyMoved;
   }
-  if(CUR.content&&!CUR.contentMoved){
-    CUR.contentM=CUR.contentM||{};
-    CUR.contentM[mk]=CUR.contentM[mk]||{};
-    for(cls in CUR.content){
-      if(!Object.prototype.hasOwnProperty.call(CUR.content,cls))continue;
-      if(CUR.contentM[mk][cls]==null)CUR.contentM[mk][cls]=CUR.content[cls];
+  if(CUR.contentMoved&&CUR.content&&CUR.contentM){
+    for(mk in CUR.contentM){
+      if(!Object.prototype.hasOwnProperty.call(CUR.contentM,mk))continue;
+      for(cls in CUR.content){
+        if(!Object.prototype.hasOwnProperty.call(CUR.content,cls))continue;
+        if(CUR.contentM[mk][cls]===CUR.content[cls])delete CUR.contentM[mk][cls];
+      }
     }
-    CUR.contentMoved=1;
+    delete CUR.contentMoved;
   }
 })();
+/* 古い置き場に、まだ置き直していない中身が残っているか */
+function curLegacyCount(){
+  var n=0,cls,type,wk;
+  var a=CUR.actMonthly||{};
+  for(cls in a){
+    if(!Object.prototype.hasOwnProperty.call(a,cls))continue;
+    for(type in a[cls]){
+      if(!Object.prototype.hasOwnProperty.call(a[cls],type))continue;
+      var v=a[cls][type]||{};
+      if(v.theme||v.teacher||v.goal)n++;
+    }
+  }
+  var m=0,c=CUR.content||{};
+  for(cls in c){
+    if(!Object.prototype.hasOwnProperty.call(c,cls))continue;
+    for(wk in c[cls]){
+      if(!Object.prototype.hasOwnProperty.call(c[cls],wk))continue;
+      for(type in c[cls][wk]){
+        if(!Object.prototype.hasOwnProperty.call(c[cls][wk],type))continue;
+        var w=c[cls][wk][type]||{};
+        if(w.theme||w.teacher||w.plan)m++;
+      }
+    }
+  }
+  return {goals:n,weeks:m,total:n+m};
+}
+/* 園が選んだ月へ置き直す。上書きはしない（その月にすでにあるものは残す） */
+function curLegacyPlace(mk){
+  if(!/^[0-9]{4}-[0-9]{2}$/.test(String(mk)))return 0;
+  var n=0,cls,type,wk;
+  var a=CUR.actMonthly||{};
+  CUR.actMonthlyM=CUR.actMonthlyM||{};
+  CUR.actMonthlyM[mk]=CUR.actMonthlyM[mk]||{};
+  for(cls in a){
+    if(!Object.prototype.hasOwnProperty.call(a,cls))continue;
+    CUR.actMonthlyM[mk][cls]=CUR.actMonthlyM[mk][cls]||{};
+    for(type in a[cls]){
+      if(!Object.prototype.hasOwnProperty.call(a[cls],type))continue;
+      var v=a[cls][type]||{};
+      if(!(v.theme||v.teacher||v.goal))continue;
+      if(CUR.actMonthlyM[mk][cls][type]!=null)continue;
+      CUR.actMonthlyM[mk][cls][type]={theme:v.theme||'',teacher:v.teacher||'',goal:v.goal||''};
+      n++;
+    }
+  }
+  var c=CUR.content||{};
+  CUR.contentM=CUR.contentM||{};
+  CUR.contentM[mk]=CUR.contentM[mk]||{};
+  for(cls in c){
+    if(!Object.prototype.hasOwnProperty.call(c,cls))continue;
+    CUR.contentM[mk][cls]=CUR.contentM[mk][cls]||{};
+    for(wk in c[cls]){
+      if(!Object.prototype.hasOwnProperty.call(c[cls],wk))continue;
+      CUR.contentM[mk][cls][wk]=CUR.contentM[mk][cls][wk]||{};
+      for(type in c[cls][wk]){
+        if(!Object.prototype.hasOwnProperty.call(c[cls][wk],type))continue;
+        var w=c[cls][wk][type]||{};
+        if(!(w.theme||w.teacher||w.plan))continue;
+        if(CUR.contentM[mk][cls][wk][type]!=null)continue;
+        CUR.contentM[mk][cls][wk][type]={theme:w.theme||'',teacher:w.teacher||'',plan:w.plan||''};
+        n++;
+      }
+    }
+  }
+  /* 置いたら、古い置き場はもう出さない。中身は消さずに控えとして持っておく */
+  CUR.legacyPlacedAt=mk;
+  CUR.actMonthlyOld=CUR.actMonthly; delete CUR.actMonthly;
+  CUR.contentOld=CUR.content;       delete CUR.content;
+  DB.curriculum=CUR;
+  return n;
+}
+/* 置かずに閉じる（もう聞かない）。中身は控えとして持っておく */
+function curLegacyDismiss(){
+  CUR.legacyPlacedAt='（置かない）';
+  CUR.actMonthlyOld=CUR.actMonthly; delete CUR.actMonthly;
+  CUR.contentOld=CUR.content;       delete CUR.content;
+  DB.curriculum=CUR;
+}
 CUR.month=curMonthKey();
 DB.curriculum=CUR;
 function weekOfMonth(s){var d=+s.split('-')[2];return Math.min(CUR.weeks.length,Math.max(1,Math.ceil(d/7)));}
@@ -1291,10 +1387,20 @@ function curDaily(){if(!CUR.daily)CUR.daily={};return CUR.daily;}
 function curDailyGet(cls,date){
   var d=curDaily(),o=((d[cls]||{})[date]);
   if(!o)o={};
+  /* ★行と環境構成を、保存されているものそのまま返していた。
+     日案の画面で1文字打った時点で、保存ずみの日案が直に書き換わり、
+     「閉じる」を押しても戻らなかった（午睡の呼吸チェックの記述などが、
+     保存していないのに消えていた）。1つずつ写して返す。 */
   return {weather:o.weather||'', sugata:o.sugata||'', junbi:o.junbi||'',
           katsudo:o.katsudo||'', nerai:o.nerai||'',
-          rows:(o.rows&&o.rows.length)?o.rows:[],
-          env:(o.env&&o.env.length)?o.env:[]};
+          rows:(o.rows||[]).map(function(r){
+            r=r||{};
+            return {t:r.t||'',c:r.c||'',h:r.h||'',src:r.src||''};
+          }),
+          env:(o.env||[]).map(function(e){
+            e=e||{};
+            return {k:e.k,x:e.x,y:e.y};
+          })};
 }
 function curDailySet(cls,date,o){var d=curDaily();d[cls]=d[cls]||{};d[cls][date]=o;DB.curriculum=CUR;}
 /* 日案が1文字でも書かれているか。日別スケジュールの「詳細」に印を出すため */
@@ -1642,22 +1748,45 @@ function nichiModal(cls,date){
        CUR.month（2026-08）を渡すと季節が引けず、文が「に触れながら」で始まってしまう */
     var mLab=(+date.slice(5,7))+'月';
     var base=aiPlanGen(cls,'day',mLab);
-    function fill(g){
-      if(!$('#niSugata').value && g.expect && g.expect.length)$('#niSugata').value=g.expect.join('\n');
-      if(!$('#niJunbi').value && g.prep && g.prep.length)$('#niJunbi').value=g.prep.join('\n');
-      if(!$('#niNerai').value && g.aim)$('#niNerai').value=g.aim;
+    /* ★先にこの端末の下書き（base）を入れると欄が埋まり、
+       そのあとAIの回答を渡しても「空のときだけ入れる」条件に阻まれて
+       一文字も入らなかった。それでいて画面は「下書きができました」と言う。
+       クラスの情報を外へ出しておきながら、返ってきた文は一度も使っていなかった。
+       どの欄を下書きで埋めたかを覚えておき、AIの回答はそこだけ上書きする。
+       先生が自分で書いた文は、どちらの段でも上書きしない。 */
+    var byDraft={};
+    function fill(g,isAI){
+      function can(id){
+        var v=$('#'+id).value;
+        if(!v)return true;
+        return !!(isAI&&byDraft[id]);
+      }
+      function put(id,v){ if(!v)return; $('#'+id).value=v; if(!isAI)byDraft[id]=1; }
+      if(can('niSugata')&&g.expect&&g.expect.length)put('niSugata',g.expect.join('\n'));
+      if(can('niJunbi')&&g.prep&&g.prep.length)put('niJunbi',g.prep.join('\n'));
+      if(can('niNerai')&&g.aim)put('niNerai',g.aim);
       var t=g.times||[];
-      if(t.length && NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length===0){
+      var written=NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length;
+      var rowsOK=(written===0)||(isAI&&byDraft.rows);
+      if(t.length&&rowsOK){
         NICHI.rows=t.map(function(x){return {t:x.t||'',c:x.a||'',h:x.e||'',src:'ai'};});
+        if(!isAI)byDraft.rows=1;
         drawRows();
       }
     }
-    fill(base);
+    fill(base,false);
     if(!aiCanServer()){ b.disabled=false; msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。'); return; }
     aiAskServer('day',cls,mLab).then(function(got){
       b.disabled=false;
-      if(got){ fill(aiMerge(JSON.parse(JSON.stringify(base)),got,['aim','expect','prep','help','times'])); 
-        msg('下書きができました。文章は必ず先生が直してください。'); }
+      if(got){
+        var before=[$('#niSugata').value,$('#niJunbi').value,$('#niNerai').value,JSON.stringify(NICHI.rows)].join('\u0001');
+        fill(aiMerge(JSON.parse(JSON.stringify(base)),got,['aim','expect','prep','help','times']),true);
+        var after=[$('#niSugata').value,$('#niJunbi').value,$('#niNerai').value,JSON.stringify(NICHI.rows)].join('\u0001');
+        /* ★入らなかったときに「下書きができました」と言わない */
+        msg(before===after
+          ? 'AIの回答は、先生が書いた文があるため使いませんでした。園の記録からの下書きが入っています。'
+          : '下書きができました。文章は必ず先生が直してください。');
+      }
       else msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。');
     })['catch'](function(){ b.disabled=false;
       msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。'); });
@@ -2474,7 +2603,7 @@ function actRenameData(cls,oldName,newName){
     var c=ca[cmk]||{};
     if(c[cls])for(wk in c[cls]){var w=c[cls][wk];if(w&&w[oldName]!=null){if(w[newName]==null)w[newName]=w[oldName];delete w[oldName];}}
   }
-  var cLegacy=CUR.content||{};
+  var cLegacy=CUR.content||CUR.contentOld||{};
   if(cLegacy[cls])for(wk in cLegacy[cls]){var wL=cLegacy[cls][wk];if(wL&&wL[oldName]!=null){if(wL[newName]==null)wL[newName]=wL[oldName];delete wL[oldName];}}
   var a=curActM();
   if(a[cls]&&a[cls][oldName]!=null){if(a[cls][newName]==null)a[cls][newName]=a[cls][oldName];delete a[cls][oldName];}
@@ -3175,8 +3304,12 @@ function lockSameDay(t){
    両方の鍵が開いているときだけ書ける。 */
 function bmCanEdit(d){
   if(!d)return true;
-  if(d.locked)return false;
-  return lockCanEdit(d);
+  /* ★確定を上位に置く。確定ずみのときは「編集する」ボタンも出さない作りなので、
+     locked を先に見ると、園長が「修正を許可」しても永久に直せなくなっていた。
+     帯は「きょうのうちだけ直せます」と言うのに入力欄が固まったまま、という
+     食い違いが実際に起きていた。 */
+  if(isLocked(d))return lockCanEdit(d);
+  return !d.locked;
 }
 function lockCanEdit(d){
   if(!isLocked(d))return true;
@@ -7465,13 +7598,98 @@ function curActTypeBox(types){
 /* 「月次項目（Monthly Theme・Phonics・Monthly Song）」の入力カードは、画面から外した。
    インターナショナルスクール前提の様式で、日本語を基本にする方針と合わないため。
    保存の仕組み（curMonthly / curMonthlySet）は、あとで戻せるように残してある。 */
+/* 月に分ける前に入れた内容が残っているときに出す帯。
+   どの月のものかはデータから決められないので、園に選んでもらう。 */
+function curLegacyBarHtml(){
+  if(CUR.legacyPlacedAt)return '';
+  var c=curLegacyCount();
+  if(!c.total)return '';
+  var opts='',i,now=todayISO();
+  for(i=0;i<24;i++){
+    var d=new Date(+now.slice(0,4),+now.slice(5,7)-1-i,1);
+    var k=d.getFullYear()+'-'+pad(d.getMonth()+1);
+    opts+='<option value="'+k+'"'+(k===CUR.month?' selected':'')+'>'+d.getFullYear()+'年'+(d.getMonth()+1)+'月</option>';
+  }
+  return '<div class="card" style="margin-bottom:16px;border:1px solid #EF9F27;background:#FAEEDA;">'
+    +'<h3 style="margin-top:0;color:#854F0B;">'+ic('alert')+'月に分ける前に入れた内容が残っています</h3>'
+    +'<div style="font-size:13px;color:#854F0B;margin-bottom:10px;">'
+      +'月間のねらい '+c.goals+'件・週の内容 '+c.weeks+'件。<br>'
+      +'この内容が<b>どの月のものか、記録に残っていません</b>。'
+      +'勝手にどこかの月へ入れると、別の月の紙にその内容が出てしまうため、'
+      +'いまはどの月にも出していません。月を選んで置き直してください。'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+      +'<select id="curLegMonth" style="width:150px;">'+opts+'</select>'
+      +'<button class="btn btn-sm btn-primary" id="curLegGo">この月へ置く</button>'
+      +'<button class="btn btn-sm" id="curLegShow">中身を見る</button>'
+      +'<span style="flex:1;"></span>'
+      +'<button class="btn btn-sm btn-ghost" id="curLegSkip">置かずに閉じる</button>'
+    +'</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:8px;">'
+      +'その月にすでに入っている内容は上書きしません。置いたあとも、中身は控えとして残ります。</div>'
+    +'</div>';
+}
+function curLegacyWire(){
+  var g=$('#curLegGo');
+  if(g)g.onclick=function(){
+    var mk=($('#curLegMonth')||{}).value||CUR.month;
+    var n=curLegacyPlace(mk);
+    alert(mk.replace('-','年')+'月へ '+n+'件 置きました。');
+    renderCurriculum();
+  };
+  var sk=$('#curLegSkip');
+  if(sk)sk.onclick=function(){
+    if(!confirm('置かずに閉じます。この帯はもう出ません。\n中身は控えとして残るので、あとから見ることはできます。'))return;
+    curLegacyDismiss();renderCurriculum();
+  };
+  var sh=$('#curLegShow');
+  if(sh)sh.onclick=function(){
+    var a=CUR.actMonthly||{},c=CUR.content||{},h='',cls,type,wk;
+    h+='<h3 style="margin-top:0;">月に分ける前に入れた内容</h3><table style="font-size:12.5px;"><thead><tr>'
+      +'<th>どこ</th><th>クラス</th><th>活動</th><th>テーマ</th><th>担当</th><th>ねらい・内容</th></tr></thead><tbody>';
+    for(cls in a){
+      if(!Object.prototype.hasOwnProperty.call(a,cls))continue;
+      for(type in a[cls]){
+        if(!Object.prototype.hasOwnProperty.call(a[cls],type))continue;
+        var v=a[cls][type]||{};
+        if(!(v.theme||v.teacher||v.goal))continue;
+        h+='<tr><td>月間のねらい</td><td>'+esc(cls)+'</td><td>'+esc(type)+'</td><td>'+esc(v.theme||'')
+          +'</td><td>'+esc(v.teacher||'')+'</td><td>'+esc(v.goal||'')+'</td></tr>';
+      }
+    }
+    for(cls in c){
+      if(!Object.prototype.hasOwnProperty.call(c,cls))continue;
+      for(wk in c[cls]){
+        if(!Object.prototype.hasOwnProperty.call(c[cls],wk))continue;
+        for(type in c[cls][wk]){
+          if(!Object.prototype.hasOwnProperty.call(c[cls][wk],type))continue;
+          var w=c[cls][wk][type]||{};
+          if(!(w.theme||w.teacher||w.plan))continue;
+          h+='<tr><td>週の内容（'+esc(wk)+'）</td><td>'+esc(cls)+'</td><td>'+esc(type)+'</td><td>'+esc(w.theme||'')
+            +'</td><td>'+esc(w.teacher||'')+'</td><td>'+esc(w.plan||'')+'</td></tr>';
+        }
+      }
+    }
+    h+='</tbody></table>';
+    var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+    m.innerHTML='<div class="modal" style="width:min(900px,94vw);">'+h
+      +'<div style="display:flex;justify-content:flex-end;margin-top:12px;"><button class="btn" id="curLegClose">閉じる</button></div></div>';
+    m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+    $('#curLegClose').onclick=function(){m.remove();};
+  };
+}
 function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
+  /* ★月の欄は空にも 0002-08 にもできる。そのまま棚の鍵になると、
+     入れた内容が二度と開けない場所へ入る。ここで必ず正す。 */
+  if(!/^[0-9]{4}-[0-9]{2}$/.test(String(CUR.month||''))||+String(CUR.month).slice(0,4)<2000){
+    CUR.month=curMonthKey();
+  }
   var y=+CUR.month.split('-')[0],mo=+CUR.month.split('-')[1];
   function v(x){return (x||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
   var types=actTypes(curClass);
   function actOpts(sel){return '<option value="">—</option>'+types.map(function(t){return '<option'+(t===sel?' selected':'')+'>'+esc(t)+'</option>';}).join('');}
-  var header='<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'カリキュラム</h3>'+
+  var header=curLegacyBarHtml()+'<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'カリキュラム</h3>'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+esc(k)+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+esc(CUR.month)+'" style="width:150px;margin-left:auto;"></div>'+
     '</div>';
   /* 週ごとの欄をやめる前に、いま書いてある内容を各日へ写す（1回だけ） */
@@ -7501,7 +7719,12 @@ function renderCurriculum(){
   if(cj)cj.onclick=function(){
     printDoc('計画と実際（'+curClass+'・'+CUR.month+'）',actRepBody(curClass,CUR.month));
   };
-  var cm=$('#curMonth');if(cm)cm.onchange=function(e){CUR.month=e.target.value;DB.curriculum=CUR;renderCurriculum();};
+  var cm=$('#curMonth');if(cm)cm.onchange=function(e){
+    /* ★空にも 0002-08 にもできる欄。合わない値は受け取らず、前の月へ戻す */
+    var v=String(e.target.value||'');
+    if(!/^[0-9]{4}-[0-9]{2}$/.test(v)||+v.slice(0,4)<2000||+v.slice(0,4)>2100){e.target.value=CUR.month;return;}
+    CUR.month=v;DB.curriculum=CUR;renderCurriculum();};
+  curLegacyWire();
   s.querySelectorAll('[data-sam]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-sam'),sc=curSchedGet(curClass,d);sc.am=sl.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
   s.querySelectorAll('[data-sdc]').forEach(function(cb){cb.onchange=function(){var d=cb.getAttribute('data-sdc'),sc=curSchedGet(curClass,d);sc.daycare=cb.checked;curSchedSet(curClass,d,sc);renderCurriculum();};});
@@ -8490,14 +8713,30 @@ function scanCard(type,d){
     +'</div><div class="muted" id="scanMsg" style="margin-top:8px;font-size:12px;"></div></div>';
 }
 /* 跡を積んだ記録を、その記録の置き場へ書き戻す。
-   写真は別の置き場に持っているので、跡だけはもとの記録に残す必要がある */
-function scanSaveHost(type,date,d){
-  var K=RKEY[type];if(!K||!d)return;
-  var all=stGet(K,{});
-  all[scanHostDate(type,date)||date]=d;
-  stSet(K,all);
+   ★写真の置き場の鍵と、記録の置き場の鍵は別もの。
+     業務日報の写真は「その週の月曜日」を鍵にしているので、それを
+     そのまま記録の鍵に使うと、月曜日の日報が、いま開いている曜日の
+     中身で丸ごと置き換わって消えていた。安全点検も月キー（2026-08）を
+     日付の鍵の中へ書こうとしていた。
+     記録の鍵は、いま画面で開いている日そのものを使う。
+     さらに、記録を丸ごと入れ替えず、跡と「書いた人」だけを足す。 */
+function scanHostKey(type){
+  if(type==='身体測定')return recMonth;
+  if(type==='児童票（成長の記録）')return recDevMonth;
+  return recDate;
 }
-function scanHostDate(type,date){ return date; }
+function scanSaveHost(type,d){
+  var K=RKEY[type];if(!K||!d)return;
+  var key=scanHostKey(type);
+  if(!key)return;
+  var all=stGet(K,{}),cur=all[key];
+  if(!cur){ all[key]=d; stSet(K,all); return; }
+  /* いま保存されているものを土台にし、跡と書いた人だけを写す */
+  cur.fixes=d.fixes||cur.fixes;
+  cur.savedBy=d.savedBy||cur.savedBy;
+  cur.savedAt=d.savedAt||cur.savedAt;
+  all[key]=cur; stSet(K,all);
+}
 /* 紙の取り込みはしないが、記入用紙だけ印刷したい記録用のカード */
 function blankOnlyCard(type){
   return '<div class="card" style="margin-top:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
@@ -8527,7 +8766,7 @@ function wireScan(type,d){
       if(d&&typeof isLocked==='function'&&isLocked(d)&&typeof lockNote==='function'){
         lockNote(d,'取り込んだ紙',(l.length-1)+'枚',l.length+'枚');
         if(typeof stampWho==='function')stampWho(d);
-        try{scanSaveHost(type,date,d);}catch(e4){}
+        try{scanSaveHost(type,d);}catch(e4){}
       }
       renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?recCareList():REC_DAILY);
     });
@@ -8548,7 +8787,7 @@ function wireScan(type,d){
     if(d&&typeof isLocked==='function'&&isLocked(d)&&typeof lockNote==='function'){
       lockNote(d,'取り込んだ紙',n0+'枚',l.length+'枚');
       if(typeof stampWho==='function')stampWho(d);
-      try{scanSaveHost(type,date,d);}catch(e5){}
+      try{scanSaveHost(type,d);}catch(e5){}
     }
     renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?recCareList():REC_DAILY);
   };});
@@ -9289,17 +9528,26 @@ function edBody(){
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
-  var _bmSnap=lockSnap(d,BM_F);
+  /* ★控えを BM_F（by と locked だけ）で取り、差分を BM_F2（rows を含む）で
+     取っていた。before.rows が毎回 undefined になり、触っていない園児まで
+     「（空）→ 値」として跡に積まれていた。打鍵ごとに積まれるので、
+     監査の紙が、誰も直していない身長・体重の行で埋まっていた。 */
+  var _bmSnap=lockSnap(d,BM_F2);
   function save(){
-    lockDiff(d,_bmSnap,BM_F);
-    _bmSnap=lockSnap(d,BM_F);
+    lockDiff(d,_bmSnap,BM_F2);
+    _bmSnap=lockSnap(d,BM_F2);
     stampWho(d);data[recMonth]=d;stSet(K,data);}
   $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
   /* 「保存する」で閉じた月でも、確定の許可が出ているあいだは直せる。
      これを見ないと、帯は「きょうのうちだけ直せます」と言うのに
      入力欄が固まったまま、という食い違いになる。 */
-  if(bmCanEdit(d))document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;lockDiff(d,_bmSnap,BM_F2);_bmSnap=lockSnap(d,BM_F2);save();$('#kp'+p[0]).textContent=kaup(r);};});
+  /* ★oninput のままだと1文字ごとに跡が積まれる。書き終わり（onchange）で積む。
+     カウプ指数の表示だけは打っている間も追いかける。 */
+  if(bmCanEdit(d))document.querySelectorAll('[data-b]').forEach(function(inp){
+    inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;$('#kp'+p[0]).textContent=kaup(r);};
+    inp.onchange=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};
+  });
   /* 打っているあいだは自動で残る。「保存する」を押したら、その月の数字は直せないようにする */
   if($('#bmSave'))$('#bmSave').onclick=function(){
     var filled=Object.keys(d.rows).filter(function(id){var r=d.rows[id]||{};return r.h||r.w;});
@@ -9775,16 +10023,28 @@ function safetyHas(d){
   return false;
 }
 function healthHas(d){ return !!(d&&(d.allHealthy||d.by||(d.entries&&d.entries.length))); }
-function nippoHas(d){ return !!(d&&(d.actual||d.diary||d.absent||d.early||d.note||d.by)); }
+/* ★記録者を選んだだけの日を「記録あり」と数えていた。
+   紙は「（未記入）」ばかりなのに、監査の一覧は「1日分の記録あり（すべて確定ずみ）」と言う。
+   中身が1つも無い日は数えない。 */
+function nippoHas(d){ return !!(d&&(d.actual||d.diary||d.absent||d.early||d.note)); }
 
 /* --- 1日分（安全点検は1ヶ月分）の紙の中身 --- */
 /* 登園シートに並べる園児は、その日に記録がある子。画面に出ていた子がそのまま残る。
    退園した子の記録も消えないよう、在園で絞らず DB.contacts から拾う。 */
 function touenRowKids(d){
-  var rows=(d&&d.rows)||{},out=[];
+  var rows=(d&&d.rows)||{},out=[],seen={},k;
   (DB.contacts||[]).forEach(function(c){
-    if(Object.prototype.hasOwnProperty.call(rows,String(c.id)))out.push(c);
+    if(Object.prototype.hasOwnProperty.call(rows,String(c.id))){out.push(c);seen[String(c.id)]=1;}
   });
+  /* ★連絡先から消した園児が、過去の登園シートから丸ごと消えていた。
+     紙の行が減り、配置基準の登園人数も減って、
+     足りていなかった日が「足りています」に変わっていた。
+     記録に鍵が残っているなら、名前が引けなくても行として出す。 */
+  for(k in rows){
+    if(!Object.prototype.hasOwnProperty.call(rows,k))continue;
+    if(seen[k])continue;
+    out.push({id:k,__gone:true,lastName:'',firstName:'',childLastName:'',childFirstName:'',dob:''});
+  }
   return out;
 }
 function touenDayBody(dk,d,kids){
@@ -9795,9 +10055,9 @@ function touenDayBody(dk,d,kids){
   var p=String(dk).split('-'),wd=WD[new Date(+p[0],+p[1]-1,+p[2]).getDay()];
   return '<p>'+esc(String(d.klass||'').toUpperCase())+' SCHOOL 【'+wd+'曜日】　室温'+esc(d.temp||'　')+'℃ 湿度'+esc(d.hum||'　')+'%（天気：'+esc(d.weather||'　')+'）</p>'+
     '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
-    kids.map(function(c){var r=d.rows[c.id]||{opts:{}};var al=ageClassOf(c),ac=ageColor(al);
+    kids.map(function(c){var r=d.rows[c.id]||{opts:{}};var al=c.__gone?'—':ageClassOf(c,dk),ac=ageColor(al);
       /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
-      return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(bfDob(c.dob))+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
+      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(bfDob(c.dob))+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
     +lockFootHtml(d);
 }
@@ -9852,12 +10112,20 @@ function healthDayBody(dk,d,showKids){
 }
 function nippoDayBody(dk,d){
   if(!d)d=stGet('rec_日報',{})[dk]||{};
-  var wnum=weekOfMonth(dk),wk=CUR.weeks[wnum-1]||CUR.weeks[0]||{morning:'',afternoon:''};
-  var p=String(dk).split('-'),jsD=new Date(+p[0],+p[1]-1,+p[2]).getDay(),dkey=['','Mon','Tue','Wed','Thu','Fri'][jsD]||'';
-  var dtext=dkey?curDayText('Pre',dk):'';
-  /* 画面と同じで、活動内容が空のときはカリキュラムの内容を出す */
-  var actual=d.actual||dtext||('【午前】'+wk.morning+'\n【午後】'+wk.afternoon);
-  return '<h2>活動内容</h2><p>'+esc(actual).replace(/\n/g,'<br>')+'</p><h2>クラスの様子・エピソード</h2><p>'+esc(d.diary||'').replace(/\n/g,'<br>')+'</p><h2>欠席・早退・引き継ぎ</h2><table><tbody><tr><th>欠席</th><td>'+esc(d.absent||'なし')+'</td></tr><tr><th>早退</th><td>'+esc(d.early||'なし')+'</td></tr><tr><th>引き継ぎ・特記事項</th><td>'+esc(d.note||'—')+'</td></tr><tr><th>記録者</th><td>'+esc(d.by||'')+'</td></tr></tbody></table>'
+  /* ★活動内容が空のとき、カリキュラムの予定や既定の週の文を
+     「活動内容」として紙に刷っていた。先生は一度も書いていないのに、
+     脚注には「確定：園長」が付く。監査で嘘になるので、空は空と出す。
+     （画面の入力欄に下書きとして見せるのは、そのまま残している） */
+  var actual=d.actual||'';
+  function or(v){ return v?esc(String(v)).replace(/\n/g,'<br>') : '<span style="color:#888;">（未記入）</span>'; }
+  return '<h2>活動内容</h2><p>'+or(actual)+'</p>'
+    +'<h2>クラスの様子・エピソード</h2><p>'+or(d.diary)+'</p>'
+    +'<h2>欠席・早退・引き継ぎ</h2><table><tbody>'
+    +'<tr><th>欠席</th><td>'+or(d.absent)+'</td></tr>'
+    +'<tr><th>早退</th><td>'+or(d.early)+'</td></tr>'
+    +'<tr><th>引き継ぎ</th><td>'+or(d.note)+'</td></tr>'
+    +'<tr><th>記録者</th><td>'+or(d.by)+'</td></tr>'
+    +'</tbody></table>'
     +lockFootHtml(d);
 }
 
@@ -9921,7 +10189,30 @@ function periodBody(type,k){
   if(type==='登園（出席）'){
     /* 午睡だけ記録がある日は、空っぽの登園シートを出さない（白紙が混ざらないように） */
     var td=stGet('rec_登園シート',{})[k],nb=napDayBody(k);
-    var tb=touenHas(td)?touenDayBody(k,td):'';
+    /* ★1日の記録は1件で、rows には開いたクラスぜんぶの園児が入り、
+       klass は最後に開いたクラスに上書きされる。ここでクラスを分けずに
+       出していたので、Pre と Kinder が1枚の紙に混ざり、見出しだけ
+       最後に開いたクラス名で刷られていた。日ごとの印刷とは中身が違う。
+       クラスごとに1枚ずつ出す。 */
+    var tb='';
+    if(touenHas(td)){
+      var all=touenRowKids(td),byCls={},order=[],ci;
+      all.forEach(function(c){
+        var kc=c.__gone?'':String(c.klass||'');
+        if(!kc)kc=String(td.klass||'');
+        if(!byCls[kc]){byCls[kc]=[];order.push(kc);}
+        byCls[kc].push(c);
+      });
+      if(order.length<=1){
+        tb=touenDayBody(k,td,all);
+      }else{
+        for(ci=0;ci<order.length;ci++){
+          var one=Object.assign({},td);
+          one.klass=order[ci];
+          tb+=(ci?'<div style="page-break-before:always;"></div>':'')+touenDayBody(k,one,byCls[order[ci]]);
+        }
+      }
+    }
     return tb+((tb&&nb)?'<div style="height:10px;"></div>':'')+nb;
   }
   if(type==='健康チェック')return healthDayBody(k);
@@ -10351,10 +10642,20 @@ function haichiNeed(by){
 }
 /* その日に出ていた職員の数。打刻があればそれ、無ければシフトで数える */
 /* いま園にいる職員かどうか。辞めた先生のIDが打刻やシフトに残っていても数えない */
+/* ★名簿から消えた職員を数から外していた。削除の確認は
+   「出勤簿とシフト表に残っている記録は、監査で必要になるため消しません」と
+   約束しているのに、当時は足りていた日があとから「1人足りません」に変わり、
+   監査用の不足日一覧に載っていた。画面の言うことと逆を向いていた。
+   打刻・シフトに残っている記録は、そのまま数える。 */
 function haichiIsStaff(id){
+  if(id==null||id==='')return false;
+  return true;
+}
+/* 名簿から消えた職員の見せ方。番号だけだと誰か分からないので、そう書く */
+function haichiStaffName(id){
   var a=DB.staff||[],i;
-  for(i=0;i<a.length;i++){ if(String(a[i].id)===String(id))return true; }
-  return false;
+  for(i=0;i<a.length;i++){ if(String(a[i].id)===String(id))return a[i].name; }
+  return '番号'+String(id)+'（名簿にない職員）';
 }
 function haichiStaff(date){
   var mk=date.slice(0,7),day=+date.slice(8,10);
@@ -14502,9 +14803,31 @@ function taskAutoDone(t,mk){
        自動で「済」になるように、どちらの名前でも見るようにしている */
     if(p==='研修・訓練'||p==='防火管理台帳・消火訓練'){var fy=(+mk.slice(5,7)>=4)?+mk.slice(0,4):+mk.slice(0,4)-1;var bd=boukaGet(fy);return BOUKA_MONTHS.some(function(mo){var r=bd.rows[mo];return r&&r.date&&r.date.slice(0,7)===mk;});}
     if(p==='カリキュラム'){
-      /* CUR.month は「いま画面で見ている月」なので、それで済にすると
-         何も書いていなくても済になり、別の月を開くと未に戻る。
-         その月に実際に何か入っているかで見る。 */
+      /* ★カリキュラムのやることは3つある（月案の作成・月末のふりかえり・
+         年間計画/行事計画の作成）のに、判定が1本しかなかった。
+         日別のメモを1つ書いただけで3つとも「済」になり、
+         自動で済になった項目はチェックを外せないので園長が直せなかった。
+         別々に見る。 */
+      if(t.name==='月末のふりかえり'){
+        /* ふりかえりの置き場は act_reports。日別スケジュールでは判定しない */
+        var ar=stGet('act_reports',{}),ak;
+        for(ak in ar){
+          if(!Object.prototype.hasOwnProperty.call(ar,ak))continue;
+          if(String(ak).indexOf('|')<0)continue;
+          if(String(ak).split('|')[1].slice(0,7)!==mk)continue;
+          var av=ar[ak]||{};
+          if(av.done||av.free||av.muzu||av.tsugi)return true;
+        }
+        return false;
+      }
+      if(t.name==='年間計画・行事計画の作成'){
+        /* 年間の計画は、いまこのシステムに置き場が無い。
+           4月の日別が埋まっただけで「年間計画ができた」とは言えないので、
+           自動では済にしない（園長が手で印を付ける） */
+        return false;
+      }
+      /* 月案の作成 … その月の月間のねらい・週の内容・日別の活動で見る。
+         メモと担当だけでは「計画を立てた」証拠にしない。 */
       var sc=(CUR.schedule||{}),ck,has=false;
       for(ck in sc){
         if(!Object.prototype.hasOwnProperty.call(sc,ck))continue;
@@ -14512,7 +14835,7 @@ function taskAutoDone(t,mk){
         for(dk in dd){
           if(String(dk).slice(0,7)!==mk)continue;
           var rr=dd[dk]||{};
-          if(rr.am||rr.pm||rr.amText||rr.pmText||rr.memo||rr.teacher){has=true;break;}
+          if(rr.am||rr.pm||rr.amText||rr.pmText){has=true;break;}
         }
         if(has)break;
       }
@@ -14522,6 +14845,19 @@ function taskAutoDone(t,mk){
           if(!Object.prototype.hasOwnProperty.call(am,ak2))continue;
           var cc=am[ak2]||{},tk;
           for(tk in cc){ var vv=cc[tk]||{}; if(vv.theme||vv.teacher||vv.goal){has=true;break;} }
+          if(has)break;
+        }
+      }
+      if(!has){
+        var cm2=(CUR.contentM||{})[mk]||{},ck2;
+        for(ck2 in cm2){
+          if(!Object.prototype.hasOwnProperty.call(cm2,ck2))continue;
+          var ww=cm2[ck2]||{},wk2;
+          for(wk2 in ww){
+            var tt=ww[wk2]||{},tk2;
+            for(tk2 in tt){ var w2=tt[tk2]||{}; if(w2.theme||w2.teacher||w2.plan){has=true;break;} }
+            if(has)break;
+          }
           if(has)break;
         }
       }
