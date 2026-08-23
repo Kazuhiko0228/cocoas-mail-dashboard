@@ -1106,7 +1106,16 @@ function defaultCurriculum(){return {month:curMonthKey(),
     {label:'第4週',morning:'indoorサーキット・かけっこ',afternoon:'Motor skill：shapes / numbers'},
     {label:'第5週',morning:'自由あそび・季節の制作',afternoon:'Motor skill：今月の復習week'}
   ]};}
-var CUR=(DB.curriculum&&DB.curriculum.month===curMonthKey())?Object.assign(defaultCurriculum(),DB.curriculum):defaultCurriculum();
+/* ★月が変わっても、前の月に書いたものを捨てない。
+   これまでは、保存されている月と今月が違うと既定値で丸ごと上書きしていた。
+   そのため、月が替わった最初の読み込みで
+   前の月の日別スケジュール・日案（環境構成の図をふくむ）・月間のねらいが
+   すべて消えていた。
+   日別スケジュールと日案は日付（YYYY-MM-DD）が鍵なので、
+   捨てなければ何ヶ月ぶんでもそのまま持てる。
+   開いたときは今月を見せる。前の月は、月を選び直せば出る。 */
+var CUR=Object.assign(defaultCurriculum(),DB.curriculum||{});
+CUR.month=curMonthKey();
 DB.curriculum=CUR;
 function weekOfMonth(s){var d=+s.split('-')[2];return Math.min(CUR.weeks.length,Math.max(1,Math.ceil(d/7)));}
 function curSched(){if(!CUR.schedule)CUR.schedule={};return CUR.schedule;}
@@ -1133,9 +1142,28 @@ function curMonthly(cls){
 }
 function curMonthlySet(cls,key,val){var m=curMonthly(cls);m[key]=val;if(cls==='Pre')CUR[key]=val;DB.curriculum=CUR;}
 /* アクティビティ別の月間テーマ・目標（月に1回登録。週の内容はこれを引き継ぐ） */
+/* 「月間のねらい・担当」は、名前のとおり月ごとのもの。
+   これまでは月の鍵が無く、8月に入れた内容が9月の欄にもそのまま出て、
+   9月で書き直すと8月の分が消えていた。
+   月ごとに持つ形にする。前の形（月の鍵なし）で保存されている分も読めるよう、
+   その月に無ければ、これまでの共通の値を見る。 */
 function curActM(){if(!CUR.actMonthly)CUR.actMonthly={};return CUR.actMonthly;}
-function curActMGet(cls,type){var a=curActM();return ((a[cls]||{})[type])||{theme:'',teacher:'',goal:''};}
-function curActMSet(cls,type,obj){var a=curActM();a[cls]=a[cls]||{};a[cls][type]=obj;DB.curriculum=CUR;}
+function curActMByMonth(){if(!CUR.actMonthlyM)CUR.actMonthlyM={};return CUR.actMonthlyM;}
+function curActMGet(cls,type){
+  var m=curActMByMonth()[CUR.month];
+  var v=m&&m[cls]&&m[cls][type];
+  if(v)return v;
+  /* 月ごとに分ける前に入れた分。読むだけで、書き戻しはしない */
+  var old=(curActM()[cls]||{})[type];
+  return old||{theme:'',teacher:'',goal:''};
+}
+function curActMSet(cls,type,obj){
+  var a=curActMByMonth();
+  a[CUR.month]=a[CUR.month]||{};
+  a[CUR.month][cls]=a[CUR.month][cls]||{};
+  a[CUR.month][cls][type]=obj;
+  DB.curriculum=CUR;
+}
 /* 週の実効値：週で上書きがあればそれ、なければ月間テーマ・担当を自動反映 */
 function curEff(cls,wk,type){
   var ct=curContGet(cls,wk,type),m=curActMGet(cls,type);
@@ -1859,7 +1887,7 @@ function lockInfo(data,unit){
 function auditDataInfo(key){
   switch(key){
     case 'anzen': return Object.keys(stGet('rec_安全点検',{})).length+'日分の記録あり';
-    case 'gosui': return Object.keys(stGet('rec_午睡チェック',{})).length+'日分の記録あり';
+    case 'gosui': return lockInfo(stGet('rec_午睡チェック',{}),'日分');
     case 'shusseki': return lockInfo(stGet('rec_登園シート',{}),'日分');
     case 'kenko': return lockInfo(stGet('rec_健康チェック',{}),'日分');
     case 'shintai': return Object.keys(stGet('rec_身体測定',{})).length+'ヶ月分の記録あり';
@@ -2788,6 +2816,28 @@ function planAllows(need){
 /* 保存のたびに「最後に触った人」と時刻を残す。
    監査は「誰がいつ書いたか」を見るので、確定したときだけでは足りない。
    画面には出さない（先生が書く欄ではないため）。紙と監査の一覧にだけ出す。 */
+/* 確定したあとに何が変わったかを、保存の直前に見比べて積む。
+   画面ごとに onchange へ書き足すと必ず取りこぼすので、
+   「保存する直前の姿」と「保存したあとの姿」を比べる形にする。
+   確定していない記録では何もしない。 */
+function lockSnap(d,fields){
+  var o={},i;
+  if(!d)return o;
+  for(i=0;i<fields.length;i++){
+    var k=fields[i].k, v=d[k];
+    o[k]=(v==null)?'':((typeof v==='object')?JSON.stringify(v):String(v));
+  }
+  return o;
+}
+function lockDiff(d,before,fields){
+  if(!d||!d.lock||!before)return;
+  var after=lockSnap(d,fields),i;
+  for(i=0;i<fields.length;i++){
+    var k=fields[i].k;
+    if(before[k]===after[k])continue;
+    lockNote(d,fields[i].l,before[k],after[k]);
+  }
+}
 function stampWho(d){
   if(!d||typeof d!=='object')return d;
   d.savedBy=lockWho(); d.savedAt=lockNow();
@@ -2862,12 +2912,29 @@ function lockBarWire(scope,d,save,redraw){
   if(c)c.onclick=function(){ d.unlocked=false; save(); if(redraw)redraw(); };
 }
 /* 確定していて、まだ許可が出ていないときは、入力できないようにする */
+/* 確定したら、入力欄だけでなくボタンも止める。
+   はじめは input / textarea / select しか止めておらず、
+   出欠のボタン・オプションのボタン・「前回の記録を反映」・
+   「カリキュラムから取り込む」などが押せたまま保存されていた。
+   帯には「直すには園長・管理者の許可が要ります」と出ているのに書けてしまう、
+   という嘘になっていた。
+
+   読むだけの操作（印刷・日付を選ぶ・クラスを選ぶ・帯そのもの）は
+   lk-skip を付けて止めない。 */
+var LOCK_SKIP_ID={tsPrint:1,hlPrint:1,npoPrint:1,bmPrint:1,npPrint:1,dvPrint:1,dvPrintAll:1,
+                  tsDate:1,tsKlass:1,hlDate:1,npoDate:1,bmMonth:1,bmKlassSel:1,
+                  dvCls:1,dvChild:1,dvMonth:1,
+                  /* 期間まとめの出力と、紙を撮って取り込むカード。この記録の外なので止めない */
+                  pdFrom:1,pdTo:1,pdPrint:1,pdXls:1,pdCount:1,
+                  scanFile:1,scanList:1,scanPrint:1,scanMsg:1};
 function lockDisable(scope,d){
   if(!scope||lockCanEdit(d))return;
-  var els=scope.querySelectorAll('input,textarea,select,.napcell,[data-lockable]'),i;
+  var els=scope.querySelectorAll('input,textarea,select,button,.napcell,[data-lockable]'),i,e;
   for(i=0;i<els.length;i++){
-    if(els[i].className&&String(els[i].className).indexOf('lk-skip')>-1)continue;
-    els[i].disabled=true;
+    e=els[i];
+    if(e.className&&String(e.className).indexOf('lk-skip')>-1)continue;
+    if(e.id&&LOCK_SKIP_ID[e.id])continue;
+    e.disabled=true;
   }
 }
 /* 紙に出す脚注。確定日時・確定者と、直した跡 */
@@ -8175,6 +8242,9 @@ function parentNoteText(r){
 }
 function edTouen(){
   var K='rec_登園シート',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
+  /* 確定したあとに何が変わったかを、保存の直前に見比べて跡に積む */
+  var TOUEN_F=[{k:'weather',l:'天気'},{k:'temp',l:'室温'},{k:'hum',l:'湿度'},
+               {k:'memo',l:'MEMO'},{k:'by',l:'記録者'},{k:'rows',l:'園児ごとの記録'}];
   var opts=SET.attendOptions||[];
   var dp=recDate.split('-'),wd=WD[new Date(+dp[0],+dp[1]-1,+dp[2]).getDay()];
   /* 通園予定の曜日で絞る。ただし、保護者から連絡が来た園児や、すでに記録がある園児は
@@ -8215,7 +8285,13 @@ function edTouen(){
        ここから明示的に「今の通園曜日の設定に合わせ直す」操作ができるようにする。 */
     (autoOpts.length?'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-sm" id="tsResync" title="この日の「'+esc(autoOpts.join('・'))+'」を、いまの通園曜日の設定に合わせ直します">更新</button></div>':'')+
     '</div>';
-  function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
+  /* いま保存されている姿を控えておき、次に保存するときに見比べる。
+     保存の直前にとると、もう値が変わったあとなので差分にならない。 */
+  var _tsSnap=lockSnap(d,TOUEN_F);
+  function save(){
+    lockDiff(d,_tsSnap,TOUEN_F);
+    _tsSnap=lockSnap(d,TOUEN_F);
+    stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#tsDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#tsKlass').onchange=function(e){d.klass=e.target.value;save();edTouen();};
   [['tsWeather','weather'],['tsTemp','temp'],['tsHum','hum'],['tsMemo','memo']].forEach(function(p){$('#'+p[0]).onchange=function(e){d[p[1]]=e.target.value;save();};});
@@ -8247,8 +8323,16 @@ function edTouen(){
   $('#recBody').insertAdjacentHTML('beforeend',nap.html);
   nap.wire(edTouen);
 
-  /* 確定の帯。確定したあとは、登園も午睡もまとめて読むだけになる */
-  lockBarWire($('#recBody'),d,save,edTouen);
+  /* 確定の帯。確定したあとは、登園も午睡もまとめて読むだけになる。
+     午睡は別の鍵（rec_午睡チェック）に入っているので、
+     同じ確定の印を、そちらにも書き写す。書き写さないと、
+     午睡の紙にも監査の一覧にも確定が出ないままになる。 */
+  function saveBoth(){
+    save();
+    if(nap&&nap.setLock)nap.setLock({lock:d.lock,lockBy:d.lockBy,lockAt:d.lockAt,
+      unlocked:d.unlocked,unlockedBy:d.unlockedBy,unlockedAt:d.unlockedAt});
+  }
+  lockBarWire($('#recBody'),d,saveBoth,edTouen);
   lockDisable($('#recBody'),d);
 
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
@@ -8356,12 +8440,21 @@ function napBlock(klass){
     if(pr)pr.onclick=function(){
       var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childFullName(c)+'</td>'+slots.map(function(t){return '<td>'+(NAP_MARK[d.cells[c.id+'|'+t]||'']||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'
         +(d.memo?'<p>メモ：'+esc(d.memo)+'</p>':'')
-        +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　この表は'+napStep()+'分ごと　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>';
+        +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　この表は'+napStep()+'分ごと　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>'
+        +lockFootHtml(d);
       printDoc('午睡チェック表（'+fmt(recDate)+'・'+klass+'）',body);
     };
   }
-  save();                              /* クラスの持ち替えをその場で残す */
-  return {html:html, wire:wire};
+  /* 開いただけで保存すると、見ただけの人が「最後に書いた人」として残り、
+     触っていない日にも空の記録ができてしまう。
+     クラスが実際に変わったときだけ残す。 */
+  if(data[recDate]&&data[recDate].klass!==klass)save();
+  return {html:html, wire:wire, setLock:function(o){
+    var cur=data[recDate]||d;
+    cur.lock=o.lock; cur.lockBy=o.lockBy; cur.lockAt=o.lockAt; cur.unlocked=o.unlocked;
+    cur.unlockedBy=o.unlockedBy; cur.unlockedAt=o.unlockedAt;
+    data[recDate]=cur; stSet(K,data);
+  }};
 }
 
 /* 古い呼び出しが残っていても落ちないよう、登園の画面へ寄せる */
@@ -8369,7 +8462,12 @@ function edNap(){ return edTouen(); }
 function edHealth(){
   var K='rec_健康チェック',data=stGet(K,{}),d=data[recDate]||{entries:[],by:''};
   if(!d.entries)d.entries=[];
-  function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
+  var HL_F=[{k:'by',l:'記録者'},{k:'allHealthy',l:'全員「症状なし」'},{k:'entries',l:'症状の記録'}];
+  var _hlSnap=lockSnap(d,HL_F);
+  function save(){
+    lockDiff(d,_hlSnap,HL_F);
+    _hlSnap=lockSnap(d,HL_F);
+    stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   var touen=stGet('rec_登園シート',{})[recDate];
   var present=enrolled().filter(function(c){var r=touen&&touen.rows&&touen.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;});
   var showKids=present.length?present:enrolled();
@@ -8428,12 +8526,21 @@ function healthModal(idx,d,save,pre){
 }
 function edBody(){
   var K='rec_身体測定',data=stGet(K,{}),d=data[recMonth]||{rows:{}};
+  var BM_F=[{k:'rows',l:'身長・体重'},{k:'by',l:'記録者'},{k:'locked',l:'保存の状態'}];
   var kids=enrolled().filter(function(c){return bmKlass==='すべて'||c.klass===bmKlass;});
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
   var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'+(d.locked?'<button class="btn btn-sm" id="bmEdit">'+ic('edit')+'編集する</button>':'<button class="btn btn-sm btn-primary" id="bmSave">'+ic('check')+'保存する</button>')+'<button class="btn btn-sm btn-primary" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
-    (d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>')+
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'/* 確定ずみのときは、保存する／編集する を出さない。
+       この画面には鍵が2つ（保存＝locked と 確定＝lock）あり、
+       確定ずみで「編集する」を押すと、案内は「入れ終わったら保存を押せ」に変わるのに
+       入力欄は止まったまま、という食い違いが起きていた。確定の帯に一本化する。 */
+    +(isLocked(d)?''
+      :(d.locked?'<button class="btn btn-sm" id="bmEdit">'+ic('edit')+'編集する</button>'
+                :'<button class="btn btn-sm btn-primary" id="bmSave">'+ic('check')+'保存する</button>'))+'<button class="btn btn-sm btn-primary lk-skip" id="bmShare">'+ic('send')+'保護者へ測定結果を送信</button><button class="btn btn-sm" id="bmPrint">'+ic('printer')+'一覧を出力</button>')+
+    (isLocked(d)
+      ?''
+      :(d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>'))+
     '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」で、各ご家庭に<b>お子様ご本人の記録だけ</b>を送信できます（保護者ページの「せいちょう」に反映・他児の記録は見えません）。</div>'+
     '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
@@ -8443,7 +8550,11 @@ function edBody(){
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(d.locked?' disabled':'')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
-  function save(){stampWho(d);data[recMonth]=d;stSet(K,data);}
+  var _bmSnap=lockSnap(d,BM_F);
+  function save(){
+    lockDiff(d,_bmSnap,BM_F);
+    _bmSnap=lockSnap(d,BM_F);
+    stampWho(d);data[recMonth]=d;stSet(K,data);}
   $('#bmMonth').onchange=function(e){recMonth=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#bmKlassSel').onchange=function(e){bmKlass=e.target.value;edBody();};
   if(!d.locked)document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;save();$('#kp'+p[0]).textContent=kaup(r);};});
@@ -8459,7 +8570,7 @@ function edBody(){
     d.locked=false;save();edBody();
   };
   $('#bmPrint').onclick=function(){
-    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass)+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>';
+    var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass)+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>'+lockFootHtml(d);
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
   };
   $('#bmShare').onclick=function(){
@@ -8472,7 +8583,11 @@ function edBody(){
       var subj='【'+SET.school+'】'+childFullName(c)+'さんの身体測定結果（'+ym+'）';
       var bd='いつもお世話になっております。\n'+ym+'の身体測定の結果をお知らせいたします。\n\nお名前：'+childFullName(c)+'（'+ageClassOf(c)+'）\n身長：'+r.h+' cm\n体重：'+r.w+' kg\nカウプ指数：'+kp+'\n\n保護者ページの「せいちょう」からも成長の記録をご覧いただけます。\n\n'+SET.school;
       h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'身体測定結果',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:bd});
+      /* 送った日は記録に残す。確定ずみの記録に足すときは、跡にも積む */
+      if(!lockCanEdit(d)&&r.sharedAt!==todayISO())lockNote(d,'保護者へ送信（'+childFullName(c)+'）',r.sharedAt||'（未送信）',todayISO());
       r.sharedAt=todayISO();});
+    /* 送った控えは DB.history に残す。確定ずみの記録そのものは書き換えない
+       （送信は記録の中身を変える操作ではないため） */
     DB.history=h;save();
     alert(targets.length+'名の保護者へ送信しました。\n保護者ページの「せいちょう」タブに反映され、各ご家庭ではお子様ご本人の記録のみが表示されます。');
     edBody();
@@ -8756,7 +8871,12 @@ function edDev(){
       c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+esc(key)+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+(rec.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="dvBy" value="'+(rec.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>':'')+'</div>';
-  function save(){stampWho(rec);data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
+  var DV_F=[{k:'items',l:'各項目の選び方'},{k:'memo',l:'メモ'},{k:'by',l:'記録者'}];
+  var _dvSnap=lockSnap(rec,DV_F);
+  function save(){
+    lockDiff(rec,_dvSnap,DV_F);
+    _dvSnap=lockSnap(rec,DV_F);
+    stampWho(rec);data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
   /* クラスを変えても、選んでいる月（recDevMonth）は触らない */
   if($('#dvCls'))$('#dvCls').onchange=function(e){devCls=e.target.value;edDev();};
   if($('#dvChild'))$('#dvChild').onchange=function(e){devChild=+e.target.value;edDev();};
@@ -8764,6 +8884,7 @@ function edDev(){
   /* 前回の記録を写す。写すのは各項目の選び方だけ。
      メモと記録者は、その月に書いたことなので写さない（前の月の文章が残ると事実と食い違うため）。 */
   if($('#dvPrev'))$('#dvPrev').onclick=function(){
+    if(!lockCanEdit(rec)){alert('この記録は確定ずみです。直すには園長・管理者の許可が要ります。');return;}
     if(!prevKey)return;
     var src=mine[prevKey];
     if(!src||!devHasItems(src))return;
@@ -8772,7 +8893,7 @@ function edDev(){
       +'メモと記録者は写しません。\n\nよろしいですか？'))return;
     var it={},sk;
     for(sk in src.items){if(Object.prototype.hasOwnProperty.call(src.items,sk))it[sk]=src.items[sk];}
-    rec.items=it;
+    lockNote(rec,'前回の記録を反映',JSON.stringify(rec.items||{}),JSON.stringify(it||{}));rec.items=it;
     save();
     edDev();
   };
@@ -8791,13 +8912,13 @@ function edDev(){
   $('#dvPrint').onclick=function(){
     var body='<p>'+(cur?esc(childFullName(cur))+'（'+ageClassOf(cur)+'）':'')+'　記録：'+esc(devPeriodLabel(recDevMonth))+'　記録者：'+esc(rec.by||'')+'</p>'+
       DEV_CATS.map(function(c,ci){return '<h3>'+c.cat+'</h3><table><tbody>'+c.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rec.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+
-      '<p>メモ：'+esc(rec.memo||'')+'</p>';
+      '<p>メモ：'+esc(rec.memo||'')+'</p>'+lockFootHtml(rec);
     printDoc('児童票（成長の記録）（'+(cur?childFullName(cur):'')+'・'+devPeriodLabel(recDevMonth)+'）',body);
   };
   $('#dvPrintAll').onclick=function(){
     /* 画面でクラスを絞っているときは、そのクラスのぶんを出す。
        画面に出ていない子が紙にだけ出ると、何を出したのか分からなくなるため */
-    var body=devKids.map(function(c){var rc=(data[c.id]&&data[c.id][recDevMonth])||{items:{},memo:'',by:''};return '<h2>'+esc(childFullName(c))+'（'+ageClassOf(c)+'）</h2><p>記録者：'+esc(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+esc(rc.memo||'')+'</p>';}).join('<div style="page-break-after:always;"></div>');
+    var body=devKids.map(function(c){var rc=(data[c.id]&&data[c.id][recDevMonth])||{items:{},memo:'',by:''};return '<h2>'+esc(childFullName(c))+'（'+ageClassOf(c)+'）</h2><p>記録者：'+esc(rc.by||'')+'</p>'+DEV_CATS.map(function(ct,ci){return '<h3>'+ct.cat+'</h3><table><tbody>'+ct.items.map(function(it,ii){return '<tr><td>'+it[0]+'</td><td style="width:230px;">'+(rc.items[ci+'_'+ii]||'—')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')+'<p>メモ：'+esc(rc.memo||'')+'</p>'+lockFootHtml(rc);}).join('<div style="page-break-after:always;"></div>');
     printDoc('児童票（成長の記録） 全員分（'+(devCls==='すべて'?'':devCls+'・')+devPeriodLabel(recDevMonth)+'）',body);
   };
   lockBarWire($('#recBody'),rec,save,edDev);
@@ -8823,7 +8944,7 @@ function edNippo(){
     '<div class="muted">'+(isLocked(d)?'この記録は確定ずみです。':'入力は自動保存されます。書き終わったら上の「この記録を確定する」を押してください。')+'</div></div>';
   function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
-  $('#npoCurr').onclick=function(){lockNote(d,'活動内容',d.actual,currText);$('#npoActual').value=currText;d.actual=currText;save();};
+  $('#npoCurr').onclick=function(){if(!lockCanEdit(d))return;lockNote(d,'活動内容',d.actual,currText);$('#npoActual').value=currText;d.actual=currText;save();};
   /* 確定したあとに直したときは、どこを何から何に変えたかを残す（監査で見られる） */
   var NPO_LABEL={actual:'活動内容',diary:'クラスの様子・エピソード',absent:'欠席',early:'早退',note:'引き継ぎ・特記事項',by:'記録者'};
   [['npoActual','actual'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){
