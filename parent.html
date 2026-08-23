@@ -4190,7 +4190,7 @@ function myReplies(c){
 }
 function dmHTML(c){
   var th=dmThread(c.id);
-  var head='<div class="card"><h2 class="sec sec-c">💬 園からの個人メッセージ</h2><div class="muted" style="margin-bottom:11px;">園・担任からのメッセージです。既読・送信ボタンを押してください。</div><div class="hide">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると園に通知が届きます。</div>';
+  var head='<div class="card"><h2 class="sec sec-c">💬 園からの個人メッセージ</h2><div class="muted" style="margin-bottom:11px;">園・担任からのメッセージです。既読・送信ボタンを押してください。</div><div class="hide">担任・園からの連絡や、ご家庭からのご相談をやりとりできます。送信すると、園の画面に未読として出ます。</div>';
   var log='<div id="pdmLog" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:4px 0;">'
     +(th.messages.length?th.messages.map(function(m){var mine=m.from==='parent';
       return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:82%;">'
@@ -4248,13 +4248,11 @@ function dmSend(c,tx){
     if(!Array.isArray(all[c.id]))all[c.id]=[];
     all[c.id].push({id:Date.now(),from:'parent',by:c.name,text:tx,at:dmNow()});
     stSet('dm_out',all);
-    /* 園へ通知メール（返信URL付き）— 実送信はバックエンド接続後 */
-    var st=stGet('settings',{})||{},school=st.school||waSchoolName(),sender=st.sender||'';
-    var hist=stGet('history',[])||[];
-    hist.push({date:addDaysISO(0),time:dmNow().slice(5),tpl:'DM通知（園へ）',to:school,email:sender,from:c.email||'',
-      subject:'【DM】'+c.name+' 様（'+esc(c.child||'')+'）よりメッセージが届いています',
-      body:c.name+' 様よりメッセージが届いています。\n\n----------\n'+tx+'\n----------\n\n下記より内容の確認・ご返信をお願いいたします。\n'+location.href.split('?')[0].replace(/[^\/]*$/,'')+'index.html?dm='+c.id});
-    stSet('history',hist);
+    /* ★ここで園の「送信済みメール」に『DM通知（園へ）』という行を積んでいた。
+       メールを送る仕組みは無いので、送っていないメールが控えに残り続ける
+       （園側の dmNotify も同じ理由でやめた）。
+       保護者からのメッセージは dm_out に入り、園のホームに未読として出るので、
+       擬似のメールを足す必要がない。 */
 }
 
 /* ---- NEWS (all posts) ---- */
