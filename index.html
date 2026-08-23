@@ -2019,7 +2019,18 @@ function auditDataInfo(key){
       var withK=DB.staff.filter(function(st){return st.kenshinDate;}).length;
       return DB.staff.length+'名登録済み／健診日あり '+withK+'名';
     }
-    case 'shidou': case 'daily': return '今月分あり';
+    case 'shidou': case 'daily': {
+      /* 中身を見ずに「今月分あり」と言い切っていた */
+      var mk2=todayISO().slice(0,7),sc2=(CUR.schedule||{}),n2=0,c2,d2;
+      for(c2 in sc2){
+        if(!Object.prototype.hasOwnProperty.call(sc2,c2))continue;
+        for(d2 in sc2[c2]){
+          if(String(d2).slice(0,7)!==mk2)continue;
+          var r2=sc2[c2][d2]||{};
+          if(r2.am||r2.pm||r2.amText||r2.pmText)n2++;
+        }
+      }
+      return n2?(n2+'日分の予定あり（'+mk2+'）'):'今月分はまだありません';}
     default:
       var slot=AUDIT_DOC_SLOT[key];
       if(slot){var d=stGet('docs',{})[slot];return (d&&d.url)?'格納済み':'未格納';}
@@ -2939,26 +2950,73 @@ function lockSnap(d,fields){
   }
   return o;
 }
-/* 塊（園児ごとの記録など）は、まるごと比べると紙に長いJSONが出て読めない。
-   1段ほどいて「どの子の・どの欄が」まで書く。 */
-function lockLabelOf(id){
+/* ══ 直した跡を、紙で読める形にする ═══════════════
+   園児ごとの記録のような塊を、まるごと比べて出すと
+   紙に長いJSONが並び、監査で「どこを直したか」を示せない。
+
+   ★鍵の読み方は画面ごとに違う。
+     登園 rows … 園児の番号
+     午睡 cells … 「園児の番号|時刻」
+     児童票 items … 「区分の番号_項目の番号」
+     健康 entries … 並び（番号は当てにならない。1件消すと全部ずれる）
+   そこで、欄ごとに「鍵を読む係」を持たせる。 */
+function lockKidName(id){
   try{
     var c=(DB.contacts||[]).filter(function(x){return String(x.id)===String(id);})[0];
     if(c&&typeof childFullName==='function')return childFullName(c);
   }catch(e){}
-  return String(id);
+  return '番号'+String(id);
 }
-function lockFlat(v,label,out){
-  if(v==null)return;
-  if(typeof v!=='object'){ out[label]=String(v); return; }
+function lockYesNo(v){
+  if(v===true||v==='true')return 'あり';
+  if(v===false||v==='false')return 'なし';
+  return String(v==null?'':v);
+}
+/* 塊を「読める名前 → 値」の一覧にほどく。深さは2段まで */
+function lockFlatten(o,lab,out,depth){
+  if(o==null)return;
+  if(typeof o!=='object'){ out[lab]=lockYesNo(o); return; }
+  if(depth>=2){ out[lab]=JSON.stringify(o); return; }
   var k;
-  for(k in v){
-    if(!Object.prototype.hasOwnProperty.call(v,k))continue;
-    var x=v[k];
-    if(x==null||x==='')continue;
-    if(typeof x==='object'){ out[label+'／'+k]=JSON.stringify(x); continue; }
-    out[label+'／'+k]=String(x);
+  for(k in o){
+    if(!Object.prototype.hasOwnProperty.call(o,k))continue;
+    var v=o[k];
+    if(v==null||v==='')continue;
+    lockFlatten(v,lab+'／'+k,out,(depth||0)+1);
   }
+}
+/* 欄ごとの「鍵を読む係」 */
+var LOCK_KEYERS={
+  kid:      function(k){ return lockKidName(k); },
+  kidTime:  function(k){ var p=String(k).split('|'); return lockKidName(p[0])+(p[1]?'／'+p[1]:''); },
+  devItem:  function(k){
+              var p=String(k).split('_');
+              try{
+                var c=DEV_CATS[+p[0]];
+                if(c&&c.items&&c.items[+p[1]])return c.cat+'／'+c.items[+p[1]][0];
+              }catch(e){}
+              return String(k);
+            }
+};
+/* 並びの塊（健康の症状など）は、番号ではなく中身の目印で突き合わせる */
+function lockListMap(arr,idKey){
+  var out={},i;
+  arr=arr||[];
+  for(i=0;i<arr.length;i++){
+    var x=arr[i]||{};
+    var id=idKey?x[idKey]:null;
+    out[(id!=null&&id!=='')?String(id):('#'+(i+1))]=x;
+  }
+  return out;
+}
+function lockSnap(d,fields){
+  var o={},i;
+  if(!d)return o;
+  for(i=0;i<fields.length;i++){
+    var k=fields[i].k, v=d[k];
+    o[k]=(v==null)?'':((typeof v==='object')?JSON.stringify(v):String(v));
+  }
+  return o;
 }
 function lockDiff(d,before,fields){
   if(!d||!d.lock||!before)return;
@@ -2966,32 +3024,27 @@ function lockDiff(d,before,fields){
   for(i=0;i<fields.length;i++){
     var f=fields[i],k=f.k;
     if(before[k]===after[k])continue;
-    /* 塊のときは、中を1段ほどいて変わったところだけ書く */
-    if(f.deep){
-      var b={},a={},kk;
-      try{ lockFlatAll(JSON.parse(before[k]||'{}'),b); }catch(e){}
-      try{ lockFlatAll(JSON.parse(after[k]||'{}'),a); }catch(e){}
-      var seen={};
-      for(kk in b)seen[kk]=1;
-      for(kk in a)seen[kk]=1;
-      var n=0;
-      for(kk in seen){
-        if(b[kk]===a[kk])continue;
-        lockNote(d,f.l+'（'+kk+'）',b[kk]||'',a[kk]||'');
-        n++;
-        if(n>=30){ lockNote(d,f.l,'（ほかにも変わったところがあります）',''); break; }
-      }
-      continue;
+    if(!f.deep){ lockNote(d,f.l,before[k],after[k]); continue; }
+    var bo={},ao={};
+    try{ bo=JSON.parse(before[k]||'{}'); }catch(e){}
+    try{ ao=JSON.parse(after[k]||'{}'); }catch(e){}
+    /* 並びのときは、番号ではなく目印で突き合わせる（1件消しても全件ずれない） */
+    if(Object.prototype.toString.call(bo)==='[object Array]'||Object.prototype.toString.call(ao)==='[object Array]'){
+      bo=lockListMap(bo,f.idKey); ao=lockListMap(ao,f.idKey);
     }
-    lockNote(d,f.l,before[k],after[k]);
-  }
-}
-/* 園児の番号を名前に直しながら、1段ほどく */
-function lockFlatAll(o,out){
-  var k;
-  for(k in o){
-    if(!Object.prototype.hasOwnProperty.call(o,k))continue;
-    lockFlat(o[k],lockLabelOf(k),out);
+    var keyer=LOCK_KEYERS[f.keyer]||function(x){return String(x);};
+    var b={},a={},kk;
+    for(kk in bo){ if(Object.prototype.hasOwnProperty.call(bo,kk))lockFlatten(bo[kk],keyer(kk),b,0); }
+    for(kk in ao){ if(Object.prototype.hasOwnProperty.call(ao,kk))lockFlatten(ao[kk],keyer(kk),a,0); }
+    var seen={},n=0;
+    for(kk in b)seen[kk]=1;
+    for(kk in a)seen[kk]=1;
+    for(kk in seen){
+      if(b[kk]===a[kk])continue;
+      if(n>=30){ lockNote(d,f.l+'（ほかにも変わったところがあります）','—','—'); break; }
+      lockNote(d,f.l+'（'+kk+'）',b[kk]||'（空）',a[kk]||'（空）');
+      n++;
+    }
   }
 }
 function stampWho(d){
@@ -3016,6 +3069,15 @@ function isLocked(d){ return !!(d&&d.lock); }
    ずっと開いたままだと、確定した意味が無くなるため。 */
 function lockSameDay(t){
   return String(t||'').slice(0,10)===todayISO();
+}
+/* 身体測定には鍵が2つある。
+   locked … 「保存する」で閉じる。開けるのは「編集する」
+   lock   … 「確定する」で閉じる。開けるのは園長の「修正を許可」
+   両方の鍵が開いているときだけ書ける。 */
+function bmCanEdit(d){
+  if(!d)return true;
+  if(d.locked)return false;
+  return lockCanEdit(d);
 }
 function lockCanEdit(d){
   if(!isLocked(d))return true;
@@ -3608,7 +3670,7 @@ function thFlowSave(v){
     }
     var r=d.rows[THF.child.id]||{att:'',temp:'',opts:{}};
     /* 確定のあとに直したときは跡に積む */
-    if(typeof lockNote==='function')lockNote(d,'体温（'+((THF.child&&THF.child.name)||'')+'）',r.temp,String(v));
+    if(typeof lockNote==='function')lockNote(d,'体温（'+((typeof childFullName==='function'&&THF.child)?childFullName(THF.child):((THF.child&&THF.child.name)||''))+'）',r.temp,String(v));
     r.temp=String(v);
     d.rows[THF.child.id]=r;
     if(typeof stampWho==='function')stampWho(d);
@@ -7925,10 +7987,15 @@ function curQuarter(){var m=addDays(0).getMonth()+1;return addDays(0).getFullYea
    （その時刻の列が出なくなるだけで、値は残る）。 */
 function napStep(){var n=+stGet('napStep',10);return (n===5||n===10||n===15||n===20||n===30)?n:10;}
 function napSlots(){var a=[],t,st=napStep();for(t=11*60+30;t<=13*60+30;t+=st)a.push(pad(Math.floor(t/60))+':'+pad(t%60));return a;}
-function ageClassOf(c){
+/* 何歳児かは、その年度の4月1日時点で決まる。
+   ★過去の日を開いたときに今年度で数えると、去年の記録が1つ上の歳児になる。
+     日付を渡せるようにし、渡されなければ今日で数える。 */
+function ageClassOf(c,onDate){
   if(!c||!c.dob)return (c&&c.klass)||'';
   var p=c.dob.split('-'),by=+p[0],bm=+p[1],bd=+p[2];
-  var now=addDays(0),fy=(now.getMonth()+1)>=4?now.getFullYear():now.getFullYear()-1;
+  var base=onDate?new Date(String(onDate)+'T00:00:00'):addDays(0);
+  var now=isNaN(base.getTime())?addDays(0):base;
+  var fy=(now.getMonth()+1)>=4?now.getFullYear():now.getFullYear()-1;
   var age=fy-by;if(bm>4||(bm===4&&bd>1))age--;
   if(age<0)age=0;if(age>5)age=5;
   return age+'歳児';
@@ -8570,7 +8637,7 @@ function edTouen(){
   var K='rec_登園シート',data=stGet(K,{}),d=data[recDate]||{klass:'Pre',weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
   /* 確定したあとに何が変わったかを、保存の直前に見比べて跡に積む */
   var TOUEN_F=[{k:'weather',l:'天気'},{k:'temp',l:'室温'},{k:'hum',l:'湿度'},
-               {k:'memo',l:'MEMO'},{k:'by',l:'記録者'},{k:'klass',l:'クラス'},{k:'rows',l:'園児ごとの記録',deep:true}];
+               {k:'memo',l:'MEMO'},{k:'by',l:'記録者'},{k:'klass',l:'クラス'},{k:'rows',l:'園児ごとの記録',deep:true,keyer:'kid'}];
   var opts=SET.attendOptions||[];
   var dp=recDate.split('-'),wd=WD[new Date(+dp[0],+dp[1]-1,+dp[2]).getDay()];
   /* 通園予定の曜日で絞る。ただし、保護者から連絡が来た園児や、すでに記録がある園児は
@@ -8719,7 +8786,7 @@ function napBlock(klass){
   d.klass=klass;                       /* 登園側で選んだクラスに合わせる */
   var slots=napSlots(),kids=classOf(klass);
   /* 午睡も、確定のあとに直したら跡に積む（登園・健康と同じ形） */
-  var NAP_F=[{k:'cells',l:'午睡の記録',deep:true},{k:'charge',l:'担当'},{k:'memo',l:'メモ'}];
+  var NAP_F=[{k:'cells',l:'午睡の記録',deep:true,keyer:'kidTime'},{k:'charge',l:'担当'},{k:'memo',l:'メモ'}];
   var _npSnap=lockSnap(d,NAP_F);
   function save(){
     lockDiff(d,_npSnap,NAP_F);
@@ -8797,7 +8864,7 @@ function edNap(){ return edTouen(); }
 function edHealth(){
   var K='rec_健康チェック',data=stGet(K,{}),d=data[recDate]||{entries:[],by:''};
   if(!d.entries)d.entries=[];
-  var HL_F=[{k:'by',l:'記録者'},{k:'allHealthy',l:'全員「症状なし」'},{k:'entries',l:'症状の記録',deep:true}];
+  var HL_F=[{k:'by',l:'記録者'},{k:'allHealthy',l:'全員「症状なし」'},{k:'entries',l:'症状の記録',deep:true,idKey:'childId',keyer:'kid'}];
   var _hlSnap=lockSnap(d,HL_F);
   function save(){
     lockDiff(d,_hlSnap,HL_F);
@@ -8863,7 +8930,7 @@ function healthModal(idx,d,save,pre){
 function edBody(){
   var K='rec_身体測定',data=stGet(K,{}),d=data[recMonth]||{rows:{}};
   var BM_F=[{k:'by',l:'記録者'},{k:'locked',l:'保存の状態'}];
-  var BM_F2=[{k:'rows',l:'身長・体重',deep:true}].concat(BM_F);
+  var BM_F2=[{k:'rows',l:'身長・体重',deep:true,keyer:'kid'}].concat(BM_F);
   var kids=enrolled().filter(function(c){return bmKlass==='すべて'||c.klass===bmKlass;});
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
@@ -8883,8 +8950,8 @@ function edBody(){
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
       return '<tr><td class="row-name">'+esc(childFullName(c))+'<div class="row-sub">'+ageClassOf(c)+'</div></td><td>'+esc(c.klass)+'</td>'+
-      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+((d.locked&&!lockCanEdit(d))?' disabled':'')+'></td>'+
-      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+((d.locked&&!lockCanEdit(d))?' disabled':'')+'></td>'+
+      '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
+      '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td></tr>';}).join(''):'<tr><td colspan="5" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   var _bmSnap=lockSnap(d,BM_F);
@@ -8897,7 +8964,7 @@ function edBody(){
   /* 「保存する」で閉じた月でも、確定の許可が出ているあいだは直せる。
      これを見ないと、帯は「きょうのうちだけ直せます」と言うのに
      入力欄が固まったまま、という食い違いになる。 */
-  if(!d.locked||lockCanEdit(d))document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;lockDiff(d,_bmSnap,BM_F2);_bmSnap=lockSnap(d,BM_F2);save();$('#kp'+p[0]).textContent=kaup(r);};});
+  if(bmCanEdit(d))document.querySelectorAll('[data-b]').forEach(function(inp){inp.oninput=function(){var p=inp.getAttribute('data-b').split('|');var r=rowOf(+p[0]);r[p[1]]=inp.value;lockDiff(d,_bmSnap,BM_F2);_bmSnap=lockSnap(d,BM_F2);save();$('#kp'+p[0]).textContent=kaup(r);};});
   /* 打っているあいだは自動で残る。「保存する」を押したら、その月の数字は直せないようにする */
   if($('#bmSave'))$('#bmSave').onclick=function(){
     var filled=Object.keys(d.rows).filter(function(id){var r=d.rows[id]||{};return r.h||r.w;});
@@ -9159,8 +9226,13 @@ function edKujo(){
     /* 表題は年度を名乗るのに、中身は全年度が載っていた。
        受付日で4月〜翌3月に絞る。日付が空の行は、当年度の末尾に置く。 */
     var log=stGet(K,[]).filter(function(r){
-      if(!r||!r.date)return true;
+      if(!r)return false;
+      if(!(r.date||r.content||r.person))return false;   /* 押しただけの空行は出さない */
+      if(!r.date)return fy===curFY();                    /* 受付日が空のものは当年度だけ */
       return fyOf(r.date)===fy;
+    }).sort(function(a,b){                                /* 受付日の順。空は末尾 */
+      var x=a.date||'9999', y=b.date||'9999';
+      return x<y?-1:x>y?1:0;
     });
     var b5='<p style="text-align:center;font-size:20px;font-weight:700;">苦情受付・処理の記録</p>'
       +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
@@ -9220,7 +9292,7 @@ function edDev(){
       c.items.map(function(it,ii){var key=ci+'_'+ii,val=rec.items[key]||'';return '<tr><td>'+it[0]+'</td><td style="width:230px;"><select data-dv="'+esc(key)+'"><option value="">—</option>'+it[1].map(function(o){return '<option'+(o===val?' selected':'')+'>'+o+'</option>';}).join('')+'</select></td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+(rec.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field" style="margin:0;"><label>記録者</label><input id="dvBy" value="'+(rec.by||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>':'')+'</div>';
-  var DV_F=[{k:'items',l:'各項目の選び方',deep:true},{k:'memo',l:'メモ'},{k:'by',l:'記録者'}];
+  var DV_F=[{k:'items',l:'各項目の選び方',deep:true,keyer:'devItem'},{k:'memo',l:'メモ'},{k:'by',l:'記録者'}];
   var _dvSnap=lockSnap(rec,DV_F);
   function save(){
     lockDiff(rec,_dvSnap,DV_F);
@@ -9874,17 +9946,20 @@ function haichiRatio(){
 function haichiMin(){var n=+stGet('haichiMin',2);return (n>0)?n:2;}
 /* その日に来ていた園児を、歳児ごとに数える */
 function haichiKids(date){
-  var d=stGet('rec_登園シート',{})[date],by={},total=0;
-  if(!d||!d.rows)return {by:by,total:0};
+  var d=stGet('rec_登園シート',{})[date],by={},total=0,unknown=0;
+  if(!d||!d.rows)return {by:by,total:0,unknown:0};
   var en=enrolled();
   en.forEach(function(c){
     var r=d.rows[c.id];
     if(!r||['●','早','遅'].indexOf(r.att)<0)return;
-    var a=String(ageClassOf(c)).replace(/[^0-9]/g,'');
-    if(a==='')a='5';
+    /* ★生年月日が無い子を「5歳児」（25人に1人）として数えると、
+       足りないのに足りていると出る。分からないときは一番きびしい側（0歳児）で数え、
+       園に生年月日を入れてもらう。 */
+    var a=c.dob?String(ageClassOf(c,date)).replace(/[^0-9]/g,''):'';
+    if(a===''){ a='0'; unknown++; }
     by[a]=(by[a]||0)+1; total++;
   });
-  return {by:by,total:total};
+  return {by:by,total:total,unknown:unknown};
 }
 /* 必要な保育士の数。歳児ごとに切り上げてから足す（国の数え方） */
 /* 必要な保育士の数。
@@ -9947,7 +10022,7 @@ function haichiStaff(date){
 }
 function haichiFor(date){
   var kids=haichiKids(date),need=haichiNeed(kids.by),st=haichiStaff(date);
-  return {date:date, by:kids.by, kids:kids.total, need:need,
+  return {date:date, by:kids.by, kids:kids.total, need:need, unknown:kids.unknown||0,
           staff:st.n, src:st.src, short:Math.max(0,need-st.n)};
 }
 /* その日の帯。登園（出席）の画面に出す */
@@ -9974,8 +10049,9 @@ function haichiBarHtml(date){
     /* 職種を見ていないので「保育士が」とは言い切らない。出勤の記録の人数として出す */
     +'<span style="flex:1;min-width:200px;"><b>'+(ok?'出勤の人数は足りています':'出勤の記録が '+h.short+'人 足りません')+'</b>'
     +'　登園 '+h.kids+'名（'+esc(ages)+'）／必要 '+h.need+'人／'+esc(h.src)+' '+h.staff+'人</span>'
-    +'<span style="opacity:.8;font-size:11.5px;">出勤の記録の人数です。保育士の資格までは見ていません。数は目安なので自治体にご確認ください</span>'
-    +'</div>';
+    +'<span style="opacity:.8;font-size:11.5px;">出勤の記録の人数です。保育士の資格までは見ていません。数は目安なので自治体にご確認ください'
+    +(h.unknown?'<br><b>生年月日が入っていない園児が '+h.unknown+'名います。いちばんきびしい0歳児として数えています。生徒台帳に入れてください。</b>':'')
+    +'</span></div>';
 }
 /* 月ぶんの足りない日 */
 /* 足りていない日。
@@ -14063,7 +14139,32 @@ function taskAutoDone(t,mk){
     /* 左の並びに合わせて「研修・訓練」に名前を変えた。園の端末に前の名前が残っていても
        自動で「済」になるように、どちらの名前でも見るようにしている */
     if(p==='研修・訓練'||p==='防火管理台帳・消火訓練'){var fy=(+mk.slice(5,7)>=4)?+mk.slice(0,4):+mk.slice(0,4)-1;var bd=boukaGet(fy);return BOUKA_MONTHS.some(function(mo){var r=bd.rows[mo];return r&&r.date&&r.date.slice(0,7)===mk;});}
-    if(p==='カリキュラム')return (CUR.month===mk);
+    if(p==='カリキュラム'){
+      /* CUR.month は「いま画面で見ている月」なので、それで済にすると
+         何も書いていなくても済になり、別の月を開くと未に戻る。
+         その月に実際に何か入っているかで見る。 */
+      var sc=(CUR.schedule||{}),ck,has=false;
+      for(ck in sc){
+        if(!Object.prototype.hasOwnProperty.call(sc,ck))continue;
+        var dd=sc[ck]||{},dk;
+        for(dk in dd){
+          if(String(dk).slice(0,7)!==mk)continue;
+          var rr=dd[dk]||{};
+          if(rr.am||rr.pm||rr.amText||rr.pmText||rr.memo||rr.teacher){has=true;break;}
+        }
+        if(has)break;
+      }
+      if(!has){
+        var am=(CUR.actMonthlyM||{})[mk]||{},ak2;
+        for(ak2 in am){
+          if(!Object.prototype.hasOwnProperty.call(am,ak2))continue;
+          var cc=am[ak2]||{},tk;
+          for(tk in cc){ var vv=cc[tk]||{}; if(vv.theme||vv.teacher||vv.goal){has=true;break;} }
+          if(has)break;
+        }
+      }
+      return has;
+    }
     if(p==='シフト表'||p==='出勤簿')return !!stGet('shifts',{})[mk];
     if(p==='経費管理'){var ex=stGet('expenses',{})[mk];return !!(ex&&(ex.rows||[]).length);}
     if(p==='請求書発行'){var iv=stGet('invoices',{})[mk];return !!(iv&&Object.keys(iv).length);}
