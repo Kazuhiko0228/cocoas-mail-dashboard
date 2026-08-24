@@ -2004,7 +2004,7 @@ var AUDIT_CATS=[
     {key:'shintai',name:'身体測定記録（昨年度含む）',place:'身体測定記録表・個別 健康手帳',when:'運営中',sys:'carerec'},
     {key:'hattatsu',name:'児童票（成長の記録・毎月）',place:'システム内・保育記録',when:'運営中',sys:'carerec'},
     {key:'keiyaku',name:'利用契約書（原本）',place:'規約・料金表・利用にあたって（掲示）',when:'年度前',sys:'docs'},
-    {key:'keiyaku_sign',name:'利用契約書（保護者がサインしたもの）',place:'',when:'年度前',sys:'docs',note:'園児ごとのサイン済みの契約書をまとめて保管し、その場所を「書類格納」に登録してください。'}
+    {key:'keiyaku_sign',name:'利用契約書（保護者がサインしたもの）',place:'システム内（生徒台帳）',when:'年度前',sys:'roster',note:'園児ひとりずつ、生徒台帳の「サインをいただいた書類」に入れてください。紙の原本は園で保管し、この画面にはその写真かPDF、または置き場所のURLを入れます。誰の分が足りていないかは、生徒台帳の一覧の「契約書」でわかります。'}
   ]},
   {cat:'② 保育内容',items:[
     {key:'daily',name:'日々の活動内容記録',place:'カリキュラム（日別スケジュール・日案）',when:'運営中',sys:'curriculum',note:'1日ごとに書いて出す必要はありません。園のパンフレットや説明書に活動の内容が書いてあれば、それで足ります。指導計画（月案・週案・日案）もこの記録でまとめて出せます。'},
@@ -2589,6 +2589,15 @@ function auditDataInfo(key,fy){
       }).length;
       return kgn?(kgn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');}
     case 'nisshi': return lockInfo(auditPickFY(stGet('rec_日報',{}),fy),'日分',nippoHas);
+    case 'keiyaku_sign': {
+      /* 園児ごとに揃っているかを見るので、年度では分けず「現在」の在園児で数える。 */
+      var kcn=kidDocCount('利用契約書');
+      var kslot=stGet('docs',{})[AUDIT_DOC_SLOT.keiyaku_sign]||{};
+      /* 前に「書類格納」へまとめて入れていた園のために、そちらも残っていれば伝える。 */
+      var kx=((kslot.file&&kslot.file.key)||docIsStored(kslot.url))?'　／　書類格納にもまとめた控えあり':'';
+      if(!kcn.total)return '在園の生徒がいません'+kx;
+      return '在園 '+kcn.total+'名のうち '+kcn.done+'名ぶん登録済み（生徒台帳・現在）'+kx;
+    }
     case 'gyakutai': {
       var gyn=Object.keys(auditPickFY(stGet('rec_虐待防止',{}),fy)).length;
       return gyn?(gyn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
@@ -13174,8 +13183,11 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
        - guide_files … スクールガイドの原本
        - contactPhotos … 園児・保護者の顔写真
        - staffDocs … 職員の資格証・身分証の控え（画像）
-       いずれも別の鍵に分けてあるので、記録そのものの同期は止まらない。 */
-    if(/^cocoas_(guide_files|contactPhotos|staffDocs)$/.test(key))return;
+       - kidDocs … 園児ごとのサイン済み書類（中身はこの端末の別の入れ物にある）
+       いずれも別の鍵に分けてあるので、記録そのものの同期は止まらない。
+       ★kidDocs は、この端末の中にしか無いファイルの置き場所を指している。
+         ほかの端末へ送ると、開けない行だけが並んでしまう。 */
+    if(/^cocoas_(guide_files|contactPhotos|staffDocs|kidDocs)$/.test(key))return;
     if(/^cocoas_pstate_/.test(key))return;   /* 保護者から届いた控え。園の帳簿ではないので送り返さない */
     SYNC.queue[key.replace(/^cocoas_/,'')]=true;
     clearTimeout(SYNC.timer);
@@ -14362,6 +14374,35 @@ var SP_SEED={
   14:{romaji:'Yuna',sex:'女の子',blood:'AB',zip:'338-0004',address:'〇〇市〇〇区（サンプル4-4）',telHome:'000-0000-0014',allergy:'なし',doctor:'〇〇耳鼻科（例）',normalTemp:'36.7',emg1:'090-2004-0004',emg1rel:'母',lat:35.8882,lng:139.6282},
   15:{romaji:'Minato',sex:'男の子',blood:'A',zip:'338-0005',address:'〇〇市〇〇区（サンプル5-5）',telHome:'000-0000-0015',allergy:'牛乳',doctor:'なし',normalTemp:'36.9',history:'有',emg1:'090-2005-0005',emg1rel:'母',lat:35.8762,lng:139.6402}
 };
+/* ══ 園児ごとの、サインをいただいた書類 ═══════════════
+   利用契約書のように保護者にサインをいただいた紙を、園児ひとりずつ残す。
+   監査では「園児ごとに揃っているか」を見られるので、誰の分が無いかが分かる形にした。
+   中身（PDF・写真）は書類格納と同じ入れ物（この端末の中）に置き、
+   ここには種類・ファイル名・大きさだけを残す。ほかの端末には出ない。 */
+function kidDocs(){return stGet('kidDocs',{});}
+function kidDocsOf(id){return kidDocs()[id]||[];}
+function kidDocsSet(id,list){var a=kidDocs();if(list&&list.length)a[id]=list;else delete a[id];stSet('kidDocs',a);}
+var KID_DOC_KINDS=['利用契約書（サイン済み）','重要事項説明書（サイン済み）','個人情報の取り扱いの同意書','アレルギー児の生活管理指導表','その他'];
+/* その園児に、その種類の書類が「たどれる形で」入っているか。
+   URLでもファイルでもない空の行やメモだけの行は数えない
+   （中身が無いのに「揃っている」と言わないため）。 */
+function kidDocHas(id,kind){
+  var l=kidDocsOf(id),i,d;
+  for(i=0;i<l.length;i++){
+    d=l[i]||{};
+    if(String(d.kind||'').indexOf(kind)<0)continue;
+    if(d.file&&d.file.key)return true;
+    if(docIsStored(d.url))return true;
+  }
+  return false;
+}
+/* 在園児のうち、その書類が入っている人数。監査の一覧と生徒台帳の見出しで使う。 */
+function kidDocCount(kind){
+  var ks=[],n=0;
+  try{ks=enrolled();}catch(e){ks=[];}
+  ks.forEach(function(c){if(kidDocHas(c.id,kind))n++;});
+  return {done:n,total:ks.length};
+}
 function spSeed(){var s=stGet('studentProfiles',null);if(!s){stSet('studentProfiles',SP_SEED);}if(!stGet('mapConfig',null)){stSet('mapConfig',DEFAULT_MAP);}}
 function spStore(){return stGet('studentProfiles',{});}
 function mapCfg(){return stGet('mapConfig',DEFAULT_MAP);}
@@ -14669,9 +14710,13 @@ function renderRoster(){
   else wireRosterMap(rosterMapKids());
 }
 function rosterList(kids){
+  var kc=kidDocCount('利用契約書');
   return '<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
-    +'<table><thead><tr><th>お子様</th><th>ふりがな・英語</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
-    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childFullNameHon(c))+'</span></td><td class="row-sub">'+esc(spKanaText(p)||'—')+'</td><td class="row-sub">'+(p.dob?pdMd(p.dob,true):'—')+'</td><td>'+spAge(p.dob)+(p.dob?' <span class="muted">（'+esc(ageClassOf({dob:p.dob,klass:p.klass||c.klass}))+'）</span>':'')+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+esc(c.id)+'">開く</button></td></tr>';}).join('')
+    +'<div style="display:flex;gap:10px;align-items:flex-start;background:'+(kc.done>=kc.total&&kc.total?'#EAF3DE':'#FAEEDA')+';border:1px solid '+(kc.done>=kc.total&&kc.total?'#639922':'#E9C88B')+';border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:12.5px;line-height:1.6;color:'+(kc.done>=kc.total&&kc.total?'#27500A':'#6b3f08')+';">'
+      +'<div style="flex:1;">利用契約書（保護者がサインしたもの）　<b>在園 '+kc.total+'名のうち '+kc.done+'名ぶん登録済み</b>'
+      +'<div style="font-size:11.5px;margin-top:2px;">「開く」→ いちばん下の「サインをいただいた書類」から、園児ひとりずつ入れられます。</div></div></div>'
+    +'<table><thead><tr><th>お子様</th><th>ふりがな・英語</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>契約書</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
+    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childFullNameHon(c))+'</span></td><td class="row-sub">'+esc(spKanaText(p)||'—')+'</td><td class="row-sub">'+(p.dob?pdMd(p.dob,true):'—')+'</td><td>'+spAge(p.dob)+(p.dob?' <span class="muted">（'+esc(ageClassOf({dob:p.dob,klass:p.klass||c.klass}))+'）</span>':'')+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(kidDocHas(c.id,'利用契約書')?'<span class="pill" style="background:#EAF3DE;color:#27500A;">済</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未</span>')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+esc(c.id)+'">開く</button></td></tr>';}).join('')
     +'</tbody></table></div>';
 }
 function wireRosterList(){
@@ -14765,7 +14810,90 @@ function rosterProfile(kids){
   h+=rpGuardCard(rpGuards);
   h+=rpHealthCard(p);
   h+=spCardHTML(SP_GROUPS[2],p);
+  h+=rpDocCard();
   return h;
+}
+/* 園児ひとりぶんの「サインをいただいた書類」。
+   足す・ひらく・消すは押したその場で保存する（上の「保存」は待たない）。
+   上の「保存」は入っていない項目があると止まるので、そこに乗せると書類も入らなくなる。 */
+function rpDocCard(){
+  return '<div class="card" style="margin-bottom:12px;">'
+    +'<h3 style="font-size:14px;">'+ic('doc')+'サインをいただいた書類</h3>'
+    +'<div id="rpDocs"></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">'
+      +'<select id="rp_docKind" style="width:240px;">'+KID_DOC_KINDS.map(function(k){return '<option>'+esc(k)+'</option>';}).join('')+'</select>'
+      +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'PDF・写真を選ぶ<input type="file" id="rp_docFile" accept="image/*,application/pdf" style="display:none;"></label>'
+      +'<input id="rp_docUrl" placeholder="またはDriveのURLを貼り付け" style="flex:1;min-width:180px;">'
+      +'<button type="button" class="btn btn-sm" id="rp_docAdd">'+ic('plus')+'追加</button>'
+    +'</div>'
+    +'<div id="rp_docMsg" class="muted" style="font-size:11.5px;margin-top:6px;"></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:4px;">紙の原本は園で保管してください。ここに入れた中身は<b>この端末の中だけ</b>に残り、外へは出ません。ほかの端末では出ないので、<b>いつも同じ端末から入れてください</b>。1つ '+docSizeText(DOC_FILE_MAX)+' まで。</div>'
+    +'</div>';
+}
+function rpDocsRender(id){
+  var box=$('#rpDocs');if(!box)return;
+  var list=kidDocsOf(id);
+  box.innerHTML=list.length?list.map(function(d,i){
+    var f=d.file;
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;">'
+      +'<span style="width:46px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:4px;flex:none;">'+ic('doc')+'</span>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">'+esc(d.kind||'')+'</div>'
+      +((f&&f.key)?'<div class="row-sub">'+esc(f.name||'')+'　'+esc(docSizeText(f.size))+'　'+esc(d.at||'')+'</div>'
+        :(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener" class="row-sub" style="color:var(--teal);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap;">'+esc(d.url)+'</a>'
+               :'<div class="row-sub" style="color:#A32D2D;">中身が入っていません（PDF・写真かURLを入れてください）　'+esc(d.at||'')+'</div>'))
+      +'</div>'
+      +((f&&f.key)?'<button type="button" class="btn btn-sm" data-kdopen="'+i+'">ひらく</button> ':'')
+      +'<button type="button" class="btn btn-sm btn-ghost" data-kddel="'+i+'" title="この書類を消す">'+ic('trash')+'</button></div>';
+  }).join(''):'<div class="muted" style="font-size:12px;">まだ登録がありません。</div>';
+  box.querySelectorAll('[data-kdopen]').forEach(function(b){b.onclick=function(){
+    var d=kidDocsOf(id)[+b.getAttribute('data-kdopen')]||{},f=d.file;
+    if(!f||!f.key){alert('この書類は取り込まれていません。');return;}
+    docFileGet(f.key,function(err,blob){
+      if(err||!blob){alert('この端末に書類が見つかりませんでした。もう一度入れてください。');return;}
+      var u=URL.createObjectURL(blob),w=window.open(u,'_blank');
+      if(!w)alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');
+      setTimeout(function(){URL.revokeObjectURL(u);},60000);
+    });
+  };});
+  box.querySelectorAll('[data-kddel]').forEach(function(b){b.onclick=function(){
+    var i=+b.getAttribute('data-kddel'),l=kidDocsOf(id),d=l[i]||{};
+    if(!confirm('「'+(d.kind||'この書類')+'」を消します。'+((d.file&&d.file.name)?'\nこの端末に入れた「'+d.file.name+'」も消えます。':'')+'\n戻せません。よろしいですか？'))return;
+    if(d.file&&d.file.key)docFileDel(d.file.key,function(){});
+    l.splice(i,1);kidDocsSet(id,l);rpDocsRender(id);
+  };});
+}
+function wireRpDocs(id){
+  rpDocsRender(id);
+  var pend=null,fi=$('#rp_docFile');
+  function msg(t){var e=$('#rp_docMsg');if(e)e.textContent=t;}
+  if(fi)fi.onchange=function(e){
+    var fl=e.target.files&&e.target.files[0];if(!fl)return;
+    if(fl.size>DOC_FILE_MAX){msg('このファイルは大きすぎます（'+docSizeText(fl.size)+'）。'+docSizeText(DOC_FILE_MAX)+' までにしてください。');fi.value='';pend=null;return;}
+    pend=fl;msg('「'+fl.name+'」を読み込みました。「追加」を押すと保管されます。');
+  };
+  if($('#rp_docAdd'))$('#rp_docAdd').onclick=function(){
+    var kind=$('#rp_docKind').value,url=$('#rp_docUrl').value.trim();
+    if(!pend&&!url){msg('PDF・写真を選ぶか、URLを入れてください。');return;}
+    function push(file){
+      var l=kidDocsOf(id);
+      l.push({kind:kind,url:url,file:file||null,at:todayISO()});
+      try{kidDocsSet(id,l);}catch(e2){msg('保存できませんでした（保存容量が足りない可能性があります）');return;}
+      pend=null;
+      if($('#rp_docUrl'))$('#rp_docUrl').value='';
+      if(fi)fi.value='';
+      msg('登録しました。');
+      rpDocsRender(id);
+      /* 一覧の「契約書」の印もその場で変わるようにする */
+      try{if(typeof renderRoster==='function'&&rosterTab==='list')renderRoster();}catch(e3){}
+    }
+    if(!pend){push(null);return;}
+    var key=docFileKey(),fl=pend;
+    msg('取り込んでいます…');
+    docFilePut(key,fl,function(err){
+      if(err){msg('取り込めませんでした。'+((err&&err.message)||err||''));return;}
+      push({key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO()});
+    });
+  };
 }
 function wireRpGuards(){
   var box=$('#rpGuardBox');if(!box)return;
@@ -14777,6 +14905,7 @@ function wireRpGuards(){
 }
 function wireRosterProfile(){
   if($('#rpSel'))$('#rpSel').onchange=function(){rosterSel=+this.value;renderRoster();};
+  wireRpDocs(rosterSel);
   if($('#rpMapBtn'))$('#rpMapBtn').onclick=function(){rosterTab='map';renderRoster();};
   wireRpGuards();
   if($('#rpGuardAdd'))$('#rpGuardAdd').onclick=function(){
@@ -16916,7 +17045,7 @@ var LOG_LABEL={
      本部の画面にも同じ一覧を出すので、園の先生と本部の両方が読める日本語にする。 */
   'cocoas_rec_虐待防止':'虐待防止チェックシート',
   'cocoas_invoices':'請求書','cocoas_expenses':'経費管理','cocoas_cashCount':'小口現金の数え合わせ',
-  'cocoas_timecards':'出勤簿','cocoas_staffDocs':'職員の書類','cocoas_facility':'施設の情報・取引先',
+  'cocoas_timecards':'出勤簿','cocoas_staffDocs':'職員の書類','cocoas_kidDocs':'園児のサイン済み書類','cocoas_facility':'施設の情報・取引先',
   'cocoas_bouka':'防火管理台帳・消火訓練','cocoas_hoiku_kenshu':'保育研修の記録',
   'cocoas_rec_kujo':'保護者対応の記録','cocoas_kaigi':'職員会議・クラス議事録',
   'cocoas_recScans':'取り込んだ紙の記録','cocoas_trialReports':'体験の報告',
