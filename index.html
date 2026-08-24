@@ -9705,26 +9705,33 @@ function bfNapSlots(){
 }
 /* 午睡は10分ごとに誰が確認したかを残す必要がある。
    名前を手書きしてもらうと、あとで読み取るときに崩れて判別できない。
-   時刻 × 職員名のマス目に ◯ を印刷しておき、
+   職員名（縦）× 時刻（横）のマス目に ◯ を印刷しておき、
    確認した人が自分の ◯ を黒く塗りつぶす形にする。
-   塗りつぶしなら、機械でも人でも読み違えない。 */
+   塗りつぶしなら、機械でも人でも読み違えない。
+   ★向きは園児の表と必ず揃える。園児の表は「園児（縦）× 時刻（横）」なので、
+     担当者の表も同じ向きにし、左の欄を園児の表の左ブロックと同じ幅にする。
+     こうすると同じ時刻が真上と真下で一直線に並び、
+     「11:40 は誰が見て、そのとき各園児がどうだったか」を縦にたどれる。
+     .blankform は table-layout:fixed なので、左を同じ幅にすれば残りの時刻列も同じ幅になる。 */
 function bfStaffNames(){
   var names=[];
   try{names=(DB.staff||[]).map(function(s){return s.name;}).filter(Boolean).slice(0,8);}catch(e){}
   if(!names.length)names=['＿＿＿＿','＿＿＿＿','＿＿＿＿','＿＿＿＿'];
   return names;
 }
+var BF_KIDHEAD_W=402;   /* 園児の表の左ブロックの合計幅。ここを変えたら担当者の表も一緒に変える */
 function bfNapStaffTable(){
   var names=bfStaffNames(),slots=bfNapSlots();
   return '<div style="font-size:10.5px;font-weight:700;margin:2px 0 3px;">'
       +'午睡チェック 担当者　'
-      +'<span style="font-weight:400;">確認した時刻の行で、ご自分の名前の ◯ を <b>●</b> に塗りつぶしてください</span></div>'
-    +'<table class="blankform" style="width:auto;min-width:340px;"><thead><tr><th style="width:44px;font-size:8.5px;">時刻</th>'
-    +names.map(function(n){return '<th style="width:78px;font-size:8.5px;">'+esc(n)+'</th>';}).join('')
+      +'<span style="font-weight:400;">確認した時刻の列で、ご自分の行の ◯ を <b>●</b> に塗りつぶしてください</span></div>'
+    +'<table class="blankform"><thead><tr>'
+    +'<th class="nm" style="width:'+BF_KIDHEAD_W+'px;font-size:8.5px;">担当の先生</th>'
+    +slots.map(function(t){return '<th style="font-size:8px;padding:2px 1px;">'+t+'</th>';}).join('')
     +'</tr></thead><tbody>'
-    +slots.map(function(t){return '<tr><td style="font-size:9px;font-weight:600;">'+t+'</td>'
-      +names.map(function(){
-        return '<td style="text-align:center;font-size:11px;color:#333;padding:1px;">◯</td>';}).join('')
+    +names.map(function(n){return '<tr><td class="nm" style="font-size:9px;font-weight:600;">'+esc(n)+'</td>'
+      +slots.map(function(){
+        return '<td style="text-align:center;font-size:11px;color:#333;padding:2px 1px;">◯</td>';}).join('')
       +'</tr>';}).join('')
     +'</tbody></table>';
 }
