@@ -7660,7 +7660,7 @@ function renderCompose(){
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('send')+'送信</h3>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;"><div><label>差出人</label><input value="'+esc(SET.sender)+'" readonly placeholder="未設定（設定 → 送信設定）" style="background:#F7F9FC;"></div><div><label>BCC（本部共有・自動付与）</label><input value="'+esc(SET.bcc)+'" readonly style="background:#F7F9FC;"></div></div>'+
-      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="cmpSend">'+ic('send')+'控えに残す（送信はまだできません）</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="cmpSchedAt" style="width:200px;"><button class="btn" id="cmpSched">'+ic('clock')+'予約</button><span class="muted" id="cmpCount"></span></div>'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="cmpSend">'+ic('send')+'未来WAへ送る</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="cmpSchedAt" style="width:200px;"><button class="btn" id="cmpSched">'+ic('clock')+'予約</button><span class="muted" id="cmpCount"></span></div>'+
       '<div class="pbar"><div id="cmpBar"></div></div><div class="send-log" id="cmpLog"></div></div>';
   /* 園が書き直した分・作った分も含めて出す */
   var _mall=mailTplAll();
@@ -7712,28 +7712,55 @@ function renderCompose(){
    出しており、園は請求書や休園の連絡を全家庭へ送ったつもりになっていた。
    実際にやっているのは控え（送信済みメール）への記録だけ。
    保護者DMは 13124 行あたりで同じ理由からすでに文言を直してある。ここもそろえる。 */
+/* ★通知と送付物は、メールではなく保護者の未来WA（parent.html）へ届ける。
+     園と保護者は同じ保存場所を見ているので、園が書いたものを保護者の画面が読む。
+       一斉配信 … history の kind:'broadcast' → 未来WAの「おたより」
+       個別     … dmThreads                  → 未来WAの「園からの個人メッセージ」
+       身体測定 … bmShared                    → 未来WAの「身体記録」
+       請求書   … invoices の「送付済」        → 未来WAの「保育料のご請求」
+     未来WAは在園のご家庭のものなので、見学・体験のリードの方には届かない。
+     届かない相手は、その場で1件ずつ名前を出す。黙って控えだけ残すと、
+     送ったつもりで1軒も届いていない、ということが起きる。 */
+function waHasApp(c){ return !!(c && c.id!=null && c.kind==='enrolled'); }
+function waDeliverPersonal(c,subject,body){
+  if(!waHasApp(c))return false;
+  if(typeof dmPost!=='function')return false;
+  dmPost(c.id,'staff',SET.school||'園',(subject?subject+'\n\n':'')+String(body||''));
+  return true;
+}
 function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind,bcc){
   /* bcc は、その1回だけの控えの送り先。空なら設定のBCCを使う */
   var useBcc=String(bcc||SET.bcc||'');
   if(!list.length){log.innerHTML='<div class="li" style="color:#A32D2D;">宛先が選択されていません。</div>';return;}
   log.innerHTML='';
   var now=new Date(),stamp=pad(now.getHours())+':'+pad(now.getMinutes());
-  var h=DB.history;
+  var h=DB.history,isB=(kind==='broadcast'),okN=0,ng=[];
   list.forEach(function(c){
-    log.appendChild(el('div',{class:'li'},'控えに記録：'+esc(c.name)+' 様（'+esc(c.email||'メールアドレス未登録')+'）'));
+    var subj=perPerson?fillTokens(subjectTpl,c,ctx):subjectTpl;
+    var body=perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl;
     h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,
-      tpl:tplLabel,kind:(kind||''),to:c.name+' 様',email:c.email,from:SET.sender,bcc:useBcc,
-      subject:perPerson?fillTokens(subjectTpl,c,ctx):subjectTpl,
-      body:perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl});
+      tpl:tplLabel,kind:(kind||'personal'),to:c.name+' 様',email:c.email,from:SET.sender,bcc:useBcc,
+      subject:subj,body:body});
+    /* 一斉配信は history をそのまま「おたより」が読む。個別はメッセージへ積む */
+    var ok=isB?waHasApp(c):waDeliverPersonal(c,subj,body);
+    if(ok){okN++;
+      log.appendChild(el('div',{class:'li'},'未来WAへ送りました：'+esc(c.name)+' 様'));
+    }else{ng.push(c.name);
+      log.appendChild(el('div',{class:'li'},
+        '<span style="color:#A32D2D;">届きません：'+esc(c.name)+' 様（未来WAをお使いではありません）</span>'));
+    }
   });
   DB.history=h;
   bar.style.width='100%';
-  var done=el('div',{class:'li'},
-    '<span style="color:#854F0B;font-weight:600;">'+list.length+'件を「送信済みメール」に控えとして残しました。</span>');
-  log.appendChild(done);
   log.appendChild(el('div',{class:'li'},
-    '<span style="color:#854F0B;">この画面からメールは送られません（送る仕組みはまだできていません）。'
-    +'お手数ですが、控えを開いて内容をコピーし、園のメールソフトから送ってください。</span>'));
+    '<span style="color:#0F6E56;font-weight:600;">'+okN+'件を保護者の未来WAへ送りました'
+    +'（'+(isB?'ホームの「おたより」':'「園からの個人メッセージ」')+'に出ます）。</span>'));
+  if(ng.length)log.appendChild(el('div',{class:'li'},
+    '<span style="color:#A32D2D;font-weight:600;">'+ng.length+'件は届いていません：'+esc(ng.join('・'))
+    +'。未来WAは在園のご家庭のものです。控えは「送信済みメール」に残しました。</span>'));
+  log.appendChild(el('div',{class:'li'},
+    '<span style="color:#854F0B;">メールは送っていません（メールを送る仕組みはまだありません）。'
+    +'メールでも届けたいときは、控えを開いて内容をコピーし、園のメールソフトから送ってください。</span>'));
 }
 
 
@@ -7829,7 +7856,7 @@ function renderBroadcast(){
       '<div class="card"><h3>'+ic('mail')+'プレビュー</h3><div class="muted" style="margin:-4px 0 8px;">送ると、この文章がそのまま保護者に届きます。この欄は直せません。</div><div class="preview" id="bPreview"></div></div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;">'+
-      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'控えに残す（送信はまだできません）</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'未来WAへ送る</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
       '<div class="pbar"><div id="bBar"></div></div><div class="send-log" id="bLog"></div></div>';
   $('#bTpl').onchange=function(e){bTpl=e.target.value;bSel=null;renderBroadcast();};
   /* クラスで選ぶ／児童を選ぶ の切り替え。
@@ -10454,15 +10481,15 @@ function edBody(){
   $('#bmShare').onclick=function(){
     var targets=kids.filter(function(c){var r=d.rows[c.id]||{};return r.h&&r.w;});
     if(!targets.length){alert('身長・体重が入力された園児がいません。先に測定値を入力してください。');return;}
-    if(!confirm(targets.length+'名ぶんの測定結果を、控え（送信済みメール）に残します。\n'
-      +'※メールを送る仕組みはまだできていないため、実際には送られません。\n'
-      +'お手数ですが、控えの内容をメールソフトへ貼り付けて送ってください。\nよろしいですか？'))return;
+    if(!confirm(targets.length+'名ぶんの測定結果を、保護者の未来WAへ送ります。\n'
+      +'未来WAの「マイページ → 身体記録」に出ます。\n'
+      +'※メールは送りません。\nよろしいですか？'))return;
     var now=new Date(),stamp=('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
     var h=DB.history,ym=recMonth.replace('-','年')+'月';
     targets.forEach(function(c){var r=d.rows[c.id],kp=kaup(r);
       var subj='【'+SET.school+'】'+childFullName(c)+'さんの身体測定結果（'+ym+'）';
       var bd='いつもお世話になっております。\n'+ym+'の身体測定の結果をお知らせいたします。\n\nお名前：'+childFullName(c)+'（'+ageClassOf(c)+'）\n身長：'+r.h+' cm\n体重：'+r.w+' kg\nカウプ指数：'+kp+'\n\n保護者ページの「せいちょう」からも成長の記録をご覧いただけます。\n\n'+SET.school;
-      h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'身体測定結果',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:bd});
+      h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,tpl:'身体測定結果',kind:'growth',to:c.name+' 様',email:c.email,from:SET.sender,subject:subj,body:bd});
       /* ★送った日を記録そのものの中（r.sharedAt）に書き、そのあと save() が
          「最後に書いた人」を押した人・今日に書き換えていた。帯は
          「直すには園長・管理者の許可が要ります」と言うのに、一般の先生の
@@ -10471,9 +10498,9 @@ function edBody(){
       bmSharedSet(recMonth,c.id,todayISO());});
     DB.history=h;
     /* 記録そのものは触らないので save() は呼ばない（stampWho が走ってしまう） */
-    alert(targets.length+'名ぶんを控えに残しました。\n'
-      +'この画面からメールは送られません。個別メールの「送信済みメール」から控えを開いて、\n'
-      +'内容をコピーして送ってください。');
+    alert(targets.length+'名ぶんを未来WAへ送りました。\n'
+      +'保護者は「マイページ → 身体記録」でご覧になれます。\n'
+      +'控えは個別メールの「送信済みメール」にも残しています。');
     edBody();
   };
   lockBarWire($('#recBody'),d,save,edBody);
@@ -15028,13 +15055,12 @@ function renderBilling(){
         +'金額を入れてから送ってください。');
       return;
     }
-    if(!confirm(t.length+'件の請求書を「送付済」にし、控えに残します。\n'
-      +'※メールを送る仕組みはまだできていないため、実際には送られません。\n'
-      +'お手数ですが、控えの内容をメールソフトへ貼り付けて送ってください。\nよろしいですか？'))return;
+    if(!confirm(t.length+'件の請求書を「送付済」にし、保護者の未来WAへ送ります。\n'
+      +'未来WAの「マイページ → 保育料のご請求」に出ます。\n'
+      +'※メールは送りません。\nよろしいですか？'))return;
     t.forEach(function(x){invSend(mk,x.c,x.r);});
-    alert(t.length+'件を「送付済」にし、控えに残しました。\n'
-      +'この画面からメールは送られません。個別メールの「送信済みメール」から控えを開いて、\n'
-      +'内容をコピーして送ってください。');renderBilling();
+    alert(t.length+'件を未来WAへ送りました（「送付済」にしました）。\n'
+      +'保護者は「マイページ → 保育料のご請求」でご覧になれます。');renderBilling();
   };
   $('#ivPrintAll').onclick=function(){
     var body=rows.map(function(x){return invHTML(mk,x.c,x.r);}).join('<div style="page-break-after:always;"></div>');
@@ -15043,7 +15069,7 @@ function renderBilling(){
   s.querySelectorAll('[data-ivedit]').forEach(function(b){b.onclick=function(){invModal(mk,+b.getAttribute('data-ivedit'));};});
   s.querySelectorAll('[data-ivissue]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivissue'),r=invRow(mk,{id:id});var c=kids.filter(function(k){return k.id===id;})[0];r=invRow(mk,c);invFreeze(r);r.status='発行済';r.issuedAt=todayISO();r.total=invTotal(r);invSaveRow(mk,id,r);renderBilling();};});
   s.querySelectorAll('[data-ivsend]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivsend'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);
-    if(!confirm(childFullName(c)+'の請求書を「送付済」にし、控えに残します。\n※メールを送る仕組みはまだできていないため、実際には送られません。\nお手数ですが、控えの内容をメールソフトへ貼り付けて送ってください。\nよろしいですか？'))return;invSend(mk,c,r);renderBilling();};});
+    if(!confirm(childFullName(c)+'の請求書を「送付済」にし、保護者の未来WAへ送ります。\n未来WAの「マイページ → 保育料のご請求」に出ます。\n※メールは送りません。\nよろしいですか？'))return;invSend(mk,c,r);renderBilling();};});
   s.querySelectorAll('[data-ivpaid]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivpaid'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);r.status='入金済';r.paidAt=todayISO();invSaveRow(mk,id,r);renderBilling();};});
   s.querySelectorAll('[data-ivprint]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivprint'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);printDoc('保育料 請求書（'+mk+'・'+childFullName(c)+'）',invHTML(mk,c,r));};});
   /* 上の「契約とオプション」の欄を動くようにする */
