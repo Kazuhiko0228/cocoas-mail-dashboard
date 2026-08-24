@@ -7124,7 +7124,7 @@ function renderContacts(){
         var _feeTag=_fi?(_fi.src==='special'?' <span class="tag" style="background:#FAEEDA;color:#854F0B;">特別料金</span>'
           :(_fi.src==='old'?' <span class="tag" style="background:#FCEBEB;color:#A32D2D;">手入力のまま</span>'
             +'<button class="btn btn-sm btn-ghost" data-feeclear="'+esc(c.id)+'" title="手で入れた金額を消す" style="padding:0 6px;font-size:13px;color:#A32D2D;">×</button>':'')):'';
-        var right=c.kind==='enrolled'?(yen(_fi.amount)+_feeTag+' <span class="row-sub">/月 ・ '+(c.withdrawDay||27)+'日引落</span>'):c.kind==='withdrawn'?('<span class="row-sub">退園 '+(c.withdrawDate?fmt(c.withdrawDate):'—')+'</span>'):(c.date?fmt(c.date):'<span class="row-sub">―</span>');
+        var right=c.kind==='enrolled'?(yen(_fi.amount)+_feeTag+' <span class="row-sub">/月（請求書発行で直す） ・ '+(c.withdrawDay||27)+'日引落</span>'):c.kind==='withdrawn'?('<span class="row-sub">退園 '+(c.withdrawDate?fmt(c.withdrawDate):'—')+'</span>'):(c.date?fmt(c.date):'<span class="row-sub">―</span>');
         var badge;
         if(c.kind==='enrolled')badge='<span class="pill st-在園">在園・'+esc(c.klass)+'</span>'
           +(c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中'+((c.pauseFrom||c.pauseTo)?'（'+(c.pauseFrom?(fmtShort(c.pauseFrom).m+fmtShort(c.pauseFrom).d+'日'):'')+'〜'+(c.pauseTo?(fmtShort(c.pauseTo).m+fmtShort(c.pauseTo).d+'日'):'')+'）':'')+'</span>':'')
@@ -7467,9 +7467,17 @@ function contactModal(id){
   var m=el('div',{class:'modal-bg'});
   /* リード（営業）は「顧客リスト」の画面で扱う。連絡先管理では区分に出さない。
      ただし、すでにリードとして登録されている方を開いたときだけは出す（区分を変えられなくなるため）。 */
-  var _showLead=(CONTACT_SCOPE==='lead'||kind==='lead');
+  /* ★一覧からリードの表記を消したとき、追加のときの区分からも消えてしまい、
+     連絡先管理からはリードを1件も足せなくなっていた（Remiさんのご指摘）。
+     新しく足すときは、どの画面からでもリードを選べるようにする。
+     （一覧に出すかどうかは CONTACT_SCOPE が決めるので、そちらは変えない） */
+  var _showLead=(CONTACT_SCOPE==='lead'||kind==='lead'||!id);
   /* 顧客リストから開いたときは、区分（在園児・退園児）のタップを出さない。
      入園が決まったときは、いちばん下の「在園児に移す」から進めてもらう。 */
+  /* ★「連絡先管理からリード（営業）の表記を消す」を入れたときに、
+     追加のときの区分からもリードが消え、連絡先管理からは
+     リードを1件も足せなくなっていた（Remiさんのご指摘）。
+     一覧には出さないが、追加のときだけは選べるようにする。 */
   var _fromLead=(CONTACT_SCOPE==='lead');
   m.innerHTML='<div class="modal"><h2>'+(id?'連絡先を編集':'連絡先を追加')+'</h2>'+
     (_fromLead?'':'<div class="field"><label>区分</label><div class="seg" id="kindSeg">'+(_showLead?'<button data-kind="lead"'+(kind==='lead'?' class="on"':'')+'>リード（営業）</button>':'')+'<button data-kind="enrolled"'+(kind==='enrolled'?' class="on"':'')+'>在園児</button><button data-kind="withdrawn"'+(kind==='withdrawn'?' class="on"':'')+'>退園児</button></div></div>')+
@@ -14708,7 +14716,7 @@ function billContractHTML(kids,mk){
     +'入るまでは、連絡先の一覧とご案内メールには、前に手で入れていた月額をそのまま出します（0円で届かないようにするためです）。</div></div>';
   if(!kids.length)return warn;
   return warn+'<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'契約とオプション</h3>'
-    +'<div class="muted" style="margin-bottom:12px;">月額は、下の内容と料金設定から自動で出ます。きょうだい割など決めた額は「特別料金」へ。</div>'
+    +'<div class="muted" style="margin-bottom:12px;">この表が<b>お金の持ち場</b>です。今月の請求額は、下の内容と料金設定から自動で出ます。きょうだい割など決めた額は「特別料金」へ。<br>連絡先管理にも同じ額が出ますが、あちらは<b>読むだけ</b>です。</div>'
     +'<div class="scrollx"><table class="enrtbl"><thead><tr>'
       +'<th>園児</th><th style="width:62px;">クラス</th>'
       /* 通園曜日はここでは直せない。持ち場は連絡先なので、それを見出しに書く */
@@ -14720,7 +14728,7 @@ function billContractHTML(kids,mk){
       +'<th style="width:72px;text-align:center;">教育関連費<div class="enrunit">'+yen(P.material)+'</div></th>'
       +'<th style="width:88px;">特別料金<div class="enrunit">空欄で自動計算</div></th>'
       +'<th style="width:60px;">引落日</th>'
-      +'<th style="width:108px;text-align:right;">月額<div class="enrunit">'+(+mk.split('-')[1])+'月分</div></th>'
+      +'<th style="width:108px;text-align:right;">今月の請求額<div class="enrunit">'+(+mk.split('-')[1])+'月分・自動計算</div></th>'
       +(canPay?'<th style="width:96px;">お支払い</th>':'')+'</tr></thead><tbody>'
     +kids.map(function(c){var o=enrOf(c,mk),dop=dayOptsOf(c),fi=feeInfo(c,mk),sp=feeSpecialOf(c);
       /* あり・なしは通園曜日から決まるので、ここでは選べない。
