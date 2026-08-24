@@ -15963,7 +15963,13 @@ function taskRequired(n){return TASK_REQUIRED.indexOf(n)>-1;}
    園が変えられる。 */
 var TASK_OWNER_LIST=['先生','園長','本部'];
 var TASK_OWNER_HONBU=['現況報告書の提出','処遇改善等加算の計画書提出','決算・事業報告','年末調整の事務','翌年度の事業計画・予算'];
-var TASK_OWNER_STYLE={'先生':'background:#FCEBEB;color:#A32D2D;','園長':'background:#EAF3DE;color:#27500A;','本部':'background:#FAEEDA;color:#854F0B;'};
+/* ★担当の札を2つ出していた（8/22 に色分けの札、8/23 に選べる札）。
+     見た目が違うだけで中身は同じもので、しかも
+     選べる札だけがプルダウンで変わり、色分けの札は変わらないので、
+     同じ行に「先生」と「園長」が並ぶことがあった。
+     呼び方も片方が「本社」、片方が「本部」で食い違っていた。
+     札は1つ（色分けの方）にして、中身はプルダウンの値だけを見る。
+     呼び方はプルダウンに合わせて「本部」にそろえる。 */
 function taskOwnerDefault(name){
   if(TASK_IPPAN.indexOf(name)>-1)return '先生';
   if(TASK_OWNER_HONBU.indexOf(name)>-1)return '本部';
@@ -15974,24 +15980,20 @@ function taskOwnerOf(name){var a=taskOwnerAll();return a[name]||taskOwnerDefault
 function taskOwnerSet(name,v){var a=taskOwnerAll();
   if(v&&v!==taskOwnerDefault(name))a[name]=v;else delete a[name];
   stSet('taskOwner',a);}
-function taskOwnerTag(name){
-  var o=taskOwnerOf(name);
-  return '<span class="t-own" style="'+(TASK_OWNER_STYLE[o]||'')+'">'+esc(o)+'</span>';
-}
-/* 担当の色分け。赤＝先生、緑＝園長、黄＝本社。
+/* 担当の色分け。赤＝先生、緑＝園長、黄＝本部。
    見た目だけのもので、誰にどの画面を見せるか（権限）は今までどおり変えていない。
    ここの割りふりは仮の目安なので、園に合わないものは足し引きしてよい。 */
-var TASK_TAN_SENSEI=['身体測定','避難訓練','月案の作成','月末のふりかえり'];
-var TASK_TAN_HONSHA=['処遇改善等加算の計画書提出','決算・事業報告','現況報告書の提出','年末調整の事務','翌年度の事業計画・予算'];
-var TASK_TAN_COLOR={'先生':'#E24B4A','園長':'#639922','本社':'#E9A825'};
-var TASK_TAN_BG={'先生':'#FCEBEB','園長':'#EAF3DE','本社':'#FAEEDA'};
-var TASK_TAN_TX={'先生':'#A32D2D','園長':'#27500A','本社':'#854F0B'};
+var TASK_TAN_COLOR={'先生':'#E24B4A','園長':'#639922','本部':'#E9A825'};
+var TASK_TAN_BG={'先生':'#FCEBEB','園長':'#EAF3DE','本部':'#FAEEDA'};
+var TASK_TAN_TX={'先生':'#A32D2D','園長':'#27500A','本部':'#854F0B'};
+/* 担当は taskOwnerOf ただ1つから決める。プルダウンで変えたものが、
+   ホームの札・やることの札・一覧の札すべてに同じように出る。
+   園の端末に「本社」で保存された値が残っていても読めるようにしておく */
 function taskTan(t){
   var n=(t&&t.name)||'';
-  if(t&&t.tan&&TASK_TAN_COLOR[t.tan])return t.tan;
-  if(TASK_TAN_HONSHA.indexOf(n)>-1)return '本社';
-  if(TASK_TAN_SENSEI.indexOf(n)>-1)return '先生';
-  return '園長';
+  var v=(t&&t.tan)?t.tan:taskOwnerOf(n);
+  if(v==='本社')v='本部';
+  return TASK_TAN_COLOR[v]?v:'園長';
 }
 function taskTanColor(t){return TASK_TAN_COLOR[taskTan(t)];}
 function taskTanTagName(n){
@@ -16306,7 +16308,6 @@ function renderTasks(){
       +'<button class="tkhead" data-tkhead="'+i+'">'
       +'<span class="tdot" style="background:'+(ok?'#639922':'#E24B4A')+';"></span>'
       +'<span class="tkname">'+esc(t.name)+'</span>'
-      +taskOwnerTag(t.name)
       +taskTanTag(t)
       +'<span class="tag">'+(dd?dd+'日':'毎日')+'</span>'
       +(ok?'<span class="pill" style="background:var(--green-b);color:var(--green-t);">'+(auto?'記録あり':'済')+'</span>':'')
@@ -16327,7 +16328,7 @@ function renderTasks(){
     +'<div class="tklegend"><span class="tkchip ok" style="display:inline-block;width:auto;">✓ 終わった</span>'
     +'<span class="tkchip ng" style="display:inline-block;width:auto;">まだ</span>'
     +'<span class="muted" style="margin-left:6px;">担当</span>'
-    +taskTanTagName('先生')+taskTanTagName('園長')+taskTanTagName('本社')
+    +taskTanTagName('先生')+taskTanTagName('園長')+taskTanTagName('本部')
     +'</div></div>'
     +(daily.length?'<div class="card" style="margin-bottom:14px;"><h3>'+ic('clock')+'毎日つづけること（'+daily.length+'）</h3>'
       +'<div class="muted" style="margin-bottom:9px;">日が1つに決まらないので、カレンダーには置いていません。</div>'
@@ -16353,7 +16354,7 @@ function renderTasks(){
       /* 題名だけを出し、押すと「なぜ必要か」が開く。上の「毎月やること」と同じ動きにそろえる */
       var ai=ANNUAL_TASKS.indexOf(t),ao=!!annOpen[ai],wy=t.why||'';
       return '<tr><td class="row-sub">'+esc(t.month)+'</td>'
-        +'<td class="row-name">'+taskOwnerTag(t.name)+' '
+        +'<td class="row-name">'+taskTanTag(t)+' '
         +(wy
           ?'<button type="button" class="anhead" data-anhead="'+ai+'"><span>'+esc(t.name)+'</span><span class="anarw">'+(ao?'▲':'▼')+'</span></button>'
             +'<div class="anbody" data-anbody="'+ai+'"'+(ao?'':' style="display:none;"')+'>'+esc(wy)+'</div>'
