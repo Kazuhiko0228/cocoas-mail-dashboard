@@ -7101,13 +7101,13 @@ function contactAuditPrint(kind){
     printDoc('児童名簿（在園児 '+en.length+'名）',body);return;
   }
   if(kind==='emg'){
-    var body2='<table><thead><tr><th>氏名</th><th>クラス</th><th>保護者</th><th>保護者連絡先</th><th>緊急連絡先(1)</th><th>続柄</th><th>緊急連絡先(2)</th><th>続柄</th><th>かかりつけ医</th></tr></thead><tbody>'
-      +en.map(function(c){var p=P(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc([c.phone,c.email].filter(Boolean).join(' / '))+'</td><td>'+esc(p.emg1||'')+'</td><td>'+esc(p.emg1rel||'')+'</td><td>'+esc(p.emg2||'')+'</td><td>'+esc(p.emg2rel||'')+'</td><td>'+esc(p.doctor||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    var body2='<table><thead><tr><th>氏名</th><th>クラス</th><th>保護者</th><th>保護者連絡先</th><th>緊急連絡先(1)</th><th>続柄</th><th>緊急連絡先(2)</th><th>続柄</th></tr></thead><tbody>'
+      +en.map(function(c){var p=P(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+esc(c.name||'')+'</td><td>'+esc([c.phone,c.email].filter(Boolean).join(' / '))+'</td><td>'+esc(p.emg1||'')+'</td><td>'+esc(p.emg1rel||'')+'</td><td>'+esc(p.emg2||'')+'</td><td>'+esc(p.emg2rel||'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('緊急連絡票（在園児）',body2);return;
   }
   if(kind==='health'){
-    var body3='<table><thead><tr><th>氏名</th><th>クラス</th><th>アレルギー</th><th>平熱</th><th>既往症</th><th>入院歴</th><th>ひきつけ/熱性痙攣</th><th>呼吸・心疾患</th><th>かかりつけ医</th><th>その他の診断</th></tr></thead><tbody>'
-      +en.map(function(c){var p=P(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+esc(p.allergy||'')+'</td><td>'+esc(p.normalTemp||'')+'</td><td>'+esc(p.history||'')+'</td><td>'+esc(p.hospital||'')+'</td><td>'+esc(p.febrile||'')+'</td><td>'+esc(p.respiratory||'')+'</td><td>'+esc(p.doctor||'')+'</td><td>'+esc(p.otherDx||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    var body3='<table><thead><tr><th>氏名</th><th>クラス</th><th>アレルギー</th><th>平熱</th><th>既往症</th><th>入院歴</th><th>ひきつけ/熱性痙攣</th><th>呼吸・心疾患</th><th>その他の診断</th></tr></thead><tbody>'
+      +en.map(function(c){var p=P(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass||'')+'</td><td>'+esc(p.allergy||'')+'</td><td>'+esc(p.normalTemp||'')+'</td><td>'+esc(p.history||'')+'</td><td>'+esc(p.hospital||'')+'</td><td>'+esc(p.febrile||'')+'</td><td>'+esc(p.respiratory||'')+'</td><td>'+esc(p.otherDx||'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('健康・アレルギー一覧（在園児）',body3);return;
   }
   var fy=curFY(),fyStart=fy+'-04-01',fyEnd=(fy+1)+'-03-31';
@@ -14365,8 +14365,10 @@ var SP_GROUPS=[
 /* 健康情報。数字や文章で書く欄と、押して選ぶ欄（マーク式）に分けた。 */
 var SP_HEALTH=[
   {k:'normalTemp',label:'平熱',req:true,ph:'例：36.5'},
-  {k:'allergy',label:'アレルギー',req:true,ph:'ない場合は「なし」'},
-  {k:'doctor',label:'かかりつけ医',req:true,ph:'ない場合は「なし」'}
+  {k:'allergy',label:'アレルギー',req:true,ph:'ない場合は「なし」'}
+  /* かかりつけ医は園児ごとには持たない（2026-08-24）。
+     園のかかりつけ医・嘱託医は「施設管理」の提携医療機関にまとめてある。
+     これまでに入れた値（doctor）は消していない。 */
 ];
 /* マーク式（押して選ぶ・いくつでも）。保存の鍵と値（有／無）は前のままなので、
    健康一覧の書き出しや先生用の画面はそのまま動く。 */
@@ -14418,11 +14420,11 @@ var DEFAULT_MAP={school:{lat:35.8817,lng:139.6297,name:'園の位置（サンプ
     {name:'広域避難場所（例：総合公園）',lat:35.8720,lng:139.6220,type:'広域避難場所'}
   ]};
 var SP_SEED={
-  11:{romaji:'Kokoro',sex:'女の子',blood:'O',zip:'338-0001',address:'〇〇市〇〇区（サンプル1-1）',telHome:'000-0000-0011',fName:'高橋 健',fTel:'090-2001-1001',fJob:'会社員',allergy:'卵',doctor:'〇〇こどもクリニック（例）',normalTemp:'36.6',febrile:'有',emg1:'090-2001-1001',emg1rel:'父',emg2:'090-2001-0001',emg2rel:'母',lat:35.8852,lng:139.6362},
-  12:{romaji:'Hiroto',sex:'男の子',blood:'A',zip:'338-0002',address:'〇〇市〇〇区（サンプル2-2）',telHome:'000-0000-0012',allergy:'なし',doctor:'なし',normalTemp:'36.8',emg1:'090-2002-0002',emg1rel:'母',lat:35.8792,lng:139.6212},
-  13:{romaji:'Mio',sex:'女の子',blood:'B',zip:'338-0003',address:'〇〇市〇〇区（サンプル3-3）',telHome:'000-0000-0013',allergy:'そば・落花生',doctor:'中央小児科（例）',normalTemp:'36.5',respiratory:'有',emg1:'090-2003-0003',emg1rel:'母',lat:35.8735,lng:139.6305},
-  14:{romaji:'Yuna',sex:'女の子',blood:'AB',zip:'338-0004',address:'〇〇市〇〇区（サンプル4-4）',telHome:'000-0000-0014',allergy:'なし',doctor:'〇〇耳鼻科（例）',normalTemp:'36.7',emg1:'090-2004-0004',emg1rel:'母',lat:35.8882,lng:139.6282},
-  15:{romaji:'Minato',sex:'男の子',blood:'A',zip:'338-0005',address:'〇〇市〇〇区（サンプル5-5）',telHome:'000-0000-0015',allergy:'牛乳',doctor:'なし',normalTemp:'36.9',history:'有',emg1:'090-2005-0005',emg1rel:'母',lat:35.8762,lng:139.6402}
+  11:{romaji:'Kokoro',sex:'女の子',blood:'O',zip:'338-0001',address:'〇〇市〇〇区（サンプル1-1）',telHome:'000-0000-0011',fName:'高橋 健',fTel:'090-2001-1001',fJob:'会社員',allergy:'卵',normalTemp:'36.6',febrile:'有',emg1:'090-2001-1001',emg1rel:'父',emg2:'090-2001-0001',emg2rel:'母',lat:35.8852,lng:139.6362},
+  12:{romaji:'Hiroto',sex:'男の子',blood:'A',zip:'338-0002',address:'〇〇市〇〇区（サンプル2-2）',telHome:'000-0000-0012',allergy:'なし',normalTemp:'36.8',emg1:'090-2002-0002',emg1rel:'母',lat:35.8792,lng:139.6212},
+  13:{romaji:'Mio',sex:'女の子',blood:'B',zip:'338-0003',address:'〇〇市〇〇区（サンプル3-3）',telHome:'000-0000-0013',allergy:'そば・落花生',normalTemp:'36.5',respiratory:'有',emg1:'090-2003-0003',emg1rel:'母',lat:35.8735,lng:139.6305},
+  14:{romaji:'Yuna',sex:'女の子',blood:'AB',zip:'338-0004',address:'〇〇市〇〇区（サンプル4-4）',telHome:'000-0000-0014',allergy:'なし',normalTemp:'36.7',emg1:'090-2004-0004',emg1rel:'母',lat:35.8882,lng:139.6282},
+  15:{romaji:'Minato',sex:'男の子',blood:'A',zip:'338-0005',address:'〇〇市〇〇区（サンプル5-5）',telHome:'000-0000-0015',allergy:'牛乳',normalTemp:'36.9',history:'有',emg1:'090-2005-0005',emg1rel:'母',lat:35.8762,lng:139.6402}
 };
 /* ══ 園児ごとの、サインをいただいた書類 ═══════════════
    利用契約書のように保護者にサインをいただいた紙を、園児ひとりずつ残す。
@@ -14559,8 +14561,8 @@ var kidsKlass='すべて', kidsQ='';
 /* ★アレルギーと平熱は、ほかの健康の記述に混ぜずにそれぞれの欄で出す。
      1つの文につないでいたので、給食を出す直前に見たいアレルギーが
      「既往症あり ／ 熱性けいれんの既往 ／ 平熱 …」の途中に埋もれていた。
-     かかりつけ医はこの一覧から外した。その場の保育の判断には使わず、
-     必要なときは生徒台帳の個人ページで見る（消してはいない）。 */
+     かかりつけ医は園児ごとには持たないことにした（2026-08-24）。
+     園のかかりつけ医・嘱託医は「施設管理」の提携医療機関にまとめてある。 */
 function kidsAllergyText(p){
   if(!p)return '';
   return (p.allergy&&p.allergy!=='なし')?String(p.allergy):'';
