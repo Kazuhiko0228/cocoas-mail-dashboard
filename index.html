@@ -14165,16 +14165,26 @@ function spAge(dob){if(!dob)return '';var d=new Date(dob),n=new Date();var a=n.g
    ・生徒台帳から … 緊急連絡先／健康情報 */
 var kidsKlass='すべて', kidsQ='';
 
+/* ★アレルギーと平熱は、ほかの健康の記述に混ぜずにそれぞれの欄で出す。
+     1つの文につないでいたので、給食を出す直前に見たいアレルギーが
+     「既往症あり ／ 熱性けいれんの既往 ／ 平熱 …」の途中に埋もれていた。
+     かかりつけ医はこの一覧から外した。その場の保育の判断には使わず、
+     必要なときは生徒台帳の個人ページで見る（消してはいない）。 */
+function kidsAllergyText(p){
+  if(!p)return '';
+  return (p.allergy&&p.allergy!=='なし')?String(p.allergy):'';
+}
+function kidsTempText(p){
+  if(!p)return '';
+  return p.normalTemp?(String(p.normalTemp)+'℃'):'';
+}
 function kidsHealthText(p){
   if(!p)return '';
   var a=[];
-  if(p.allergy&&p.allergy!=='なし')a.push('アレルギー：'+p.allergy);
   if(p.history==='有')a.push('既往症あり');
   if(p.febrile==='有')a.push('熱性けいれんの既往');
   if(p.respiratory==='有')a.push('呼吸器の既往');
   if(p.otherDx)a.push(p.otherDx);
-  if(p.normalTemp)a.push('平熱 '+p.normalTemp+'℃');
-  if(p.doctor&&p.doctor!=='なし')a.push('かかりつけ：'+p.doctor);
   return a.join(' ／ ');
 }
 /* 先生の画面に出す、保護者のお名前。
@@ -14220,7 +14230,9 @@ function kidsRows(){
     if(kidsKlass!=='すべて'&&c.klass!==kidsKlass)return false;
     if(kidsQ){
       var q=kidsQ.toLowerCase();
-      var hay=(childFullName(c)+' '+(c.klass||'')+' '+kidsHealthText(sp[c.id])).toLowerCase();
+      var _hp=sp[c.id];
+      var hay=(childFullName(c)+' '+(c.klass||'')+' '
+              +kidsAllergyText(_hp)+' '+kidsTempText(_hp)+' '+kidsHealthText(_hp)).toLowerCase();
       if(hay.indexOf(q)<0)return false;
     }
     return true;
@@ -14261,7 +14273,8 @@ function renderKidsView(){
     +'<th>園児</th><th>歳児</th><th>クラス</th>'
     +'<th>通園曜日</th><th>コース</th>'
     +'<th>給食</th><th>延長保育</th>'
-    +'<th>保護者名</th><th>緊急連絡先</th><th>健康に関すること</th>'
+    +'<th>保護者名</th><th>緊急連絡先</th>'
+    +'<th>アレルギー</th><th>平熱</th><th>健康に関すること</th>'
     +'</tr></thead><tbody>'
     +rows.map(function(c){
       var p=sp[c.id]||{}, o=enrOf(c), dop=dayOptsOf(c);
@@ -14269,10 +14282,10 @@ function renderKidsView(){
       var longDays =WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].long;});
       var gd=kidsGuardian(c,p);   /* 保護者のお名前 */
       var al=ageClassOf(c), ac=ageColor(al);
-      var hl=kidsHealthText(p);
+      var hl=kidsHealthText(p), alg=kidsAllergyText(p), tmp=kidsTempText(p);
       var emg=kidsEmgList(c.id?p:null);
       return '<tr>'
-        +'<td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))
+        +'<td class="row-name" style="white-space:nowrap;">'+esc(childFullNameHon(c))
           +'<div class="row-sub">'+esc(bfDob(c.dob))+'</div></td>'
         +'<td style="white-space:nowrap;"><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'
         +'<td style="white-space:nowrap;">'+esc(c.klass||'')+'</td>'
@@ -14284,11 +14297,11 @@ function renderKidsView(){
         +'<td class="row-sub" style="white-space:nowrap;">'
           +(emg.length?emg.map(function(e){
             return (e.no?e.no+' ':'')+(e.rel?esc(e.rel)+'　':'')+telLinkHtml(e.tel);}).join('<br>'):'<span style="color:#A32D2D;">未登録</span>')+'</td>'
-        +'<td class="row-sub">'+(hl
-            ? (/アレルギー/.test(hl)
-                ? '<span style="color:#A32D2D;font-weight:600;">'+esc(hl)+'</span>'
-                : esc(hl))
-            : '—')+'</td>'
+        +'<td>'+(alg
+            ? '<span class="pill" style="background:#FBE4E4;color:#A32D2D;font-weight:600;white-space:nowrap;">'+esc(alg)+'</span>'
+            : '<span class="muted">なし</span>')+'</td>'
+        +'<td class="row-sub" style="white-space:nowrap;">'+(tmp?esc(tmp):'—')+'</td>'
+        +'<td class="row-sub">'+(hl?esc(hl):'—')+'</td>'
         +'</tr>';
     }).join('')
     +'</tbody></table></div>'
@@ -14310,20 +14323,23 @@ function wireKidsView(){
     var body='<p>'+esc(SET.school||'')+'　'+esc(kidsKlass)+'　'+fmt(todayISO())+'</p>'
       +'<table><thead><tr><th>園児</th><th>生年月日</th><th>歳児</th><th>クラス</th><th>通園曜日</th>'
       +'<th>コース</th><th>給食</th><th>延長保育</th>'
-      +'<th>保護者名</th><th>緊急連絡先</th><th>健康に関すること</th>'
+      +'<th>保護者名</th><th>緊急連絡先</th>'
+      +'<th>アレルギー</th><th>平熱</th><th>健康に関すること</th>'
       +'</tr></thead><tbody>'
       +rows.map(function(c){
         var p=sp[c.id]||{}, o=enrOf(c), dop=dayOptsOf(c);
         var lunchDays=WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].lunch;});
         var longDays =WEEK5.filter(function(d){return dop[d]&&dop[d].go&&dop[d].long;});
         var gd=kidsGuardian(c,p);   /* 保護者のお名前 */
-        return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.dob||'')+'</td>'
+        return '<tr><td>'+esc(childFullNameHon(c))+'</td><td>'+esc(c.dob||'')+'</td>'
           +'<td>'+esc(ageClassOf(c))+'</td><td>'+esc(c.klass||'')+'</td>'
           +'<td>'+esc(c.days||'')+'</td><td>'+esc(o.plan||'')+'</td>'
           +'<td>'+esc(lunchDays.join('・'))+'</td>'
           +'<td>'+esc(longDays.join('・'))+'</td>'
           +'<td>'+(gd.name?esc(gd.name)+' 様':'')+'</td>'
           +'<td>'+esc(kidsEmgList(p).map(function(e){return (e.no?e.no+' ':'')+(e.rel?e.rel+' ':'')+e.tel;}).join(' ／ '))+'</td>'
+          +'<td>'+esc(kidsAllergyText(p))+'</td>'
+          +'<td>'+esc(kidsTempText(p))+'</td>'
           +'<td>'+esc(kidsHealthText(p))+'</td></tr>';
       }).join('')
       +'</tbody></table>'
