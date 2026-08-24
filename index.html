@@ -360,6 +360,10 @@
       padding:3px 2px;text-align:center;vertical-align:middle;line-height:1.25;
       overflow:hidden;word-break:break-word;overflow-wrap:anywhere;hyphens:none;}
     #printArea .blankform thead th{font-weight:700;}
+    /* 2枚以上になったとき、2枚目にも見出し（園児名・時刻）を出す。
+       行が紙の境目で上下に割れると、名前と ◯ がずれて読めなくなるので割らない。 */
+    #printArea .blankform thead{display:table-header-group;}
+    #printArea .blankform tr{page-break-inside:avoid;}
     #printArea .blankform td.nm,#printArea .blankform th.nm{text-align:left;}
     #printArea .bf-pad{padding:2mm;}
     #printArea .print-foot{margin-top:16px;font-size:11px;color:#333;}
@@ -9802,7 +9806,10 @@ function bfStaffNames(){
 var BF_KIDHEAD_W=402;   /* 園児の表の左ブロックの合計幅。ここを変えたら担当者の表も一緒に変える */
 function bfNapStaffTable(){
   var names=bfStaffNames(),slots=bfNapSlots();
-  return '<div style="font-size:10.5px;font-weight:700;margin:2px 0 3px;">'
+  /* 園児の表が2枚目へあふれたとき、担当者の表だけが行の途中で切れないようにする。
+     まるごと入らなければ、次の紙へまとめて送る。 */
+  return '<div style="page-break-inside:avoid;">'
+    +'<div style="font-size:10.5px;font-weight:700;margin:2px 0 3px;">'
       +'午睡チェック 担当者　'
       +'<span style="font-weight:400;">確認した時刻の列で、ご自分の行の ◯ を <b>●</b> に塗りつぶしてください</span></div>'
     +'<table class="blankform"><thead><tr>'
@@ -9813,7 +9820,7 @@ function bfNapStaffTable(){
       +slots.map(function(){
         return '<td style="text-align:center;font-size:11px;color:#333;padding:2px 1px;">◯</td>';}).join('')
       +'</tr>';}).join('')
-    +'</tbody></table>';
+    +'</tbody></table></div>';
 }
 /* 安全点検の点検者。こちらは日ごとに1人。同じく ◯ を塗る。 */
 function bfCheckerTable(days){
@@ -9892,9 +9899,10 @@ function blankFormBody(type,date,qr){
        園名・日付・クラス・曜日は上のヘッダに出しているので、ここでは重ねて印刷しない */
     var aslots=bfNapSlots();
     var ahead='<div style="font-size:12px;margin:6px 0 4px;">室温 ＿＿＿ ℃　　湿度 ＿＿＿ ％　　（天気：＿＿＿＿）</div>';
-    /* 午睡チェックの担当者は、園児の表より先に書いてもらう。
-       先生がまず自分の ◯ を塗り、そのあと園児の欄を見る流れになる。 */
-    body=ahead+bfNapStaffTable()+'<div style="height:6px;"></div>'
+    /* 午睡チェックの担当者は、園児の表のすぐ下に置く（2026-08-24 安田さんのご依頼）。
+       園児の欄を書いたあと、最後に自分の ◯ を塗る流れになる。
+       表の向きと左の幅は園児の表と揃えてあるので、時刻の列は上下で一直線に並ぶ。 */
+    body=ahead
       +'<table class="blankform"><thead><tr>'+bfKidHead(9)
       +'<th style="width:44px;font-size:8px;">'+lb2('出欠','Attendance')+'</th>'
       +'<th style="width:42px;font-size:8px;">'+lb2('給食','HOME Lunch')+'</th>'
@@ -9910,6 +9918,8 @@ function blankFormBody(type,date,qr){
           +'<td></td>'
           +aslots.map(function(){return '<td style="padding:2px 1px;"></td>';}).join('')+'</tr>';}).join('')
       +'</tbody></table>'
+      +'<div style="height:6px;"></div>'
+      +bfNapStaffTable()
       +'<p style="font-size:10px;margin:4px 0 0;">出欠：● 出席／早 早退／遅 遅刻／休 欠席　　給食・延長 はこの曜日の予定を ● で印刷しています</p>'
       +BF_NAP_LEGEND;
   }else if(type==='安全点検'){
@@ -12428,7 +12438,7 @@ function dgInvoice(){
   function invoiceHTML(){
     var r=lines();
     return '<div style="font-weight:600;font-size:15px;margin-bottom:6px;">'+st.month+'月分 保育料 請求書</div>'+
-      '<p>'+(r.c?esc(r.c.name)+' 様（'+esc(childFullName(r.c))+'・'+esc(r.c.klass)+'）'+(r.c.paused?'　<span style="font-size:11px;font-weight:600;border:1px solid #8A8A8A;border-radius:4px;padding:1px 6px;">休園中</span>':''):'')+'</p>'+
+      '<p>'+(r.c?esc(r.c.name)+' 様（'+esc(childFullNameHon(r.c))+'・'+esc(r.c.klass)+'）'+(r.c.paused?'　<span style="font-size:11px;font-weight:600;border:1px solid #8A8A8A;border-radius:4px;padding:1px 6px;">休園中</span>':''):'')+'</p>'+
       '<table><thead><tr><th>項目</th><th style="text-align:right;">単価</th><th style="text-align:right;">数量</th><th style="text-align:right;">金額</th></tr></thead><tbody>'+
       r.L.map(function(x){return '<tr><td>'+x[0]+'</td><td style="text-align:right;">'+yen(x[1])+'</td><td style="text-align:right;">'+x[2]+'</td><td style="text-align:right;">'+yen(x[3])+'</td></tr>';}).join('')+
       '<tr><td colspan="3" style="text-align:right;font-weight:600;">合計</td><td style="text-align:right;font-weight:600;">'+yen(r.total)+'</td></tr></tbody></table>'+
@@ -14806,6 +14816,12 @@ function enrPayAllowed(){
    お支払い方法・月額。
    通園曜日だけは連絡先が持ち場なので、ここでは見せるだけにする。
    持ち場を2つにすると、曜日と契約が食い違うため。 */
+/* 請求書の宛名。保護者名がまだ入っていないと、宛名なしの請求書がそのまま
+   印刷されてしまうので、空のときはそのことが分かる形で出す。 */
+function invAtena(c){
+  var n=String((c&&c.name)||'').trim();
+  return n?(n+' 様'):'（保護者名が入っていません）';
+}
 function billContractHTML(kids,mk){
   /* お支払い方法を見てよい人にだけ列を作る。作らなければ、そもそも触れない。 */
   var canPay=enrPayAllowed();
@@ -14819,10 +14835,18 @@ function billContractHTML(kids,mk){
     +'「設定 → 料金設定」で単価を入れてください。<br>'
     +'入るまでは、連絡先の一覧とご案内メールには、前に手で入れていた月額をそのまま出します（0円で届かないようにするためです）。</div></div>';
   if(!kids.length)return warn;
-  return warn+'<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'契約とオプション</h3>'
-    +'<div class="muted" style="margin-bottom:12px;">この表が<b>お金の持ち場</b>です。今月の請求額は、下の内容と料金設定から自動で出ます。連絡先管理にも同じ額が出ますが、あちらは<b>読むだけ</b>です。</div>'
+  /* 打ち込んだ内容はその場で保存しているが、画面に何も出ないので
+     「保存されたのか分からない」というご指摘（2026-08-24 安田さん）。
+     直したときに出る印と、押して確かめられる保存ボタンの両方を置く。 */
+  return warn+'<div class="card" style="margin-bottom:14px;">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
+    +'<h3 style="margin:0;flex:1;">'+ic('yen')+'契約とオプション</h3>'
+    +'<span class="muted" id="enrMsg" style="font-size:12px;"></span>'
+    +'<button class="btn btn-sm btn-primary" id="enrSave">'+ic('check')+'保存</button></div>'
     +'<div class="scrollx"><table class="enrtbl"><thead><tr>'
-      +'<th>園児</th><th style="width:62px;">クラス</th>'
+      +'<th>園児</th>'
+      +'<th style="width:132px;">宛名<div class="enrunit">請求書の宛先</div></th>'
+      +'<th style="width:62px;">クラス</th>'
       /* 通園曜日はここでは直せない。持ち場は連絡先なので、それを見出しに書く */
       +'<th style="width:104px;">通園曜日<div class="enrunit">連絡先で直す</div></th>'
       +'<th style="width:104px;">コースプラン</th>'
@@ -14832,7 +14856,10 @@ function billContractHTML(kids,mk){
       +'<th style="width:72px;text-align:center;">教育関連費<div class="enrunit">'+yen(P.material)+'</div></th>'
       +'<th style="width:60px;">引落日</th>'
       +'<th style="width:108px;text-align:right;">今月の請求額<div class="enrunit">'+(+mk.split('-')[1])+'月分・自動計算</div></th>'
-      +(canPay?'<th style="width:96px;">お支払い</th>':'')+'</tr></thead><tbody>'
+      +(canPay?'<th style="width:96px;">お支払い</th>':'')
+      /* 明細は、請求書発行の一覧からこちらへ移した（2026-08-24 安田さんのご依頼）。
+         金額を決める場所と、金額を直す窓を同じ表にそろえるため。 */
+      +'<th style="width:64px;"></th></tr></thead><tbody>'
     +kids.map(function(c){var o=enrOf(c,mk),dop=dayOptsOf(c),fi=feeInfo(c,mk),sp=feeSpecialOf(c);
       /* あり・なしは通園曜日から決まるので、ここでは選べない。
          選べる欄を残すと、曜日を外した子に「給食あり」と出したまま、
@@ -14844,9 +14871,10 @@ function billContractHTML(kids,mk){
         return '<td><div style="font-size:12.5px;font-weight:600;">あり</div>'
           +'<div class="row-sub" style="font-size:11px;">'+cnt+'回/月</div></td>';
       }
-      return '<tr><td class="row-name">'+esc(childFullName(c))
+      return '<tr><td class="row-name">'+esc(childFullNameHon(c))
         +(c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中</span>':'')
-        +'</td><td>'+esc(c.klass||'')+'</td>'
+        +'</td><td class="row-sub">'+esc(invAtena(c))+'</td>'
+        +'<td>'+esc(c.klass||'')+'</td>'
         /* 押すと、曜日を直せる場所（連絡先）へ行く。行き先が分からないまま止まらないため */
         +'<td><button class="btn btn-sm btn-ghost" data-endays="'+esc(c.id)+'" style="font-size:12px;padding:2px 4px;color:var(--teal-d);text-decoration:underline;text-underline-offset:3px;" title="連絡先を開きます">'+esc(c.days||'—')+'</button></td>'
         +'<td><select data-en="'+c.id+'|plan" style="width:84px;">'+planKeys.map(function(k){return '<option'+(k===o.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></td>'
@@ -14864,6 +14892,7 @@ function billContractHTML(kids,mk){
           return '<td><select data-enpay="'+esc(c.id)+'" style="width:92px;">'
             +opts.map(function(op){return '<option value="'+esc(op)+'"'+(String(pm)===op?' selected':'')+'>'+esc(op||'未設定')+'</option>';}).join('')
             +'</select></td>';})():'')
+        +'<td style="text-align:right;"><button class="btn btn-sm" data-ivedit="'+esc(c.id)+'">明細</button></td>'
         +'</tr>';}).join('')
     +'</tbody></table></div>'
     +'<div class="muted" style="font-size:11.5px;line-height:1.9;margin-top:8px;">'
@@ -14883,6 +14912,9 @@ function billContractBind(s,kids,mk){
          写さないと、請求書は新しいのにご案内メールだけ古い額で届いてしまう。 */
       try{feeSyncContact(id);}catch(e){}
       renderBilling();
+      var _m=$('#enrMsg');
+      if(_m){_m.innerHTML='<span style="color:#27500A;font-weight:600;">保存しました</span>';
+        setTimeout(function(){var z=$('#enrMsg');if(z)z.textContent='';},2200);}
     };
   });
   /* 通園曜日の持ち場は連絡先。ここは、その場所へ連れていくだけ。 */
@@ -14908,14 +14940,53 @@ function billContractBind(s,kids,mk){
     var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
     var v=+inp.value||0;
     if(v<1||v>31){alert('引落日は 1〜31 で入れてください。');inp.value=c.withdrawDay||27;return;}
-    c.withdrawDay=v;DB.contacts=arr;
+    c.withdrawDay=v;DB.contacts=arr;enrSaid('保存しました');
   };});
+  /* 保存できたことを、その場で短く出す。 */
+  function enrSaid(t){
+    var e=s.querySelector('#enrMsg');if(!e)return;
+    e.innerHTML='<span style="color:#27500A;font-weight:600;">'+esc(t)+'</span>';
+    clearTimeout(enrSaid._t);
+    enrSaid._t=setTimeout(function(){var q=s.querySelector('#enrMsg');if(q)q.textContent='';},2200);
+  }
+  billContractBind.said=enrSaid;
+  /* 押して確かめるための保存。表に出ている欄をぜんぶ読み直して、もう一度書き込む。 */
+  var _sv=s.querySelector('#enrSave');
+  if(_sv)_sv.onclick=function(){
+    var ng=[];
+    s.querySelectorAll('[data-enwd]').forEach(function(inp){
+      var id=+inp.getAttribute('data-enwd'),v=+inp.value||0;
+      var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
+      if(v<1||v>31){ng.push(childFullNameHon(c)+' の引落日');inp.value=c.withdrawDay||27;return;}
+      if(c.withdrawDay!==v){c.withdrawDay=v;DB.contacts=arr;}
+    });
+    s.querySelectorAll('[data-en]').forEach(function(el){
+      var p=el.getAttribute('data-en').split('|'),id=+p[0],key=p[1];
+      var c=kids.filter(function(x){return x.id===id;})[0];if(!c)return;
+      var o=enrOf(c);
+      o[key]=(el.type==='checkbox')?el.checked:(el.type==='number'?(+el.value||0):el.value);
+      enrSet(id,{plan:o.plan,material:o.material,admission:o.admission,note:o.note});
+      try{feeSyncContact(id);}catch(e){}
+    });
+    if(enrPayAllowed()){
+      s.querySelectorAll('[data-enpay]').forEach(function(sel){
+        var id=+sel.getAttribute('data-enpay');
+        var obj=spGet(id);
+        if(obj.payMethod!==sel.value){obj.payMethod=sel.value;spSet(id,obj);}
+      });
+    }
+    if(ng.length){alert('入れ直してください：\n'+ng.join('\n')+'\n\n引落日は 1〜31 で入れてください。');return;}
+    renderBilling();
+    var q=$('#enrMsg');
+    if(q)q.innerHTML='<span style="color:#27500A;font-weight:600;">保存しました</span>';
+    setTimeout(function(){var z=$('#enrMsg');if(z)z.textContent='';},2200);
+  };
   s.querySelectorAll('[data-enpay]').forEach(function(sel){sel.onchange=function(){
     /* 画面を作るときだけで守っていると、ほかから触られたときに素通りする。
        保存の直前にも、もう一度だけ役職を確かめる。 */
     if(!enrPayAllowed()){alert('お支払い方法は、園長・マネージャー・管理者だけが変えられます。');renderBilling();return;}
     var id=+sel.getAttribute('data-enpay');
-    var obj=spGet(id);obj.payMethod=sel.value;spSet(id,obj);
+    var obj=spGet(id);obj.payMethod=sel.value;spSet(id,obj);enrSaid('保存しました');
   };});
 }
 /* お支払いの別窓（enrPayModal）は、欄が「支払い方法」の1つだけになったのでやめた。
@@ -14983,7 +15054,7 @@ function invHTML(mk,c,r){
       +(SET.invRegNo?'<br>登録番号　'+esc(SET.invRegNo):'')
     +'</div></div>';
   /* 休園中と分かる札を、紙にも出す。園と保護者が同じものを見るため。 */
-  var to='<div style="border-bottom:1.5px solid #333;padding-bottom:4px;margin-bottom:10px;font-size:14px;font-weight:600;">'+esc(c.name)+' 様　<span style="font-size:12px;font-weight:400;color:#555;">（'+esc(childFullName(c))+'・'+esc(c.klass||'')+'）</span>'
+  var to='<div style="border-bottom:1.5px solid #333;padding-bottom:4px;margin-bottom:10px;font-size:14px;font-weight:600;">'+esc(c.name)+' 様　<span style="font-size:12px;font-weight:400;color:#555;">（'+esc(childFullNameHon(c))+'・'+esc(c.klass||'')+'）</span>'
     +((c&&c.paused)?'　<span style="font-size:11px;font-weight:600;border:1px solid #8A8A8A;border-radius:4px;padding:1px 6px;">休園中</span>':'')
     +'</div>';
   var greet=SET.invGreeting?'<div style="font-size:12px;line-height:1.8;margin-bottom:10px;white-space:pre-wrap;">'+esc(SET.invGreeting)+'</div>':'';
@@ -15044,18 +15115,18 @@ function renderBilling(){
   s.innerHTML=billContractHTML(kids,mk)
     +'<div class="card" style="margin-bottom:14px;">'+recHead('請求書発行（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
       '<input type="month" id="ivMonth" value="'+esc(mk)+'" style="width:160px;">'
-      +'<button class="btn btn-sm" id="ivIssueAll">'+ic('check')+'一括で発行</button>'
-      +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'発行済をまとめて送付</button>'
+      +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'まとめて送付</button>'
       +'<button class="btn btn-sm" id="ivPrintAll">'+ic('printer')+'全員分を印刷</button>')
-    +'<div class="muted" style="margin-bottom:10px;">金額は、上の「契約とオプション」と「設定 → 料金設定」から自動で出ます。休園中の園児も一覧に出ます。金額は「明細」で決められます。</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
+    +'<div class="muted" style="margin-bottom:10px;">金額は、上の「契約とオプション」と「設定 → 料金設定」から自動で出ます。休園中の園児も一覧に出ます。金額を手で決めるときは、上の表の「明細」から。<br>「送付」を押した日が発行日になり、そのときの単価で金額が決まります。あとから料金設定を直しても、送った請求書の金額は変わりません。</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.filter(function(st){return st!=='発行済'||cnt[st]>0;}).map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
     +(pausedN?'<span class="tag" style="background:#F1EFE8;color:#5B6875;" title="休園中の園児も請求書を作れます">休園中 '+pausedN+'名</span>':'')
     +'<span style="flex:1;"></span><span style="font-weight:700;font-size:15px;">今月の請求合計 '+yen(sum)+'</span></div></div>'
-    +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>クラス</th><th>プラン</th><th style="text-align:right;">給食</th><th style="text-align:right;">延長保育</th><th style="text-align:right;">請求額</th><th>発行日</th><th>支払期日</th><th>入金日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
+    +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>宛名</th><th>クラス</th><th>プラン</th><th style="text-align:right;">給食</th><th style="text-align:right;">延長保育</th><th style="text-align:right;">請求額</th><th>発行日</th><th>支払期日</th><th>入金日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
     +(rows.length?rows.map(function(x){var col=invStatusColor(x.r.status);
-      return '<tr><td class="row-name">'+esc(childFullName(x.c))
+      return '<tr><td class="row-name">'+esc(childFullNameHon(x.c))
         +(x.c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中</span>':'')
-        +'<div class="row-sub">'+esc(x.c.name)+'</div></td><td>'+esc(x.c.klass||'')+'</td><td>'+esc(x.r.plan||'')+'</td>'
+        +'</td><td class="row-sub">'+esc(invAtena(x.c))+'</td>'
+        +'<td>'+esc(x.c.klass||'')+'</td><td>'+esc(x.r.plan||'')+'</td>'
         +'<td style="text-align:right;">'+(+x.r.lunchN||0)+'回</td><td style="text-align:right;">'+(+x.r.extN||0)+'回</td>'
         +'<td style="text-align:right;font-weight:600;">'+yen(invTotal(x.r))
           +((x.r.special==null||x.r.special==='')?'':'<div class="row-sub" style="font-size:11px;color:#854F0B;">この月だけの金額</div>')+'</td>'
@@ -15064,54 +15135,52 @@ function renderBilling(){
         +'<td class="row-sub">'+(x.r.paidAt?fmt(x.r.paidAt):'—')+'</td>'
         +'<td><span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+x.r.status+'</span></td>'
         +'<td style="white-space:nowrap;text-align:right;">'
-          +'<button class="btn btn-sm" data-ivedit="'+esc(x.c.id)+'">明細</button> '
-          +(x.r.status==='未発行'?'<button class="btn btn-sm" data-ivissue="'+esc(x.c.id)+'">発行</button> ':'')
-          +(x.r.status==='発行済'||x.r.status==='送付済'?'<button class="btn btn-sm btn-primary" data-ivsend="'+esc(x.c.id)+'">'+(x.r.status==='送付済'?'再送':'送付')+'</button> ':'')
+          /* 「発行」のボタンはやめた（2026-08-24 安田さんのご指摘）。
+             発行と送付で2回押させる意味がないので、送付が発行も兼ねる。
+             押した日がそのまま発行日になり、そのときの単価を焼き付ける。
+             前に「発行済」で止めてある請求書も、この送付から送れる。 */
+          +(x.r.status!=='入金済'?'<button class="btn btn-sm btn-primary" data-ivsend="'+esc(x.c.id)+'">'+(x.r.status==='送付済'?'再送':'送付')+'</button> ':'')
           +(x.r.status==='送付済'?'<button class="btn btn-sm" data-ivpaid="'+esc(x.c.id)+'">入金済</button> ':'')
           +'<button class="btn btn-sm btn-ghost" data-ivprint="'+esc(x.c.id)+'">'+ic('printer')+'</button>'
-        +'</td></tr>';}).join(''):'<tr><td colspan="11" class="empty">在園児が登録されていません</td></tr>')
+        +'</td></tr>';}).join(''):'<tr><td colspan="12" class="empty">在園児が登録されていません</td></tr>')
     +'</tbody></table></div></div>';
   $('#ivMonth').onchange=function(e){invMonth=e.target.value;renderBilling();};
-  $('#ivIssueAll').onclick=function(){
-    /* 休園中の子が混ざっていても止めない。押す前に、誰が休園中かだけ伝える。
-       金額は自動計算のままになるので、そこも先に言っておく。 */
-    var _tg=rows.filter(function(x){return x.r.status==='未発行';});
-    var _pz=_tg.filter(function(x){return !!x.c.paused;});
-    var _pnm=_pz.slice(0,5).map(function(x){return childFullName(x.c);}).join('・')+(_pz.length>5?' ほか'+(_pz.length-5)+'名':'');
-    /* ★料金設定が空のままだと合計が0円になるのに、そのまま発行・送付まで通っていた
+  /* 発行のときに、そのときの単価を行へ焼き付ける */
+  function invFreeze(r){ if(!r.units)r.units=invUnits(); return r; }
+  /* 送付が発行も兼ねる（2026-08-24 安田さんのご指摘で「発行」の段階をやめた）。
+     まだ発行していない行は、送るときにその日を発行日にして、単価を焼き付ける。
+     焼き付けないと、あとで料金設定を直したときに、送った請求書の金額まで変わってしまう。 */
+  function invIssue(r){
+    if(r.status==='未発行'){invFreeze(r);r.issuedAt=todayISO();r.total=invTotal(r);}
+    return r;
+  }
+  $('#ivSendAll').onclick=function(){
+    /* まだ送っていない請求書（未発行・発行済）をまとめて送る。
+       休園中の子が混ざっていても止めない。押す前に、誰が休園中かだけ伝える。 */
+    var t=rows.filter(function(x){return x.r.status==='未発行'||x.r.status==='発行済';});
+    if(!t.length){alert('まだ送っていない請求書がありません。');return;}
+    var _pz=t.filter(function(x){return !!x.c.paused;});
+    var _pnm=_pz.slice(0,5).map(function(x){return childFullNameHon(x.c);}).join('・')+(_pz.length>5?' ほか'+(_pz.length-5)+'名':'');
+    /* ★料金設定が空のままだと合計が0円になるのに、そのまま送付まで通っていた
        （同じ画面の上の表は手入力の月額を出すので、¥52,000 と ¥0 が並ぶ）。 */
-    var _z=_tg.filter(function(x){return invTotal(x.r)<=0;});
-    if(_z.length===_tg.length&&_tg.length){
-      alert('請求金額がすべて 0円 です。\n設定 → 料金設定 でコースプランの月額を入れてから発行してください。');
+    var _z=t.filter(function(x){return (x.r.total!=null&&x.r.status!=='未発行'?+x.r.total:invTotal(x.r))<=0;});
+    if(_z.length===t.length){
+      alert('請求金額がすべて 0円 です。\n設定 → 料金設定 でコースプランの月額を入れてから送ってください。');
       return;
     }
     if(_z.length){
-      if(!confirm('請求金額が 0円 の園児が '+_z.length+'名 います（'
-        +_z.slice(0,5).map(function(x){return childFullName(x.c);}).join('・')+(_z.length>5?' ほか':'')+'）。\n'
-        +'設定 → 料金設定 か、その子の「明細」で金額を入れてください。\nこのまま発行しますか？'))return;
-    }
-    if(!confirm(mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分の請求書を、未発行の園児について一括で発行します。'
-      +(_pz.length?'\n\n休園中の園児が'+_pz.length+'名ふくまれます（'+_pnm+'）。\n金額は自動計算のままです。手で決めるときは、その子の「明細」から。':'')
-      +'\n\nよろしいですか？'))return;
-    var n=0;rows.forEach(function(x){if(x.r.status==='未発行'){invFreeze(x.r);x.r.status='発行済';x.r.issuedAt=todayISO();x.r.total=invTotal(x.r);invSaveRow(mk,x.c.id,x.r);n++;}});
-    alert(n+'件を発行しました。内容を確認のうえ「送付」してください。');renderBilling();
-  };
-  /* 発行のときに、そのときの単価を行へ焼き付ける */
-  function invFreeze(r){ if(!r.units)r.units=invUnits(); return r; }
-  $('#ivSendAll').onclick=function(){
-    var t=rows.filter(function(x){return x.r.status==='発行済';});
-    if(!t.length){alert('送付できる（発行済の）請求書がありません。先に「発行」してください。');return;}
-    var z2=t.filter(function(x){return (x.r.total!=null?+x.r.total:invTotal(x.r))<=0;});
-    if(z2.length){
-      alert('請求金額が 0円 の請求書が '+z2.length+'件 あります（'
-        +z2.slice(0,5).map(function(x){return childFullName(x.c);}).join('・')+(z2.length>5?' ほか':'')+'）。\n'
-        +'金額を入れてから送ってください。');
+      alert('請求金額が 0円 の請求書が '+_z.length+'件 あります（'
+        +_z.slice(0,5).map(function(x){return childFullNameHon(x.c);}).join('・')+(_z.length>5?' ほか':'')+'）。\n'
+        +'設定 → 料金設定 か、上の表の「明細」で金額を入れてから送ってください。');
       return;
     }
-    if(!confirm(t.length+'件の請求書を「送付済」にし、保護者の未来WAへ送ります。\n'
+    if(!confirm(t.length+'件の請求書を保護者の未来WAへ送り、「送付済」にします。\n'
+      +'押した日（'+fmt(todayISO())+'）が発行日になります。\n'
       +'未来WAの「マイページ → 保育料のご請求」に出ます。\n'
-      +'※メールは送りません。\nよろしいですか？'))return;
-    t.forEach(function(x){invSend(mk,x.c,x.r);});
+      +'※メールは送りません。'
+      +(_pz.length?'\n\n休園中の園児が'+_pz.length+'名ふくまれます（'+_pnm+'）。\n金額は自動計算のままです。手で決めるときは、上の表の「明細」から。':'')
+      +'\nよろしいですか？'))return;
+    t.forEach(function(x){invIssue(x.r);invSend(mk,x.c,x.r);});
     alert(t.length+'件を未来WAへ送りました（「送付済」にしました）。\n'
       +'保護者は「マイページ → 保育料のご請求」でご覧になれます。');renderBilling();
   };
@@ -15120,9 +15189,8 @@ function renderBilling(){
     printDoc('保育料 請求書（'+mk+'）',body);
   };
   s.querySelectorAll('[data-ivedit]').forEach(function(b){b.onclick=function(){invModal(mk,+b.getAttribute('data-ivedit'));};});
-  s.querySelectorAll('[data-ivissue]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivissue'),r=invRow(mk,{id:id});var c=kids.filter(function(k){return k.id===id;})[0];r=invRow(mk,c);invFreeze(r);r.status='発行済';r.issuedAt=todayISO();r.total=invTotal(r);invSaveRow(mk,id,r);renderBilling();};});
   s.querySelectorAll('[data-ivsend]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivsend'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);
-    if(!confirm(childFullName(c)+'の請求書を「送付済」にし、保護者の未来WAへ送ります。\n未来WAの「マイページ → 保育料のご請求」に出ます。\n※メールは送りません。\nよろしいですか？'))return;invSend(mk,c,r);renderBilling();};});
+    if(!confirm(childFullNameHon(c)+'の請求書を「送付済」にし、保護者の未来WAへ送ります。\n未来WAの「マイページ → 保育料のご請求」に出ます。\n※メールは送りません。\nよろしいですか？'))return;invIssue(r);invSend(mk,c,r);renderBilling();};});
   s.querySelectorAll('[data-ivpaid]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivpaid'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);r.status='入金済';r.paidAt=todayISO();invSaveRow(mk,id,r);renderBilling();};});
   s.querySelectorAll('[data-ivprint]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-ivprint'),c=kids.filter(function(k){return k.id===id;})[0],r=invRow(mk,c);printDoc('保育料 請求書（'+mk+'・'+childFullName(c)+'）',invHTML(mk,c,r));};});
   /* 上の「契約とオプション」の欄を動くようにする */
@@ -15135,7 +15203,7 @@ function invModal(mk,id){
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   function body(){
-    return '<div class="modal" style="width:720px;"><h2>'+esc(childFullName(c))
+    return '<div class="modal" style="width:720px;"><h2>'+esc(childFullNameHon(c))
       +(c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中</span>':'')
       +'　'+(+mk.split('-')[1])+'月分の請求内容</h2>'
       /* 休園中の子は、自動計算だと通っていた月と同じ額が出る。
