@@ -2089,7 +2089,7 @@ var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（�
 /* 登園と午睡は1つの画面にまとめた（2026-08-17）。出す中身が同じで、紙も1枚。
    保存先の鍵は分けたまま（これまでの記録・書き出し・監査の提出をずらさないため）。 */
 var REC_DAILY=['登園（出席）','安全点検','健康チェック','業務日報・保育日誌'];
-var REC_CARE=['身体測定','事故・ヒヤリハットの記録','児童票（成長の記録）','苦情・要望の記録'];
+var REC_CARE=['身体測定','事故・ヒヤリハットの記録','児童票（成長の記録）','保護者対応の記録'];
 /* ?rec=生徒個人発達記録 のような古いリンク（配った紙のQRを含む）でも、
    正しい画面が開くように、先に新しい名前へ読み替える。
    読み替えないと、どちらも「日常チェック」と判定されて別の記録が開いていた。 */
@@ -2100,12 +2100,12 @@ function recPageOf(t){
 function recPageOf_(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
 /* 苦情の記録には保護者の個人的なことが入るので、園長・管理者だけに出す */
 function recCareList(){
-  if(typeof isBoss==='function'&&!isBoss())return REC_CARE.filter(function(t){return t!=='苦情・要望の記録';});
+  if(typeof isBoss==='function'&&!isBoss())return REC_CARE.filter(function(t){return t!=='保護者対応の記録';});
   return REC_CARE;
 }
 /* 記録の呼び名を変えたので、前の名前で呼ばれても新しい画面をひらけるようにする */
 var REC_OLD_NAME={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録'};
-var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','業務日報・保育日誌':'rec_日報','苦情・要望の記録':'rec_kujo'};
+var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','業務日報・保育日誌':'rec_日報','保護者対応の記録':'rec_kujo'};
 function attendedToday(id){var sh=stGet('rec_登園シート',{})[todayISO()];return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
 /* 手順は園によって違うので、初期値は空にしてある。
@@ -2436,7 +2436,7 @@ var AUDIT_REC={
   shintai:['carerec','身体測定'],
   hattatsu:['carerec','児童票（成長の記録）'],
   kega:['carerec','事故・ヒヤリハットの記録'],
-  kujo:['carerec','苦情・要望の記録']
+  kujo:['carerec','保護者対応の記録']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -10154,7 +10154,7 @@ function renderRecGroup(page,list,note){
      古い導線（提出書類ナビ・年間スケジュールなど）から来ても迷子にならないよう、
      同じ画面へ寄せる。 */
   if(recType==='午睡チェック')recType='登園（出席）';
-  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'事故・ヒヤリハットの記録':edHiyari,'児童票（成長の記録）':edDev,'業務日報・保育日誌':edNippo,'苦情・要望の記録':edKujo})[recType]();
+  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'事故・ヒヤリハットの記録':edHiyari,'児童票（成長の記録）':edDev,'業務日報・保育日誌':edNippo,'保護者対応の記録':edKujo})[recType]();
   attachRecPaperCard();
   /* 期間まとめの口は #recBody の外に置く。編集画面を描き直しても消えないので、付け直しが要らない */
   if(page==='records'&&$('#recPeriodBox')){$('#recPeriodBox').innerHTML=periodCard();wirePeriod();}
@@ -10794,7 +10794,7 @@ function devPrevKey(all,sel){
   }
   return best;
 }
-/* 苦情・要望の記録。受け付けから対応の終わりまでを1行で持つ。
+/* 保護者対応の記録。受け付けから対応の終わりまでを1行で持つ。
    保存の鍵は rec_kujo。書いたそばから保存する（書きかけが消えないようにするため）。 */
 var KUJO_WAYS=['来園','電話','書面','連絡帳','メール・DM','その他'];
 /* ★年度を選ぶ欄が紙にしか効いておらず、画面の表は全年度が出たままだった。
@@ -10808,21 +10808,65 @@ function kujoInFY(r,fy){
   return fyOf(r.date)===fy;
 }
 function kujoNewRow(){return {id:Date.now(),date:'',way:'来園',person:'',content:'',shori:'',by:'',doneDate:'',third:'なし'};}
+/* 内容を表で見せるときに、長い文章は切って出す。行の高さがそろい、一覧として読める。 */
+function kujoCut(t,n){
+  t=String(t==null?'':t).replace(/\s+/g,' ');
+  n=n||40;
+  return t.length>n?(t.slice(0,n)+'…'):t;
+}
+/* 保護者対応の記録を1件ずつ書く窓。
+   表の中に直接打ち込む形をやめ、ヒヤリハットと同じポップアップにした
+   （2026-08-24 安田さんのご依頼）。表が横に長く、どこに何を書くのか
+   分かりにくかったため。 */
+function kujoModal(idx,log,K){
+  var r=idx!=null?JSON.parse(JSON.stringify(log[idx])):kujoNewRow();
+  function v(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:680px;"><h2>保護者対応の記録</h2>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">保護者から苦情やご要望を受けたときに、1件ずつ書きます。監査で見られる書類です。</div>'
+    +'<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);">'
+      +'<div class="field"><label>受付日</label><input type="date" id="kj_date" value="'+esc(r.date||'')+'"></div>'
+      +'<div class="field"><label>受けた方法</label><select id="kj_way">'+KUJO_WAYS.map(function(w){return '<option'+(w===(r.way||'')?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div>'
+      +'<div class="field"><label>申し出た方</label><input id="kj_person" value="'+v(r.person)+'" placeholder="例：〇〇さんの保護者"></div></div>'
+    +'<div class="field"><label>言われたこと（そのまま書きます）</label><textarea id="kj_content" rows="4">'+esc(r.content||'')+'</textarea></div>'
+    +'<div class="field"><label>対応したこと（いつ・だれが・どう対応したか）</label><textarea id="kj_shori" rows="4">'+esc(r.shori||'')+'</textarea></div>'
+    +'<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);">'
+      +'<div class="field"><label>対応した職員</label><input id="kj_by" value="'+v(r.by)+'"></div>'
+      +'<div class="field"><label>完了した日</label><input type="date" id="kj_done" value="'+esc(r.doneDate||'')+'"></div>'
+      +'<div class="field"><label>第三者委員へ報告</label><select id="kj_third">'+['なし','報告した'].map(function(w){return '<option'+(w===(r.third||'')?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">'
+      +'<button class="btn" id="kj_cancel">キャンセル</button>'
+      +'<button class="btn btn-primary" id="kj_save">保存</button></div></div>';
+  $('#kj_cancel').onclick=function(){m.remove();};
+  $('#kj_save').onclick=function(){
+    r.date=$('#kj_date').value;r.way=$('#kj_way').value;r.person=$('#kj_person').value.trim();
+    r.content=$('#kj_content').value;r.shori=$('#kj_shori').value;r.by=$('#kj_by').value.trim();
+    r.doneDate=$('#kj_done').value;r.third=$('#kj_third').value;
+    /* 何も書かれていない行は残さない。空の行が「記録あり」と数えられてしまうため。 */
+    if(!(r.date||r.person||String(r.content||'').trim()||String(r.shori||'').trim()||r.by)){
+      alert('受付日か、申し出た方か、内容のどれかを入れてください。');return;
+    }
+    if(!r.id)r.id=Date.now();
+    if(idx!=null)log[idx]=r;else log.push(r);
+    stSet(K,log);m.remove();edKujo();
+  };
+}
 function edKujo(){
   var K='rec_kujo',log=stGet(K,[]);
   if(Object.prototype.toString.call(log)!=='[object Array]')log=[];
   function save(){stSet(K,log);}
-  $('#recBody').innerHTML='<div class="card">'+recHead('苦情・要望の記録',
+  $('#recBody').innerHTML='<div class="card">'+recHead('保護者対応の記録',
       '<select id="kjYear" class="lk-skip" style="width:130px;">'
       +[curFY()+1,curFY(),curFY()-1,curFY()-2].map(function(y){return '<option value="'+y+'"'+(y===kujoFYNow()?' selected':'')+'>'+y+'年度</option>';}).join('')
       +'</select>'
       +'<button class="btn btn-sm" id="kjAdd">'+ic('plus')+'受付を追加</button>'
       +'<button class="btn btn-sm btn-primary" id="kjPrint">'+ic('printer')+'記録を出力</button>')
-    +'<div class="muted" style="margin-bottom:10px;">保護者から苦情やご要望を受けたときに、1件ずつ書きます。書いた内容は、その場で保存されます。監査で見られる書類です。</div>'
-    +'<div class="tablewrap scrollx"><table style="min-width:1080px;"><thead><tr>'
-    +'<th style="width:120px;">受付日</th><th style="width:104px;">受けた方法</th><th style="width:120px;">申し出た方</th>'
-    +'<th>内容</th><th>対応したこと</th><th style="width:100px;">対応した職員</th>'
-    +'<th style="width:120px;">完了した日</th><th style="width:104px;">第三者委員へ報告</th><th style="width:44px;"></th>'
+    +'<div class="muted" style="margin-bottom:10px;">保護者から苦情やご要望を受けたときに、「受付を追加」から1件ずつ書きます。行の「ひらく」で、あとから直せます。監査で見られる書類です。</div>'
+    +'<div class="tablewrap scrollx"><table><thead><tr>'
+    +'<th style="width:96px;">受付日</th><th style="width:88px;">受けた方法</th><th style="width:120px;">申し出た方</th>'
+    +'<th>内容</th><th>対応したこと</th><th style="width:92px;">対応した職員</th>'
+    +'<th style="width:104px;">完了</th><th style="width:88px;">第三者委員</th><th style="width:104px;"></th>'
     +'</tr></thead><tbody>'
     +(function(){
       var fyv=kujoFYNow(),view=[];
@@ -10830,15 +10874,17 @@ function edKujo(){
       return view.length?view.map(function(x){
       var r=x.r,i=x.i;
       return '<tr>'
-        +'<td style="vertical-align:top;"><input type="date" data-kj="'+i+'|date" value="'+esc(r.date||'')+'"></td>'
-        +'<td style="vertical-align:top;"><select data-kj="'+i+'|way">'+KUJO_WAYS.map(function(w){return '<option'+(w===(r.way||'')?' selected':'')+'>'+w+'</option>';}).join('')+'</select></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kj="'+i+'|person" placeholder="例：〇〇さんの保護者">\n'+esc(r.person||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kj="'+i+'|content" placeholder="言われたことを、そのまま書きます">\n'+esc(r.content||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kj="'+i+'|shori" placeholder="いつ・だれが・どう対応したか">\n'+esc(r.shori||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kj="'+i+'|by">\n'+esc(r.by||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><input type="date" data-kj="'+i+'|doneDate" value="'+esc(r.doneDate||'')+'"></td>'
-        +'<td style="vertical-align:top;"><select data-kj="'+i+'|third">'+['なし','報告した'].map(function(w){return '<option'+(w===(r.third||'')?' selected':'')+'>'+w+'</option>';}).join('')+'</select></td>'
-        +'<td style="vertical-align:top;text-align:right;"><button class="btn btn-sm btn-ghost" data-kjdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
+        +'<td>'+esc(r.date?fmt(r.date):'—')+'</td>'
+        +'<td class="row-sub">'+esc(r.way||'')+'</td>'
+        +'<td class="row-sub">'+esc(r.person||'')+'</td>'
+        +'<td class="row-sub">'+esc(kujoCut(r.content))+'</td>'
+        +'<td class="row-sub">'+esc(kujoCut(r.shori))+'</td>'
+        +'<td class="row-sub">'+esc(r.by||'')+'</td>'
+        +'<td>'+(r.doneDate?'<span class="pill" style="background:#EAF3DE;color:#27500A;">'+esc(fmt(r.doneDate))+'</span>'
+                          :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">対応中</span>')+'</td>'
+        +'<td class="row-sub">'+esc(r.third||'')+'</td>'
+        +'<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-kjopen="'+i+'">ひらく</button> '
+          +'<button class="btn btn-sm btn-ghost" data-kjdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
       }).join('')
       :'<tr><td colspan="9" class="empty">'+kujoFYNow()+'年度の記録はまだありません。「受付を追加」から書きはじめてください。</td></tr>';
     })()
@@ -10847,12 +10893,9 @@ function edKujo(){
     +'受付日をまだ入れていない行は、どの年度でも表に出ます。</div></div>';
   var sk=$('#recBody');
   if($('#kjYear'))$('#kjYear').onchange=function(e){kujoFY=+e.target.value;edKujo();};
-  $('#kjAdd').onclick=function(){log.push(kujoNewRow());save();edKujo();};
-  sk.querySelectorAll('[data-kj]').forEach(function(elk){
-    var fn=function(){var p=elk.getAttribute('data-kj').split('|');log[+p[0]][p[1]]=elk.value;save();};
-    elk.onchange=fn;
-    if(elk.tagName==='TEXTAREA')elk.oninput=fn;
-  });
+  $('#kjAdd').onclick=function(){kujoModal(null,log,K);};
+  sk.querySelectorAll('[data-kjopen]').forEach(function(bo){bo.onclick=function(){
+    kujoModal(+bo.getAttribute('data-kjopen'),log,K);};});
   sk.querySelectorAll('[data-kjdel]').forEach(function(bk){bk.onclick=function(){
     if(!confirm('この受付の記録を消しますか？'))return;
     log.splice(+bk.getAttribute('data-kjdel'),1);save();edKujo();};});
@@ -10869,6 +10912,7 @@ function edKujo(){
       var x=a.date||'9999', y=b.date||'9999';
       return x<y?-1:x>y?1:0;
     });
+    /* 紙の表題は「苦情受付・処理の記録」のまま。監査で出す書類の正式な名前なので変えない。 */
     var b5='<p style="text-align:center;font-size:20px;font-weight:700;">苦情受付・処理の記録</p>'
       +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
       +'<table><thead><tr><th style="width:76px;">受付日</th><th style="width:60px;">方法</th><th style="width:90px;">申し出た方</th><th>内容</th><th>対応したこと</th><th style="width:80px;">対応した職員</th><th style="width:76px;">完了した日</th><th style="width:70px;">第三者委員</th></tr></thead><tbody>'
@@ -10886,7 +10930,6 @@ function edKujo(){
       +'</tbody></table>';
     printDoc('苦情受付・処理の記録（'+fy+'年度）',b5);
   };
-  autoGrowAll(sk);
 }
 function edDev(){
   var K='rec_発達',data=stGet(K,{});
@@ -15805,6 +15848,50 @@ function kaigiGet(fy){var a=kaigiAll();return (a[fy]&&a[fy].rows)?a[fy]:{rows:[]
 function kaigiSet(fy,d){var a=kaigiAll();a[fy]=d;stSet('kaigi',a);}
 function kaigiNewRow(){return {id:Date.now(),date:'',kind:'職員会議',klass:'',attend:'',agenda:'',decided:'',next:'',by:''};}
 var KAIGI_KINDS=['職員会議','クラス会議','その他の会議'];
+/* 会議の記録を1件ずつ書く窓。
+   表の中に直接打ち込む形をやめ、ヒヤリハットと同じポップアップにした
+   （2026-08-24 安田さんのご依頼）。表が横に長く、欄が細くて書きにくかったため。 */
+function kaigiModal(fy,idx){
+  var gd=kaigiGet(fy);
+  var r=idx!=null?JSON.parse(JSON.stringify(gd.rows[idx])):kaigiNewRow();
+  function v(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:680px;"><h2>職員会議・クラス議事録</h2>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;">会議をひらいたら1件足します。出席した職員は、あとから見て分かるように名前を書いてください。監査で見られる書類です。</div>'
+    +'<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);">'
+      +'<div class="field"><label>開いた日</label><input type="date" id="kg_date" value="'+esc(r.date||'')+'"></div>'
+      +'<div class="field"><label>種類</label><select id="kg_kind">'+KAIGI_KINDS.map(function(w){return '<option'+(w===(r.kind||'')?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div>'
+      +'<div class="field"><label>クラス</label><input id="kg_klass" value="'+v(r.klass)+'" placeholder="全体は空欄"></div></div>'
+    +'<div class="field"><label>出席した職員</label><textarea id="kg_attend" rows="2" placeholder="例：青木・田村・佐々木">'+esc(r.attend||'')+'</textarea></div>'
+    +'<div class="field"><label>話し合ったこと</label><textarea id="kg_agenda" rows="4" placeholder="議題と、話し合った中身">'+esc(r.agenda||'')+'</textarea></div>'
+    +'<div class="field"><label>決まったこと</label><textarea id="kg_decided" rows="3">'+esc(r.decided||'')+'</textarea></div>'
+    +'<div class="field"><label>次までにすること</label><textarea id="kg_next" rows="2" placeholder="だれが、いつまでに">'+esc(r.next||'')+'</textarea></div>'
+    +'<div class="field"><label>記録した人</label><input id="kg_by" value="'+v(r.by)+'"></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">'
+      +'<button class="btn" id="kg_cancel">キャンセル</button>'
+      +'<button class="btn btn-primary" id="kg_save">保存</button></div></div>';
+  $('#kg_cancel').onclick=function(){m.remove();};
+  $('#kg_save').onclick=function(){
+    r.date=$('#kg_date').value;r.kind=$('#kg_kind').value;r.klass=$('#kg_klass').value.trim();
+    r.attend=$('#kg_attend').value;r.agenda=$('#kg_agenda').value;r.decided=$('#kg_decided').value;
+    r.next=$('#kg_next').value;r.by=$('#kg_by').value.trim();
+    /* 何も書かれていない行は残さない。空の行が「記録あり」と数えられてしまうため。 */
+    if(!(r.date||String(r.attend||'').trim()||String(r.agenda||'').trim()||String(r.decided||'').trim())){
+      alert('開いた日か、出席した職員か、話し合ったことを入れてください。');return;
+    }
+    if(!r.id)r.id=Date.now();
+    var g=kaigiGet(fy);
+    if(idx!=null)g.rows[idx]=r;else g.rows.push(r);
+    kaigiSet(fy,g);m.remove();renderBouka();
+  };
+}
+/* 表に出すときは、長い文章を切って出す。行の高さがそろい、一覧として読める。 */
+function kaigiCut(t,n){
+  t=String(t==null?'':t).replace(/\s+/g,' ');
+  n=n||36;
+  return t.length>n?(t.slice(0,n)+'…'):t;
+}
 function boukaFY(){if(boukaYear==null)boukaYear=curFY();return boukaYear;}
 function boukaAll(){return stGet('bouka',{});}
 function boukaGet(fy){
@@ -15841,23 +15928,24 @@ function renderBouka(){
     body='<div class="card">'+recHead('職員会議・クラス議事録',
         '<button class="btn btn-sm" id="kgAdd">'+ic('plus')+'会議を追加</button>'
         +'<button class="btn btn-sm btn-primary" id="kgPrint">'+ic('printer')+'議事録を出力</button>')
-      +'<div class="muted" style="margin-bottom:10px;">会議をひらいたら1行足します。出席した職員は、あとから見て分かるように名前を書いてください。書いた内容は、その場で保存されます。</div>'
-      +'<div class="tablewrap scrollx"><table style="min-width:1040px;"><thead><tr>'
-      +'<th style="width:120px;">開いた日</th><th style="width:104px;">種類</th><th style="width:90px;">クラス</th>'
-      +'<th style="width:130px;">出席した職員</th><th>話し合ったこと</th><th>決まったこと</th>'
-      +'<th style="width:130px;">次までにすること</th><th style="width:90px;">記録した人</th><th style="width:44px;"></th>'
+      +'<div class="muted" style="margin-bottom:10px;">会議をひらいたら「会議を追加」から1件書きます。行の「ひらく」で、あとから直せます。出席した職員は、あとから見て分かるように名前を書いてください。</div>'
+      +'<div class="tablewrap scrollx"><table><thead><tr>'
+      +'<th style="width:96px;">開いた日</th><th style="width:88px;">種類</th><th style="width:80px;">クラス</th>'
+      +'<th style="width:120px;">出席した職員</th><th>話し合ったこと</th><th>決まったこと</th>'
+      +'<th style="width:120px;">次までにすること</th><th style="width:84px;">記録した人</th><th style="width:104px;"></th>'
       +'</tr></thead><tbody>'
       +(gd.rows.length?gd.rows.map(function(r,i){
         return '<tr>'
-          +'<td style="vertical-align:top;"><input type="date" data-kg="'+i+'|date" value="'+esc(r.date||'')+'"></td>'
-          +'<td style="vertical-align:top;"><select data-kg="'+i+'|kind">'+KAIGI_KINDS.map(function(w){return '<option'+(w===(r.kind||'')?' selected':'')+'>'+w+'</option>';}).join('')+'</select></td>'
-          +'<td style="vertical-align:top;"><input data-kg="'+i+'|klass" value="'+esc(r.klass||'')+'" placeholder="全体は空欄"></td>'
-          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kg="'+i+'|attend" placeholder="例：青木・田村・佐々木">\n'+esc(r.attend||'')+'</textarea></td>'
-          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kg="'+i+'|agenda" placeholder="議題と、話し合った中身">\n'+esc(r.agenda||'')+'</textarea></td>'
-          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kg="'+i+'|decided" placeholder="決まったこと">\n'+esc(r.decided||'')+'</textarea></td>'
-          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kg="'+i+'|next" placeholder="だれが、いつまでに">\n'+esc(r.next||'')+'</textarea></td>'
-          +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-kg="'+i+'|by">\n'+esc(r.by||'')+'</textarea></td>'
-          +'<td style="vertical-align:top;text-align:right;"><button class="btn btn-sm btn-ghost" data-kgdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
+          +'<td>'+esc(r.date?fmt(r.date):'—')+'</td>'
+          +'<td class="row-sub">'+esc(r.kind||'')+'</td>'
+          +'<td class="row-sub">'+esc(r.klass||'全体')+'</td>'
+          +'<td class="row-sub">'+esc(kaigiCut(r.attend,24))+'</td>'
+          +'<td class="row-sub">'+esc(kaigiCut(r.agenda))+'</td>'
+          +'<td class="row-sub">'+esc(kaigiCut(r.decided))+'</td>'
+          +'<td class="row-sub">'+esc(kaigiCut(r.next,24))+'</td>'
+          +'<td class="row-sub">'+esc(r.by||'')+'</td>'
+          +'<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-kgopen="'+i+'">ひらく</button> '
+            +'<button class="btn btn-sm btn-ghost" data-kgdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
         }).join('')
         :'<tr><td colspan="9" class="empty">まだ記録がありません。「会議を追加」から書きはじめてください。</td></tr>')
       +'</tbody></table></div></div>';
@@ -15868,12 +15956,9 @@ function renderBouka(){
   if(boukaTab==='kaigi'){
     var gd2=kaigiGet(fy);
     var gsave=function(){kaigiSet(fy,gd2);};
-    if($('#kgAdd'))$('#kgAdd').onclick=function(){gd2.rows.push(kaigiNewRow());gsave();renderBouka();};
-    s.querySelectorAll('[data-kg]').forEach(function(elg){
-      var fn=function(){var p=elg.getAttribute('data-kg').split('|');gd2.rows[+p[0]][p[1]]=elg.value;gsave();};
-      elg.onchange=fn;
-      if(elg.tagName==='TEXTAREA')elg.oninput=fn;
-    });
+    if($('#kgAdd'))$('#kgAdd').onclick=function(){kaigiModal(fy,null);};
+    s.querySelectorAll('[data-kgopen]').forEach(function(bo){bo.onclick=function(){
+      kaigiModal(fy,+bo.getAttribute('data-kgopen'));};});
     s.querySelectorAll('[data-kgdel]').forEach(function(bg){bg.onclick=function(){
       if(!confirm('この会議の記録を消しますか？'))return;
       gd2.rows.splice(+bg.getAttribute('data-kgdel'),1);gsave();renderBouka();};});
@@ -16302,7 +16387,7 @@ function taskAddDel(name){var a=taskAddAll(),i;
 function taskNameUsed(n){var i;
   for(i=0;i<ANNUAL_TASKS.length;i++){if(ANNUAL_TASKS[i].name===n)return true;}
   return false;}
-var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'苦情・要望の記録':['carerec','苦情・要望の記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
+var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'保護者対応の記録':['carerec','保護者対応の記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
 /* 記録の呼び名を変えたので、前の名前で保存されているものからも同じ画面へ行けるようにする */
 var TASK_PAGE_OLD={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録'};
 function taskPageOf(n){return TASK_PAGE[n]||TASK_PAGE[TASK_PAGE_OLD[n]]||null;}
@@ -16790,7 +16875,7 @@ var LOG_LABEL={
   'cocoas_invoices':'請求書','cocoas_expenses':'経費管理','cocoas_cashCount':'小口現金の数え合わせ',
   'cocoas_timecards':'出勤簿','cocoas_staffDocs':'職員の書類','cocoas_facility':'施設の情報・取引先',
   'cocoas_bouka':'防火管理台帳・消火訓練','cocoas_hoiku_kenshu':'保育研修の記録',
-  'cocoas_rec_kujo':'苦情・要望の記録','cocoas_kaigi':'職員会議・クラス議事録',
+  'cocoas_rec_kujo':'保護者対応の記録','cocoas_kaigi':'職員会議・クラス議事録',
   'cocoas_recScans':'取り込んだ紙の記録','cocoas_trialReports':'体験の報告',
   'cocoas_contactPhotos':'園児の写真',
   'cocoas_auditPlaces':'監査書類の保管先','cocoas_auditDates':'監査日（年度ごと）',
@@ -17166,7 +17251,7 @@ var HELP_MORE={
   '身体測定は、クラスを選ぶとその園児が並びます。身長・体重を入れると、カウプ指数が自動で出ます。',
   '事故・ヒヤリハットの記録では、人の形の絵を押して、けがの場所を前・後ろで記録できます。',
   '事故・ヒヤリハットの記録と児童票（成長の記録）は、先に「クラス」を選ぶと、そのクラスの園児だけが並びます。',
-  '苦情・要望の記録は、園長・管理者だけに出ます。保護者から言われたことを1件ずつ書き、対応が終わったら完了した日を入れてください。',
+  '保護者対応の記録は、園長・管理者だけに出ます。「受付を追加」から保護者に言われたことを1件ずつ書き、対応が終わったら完了した日を入れてください。',
   '児童票（成長の記録）は、毎月記録します。監査で見られる書類です。「前回の記録を反映」で、いちばん近い前の記録を写してから、変わったところだけ直せます。']},
  roster:{tips:[
   '自宅マップの「学校 → 避難場所」の道すじは、監査のときにも使えます。']},
@@ -17417,7 +17502,7 @@ var HELP_KB={
   paper:'紙で書きたい日は、下の「紙の記録を取り込む」からQR付きの用紙を印刷し、書いたあとに撮影すると同じ日付の記録として残ります。'},
 
  carerec:{t:'保育記録',kw:'身体測定 身長 体重 カウプ ヒヤリハット 怪我 けが 発達記録 個人記録 毎月 月ごと measurement',role:['一般','マネージャー'],
-  can:'毎日ではない記録です。身体測定（月1）、事故・ヒヤリハットの記録（そのつど）、児童票（成長の記録・毎月）、苦情・要望の記録（そのつど）。上のタブで切り替えます。',
+  can:'毎日ではない記録です。身体測定（月1）、事故・ヒヤリハットの記録（そのつど）、児童票（成長の記録・毎月）、保護者対応の記録（そのつど）。上のタブで切り替えます。',
   steps:['月とクラスを選び、身長と体重を入れます。カウプ指数はその場で計算されます。入れ終わったら「保存する」を押します。',
    '「保護者へ測定結果を送信」を押すと、ご家庭ごとにそのお子さまの結果だけを書いた文面が作られます。',
    'ヒヤリハットは、人型の絵をタップするとその場所に印が付きます。',
