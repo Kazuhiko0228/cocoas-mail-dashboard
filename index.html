@@ -2898,7 +2898,7 @@ function fillTokens(text,c,ctx){
     '〔お子様〕':c?c.child:'〔お子様〕',
     '〔クラス〕':(c&&c.klass)?c.klass:'〔クラス〕',
     '〔日程〕':(c&&c.date)?fmt(c.date):'〇月〇日',
-    /* 在園児・退園児の〔金額〕は、いま使う月額（特別料金＞自動計算）から出す。
+    /* 在園児・退園児の〔金額〕は、いま使う月額（自動計算）から出す。
        手で入れる欄をやめたので、請求書と同じ考え方の額になる。
        リード（営業）はまだ契約が無いので、これまでどおり登録されている額を出す。 */
     '〔金額〕':(function(){
@@ -7121,9 +7121,8 @@ function renderContacts(){
         /* 月額は自動計算から出す。手で入れた額と食い違わないようにするため。
            自動計算ではない額を出しているときは、その理由が分かる札を付ける。 */
         var _fi=(c.kind==='enrolled')?feeInfo(c):null;
-        var _feeTag=_fi?(_fi.src==='special'?' <span class="tag" style="background:#FAEEDA;color:#854F0B;">特別料金</span>'
-          :(_fi.src==='old'?' <span class="tag" style="background:#FCEBEB;color:#A32D2D;">手入力のまま</span>'
-            +'<button class="btn btn-sm btn-ghost" data-feeclear="'+esc(c.id)+'" title="手で入れた金額を消す" style="padding:0 6px;font-size:13px;color:#A32D2D;">×</button>':'')):'';
+        var _feeTag=_fi?((_fi.src==='old')?' <span class="tag" style="background:#FCEBEB;color:#A32D2D;">手入力のまま</span>'
+            +'<button class="btn btn-sm btn-ghost" data-feeclear="'+esc(c.id)+'" title="手で入れた金額を消す" style="padding:0 6px;font-size:13px;color:#A32D2D;">×</button>':''):'';
         var right=c.kind==='enrolled'?(yen(_fi.amount)+_feeTag+' <span class="row-sub">/月（請求書発行で直す） ・ '+(c.withdrawDay||27)+'日引落</span>'):c.kind==='withdrawn'?('<span class="row-sub">退園 '+(c.withdrawDate?fmt(c.withdrawDate):'—')+'</span>'):(c.date?fmt(c.date):'<span class="row-sub">―</span>');
         var badge;
         if(c.kind==='enrolled')badge='<span class="pill st-在園">在園・'+esc(c.klass)+'</span>'
@@ -7524,17 +7523,17 @@ function contactModal(id){
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|lunch" style="width:auto;"'+(o.lunch?' checked':'')+(o.go?'':' disabled')+'></td>'
         +'<td style="text-align:center;"><input type="checkbox" data-dayo="'+d+'|long" style="width:auto;"'+(o.long?' checked':'')+(o.go?'':' disabled')+'></td></tr>';}).join('')
       +'</tbody></table></div><div class="muted" style="margin-top:6px;font-size:11.5px;">「通園」にチェックした曜日だけ 給食 / 延長保育 を選べます。登園シートの初期値と、<b>まだ発行していない</b>請求書の給食・延長保育の回数に反映されます。発行ずみの月は、請求書発行の「明細」から直してください。</div></div>';})()+
-    /* お金の欄（特別料金・引落日）は請求書発行へ移した。入れる場所を2つにすると食い違うため。
+    /* お金の欄（引落日）は請求書発行へ移した。入れる場所を2つにすると食い違うため。
        ここは、いま使っている額と引落日を見せるだけにする。 */
     (function(){
       var _mk=feeMonthKey(),_auto=0;
       try{_auto=enrMonthly(enrOf(c,_mk));}catch(e){_auto=0;}
-      var _sp=feeSpecialOf(c);
+      var _sp=feeSpecialOf(c);   /* 前に入れた額が残っている子に、そのことを伝えるため */
       return '<div style="background:#F7F9FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;line-height:1.9;">'
         +'月額（自動計算・'+(+_mk.split('-')[1])+'月分）　<b style="font-size:15px;">'+esc(yen(_auto))+'</b>'
-        +(_sp!=null?'　<span class="tag" style="background:#FAEEDA;color:#854F0B;">特別料金 '+esc(yen(_sp))+' を使います</span>':'')
+        +(_sp!=null?'　<span class="tag" style="background:#FCEBEB;color:#A32D2D;">前に入れた特別料金 '+esc(yen(_sp))+' が残っています（もう使いません）</span>':'')
         +'<br>引落日　<b>'+esc(String(c.withdrawDay||27))+'</b> 日'
-        +'<div class="muted" style="font-size:11.5px;margin-top:3px;">特別料金と引落日は「請求書発行」の上の表で直します。</div>'
+        +'<div class="muted" style="font-size:11.5px;margin-top:3px;">引落日は「請求書発行」の上の表で直します。</div>'
         +'</div>';
     })()+
     /* リード（営業）のときはメモ欄を出さない。共有事項に一本化したため。
@@ -7606,7 +7605,7 @@ function contactModal(id){
       nc.pauseFrom=$('#f_pauseFrom')?$('#f_pauseFrom').value:(nc.pauseFrom||'');
       nc.pauseTo=$('#f_pauseTo')?$('#f_pauseTo').value:(nc.pauseTo||'');
       nc.klass=$('#f_klass').value;
-      /* 特別料金と引落日は、請求書発行で直す。ここでは元の値をそのまま残す。
+      /* 引落日は、請求書発行で直す。ここでは元の値をそのまま残す。
          新しく足した連絡先だけ、引落日に園のふつうの日（27日）を入れておく。 */
       if(nc.withdrawDay==null||nc.withdrawDay==='')nc.withdrawDay=27;
       nc.admissionDate=$('#f_adm').value;var dop={};WEEK5.forEach(function(d){var g=m.querySelector('[data-dayo="'+d+'|go"]'),l=m.querySelector('[data-dayo="'+d+'|lunch"]'),lg=m.querySelector('[data-dayo="'+d+'|long"]');dop[d]={go:!!(g&&g.checked),lunch:!!(g&&g.checked&&l&&l.checked),long:!!(g&&g.checked&&lg&&lg.checked)};});
@@ -14655,12 +14654,14 @@ function feeSpecialOf(c){
   return isNaN(v)?null:v;
 }
 /* この園児に、いま使う月額。src はその額がどこから来たか。
-     special … 特別料金
      auto    … 料金設定からの自動計算
-     old     … 前に手で入れていた額（自動計算がまだ0円のときだけ） */
+     old     … 前に手で入れていた額（自動計算がまだ0円のときだけ）
+
+   ★「特別料金（きょうだい割など）」は、2026-08-24 のご指示でやめた。
+     きょうだいは別々の生徒として登録し、紐付けない決めなので、
+     きょうだい割を子ごとの額で表す前提が無くなったため。
+     その月だけ額を変えたいときは、請求書の「明細」で直す。 */
 function feeInfo(c,mk){
-  var sp=feeSpecialOf(c);
-  if(sp!=null)return {amount:sp,src:'special'};
   var a=0;
   try{a=enrMonthly(enrOf(c,mk||feeMonthKey()));}catch(e){a=0;}
   /* 料金設定にまだ単価が入っていないと、自動計算は0円になる。
@@ -14677,7 +14678,7 @@ function feeUse(c,mk){return feeInfo(c,mk).amount;}
 function feeSyncContact(id){
   var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];
   if(!c)return;
-  if(!c.feeChecked&&feeSpecialOf(c)==null)return;
+  if(!c.feeChecked)return;
   var v=feeUse(c);
   if(+(c.feeAmount||0)===+v)return;
   c.feeAmount=v;DB.contacts=arr;
@@ -14698,7 +14699,7 @@ function enrPayAllowed(){
 }
 /* ── 契約とオプション（もとの「生徒情報」）─────────────────
    安田さんの決めで、生徒情報は請求書発行に入れた。お金の話は、この画面ひとつにまとめる。
-   ここに置くのは、コースプラン・給食・延長保育・教育関連費・特別料金・引落日・
+   ここに置くのは、コースプラン・給食・延長保育・教育関連費・引落日・
    お支払い方法・月額。
    通園曜日だけは連絡先が持ち場なので、ここでは見せるだけにする。
    持ち場を2つにすると、曜日と契約が食い違うため。 */
@@ -14716,7 +14717,7 @@ function billContractHTML(kids,mk){
     +'入るまでは、連絡先の一覧とご案内メールには、前に手で入れていた月額をそのまま出します（0円で届かないようにするためです）。</div></div>';
   if(!kids.length)return warn;
   return warn+'<div class="card" style="margin-bottom:14px;"><h3>'+ic('yen')+'契約とオプション</h3>'
-    +'<div class="muted" style="margin-bottom:12px;">この表が<b>お金の持ち場</b>です。今月の請求額は、下の内容と料金設定から自動で出ます。きょうだい割など決めた額は「特別料金」へ。<br>連絡先管理にも同じ額が出ますが、あちらは<b>読むだけ</b>です。</div>'
+    +'<div class="muted" style="margin-bottom:12px;">この表が<b>お金の持ち場</b>です。今月の請求額は、下の内容と料金設定から自動で出ます。連絡先管理にも同じ額が出ますが、あちらは<b>読むだけ</b>です。</div>'
     +'<div class="scrollx"><table class="enrtbl"><thead><tr>'
       +'<th>園児</th><th style="width:62px;">クラス</th>'
       /* 通園曜日はここでは直せない。持ち場は連絡先なので、それを見出しに書く */
@@ -14726,7 +14727,6 @@ function billContractHTML(kids,mk){
       +'<th style="width:86px;">給食<div class="enrunit">'+yen(P.lunch)+'/回</div><div class="enrunit">曜日から</div></th>'
       +'<th style="width:96px;">延長保育<div class="enrunit">'+yen(P.extended)+'/回</div><div class="enrunit">曜日から</div></th>'
       +'<th style="width:72px;text-align:center;">教育関連費<div class="enrunit">'+yen(P.material)+'</div></th>'
-      +'<th style="width:88px;">特別料金<div class="enrunit">空欄で自動計算</div></th>'
       +'<th style="width:60px;">引落日</th>'
       +'<th style="width:108px;text-align:right;">今月の請求額<div class="enrunit">'+(+mk.split('-')[1])+'月分・自動計算</div></th>'
       +(canPay?'<th style="width:96px;">お支払い</th>':'')+'</tr></thead><tbody>'
@@ -14750,10 +14750,8 @@ function billContractHTML(kids,mk){
         +optCell('lunch',o.lunchN)
         +optCell('long',o.extN)
         +'<td style="text-align:center;"><input type="checkbox" data-en="'+c.id+'|material"'+(o.material?' checked':'')+' style="width:auto;"></td>'
-        +'<td><input type="number" data-enfee="'+esc(c.id)+'" value="'+esc(sp==null?'':sp)+'" placeholder="自動" style="width:82px;padding:8px 8px;"></td>'
         +'<td><input type="number" min="1" max="31" data-enwd="'+esc(c.id)+'" value="'+esc(c.withdrawDay||27)+'" style="width:54px;padding:8px 6px;"></td>'
         +'<td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">'+yen(fi.amount)
-          +(fi.src==='special'?'<div class="row-sub" style="font-size:11px;color:#854F0B;">特別料金</div>':'')
           +(fi.src==='old'?'<div class="row-sub" style="font-size:11px;color:#A32D2D;">手入力のまま'
             +'<button class="btn btn-sm btn-ghost" data-feeclear="'+esc(c.id)+'" title="手で入れた金額を消す" style="padding:0 5px;font-size:12px;color:#A32D2D;">×</button></div>':'')
           +'</td>'
@@ -14789,22 +14787,11 @@ function billContractBind(s,kids,mk){
     var id=+b.getAttribute('data-endays');
     go('contacts');setTimeout(function(){contactModal(id);},60);
   };});
-  /* 特別料金（きょうだい割など、園が決めた額）。
-     空欄は「決めていない」。0 は「0円と決めた」なので、空欄とは分けて残す。 */
-  s.querySelectorAll('[data-enfee]').forEach(function(inp){inp.onchange=function(){
-    var id=+inp.getAttribute('data-enfee');
-    var arr=DB.contacts,c=arr.filter(function(x){return x.id===id;})[0];if(!c)return;
-    var v=String(inp.value).replace(/[\s　]/g,'');
-    c.specialFee=(v==='')?'':(+v||0);
-    /* 実際に使う額を連絡先にも写す。ご案内メールなど、ここを読む場所があるため。 */
-    /* 写す額は、連絡先の一覧やご案内メールと同じ「翌月ぶん」でそろえる。
-       この画面で先の月を選んでいても、そこはずらさない。 */
-    /* 空欄に戻したときは、前に手で入れていた額の名残も一緒に捨てる。
-       残したままだと「手入力のまま」の札が、どこからも消せなくなるため。 */
-    if(v===''){c.feeAmount=0;c.feeChecked=false;}
-    else{c.feeChecked=true;c.feeAmount=feeUse(c);}
-    DB.contacts=arr;renderBilling();
-  };});
+  /* ★「特別料金（きょうだい割など）」の欄はやめた（2026-08-24 のご指示）。
+     きょうだいは別々の生徒として登録し、紐付けない決めなので、
+     きょうだい割を子ごとの額で表す前提が無くなったため。
+     すでに入っている c.specialFee は消していない。
+     連絡先の窓に「前に入れた特別料金が残っています（もう使いません）」と出る。 */
   /* 「手入力のまま」の札を消す。前に手で入れていた額を捨てて、自動計算に戻す。 */
   s.querySelectorAll('[data-feeclear]').forEach(function(b){b.onclick=function(){
     if(!confirm('手で入れた金額を消します。\n\nこのあとは、料金設定からの自動計算になります。\n料金設定がまだ空のときは 0円 と出ます。\n\nよろしいですか？'))return;
@@ -14844,10 +14831,9 @@ function invRow(mk,c){
   if(r)return r;
   var o=(typeof enrOf==='function')?enrOf(c,mk):{plan:'週3',lunchN:0,extN:0,material:false};
   var always=(((SET.pricing||{}).options)||[]).filter(function(x){return x.always;}).map(function(x){return {name:x.name,qty:1,price:+x.price||0};});
-  /* 連絡先に特別料金（きょうだい割など、園が決めた額）が入っていれば、それを持ってくる。
-     ここで持ってこないと、ご案内メールは特別料金なのに請求書だけ自動計算、という食い違いが起きる。
-     もう作ってある請求書は上の r で返るので、あとから変わることはない。 */
-  var sp=(typeof feeSpecialOf==='function')?feeSpecialOf(c):null;
+  /* ★きょうだい割の「特別料金」はやめたので、新しく作る請求書には引き継がない。
+     すでに作ってある請求書は上の r で返るので、金額は変わらない。 */
+  var sp=null;
   return {plan:o.plan,lunchN:+o.lunchN||0,extN:+o.extN||0,material:!!o.material,admission:!!o.admission,special:(sp==null?'':sp),extras:always,discount:0,discountNote:'',due:'',status:'未発行',issuedAt:'',sentAt:'',paidAt:''};
 }
 function invSaveRow(mk,id,r){var all=invAll();all[mk]=all[mk]||{};all[mk][id]=r;invSaveAll(all);}
@@ -14865,7 +14851,7 @@ function invLines(r){
   var P=(r&&r.units)?r.units:(SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0});
   var L=[];
   if(r.admission)L.push(['入園金',P.admission||0,1,P.admission||0]);
-  /* 特別料金が入っているときは、プラン・教育関連費・給食・延長保育のかわりに、
+  /* この月だけの金額が入っているときは、プラン・教育関連費・給食・延長保育のかわりに、
      その額ひとつで出す。入園金・その他の項目・割引は、これまでどおり足し引きする。
      保護者に届く紙の項目名は、これまでと同じ「◯◯ 保育料」のままにしている。 */
   var sp=(r.special==null||r.special==='')?null:(+r.special||0);
@@ -14969,7 +14955,7 @@ function renderBilling(){
         +'<div class="row-sub">'+esc(x.c.name)+'</div></td><td>'+esc(x.c.klass||'')+'</td><td>'+esc(x.r.plan||'')+'</td>'
         +'<td style="text-align:right;">'+(+x.r.lunchN||0)+'回</td><td style="text-align:right;">'+(+x.r.extN||0)+'回</td>'
         +'<td style="text-align:right;font-weight:600;">'+yen(invTotal(x.r))
-          +((x.r.special==null||x.r.special==='')?'':'<div class="row-sub" style="font-size:11px;color:#854F0B;">特別料金</div>')+'</td>'
+          +((x.r.special==null||x.r.special==='')?'':'<div class="row-sub" style="font-size:11px;color:#854F0B;">この月だけの金額</div>')+'</td>'
         +'<td class="row-sub">'+(x.r.issuedAt?fmt(x.r.issuedAt):'—')+'</td>'
         +'<td class="row-sub">'+(x.r.due?fmt(x.r.due):'—')+'</td>'
         +'<td class="row-sub">'+(x.r.paidAt?fmt(x.r.paidAt):'—')+'</td>'
@@ -15054,7 +15040,7 @@ function invModal(mk,id){
          そのことと、どこで額を決めるかを、この窓の中で伝える。 */
       +(c.paused?'<div style="background:#F7F9FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.9;margin-bottom:10px;">'
         +'この園児は休園中です。下の自動計算は、通っていた月と同じ額のままです。<br>'
-        +'この月のプラン・教育関連費・給食・延長保育のかわりに、下の「特別料金（この月だけ）」に入れた額を使います。入園金・その他の項目・割引は、そのあとに足し引きします。</div>':'')
+        +'この月のプラン・教育関連費・給食・延長保育のかわりに、下の「この月だけの金額」に入れた額を使います。入園金・その他の項目・割引は、そのあとに足し引きします。</div>':'')
       +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
         +'<div class="field"><label>コースプラン</label><select id="im_plan">'+Object.keys(P.plans||{}).map(function(k){return '<option'+(k===r.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></div>'
         +'<div class="field"><label>お支払期日</label><input type="date" id="im_due" value="'+esc((r.due||''))+'"></div></div>'
@@ -15064,9 +15050,9 @@ function invModal(mk,id){
       +'<div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">'
         +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_mat" style="width:auto;"'+(r.material?' checked':'')+'>教育関連費</label>'
         +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_adm" style="width:auto;"'+(r.admission?' checked':'')+'>入園金（初回）</label></div>'
-      +'<div class="field"><label>特別料金（この月だけ）</label>'
+      +'<div class="field"><label>この月だけの金額</label>'
         +'<input type="number" id="im_special" value="'+esc((r.special==null?'':r.special))+'" placeholder="空欄＝プラン・給食・延長保育から自動計算">'
-        +'<div class="muted" style="font-size:11.5px;line-height:1.8;margin-top:4px;">上の「契約とオプション」で特別料金が入っている園児は、ここに入った状態で開きます。'
+        +'<div class="muted" style="font-size:11.5px;line-height:1.8;margin-top:4px;">'
         +'入っているときは、プラン・教育関連費・給食・延長保育のかわりに、この額ひとつで請求します（入園金・その他の項目・割引は別に足し引きします）。</div></div>'
       +'<div class="grid" style="grid-template-columns:1fr 2fr;">'
         +'<div class="field"><label>割引額</label><input type="number" min="0" id="im_disc" value="'+esc((+r.discount||0))+'"></div>'
@@ -15093,7 +15079,7 @@ function invModal(mk,id){
     return out;
   }
   function read(){r.plan=$('#im_plan').value;r.due=$('#im_due').value;r.lunchN=+$('#im_lunch').value||0;r.extN=+$('#im_ext').value||0;r.material=$('#im_mat').checked;r.admission=$('#im_adm').checked;
-    /* 空欄は「特別料金は無し」。0 は「0円と決めた」なので、空欄と分けて残す。 */
+    /* 空欄は「この月だけの金額は無し」。0 は「0円と決めた」なので、空欄と分けて残す。 */
     var _sv=$('#im_special')?String($('#im_special').value).replace(/[\s　]/g,''):'';
     r.special=(_sv==='')?'':(+_sv||0);
     r.discount=+$('#im_disc').value||0;r.discountNote=$('#im_discn').value;r.extras=readExtras();}
@@ -16800,7 +16786,7 @@ HELP_DATA.wastore={
   b.summary='月ごとの保育料を、契約の確認から発行・送付・入金の確認まで、この画面だけで進められます。'
     +'上が「契約とオプション」、下が請求書の一覧と作成です。金額は、上の内容と「設定 → 料金設定」から自動で計算されます。';
   b.steps=['上の「契約とオプション」で、園児ごとのコースプランと教育関連費を確かめます',
-    'きょうだい割など園で決めた額がある子は、「特別料金」の欄に入れます',
+    'その月だけ額を変えたいときは、請求書の「明細」から「この月だけの金額」に入れます',
     '引落日とお支払い方法を確かめます',
     '下の一覧で月を選び、園児ごとに「明細」を押して、回数や割引、支払期日を確かめます',
     '内容がよければ「一括で発行」を押し、つづけて「発行済をまとめて送付」を押します',
@@ -16809,7 +16795,7 @@ HELP_DATA.wastore={
     {q:'通園曜日を直したいのですが、上の表では選べません。',
      a:'通園曜日は「連絡先」で直します。上の表の曜日を押すと、その園児の連絡先が開きます。曜日を直すと、給食と延長保育の回数、月額もその場で変わります。'},
     {q:'「生徒情報」の画面が見当たりません。',
-     a:'この画面の上に入りました。コースプラン・給食・延長保育・教育関連費・特別料金・引落日・お支払い方法は、上の「契約とオプション」で決めます。'}]);
+     a:'この画面の上に入りました。コースプラン・給食・延長保育・教育関連費・引落日・お支払い方法は、上の「契約とオプション」で決めます。'}]);
 })();
 var helpOpen=false;
 /* ══ 画面から外した説明の置き場 ═══════════════════════════
@@ -16874,8 +16860,8 @@ var HELP_MORE={
   '曜日で 給食 にチェックが1つも入っていない子は「なし」です。給食を足すときは、連絡先でその曜日にチェックを入れてください。',
   '通園曜日を押すと、連絡先が開きます。曜日はそこで直します。',
   '先生の「生徒情報（閲覧のみ）」の画面と、そこから印刷する用紙も、同じ曜日から出ます。',
-  '特別料金と引落日は、この画面で直します。連絡先では見るだけです。',
-  '月額の手入力はできません（同じ子で、画面によって違う額が出ていたため）。きょうだい割など園で決めた額は「特別料金」に入れてください。入れると、そちらの額を使います。',
+  '引落日は、この画面で直します。連絡先では見るだけです。',
+  '月額の手入力はできません（同じ子で、画面によって違う額が出ていたため）。その月だけ額を変えたいときは、請求書の「明細」から「この月だけの金額」に入れてください。入れると、そちらの額を使います。',
   '園児ごとの口座は登録できません。園から直接の引き落としはしないためです。ここで選ぶのは、支払い方法（口座振替／口座振込）だけです。',
   'すでに入っていた園児ごとの口座の内容も、この端末から消しています。',
   '支払い方法は、園長・マネージャー・管理者だけが見られます。一般の先生の画面には出ません。',
