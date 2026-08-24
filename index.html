@@ -2457,6 +2457,55 @@ function docStateLabel(u){
   if(!String(u||''))return '未格納';
   return docIsStored(u)?'格納済み':'未格納（メモのみ）';
 }
+/* 書類そのもの（PDFや写真）を、この端末の中に置く。
+   Google Drive のURLを登録するだけの形をやめる、というご依頼（2026-08-24 安田さん）。
+   ★中身は localStorage には入れない。localStorage は 5MB ほどで満杯になるので、
+     PDFを1つ入れただけで、園児の記録や請求が保存できなくなってしまう。
+     中身は端末の別の入れ物（IndexedDB）に置き、
+     docs[書類名].file に 名前・大きさ・入れた日・鍵 だけを残す。
+   ★控え（バックアップ）の書き出しは localStorage を写すので、
+     ファイルの中身は入らない。画面にもそのことを出している。 */
+function docStored(r){
+  if(!r)return false;
+  if(r.file&&r.file.key)return true;
+  return docIsStored(r.url);
+}
+var DOCDB=null;
+function docDbOpen(cb){
+  if(DOCDB){cb(null,DOCDB);return;}
+  if(!window.indexedDB){cb(new Error('この端末（ブラウザ）では、書類の取り込みが使えません。'));return;}
+  var rq;
+  try{rq=window.indexedDB.open('cocoas_files',1);}catch(e){cb(e);return;}
+  rq.onupgradeneeded=function(e){
+    var db=e.target.result;
+    if(!db.objectStoreNames.contains('files'))db.createObjectStore('files');
+  };
+  rq.onsuccess=function(e){DOCDB=e.target.result;cb(null,DOCDB);};
+  rq.onerror=function(){cb(rq.error||new Error('書類の入れ物を開けませんでした。'));};
+}
+function docFileTx(mode,fn,cb){
+  docDbOpen(function(err,db){
+    if(err){cb(err);return;}
+    var st;
+    try{st=db.transaction('files',mode).objectStore('files');}catch(e){cb(e);return;}
+    var rq;
+    try{rq=fn(st);}catch(e2){cb(e2);return;}
+    rq.onsuccess=function(){cb(null,rq.result);};
+    rq.onerror=function(){cb(rq.error||new Error('書類の読み書きに失敗しました。'));};
+  });
+}
+function docFilePut(key,blob,cb){docFileTx('readwrite',function(st){return st.put(blob,key);},cb);}
+function docFileGet(key,cb){docFileTx('readonly',function(st){return st.get(key);},cb);}
+function docFileDel(key,cb){docFileTx('readwrite',function(st){return st['delete'](key);},cb);}
+/* 1つの書類の上限。大きすぎると端末が重くなるので、入れる前に止める。 */
+var DOC_FILE_MAX=20*1024*1024;
+function docSizeText(n){
+  n=+n||0;
+  if(n<1024)return n+' B';
+  if(n<1024*1024)return Math.round(n/1024)+' KB';
+  return (Math.round(n/1024/102.4)/10)+' MB';
+}
+function docFileKey(){return 'f'+String(new Date().getTime())+'_'+String(Math.floor(Math.random()*100000));}
 function auditKeyMonth(k){
   k=String(k);
   var q=k.match(/^([0-9]{4})-Q([1-4])$/);
@@ -2582,7 +2631,7 @@ function auditDataInfo(key,fy){
       /* 様式は自治体のものを使い、書き上げたら「書類格納」に置き場所を登録する形にした。
          これまでこの画面に書いた分も、残っていれば分かるように書き添える。 */
       var sdoc=stGet('docs',{})[AUDIT_DOC_SLOT.shobo];
-      if(sdoc&&docIsStored(sdoc.url))return '格納済み';
+      if(docStored(sdoc))return '格納済み';
       if(sdoc&&sdoc.url)return '未格納（メモのみ）';
       var bd=boukaGet(fy),n=BOUKA_MONTHS.filter(function(mo){return bd.rows[mo].date;}).length;
       return n?('未格納／この画面に '+fy+'年度 '+n+'ヶ月分の控えあり'):'未格納';
@@ -2661,6 +2710,7 @@ function auditDataInfo(key,fy){
         /* ★URLかどうかを見ずに「格納済み」と言っていた。
            「あとで入れます」とメモを書いただけで格納済みに変わっていた。 */
         var d=stGet('docs',{})[slot];
+        if(d&&d.file&&d.file.key)return '格納済み（この端末に取り込み）';
         return docStateLabel(d&&d.url);
       }
       return '';
@@ -12734,7 +12784,7 @@ function docsBoss(){ return (typeof isBoss==='function')?isBoss():true; }
 function renderDocsHub(){
   var s=$('section[data-page="docs"]');
   var docs=stGet('docs',{});
-  var nAudit=docSlotsAll().filter(function(n){return docs[n]&&docIsStored(docs[n].url);}).length;
+  var nAudit=docSlotsAll().filter(function(n){return docStored(docs[n]);}).length;
   var nAll=docSlotsAll().length;
   var gf=stGet('guide_files',{})||{};
   var nGuide=Object.keys(gf).length;
@@ -12777,15 +12827,43 @@ function renderDocsHub(){
 function renderDocsAudit(){
   var docs=stGet('docs',{}),hosp=stGet('hospitals',HOSP_DEFAULT),s=$('section[data-page="docs"]');
   s.innerHTML='<div style="margin-bottom:14px;"><button class="btn btn-sm" id="dcBack">‹ 書類格納にもどる</button></div>'
-    +'<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（Google Drive等のURLを登録）</h3>'+
-    '<div class="muted" style="margin-bottom:12px;">PDF等はDriveに保存し、そのURLをここに登録。監査チェックリスト・最終チェックリスト出力に「格納済み」として反映されます。</div>'+
-    '<table><thead><tr><th>書類名</th><th>URL</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
-    docSlotsAll().map(function(name){var r=docs[name]||{};var isCustom=docSlotsCustom().indexOf(name)>-1;return '<tr><td style="white-space:nowrap;"><input data-dname="'+esc(name)+'" value="'+esc(docLabel(name)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="font-weight:600;border:none;background:transparent;padding:2px 3px;min-width:180px;" title="書類名を変更できます">'+(isCustom?'<span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td><td><input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="https://drive.google.com/..."></td><td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td><td>'+(docIsStored(r.url)?'<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>':(r.url?'<span class="pill" style="background:#FAEEDA;color:#854F0B;">未格納（メモのみ）</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>'))+'</td><td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';}).join('')+
-    '</tbody></table>'+
+    +'<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（この端末に取り込み）</h3>'+
+    '<div class="muted" style="margin-bottom:12px;">PDFや写真を、そのままこの画面に取り込めます。取り込むと、監査チェックリスト・最終チェックリストに「格納済み」として出ます。<br>'
+    +'<b>置き場所はこの端末の中だけ</b>です。外へは送りません。ほかの端末や、ブラウザの記録を消したあとには出ません。<br>'
+    +'控え（設定 → データの持ち出し）には、ファイルの中身は入りません。原本は園でも保管してください。1つ '+docSizeText(DOC_FILE_MAX)+' までです。</div>'+
+    '<div class="scrollx"><table><thead><tr><th>書類名</th><th style="min-width:280px;">書類（この端末に取り込み）</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
+    docSlotsAll().map(function(name){
+      var r=docs[name]||{},f=r.file||null;
+      var isCustom=docSlotsCustom().indexOf(name)>-1;
+      /* ファイルの欄。取り込んであれば名前と大きさを出し、
+         無ければ「ファイルを選ぶ」を出す。外部のURLは、下の細い欄に残す。 */
+      var fileCell=f
+        ? '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+            +'<span style="font-size:12.5px;font-weight:600;overflow-wrap:anywhere;">'+ic('folder')+esc(f.name||'書類')+'</span>'
+            +'<span class="row-sub" style="font-size:11px;">'+esc(docSizeText(f.size))+'・'+esc(f.at||'')+'</span>'
+            +'<button class="btn btn-sm" data-dopen="'+esc(name)+'">ひらく</button>'
+            +'<button class="btn btn-sm btn-ghost" data-dfdel="'+esc(name)+'" title="この端末から消します">'+ic('trash')+'</button>'
+          +'</div>'
+        : '<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('folder')+'ファイルを選ぶ'
+            +'<input type="file" data-dfile="'+esc(name)+'" accept=".pdf,.png,.jpg,.jpeg,.heic,.xlsx,.xls,.docx,.doc,.csv,image/*,application/pdf" style="display:none;"></label>';
+      var st=docStored(r)
+        ? '<span class="pill" style="background:#EAF3DE;color:#27500A;">格納済み</span>'
+        : ((r.url||r.memo)?'<span class="pill" style="background:#FAEEDA;color:#854F0B;">未格納（メモのみ）</span>'
+                          :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未格納</span>');
+      return '<tr><td style="white-space:nowrap;"><input data-dname="'+esc(name)+'" value="'+esc(docLabel(name)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="font-weight:600;border:none;background:transparent;padding:2px 3px;min-width:180px;" title="書類名を変更できます">'
+        +(isCustom?'<span class="tag" style="background:#EEEDFE;color:#3C3489;font-size:10px;">追加</span>':'')+'</td>'
+        +'<td>'+fileCell
+          +'<input data-du="'+esc(name)+'" value="'+(r.url||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="外部のリンクを使うとき（任意）" style="margin-top:5px;font-size:11.5px;padding:5px 7px;">'
+        +'</td>'
+        +'<td><input data-dm="'+esc(name)+'" value="'+(r.memo||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" style="max-width:160px;"></td>'
+        +'<td>'+st+'</td>'
+        +'<td style="text-align:right;">'+(isCustom?'<button class="btn btn-sm btn-ghost" data-dslotdel="'+esc(name)+'">'+ic('trash')+'</button>':'')+'</td></tr>';
+    }).join('')+
+    '</tbody></table></div>'+
     '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;">'+
       '<span class="muted" style="font-size:12px;font-weight:600;">書類を追加</span>'+
       '<input id="dcNewName" placeholder="書類名（例：園児健康診断結果・行事計画）" style="flex:1;min-width:200px;">'+
-      '<input id="dcNewUrl" placeholder="https://drive.google.com/...（後から入力可）" style="flex:1;min-width:200px;">'+
+      '<input id="dcNewUrl" placeholder="外部のリンク（任意・あとから入れられます）" style="flex:1;min-width:200px;">'+
       '<button class="btn btn-sm" id="dcAdd">'+ic('plus')+'追加</button></div>'+
     '<div style="margin-top:12px;"><button class="btn btn-primary" id="dcSave">'+ic('check')+'保存</button> <span class="muted" id="dcMsg"></span></div></div>'+
     '<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><span style="color:#854F0B;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="flex:1;min-width:200px;font-size:12.5px;color:var(--tx2);">病院等の緊急連絡先は<b>「施設管理 → 提携医療機関」</b>で管理します（壁掲示用の出力もそちらから行えます）。</div><button class="btn btn-sm" id="dcGoFac">施設管理へ</button></div>';
@@ -12800,18 +12878,69 @@ function renderDocsAudit(){
   };
   s.querySelectorAll('[data-dslotdel]').forEach(function(b){b.onclick=function(){
     var n=b.getAttribute('data-dslotdel');
-    if(!confirm('「'+n+'」を一覧から削除しますか？（登録したURL・メモも消えます）'))return;
+    var _d0=stGet('docs',{})[n]||{};
+    if(!confirm('「'+n+'」を一覧から削除しますか？\n'
+      +(_d0.file?'この端末に取り込んだ書類（'+(_d0.file.name||'')+'）も消えます。\n':'')
+      +'登録したリンク・メモも消えます。'))return;
     stSet('docSlotsCustom',docSlotsCustom().filter(function(x){return x!==n;}));
+    if(_d0.file&&_d0.file.key)docFileDel(_d0.file.key,function(){});
     var d=stGet('docs',{});delete d[n];stSet('docs',d);
     renderDocs();
   };});
   $('#dcSave').onclick=function(){
     docSlotsAll().forEach(function(name){
       var url=s.querySelector('[data-du="'+name+'"]').value.trim(),memo=s.querySelector('[data-dm="'+name+'"]').value.trim();
-      if(url||memo)docs[name]={url:url,memo:memo,updated:todayISO()};else delete docs[name];
+      /* ★取り込んだファイルの情報（file）を写さずに書き直していたので、
+         URLとメモを空にして保存すると、取り込んだ書類が画面から消えていた
+         （中身は端末に残るが、たどれなくなる）。 */
+      var prev=docs[name]||{};
+      if(url||memo||prev.file)docs[name]={url:url,memo:memo,file:prev.file,updated:todayISO()};
+      else delete docs[name];
     });
     stSet('docs',docs);$('#dcMsg').textContent='保存しました';setTimeout(function(){renderDocs();},600);
   };
+  /* 書類を取り込む。中身は端末の別の入れ物に置き、docs には名前と大きさだけ残す。 */
+  s.querySelectorAll('[data-dfile]').forEach(function(inp){inp.onchange=function(e){
+    var name=inp.getAttribute('data-dfile'),fl=e.target.files&&e.target.files[0];
+    if(!fl)return;
+    if(fl.size>DOC_FILE_MAX){
+      alert('このファイルは大きすぎます（'+docSizeText(fl.size)+'）。\n'+docSizeText(DOC_FILE_MAX)+' までにしてください。');
+      inp.value='';return;
+    }
+    var key=docFileKey();
+    docFilePut(key,fl,function(err){
+      if(err){alert('取り込めませんでした。\n'+(err.message||err));return;}
+      var d=stGet('docs',{}),prev=d[name]||{};
+      /* 前に入れてあった中身は、置きかえたら消す。残すと端末が太るだけになる。 */
+      if(prev.file&&prev.file.key)docFileDel(prev.file.key,function(){});
+      d[name]={url:prev.url||'',memo:prev.memo||'',updated:todayISO(),
+        file:{key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO()}};
+      stSet('docs',d);
+      renderDocs();
+    });
+  };});
+  /* ひらく。端末から読み出して、新しいタブに出す。 */
+  s.querySelectorAll('[data-dopen]').forEach(function(b){b.onclick=function(){
+    var name=b.getAttribute('data-dopen'),r=(stGet('docs',{})[name]||{}),f=r.file;
+    if(!f||!f.key){alert('この書類は取り込まれていません。');return;}
+    docFileGet(f.key,function(err,blob){
+      if(err||!blob){alert('この端末に書類が見つかりませんでした。もう一度取り込んでください。');return;}
+      var u=URL.createObjectURL(blob);
+      var w=window.open(u,'_blank');
+      if(!w)alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');
+      setTimeout(function(){URL.revokeObjectURL(u);},60000);
+    });
+  };});
+  /* 消す。端末の中身と、一覧の記録の両方を消す。 */
+  s.querySelectorAll('[data-dfdel]').forEach(function(b){b.onclick=function(){
+    var name=b.getAttribute('data-dfdel'),d=stGet('docs',{}),r=d[name]||{},f=r.file;
+    if(!f)return;
+    if(!confirm('「'+docLabel(name)+'」に取り込んだ書類（'+(f.name||'')+'）を、この端末から消します。\n戻せません。よろしいですか？'))return;
+    docFileDel(f.key,function(){});
+    delete r.file;
+    if(!r.url&&!r.memo)delete d[name];else d[name]=r;
+    stSet('docs',d);renderDocs();
+  };});
   if($('#dcGoFac'))$('#dcGoFac').onclick=function(){go('facility');};
   s.querySelectorAll('[data-dname]').forEach(function(inp){
     inp.onfocus=function(){inp.style.borderBottom='1px solid var(--line)';};
