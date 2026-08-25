@@ -16665,10 +16665,21 @@ function renderBouka(){
   var head='<div class="card" style="margin-bottom:14px;">'+recHead('研修・訓練の記録',
       '<select id="bkYear" style="width:140px;">'+fys.map(function(y){return '<option value="'+esc(y)+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>'
       +((boukaTab==='kaigi'||boukaTab==='gyakutai'||!doneN)?'':'<span class="tag" style="background:#EAF3DE;color:#27500A;">この画面に '+doneN+' / 12ヶ月分の控えあり</span>'))
-    +'<div class="chips" style="margin:0;">'+[['daichou','防火管理台帳'],['kunren','消火訓練 手順・記録'],['kaigi','職員会議・クラス議事録'],['gyakutai','虐待防止チェック']].map(function(t){return '<span class="chip'+(t[0]===boukaTab?' on':'')+'" data-bktab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
+    /* ★消火訓練は避難訓練の「火事」の回に一本化した（37-5・2026-08-25 のご判断）。
+       同じ訓練を2か所で数えると、年間の回数が合わなくなり、監査で説明できない。
+       すでにこの画面へ書いた分は消さず、下に「以前の記録」として残す。 */
+    +'<div class="chips" style="margin:0;">'+[['daichou','防火管理台帳'],['kaigi','職員会議・クラス議事録'],['gyakutai','虐待防止チェック']].map(function(t){return '<span class="chip'+(t[0]===boukaTab?' on':'')+'" data-bktab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
   var body;
   if(boukaTab==='kunren'){
-    body=boukaGuideHtml('kunren')+boukaOldRecHtml('kunren',d,doneN);
+    /* 古い導線（覚えている行き先・年間スケジュール）から来ても迷子にならないよう、
+       案内と以前の記録は出したうえで、避難訓練へ行くボタンを添える。 */
+    body='<div class="card" style="margin-bottom:14px;">'
+      +'<div style="padding:10px 13px;border-radius:9px;background:#E6F1FB;border:1px solid #A9CBEC;color:#123E6B;font-size:12.5px;line-height:1.8;">'
+      +'<b>消火訓練は「避難訓練」の中にまとめました。</b><br>'
+      +'避難訓練の種別で「火事」を選んだ回が、消火訓練の記録になります。'
+      +'同じ訓練を2か所で数えると、年間の回数が合わなくなるためです。</div>'
+      +'<div style="margin-top:11px;"><button class="btn btn-sm btn-primary" id="bkGoDrill">避難訓練をひらく</button></div></div>'
+      +boukaOldRecHtml('kunren',d,doneN);
   }else if(boukaTab==='kaigi'){
     body='';
   }else if(boukaTab==='gyakutai'){
@@ -16740,6 +16751,7 @@ function renderBouka(){
     };
   }
   $('#bkYear').onchange=function(e){boukaYear=+e.target.value;renderBouka();};
+  if($('#bkGoDrill'))$('#bkGoDrill').onclick=function(){go('drill');};
   if($('#bkGoFac'))$('#bkGoFac').onclick=function(){go('facility');};
   if($('#bkGoDocs'))$('#bkGoDocs').onclick=function(){docsView='audit';go('docs');};
   s.querySelectorAll('[data-bktab]').forEach(function(b){b.onclick=function(){boukaTab=b.getAttribute('data-bktab');renderBouka();};});
