@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MEMORY LANE for Business ｜ 管理画面プロトタイプ</title>
+<meta name="description" content="ホテル・BAR・飲食店・観光施設向け。Missionを設定し、QRを発行し、Memoryの中に自店が入る。">
+<style>
+:root{
+  color-scheme: light;
+  --paper:#F6F4F0; --white:#fff; --ink:#14161A; --ink-2:#3A3F47;
+  --muted:#6B7280; --muted-2:#9AA1AA; --line:#E2DED6; --line-2:#EFECE6;
+  --amber:#B9812F; --amber-l:#F6EEDF; --sea:#3B7C96; --ok:#4B8A5A; --warn:#B4553F;
+  --sans:"Hiragino Kaku Gothic ProN","Yu Gothic",YuGothic,"Noto Sans JP","Hiragino Sans",sans-serif;
+  --serif:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Noto Serif JP",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.8;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"palt" 1}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:none;cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+.mockbar{background:#FFF3CD;border-bottom:1px solid #EBD9A0;color:#7A5B00;font-size:12px;
+  padding:8px 20px;text-align:center}
+.mockbar a{color:#8A6100}
+
+header{background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+.hbar{display:flex;align-items:center;gap:14px;height:62px;padding:0 22px;max-width:1440px;margin-inline:auto}
+.logo{font-family:var(--serif);letter-spacing:.28em;font-size:14px;font-weight:600}
+.logo b{color:var(--amber);font-weight:600}
+.hbar .biz{font-size:12px;color:var(--muted);border-left:1px solid var(--line);padding-left:14px}
+.hbar .right{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--muted)}
+.chip{background:var(--amber-l);color:var(--amber);border-radius:99px;padding:3px 11px;font-size:11.5px;font-weight:600}
+
+.layout{display:grid;grid-template-columns:216px minmax(0,1fr);max-width:1440px;margin-inline:auto}
+@media(max-width:900px){.layout{grid-template-columns:1fr}nav.side{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}}
+nav.side{border-right:1px solid var(--line);padding:18px 12px;min-height:calc(100vh - 62px);background:var(--white)}
+nav.side button{display:block;width:100%;text-align:left;padding:9px 12px;border-radius:9px;font-size:13.5px;
+  color:var(--ink-2);white-space:nowrap}
+nav.side button:hover{background:var(--paper)}
+nav.side button.on{background:var(--amber-l);color:var(--amber);font-weight:700}
+nav.side .grp{font-size:10.5px;letter-spacing:.18em;color:var(--muted-2);padding:14px 12px 5px}
+
+main{padding:26px 26px 80px;min-width:0}
+.ptitle{font-family:var(--serif);font-size:21px;letter-spacing:.02em}
+.pdesc{color:var(--muted);font-size:13px;margin-top:5px}
+.page{display:none}.page.on{display:block}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-top:20px}
+.kpi{background:var(--white);border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+.kpi .l{font-size:11.5px;color:var(--muted)}
+.kpi .v{font-family:var(--serif);font-size:27px;margin-top:2px}
+.kpi .v small{font-size:13px;color:var(--muted);font-family:var(--sans);margin-left:3px}
+.kpi .d{font-size:11.5px;color:var(--ok);margin-top:2px}
+.kpi .d.flat{color:var(--muted-2)}
+
+.card{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:16px}
+.card h3{font-size:14px;font-weight:700;letter-spacing:.02em}
+.card .cdesc{font-size:12.5px;color:var(--muted);margin-top:3px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
+
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+th{text-align:left;font-size:11.5px;color:var(--muted);font-weight:600;padding:0 10px 8px;
+  border-bottom:1px solid var(--line)}
+td{padding:11px 10px;border-bottom:1px solid var(--line-2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.st{font-size:11px;border-radius:99px;padding:2px 9px;white-space:nowrap}
+.st.live{background:#E7F2EA;color:var(--ok)}
+.st.draft{background:#F1EFEA;color:var(--muted)}
+.st.done{background:var(--amber-l);color:var(--amber)}
+
+.bars{margin-top:16px}
+.bar{display:grid;grid-template-columns:118px 1fr 54px;align-items:center;gap:10px;padding:5px 0;font-size:12.5px}
+.bar i{display:block;height:8px;border-radius:99px;background:var(--amber);opacity:.85}
+.bar .track{background:var(--line-2);border-radius:99px}
+.bar .v{text-align:right;color:var(--muted)}
+
+.mlist{max-height:420px;overflow-y:auto;margin-top:12px;border:1px solid var(--line);border-radius:12px}
+.mrow{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line-2)}
+.mrow:last-child{border-bottom:0}
+.mrow:hover{background:var(--paper)}
+.mrow input{margin-top:5px;accent-color:var(--amber)}
+.mrow .t{font-size:13.5px}
+.mrow .h{font-size:11.5px;color:var(--muted)}
+.mrow .tags{display:flex;gap:5px;margin-top:5px}
+.tag{font-size:10.5px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--muted)}
+.tag.m{border-color:var(--amber);color:var(--amber)}
+
+.field{margin-top:14px}
+.field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+.field input[type=text],.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;background:var(--white);font-size:13.5px}
+.field textarea{min-height:78px;resize:vertical;line-height:1.8}
+.hintline{font-size:11.5px;color:var(--muted-2);margin-top:5px}
+
+.btn{display:inline-block;background:var(--ink);color:#fff;border-radius:10px;padding:10px 18px;
+  font-size:13.5px;font-weight:600}
+.btn.amber{background:var(--amber)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-2);font-weight:500}
+.btnrow{display:flex;gap:9px;margin-top:16px;flex-wrap:wrap}
+
+/* POP プレビュー */
+.pop{width:250px;background:var(--white);border:1px solid var(--line);border-radius:14px;
+  padding:24px 20px;text-align:center;box-shadow:0 10px 30px rgba(20,22,26,.07)}
+.pop .brand{font-family:var(--serif);letter-spacing:.26em;font-size:11.5px;color:var(--amber)}
+.pop .cp{font-family:var(--serif);font-size:16px;line-height:1.65;margin:12px 0 16px}
+.pop .qr{display:flex;justify-content:center}
+.pop .qr img,.pop .qr canvas{border-radius:6px}
+.pop .foot{font-size:10.5px;color:var(--muted);margin-top:14px;line-height:1.7}
+.popwrap{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin-top:16px}
+
+.note{background:var(--amber-l);border-left:3px solid var(--amber);border-radius:0 10px 10px 0;
+  padding:12px 15px;font-size:12.5px;color:#6B4E1C;margin-top:16px;line-height:1.9}
+.note b{display:block;margin-bottom:2px}
+
+.priceplan{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px}
+.plan{border:1px solid var(--line);border-radius:14px;padding:16px}
+.plan.on{border-color:var(--amber);background:var(--amber-l)}
+.plan .nm{font-size:12px;letter-spacing:.14em;color:var(--amber);font-weight:700}
+.plan .pr{font-family:var(--serif);font-size:23px;margin-top:4px}
+.plan .pr small{font-size:12px;color:var(--muted);font-family:var(--sans)}
+.plan ul{list-style:none;margin-top:10px;font-size:12.5px;color:var(--ink-2)}
+.plan li{padding:3px 0 3px 16px;position:relative}
+.plan li::before{content:"–";position:absolute;left:0;color:var(--amber)}
+
+.toggle{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+.toggle:last-child{border-bottom:0}
+.toggle .sw{width:38px;height:22px;border-radius:99px;background:var(--amber);position:relative;flex:none}
+.toggle .sw::after{content:"";position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff}
+.toggle .sw.off{background:var(--line)}
+.toggle .sw.off::after{right:auto;left:3px}
+.toggle .d{font-size:11.5px;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding:22px;text-align:center;font-size:12px;color:var(--muted)}
+footer a{color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="mockbar">MEMORY LANE for Business ／ <b>管理画面プロトタイプ</b>（数値はすべてダミー） ── <a href="doc.html">仕様書</a>・<a href="app.html">ユーザー側の画面</a></div>
+
+<header><div class="hbar">
+  <span class="logo">MEMORY <b>LANE</b></span>
+  <span class="biz">BAR 桜坂GARAGE ／ 那覇市</span>
+  <span class="right"><span class="chip">パートナープラン</span><span>担当：安田</span></span>
+</div></header>
+
+<div class="layout">
+  <nav class="side" id="nav"></nav>
+  <main>
+    <!-- ダッシュボード -->
+    <section class="page on" id="p-dash">
+      <div class="ptitle">ダッシュボード</div>
+      <div class="pdesc">2026年8月（今月）／ 広告の数字ではなく「思い出の中に何回入れたか」を見る指標。</div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">QRスキャン</div><div class="v num">412<small>回</small></div><div class="d">＋18% 前月比</div></div>
+        <div class="kpi"><div class="l">Memory参加</div><div class="v num">268<small>人</small></div><div class="d">参加率 65%</div></div>
+        <div class="kpi"><div class="l">投稿された写真・動画</div><div class="v num">1,904<small>件</small></div><div class="d">1人あたり 7.1件</div></div>
+        <div class="kpi"><div class="l">当店が写ったMemory Movie</div><div class="v num">73<small>本</small></div><div class="d">＋24本</div></div>
+        <div class="kpi"><div class="l">SNSへの二次投稿</div><div class="v num">96<small>件</small></div><div class="d">Instagram 71 ／ TikTok 25</div></div>
+        <div class="kpi"><div class="l">再来店（QR再読取）</div><div class="v num">31<small>組</small></div><div class="d flat">計測開始 2か月目</div></div>
+      </div>
+
+      <div class="two">
+        <div class="card">
+          <h3>Missionごとの実行率</h3>
+          <div class="cdesc">「配ったMissionのうち、実際に撮られた割合」。ここが低いMissionは文言を変える。</div>
+          <div class="bars">
+            <div class="bar"><span>乾杯した瞬間を</span><span class="track"><i style="width:86%"></i></span><span class="v num">86%</span></div>
+            <div class="bar"><span>一番笑った顔を</span><span class="track"><i style="width:74%"></i></span><span class="v num">74%</span></div>
+            <div class="bar"><span>一番酔ってる人を</span><span class="track"><i style="width:69%"></i></span><span class="v num">69%</span></div>
+            <div class="bar"><span>この店の音を15秒</span><span class="track"><i style="width:41%"></i></span><span class="v num">41%</span></div>
+            <div class="bar"><span>マスターと手元を</span><span class="track"><i style="width:38%"></i></span><span class="v num">38%</span></div>
+          </div>
+          <div class="note"><b>読み方</b>実行率が高い＝お客さんが「やりたくなった」Mission。低いMissionは、難しいのではなく、その場の空気に合っていない。</div>
+        </div>
+        <div class="card">
+          <h3>設置場所別のスキャン</h3>
+          <div class="cdesc">QRは1枚ではなく、置き場所ごとに発行する。</div>
+          <div class="bars">
+            <div class="bar"><span>テーブル卓上POP</span><span class="track"><i style="width:92%"></i></span><span class="v num">189</span></div>
+            <div class="bar"><span>カウンター</span><span class="track"><i style="width:58%"></i></span><span class="v num">119</span></div>
+            <div class="bar"><span>メニュー裏</span><span class="track"><i style="width:31%"></i></span><span class="v num">64</span></div>
+            <div class="bar"><span>トイレ内</span><span class="track"><i style="width:20%"></i></span><span class="v num">40</span></div>
+          </div>
+          <div class="note"><b>実装メモ</b>QRごとに設置場所IDを持たせる。同じ店内でも、どこに置いたかで参加率が倍近く変わる前提で設計する。</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Memory一覧 -->
+    <section class="page" id="p-memories">
+      <div class="ptitle">Memory（企画）一覧</div>
+      <div class="pdesc">お店が作る「Memoryの箱」。1回の来店＝1つのMemory、あるいはイベント単位でまとめる。</div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Memory名</th><th>期間</th><th>参加</th><th>投稿</th><th>Movie</th><th>状態</th></tr></thead>
+          <tbody>
+            <tr><td><b>沖縄の夜を、持ち帰ろう</b><div class="hintline">常設・来店ごとに自動発行</div></td>
+                <td class="num">常設</td><td class="num">268人</td><td class="num">1,904</td><td class="num">73</td><td><span class="st live">公開中</span></td></tr>
+            <tr><td><b>ハブ酒ナイト 8/15</b><div class="hintline">単発イベント</div></td>
+                <td class="num">8/15</td><td class="num">42人</td><td class="num">310</td><td class="num">11</td><td><span class="st done">完了</span></td></tr>
+            <tr><td><b>桜坂 BAR HOP（4店合同）</b><div class="hintline">近隣3店舗と共同開催</div></td>
+                <td class="num">9/12–9/13</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td><span class="st draft">下書き</span></td></tr>
+          </tbody>
+        </table>
+        <div class="btnrow"><button class="btn amber" onclick="show('missions')">＋ 新しいMemoryを作る</button>
+          <button class="btn ghost">CSVで書き出す</button></div>
+      </div>
+      <div class="note"><b>設計上の前提</b>お店は「広告枠」を買うのではなく、「Memoryの箱」を置く。お客さんにとっては思い出、お店にとっては、その思い出の中に自分の店が入っていること自体が価値になる。</div>
+    </section>
+
+    <!-- Mission設定 -->
+    <section class="page" id="p-missions">
+      <div class="ptitle">Mission設定</div>
+      <div class="pdesc">50件のテンプレートから選ぶか、自店の言葉で作る。1回のMemoryで配るのは 1〜3件まで。</div>
+      <div class="two">
+        <div class="card">
+          <h3>テンプレートから選ぶ</h3>
+          <div class="cdesc">シーンで絞り込み。チェックしたMissionが参加者にランダムで配られます。</div>
+          <div class="field">
+            <label>シーン</label>
+            <select id="sceneSel" onchange="renderMissions()"></select>
+          </div>
+          <div class="mlist" id="mlist"></div>
+          <div class="hintline" id="selCount">0件選択中</div>
+        </div>
+        <div class="card">
+          <h3>自店のMissionを作る</h3>
+          <div class="field"><label>Missionの文言</label>
+            <input type="text" id="cText" value="ハブ酒で乾杯した瞬間を、一枚。"></div>
+          <div class="field"><label>ヒント（撮る人の背中を押す一言）</label>
+            <input type="text" id="cHint" value="飲む前でも、飲んだ後の顔でもいい。"></div>
+          <div class="field"><label>種類</label>
+            <select id="cMedia"><option>写真</option><option>動画</option><option>音声</option></select></div>
+          <div class="field"><label>特典（任意）</label>
+            <input type="text" value="撮られた人に、次回シーサーショット1杯"></div>
+          <div class="btnrow"><button class="btn amber" onclick="alert('プロトタイプのため保存されません')">このMissionを追加</button></div>
+          <div class="note"><b>審査ガイドライン（自動チェック）</b>
+            ・時刻や場所を強制する文言は不可（例：20時に撮ってください）<br>
+            ・特定の個人を、本人の同意なく撮らせる文言は不可<br>
+            ・「◯◯を注文して撮る」など購入を条件にするMissionは不可<br>
+            ・お店の宣伝文句そのものをMissionにしない（思い出が広告になる瞬間に、体験が壊れる）</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QR発行 -->
+    <section class="page" id="p-qr">
+      <div class="ptitle">QR発行・卓上POP</div>
+      <div class="pdesc">置き場所ごとにQRを発行して、どこからの参加が多いかを計測する。</div>
+      <div class="card">
+        <div class="two">
+          <div>
+            <div class="field"><label>設置場所</label>
+              <select id="qrPlace" onchange="drawPop()">
+                <option value="table">テーブル卓上POP</option>
+                <option value="counter">カウンター</option>
+                <option value="menu">メニュー裏</option>
+                <option value="room">客室（ホテル）</option>
+              </select></div>
+            <div class="field"><label>POPに載せるコピー</label>
+              <input type="text" id="qrCopy" value="沖縄の夜を、持ち帰ろう。" oninput="drawPop()"></div>
+            <div class="field"><label>読み取り後の遷移先</label>
+              <input type="text" id="qrUrl" value="https://memorylane.jp/j/GARAGE-TBL01" oninput="drawPop()"></div>
+            <div class="hintline">※ アプリのインストールは必須にしない。ブラウザでMemoryに参加でき、Movieの受け取り時にだけアプリまたはメールを選ばせる。</div>
+            <div class="btnrow"><button class="btn ghost" onclick="window.print()">印刷用に出力</button>
+              <button class="btn ghost">A4に8面で並べる</button></div>
+          </div>
+          <div class="popwrap">
+            <div class="pop">
+              <div class="brand">MEMORY LANE</div>
+              <div class="cp" id="popCopy">沖縄の夜を、持ち帰ろう。</div>
+              <div class="qr" id="qrbox"></div>
+              <div class="foot" id="popFoot">読み込むと、あなただけのMissionが届きます。<br>BAR 桜坂GARAGE ／ TBL-01</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 成果レポート -->
+    <section class="page" id="p-report">
+      <div class="ptitle">成果レポート</div>
+      <div class="pdesc">8月分。お店に返すのは「露出数」ではなく、思い出への入り方。</div>
+      <div class="card">
+        <h3>当店が入ったMemory Movie</h3>
+        <table>
+          <thead><tr><th>Memory</th><th>参加者</th><th>当店シーンの秒数</th><th>視聴</th><th>二次投稿</th></tr></thead>
+          <tbody>
+            <tr><td>沖縄 3泊4日（4人）</td><td class="num">4人</td><td class="num">17秒 ／ 全3分12秒</td><td class="num">4/4</td><td>Instagram 2</td></tr>
+            <tr><td>女子旅 2泊（3人）</td><td class="num">3人</td><td class="num">9秒 ／ 全2分40秒</td><td class="num">3/3</td><td>TikTok 1</td></tr>
+            <tr><td>社員旅行（11人）</td><td class="num">11人</td><td class="num">24秒 ／ 全4分05秒</td><td class="num">9/11</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <div class="note"><b>お店にとっての価値</b>広告として出るのではなく、お客さん自身の思い出の中に店が入る。そのMemory Movieが、後日その人の手でSNSに出ていく。出稿ではなく、記憶の一部になることを売る。</div>
+      </div>
+      <div class="two">
+        <div class="card">
+          <h3>もっとも撮られたもの</h3>
+          <div class="bars">
+            <div class="bar"><span>ハブ酒</span><span class="track"><i style="width:88%"></i></span><span class="v num">184</span></div>
+            <div class="bar"><span>カウンター席</span><span class="track"><i style="width:62%"></i></span><span class="v num">130</span></div>
+            <div class="bar"><span>店内の壁画</span><span class="track"><i style="width:47%"></i></span><span class="v num">98</span></div>
+            <div class="bar"><span>マスター</span><span class="track"><i style="width:29%"></i></span><span class="v num">61</span></div>
+          </div>
+          <div class="hintline">※ 画像そのものは店舗に渡さない。集計値だけを返す。</div>
+        </div>
+        <div class="card">
+          <h3>時間帯別の参加</h3>
+          <div class="bars">
+            <div class="bar"><span>19–20時</span><span class="track"><i style="width:35%"></i></span><span class="v num">51</span></div>
+            <div class="bar"><span>20–22時</span><span class="track"><i style="width:78%"></i></span><span class="v num">114</span></div>
+            <div class="bar"><span>22–24時</span><span class="track"><i style="width:52%"></i></span><span class="v num">76</span></div>
+            <div class="bar"><span>24時以降</span><span class="track"><i style="width:18%"></i></span><span class="v num">27</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 料金 -->
+    <section class="page" id="p-plan">
+      <div class="ptitle">プランと請求</div>
+      <div class="pdesc">BtoB側は月額＋成果連動。BtoC側の課金（完成映画）とは別建てにする。</div>
+      <div class="card">
+        <div class="priceplan">
+          <div class="plan"><div class="nm">TRIAL</div><div class="pr">¥0<small>／3か月</small></div>
+            <ul><li>QR 1種類</li><li>テンプレMission 3件</li><li>月次の簡易レポート</li></ul></div>
+          <div class="plan on"><div class="nm">PARTNER</div><div class="pr">¥12,000<small>／月</small></div>
+            <ul><li>QR無制限・設置場所別の計測</li><li>Mission自由作成（審査あり）</li><li>成果レポート全項目</li><li>Memory Movieへのロゴ表示</li></ul></div>
+          <div class="plan"><div class="nm">AREA</div><div class="pr">応相談</div>
+            <ul><li>複数店舗・DMO・行政向け</li><li>周遊Mission（店舗をまたぐ）</li><li>エリア全体の集計データ</li></ul></div>
+        </div>
+        <div class="note"><b>成果連動オプション</b>Memory Movie経由でクーポンが使われた場合のみ、1件あたり手数料。お店は「見られたか」ではなく「来たか」で払える。</div>
+      </div>
+    </section>
+
+    <!-- ポリシー -->
+    <section class="page" id="p-policy">
+      <div class="ptitle">同意・公開範囲の設定</div>
+      <div class="pdesc">ここはお店側が自由に緩められない領域として設計する。</div>
+      <div class="card">
+        <h3>固定（変更不可）</h3>
+        <div class="toggle"><span class="sw"></span><div><div>参加時に、撮影・共有への同意を必ず表示する</div><div class="d">同意していない人はMemoryに入らない</div></div></div>
+        <div class="toggle"><span class="sw"></span><div><div>自分が写った写真・動画は、本人がいつでも削除できる</div><div class="d">理由の入力を求めない</div></div></div>
+        <div class="toggle"><span class="sw"></span><div><div>店舗には画像そのものを渡さない</div><div class="d">渡すのは集計値のみ。個別画像は本人の許諾があるときだけ</div></div></div>
+        <div class="toggle"><span class="sw"></span><div><div>18歳未満が含まれる場合は、保護者同意フローに切り替える</div><div class="d">学校・部活向けMemoryでは必須</div></div></div>
+      </div>
+      <div class="card">
+        <h3>店舗が選べる設定</h3>
+        <div class="toggle"><span class="sw"></span><div><div>Memory Movieの冒頭に店名を出す</div><div class="d">3秒・控えめな表示</div></div></div>
+        <div class="toggle"><span class="sw off"></span><div><div>店内で撮られた写真を、店の公式アカウントで使わせてもらう依頼を出す</div><div class="d">本人が個別に許可した写真のみ</div></div></div>
+        <div class="toggle"><span class="sw"></span><div><div>Mission達成でクーポンを配る</div><div class="d">購入を条件にするMissionは不可</div></div></div>
+      </div>
+      <div class="note"><b>方針</b>隠し撮りを目的にしたサービスにはしない。同意・公開範囲・削除権限は機能追加ではなく、最初からプロダクトの中心に置く。ここを緩めた瞬間に、このサービスは別のものになる。</div>
+    </section>
+  </main>
+</div>
+
+<footer>MEMORY LANE Ver.0.1 プロトタイプ ／ <a href="index.html">トップ</a>・<a href="app.html">ユーザー体験</a>・<a href="doc.html">仕様書</a></footer>
+
+<script src="../vendor/qrcode.min.js"></script>
+<script src="missions.js"></script>
+<script>
+const NAV = [
+  ['計測','dash','ダッシュボード'],
+  [null,'memories','Memory一覧'],
+  [null,'report','成果レポート'],
+  ['運用','missions','Mission設定'],
+  [null,'qr','QR発行・POP'],
+  ['契約','plan','プランと請求'],
+  [null,'policy','同意・公開範囲']
+];
+document.getElementById('nav').innerHTML = NAV.map(([g,id,t])=>
+  (g?`<div class="grp">${g}</div>`:'')+
+  `<button data-id="${id}" onclick="show('${id}')" class="${id==='dash'?'on':''}">${t}</button>`).join('');
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-'+id).classList.add('on');
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on', b.dataset.id===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(id==='qr') drawPop();
+}
+
+/* Mission テンプレ一覧 */
+const scenes = [...new Set(window.ML_MISSIONS.map(m=>m.scene))];
+document.getElementById('sceneSel').innerHTML =
+  `<option value="all">すべて（${window.ML_MISSIONS.length}件）</option>` +
+  scenes.map(s=>`<option value="${s}">${window.ML_SCENE_LABEL[s]}（${window.ML_MISSIONS.filter(m=>m.scene===s).length}件）</option>`).join('');
+document.getElementById('sceneSel').value='bar';
+function renderMissions(){
+  const s = document.getElementById('sceneSel').value;
+  const list = window.ML_MISSIONS.filter(m=> s==='all' || m.scene===s);
+  document.getElementById('mlist').innerHTML = list.map((m,i)=>`
+    <label class="mrow"><input type="checkbox" ${i<3?'checked':''} onchange="count()">
+      <div><div class="t">${m.text}</div><div class="h">${m.hint}</div>
+      <div class="tags"><span class="tag m">${window.ML_MEDIA_LABEL[m.media]}</span>
+      <span class="tag">${window.ML_SCENE_LABEL[m.scene]}</span><span class="tag">${m.id}</span></div></div></label>`).join('');
+  count();
+}
+function count(){
+  const n = document.querySelectorAll('#mlist input:checked').length;
+  document.getElementById('selCount').textContent =
+    `${n}件選択中　※ 1回のMemoryで配るのは 1〜3件まで。多すぎると「作業」になる。`;
+}
+renderMissions();
+
+/* QR描画 */
+const PLACES = {table:['TBL-01','テーブル卓上POP'],counter:['CNT-01','カウンター'],
+  menu:['MENU-01','メニュー裏'],room:['ROOM-802','客室']};
+let qr=null;
+function drawPop(){
+  const p = PLACES[document.getElementById('qrPlace').value];
+  document.getElementById('popCopy').textContent = document.getElementById('qrCopy').value;
+  document.getElementById('popFoot').innerHTML =
+    `読み込むと、あなただけのMissionが届きます。<br>BAR 桜坂GARAGE ／ ${p[0]}`;
+  const box = document.getElementById('qrbox');
+  box.innerHTML='';
+  qr = new QRCode(box,{text:document.getElementById('qrUrl').value, width:126, height:126,
+    colorDark:'#14161A', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M});
+}
+drawPop();
+</script>
+</body>
+</html>
