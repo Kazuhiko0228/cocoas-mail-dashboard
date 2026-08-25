@@ -11023,16 +11023,42 @@ function bodyFigSVG(marks,side,editable){
   var dots=(marks||[]).filter(function(x){return x.side===side;}).map(function(x){return '<circle cx="'+x.x+'" cy="'+x.y+'" r="4" fill="#E24B4A" stroke="#fff" stroke-width="1"/>';}).join('');
   return '<svg viewBox="0 0 100 200" data-side="'+esc(side)+'" style="width:88px;height:176px;background:#fff;border:1px solid var(--line);border-radius:8px;'+(editable?'cursor:crosshair;':'')+'"><g fill="#F5C4B3" stroke="#B4B2A9" stroke-width="1"><circle cx="50" cy="20" r="13"/><rect x="37" y="34" width="26" height="58" rx="11"/><rect x="19" y="38" width="14" height="46" rx="7"/><rect x="67" y="38" width="14" height="46" rx="7"/><rect x="38" y="89" width="11" height="62" rx="5"/><rect x="51" y="89" width="11" height="62" rx="5"/></g>'+dots+'<text x="50" y="197" text-anchor="middle" font-size="9" fill="#5F5E5A">'+(side==='front'?'前':'後')+'</text></svg>';
 }
+/* ══ 1件ずつの確定 ═══════════════════════════
+   事故・ヒヤリハットの記録と保護者対応の記録は、日ごとの記録と違って
+   1件が1つの監査書類になる（そのできごとの記録）。
+   確定・許可・赤文字は、日ごとではなく「その1件」に付ける。
+   ★この2つは監査で「後から都合よく書き換えていないか」を見られる当のもの。
+     いままで確定の仕組みが入っておらず、誰でもいつでも書き換えられ、跡も残らなかった。 */
+function rowLockPill(r){
+  if(!isLocked(r))return '<span class="pill" style="background:#FAEEDA;color:#854F0B;">未確定</span>';
+  var nf=(r.fixes||[]).length;
+  return '<span class="pill" style="background:#EAF3DE;color:#27500A;">確定</span>'
+    +(nf?'<div class="row-sub" style="color:#A32D2D;">直した跡 '+nf+'件</div>':'');
+}
+/* 確定した1件は、許可が出ていないと消せない。
+   消せてしまうと、書き換えではなく「消して作り直す」ことができてしまう。 */
+function rowLockCanDel(r){
+  if(!isLocked(r))return true;
+  if(lockCanEdit(r))return true;
+  alert('この記録は確定ずみです。消すには園長・管理者の許可が要ります。\n\n記録をひらいて「修正を許可」を押してから、もう一度お試しください。');
+  return false;
+}
 function edHiyari(){
   var K='rec_hiyari',log=stGet(K,[]);
   $('#recBody').innerHTML='<div class="card">'+recHead('事故・ヒヤリハットの記録','<button class="btn btn-sm btn-primary" id="hyAdd">'+ic('plus')+'記録を追加</button><button class="btn btn-sm" id="hyPrint">'+ic('printer')+'年間一覧を出力</button>')+
-    (log.length?'<table><thead><tr><th>発生日時</th><th>内容</th><th>児童</th><th>状況・対応・今後</th><th></th></tr></thead><tbody>'+log.slice().sort(function(a,b){return (a.date+(a.time||''))<(b.date+(b.time||''))?1:-1;}).map(function(r){var idx=log.indexOf(r);var types=(r.types||[]).join('・')||r.type||'';var hy=types.indexOf('ヒヤリ')>-1&&types.indexOf('怪我')<0;return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(hy?'#FAEEDA;color:#854F0B':'#FCEBEB;color:#A32D2D')+';">'+(types||'—')+'</span>'+((r.marks||[]).length?'<div class="row-sub">部位図あり</div>':'')+'</td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+(r.content||r.desc||'')+'<div class="row-sub">対応：'+(r.treatment||r.action||'—')+(r.future?' ／ 今後：'+r.future:'')+'</div></td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hyedit="'+esc(idx)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(idx)+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">記録はまだありません。「記録を追加」から。</div>')+
+    (log.length?'<table><thead><tr><th>発生日時</th><th>内容</th><th>児童</th><th>状況・対応・今後</th><th style="width:92px;">状態</th><th></th></tr></thead><tbody>'+log.slice().sort(function(a,b){return (a.date+(a.time||''))<(b.date+(b.time||''))?1:-1;}).map(function(r){var idx=log.indexOf(r);var types=(r.types||[]).join('・')||r.type||'';var hy=types.indexOf('ヒヤリ')>-1&&types.indexOf('怪我')<0;return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(hy?'#FAEEDA;color:#854F0B':'#FCEBEB;color:#A32D2D')+';">'+(types||'—')+'</span>'+((r.marks||[]).length?'<div class="row-sub">部位図あり</div>':'')+'</td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+(r.content||r.desc||'')+'<div class="row-sub">対応：'+(r.treatment||r.action||'—')+(r.future?' ／ 今後：'+r.future:'')+'</div></td><td>'+rowLockPill(r)+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hyedit="'+esc(idx)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(idx)+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">記録はまだありません。「記録を追加」から。</div>')+
     '</div>';
   $('#hyAdd').onclick=function(){hiyariModal(null,log,K);};
   document.querySelectorAll('[data-hyedit]').forEach(function(b){b.onclick=function(){hiyariModal(+b.getAttribute('data-hyedit'),log,K);};});
-  document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){log.splice(+b.getAttribute('data-del'),1);stSet(K,log);edHiyari();};});
+  document.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){
+    var di=+b.getAttribute('data-del');
+    if(!rowLockCanDel(log[di]))return;
+    log.splice(di,1);stSet(K,log);edHiyari();};});
   $('#hyPrint').onclick=function(){
-    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつける点</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr>'+((r.marks||[]).length?'<tr><th>部位図</th><td>'+bodyFigSVG(r.marks,'front',false)+' '+bodyFigSVG(r.marks,'back',false)+'</td></tr>':'')+'</tbody></table>';}).join(''):'<p>記録なし</p>';
+    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつける点</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr>'+((r.marks||[]).length?'<tr><th>部位図</th><td>'+bodyFigSVG(r.marks,'front',false)+' '+bodyFigSVG(r.marks,'back',false)+'</td></tr>':'')+'</tbody></table>'
+      /* 確定した日時・確定した人・確定のあとに直したところ。
+         監査で「後から書き換えていないか」を見るのは、この脚注。 */
+      +lockFootHtml(r);}).join(''):'<p>記録なし</p>';
     printDoc('事故・ヒヤリハットの記録（年間一覧）',body);
   };
   /* 記録の追加・削除で画面を描き直すので、記入用紙のカードを付け直す */
@@ -11090,9 +11116,16 @@ function hiyariModal(idx,log,K){
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   /* いま選んでいるクラスの在園児だけを、児童のプルダウンに出す */
   function hyKidList(){return (hyCls==='すべて')?kids:kids.filter(function(c){return c.klass===hyCls;});}
+  /* 確定したあとに直したところを、赤文字で残すための見比べ用 */
+  var HY_F=[{k:'date',l:'発生日'},{k:'time',l:'時刻'},{k:'child',l:'児童'},
+            {k:'types',l:'内容の種別'},{k:'other',l:'その他'},{k:'content',l:'内容（状況）'},
+            {k:'treatment',l:'処置対応'},{k:'future',l:'今後気をつける点'},
+            {k:'remarks',l:'備考'},{k:'by',l:'報告者'},{k:'marks',l:'部位'}];
+  var _hySnap=lockSnap(r,HY_F);
   function collect(){if($('#hy_content')){r.date=$('#hy_date').value;r.time=$('#hy_time').value;r.child=$('#hy_child').value;if($('#hy_cls'))hyCls=$('#hy_cls').value;r.other=$('#hy_other').value;r.content=$('#hy_content').value;r.treatment=$('#hy_treat').value;r.future=$('#hy_future').value;r.remarks=$('#hy_remarks').value;r.by=$('#hy_by').value;}}
   function render(){
     m.innerHTML='<div class="modal" style="width:680px;"><h2>事故・ヒヤリハットの記録</h2>'+
+      lockBarHtml(r)+
       '<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);"><div class="field"><label>発生日</label><input type="date" id="hy_date" value="'+esc((r.date||''))+'"></div><div class="field"><label>時刻</label><input id="hy_time" value="'+esc(v(r.time))+'" placeholder="10:30頃"></div></div>'+
       '<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);"><div class="field"><label>クラス</label><select id="hy_cls">'+hyClsOpts(kids,hyCls)+'</select></div><div class="field"><label>児童</label><select id="hy_child">'+hyChildOpts(kids,hyKidList(),r.child)+'</select></div></div>'+
       '<div class="field"><label>内容</label><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">'+['怪我','発熱','ヒヤリハット'].map(function(t){var on=r.types.indexOf(t)>-1;return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" data-hytype="'+esc(t)+'" style="width:auto;"'+(on?' checked':'')+'>'+t+'</label>';}).join('')+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;">その他<input id="hy_other" value="'+esc(v(r.other))+'" style="width:150px;"></label></div></div>'+
@@ -11103,7 +11136,7 @@ function hiyariModal(idx,log,K){
         '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>備考</label><input id="hy_remarks" value="'+esc(v(r.remarks))+'"></div><div class="field"><label>報告者</label><input id="hy_by" value="'+esc(v(r.by))+'"></div></div></div>'+
         '<div><label style="margin-bottom:6px;display:block;">部位（人型をタップ）<button class="btn btn-sm btn-ghost" id="hy_clear" style="float:right;padding:2px 8px;">クリア</button></label><div style="display:flex;gap:6px;justify-content:center;">'+bodyFigSVG(r.marks,'front',true)+bodyFigSVG(r.marks,'back',true)+'</div></div>'+
       '</div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="hy_cancel">キャンセル</button><button class="btn btn-primary" id="hy_save">保存</button></div></div>';
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn lk-skip" id="hy_cancel">キャンセル</button><button class="btn btn-primary" id="hy_save">保存</button></div></div>';
     /* クラスを変えたら、児童は「—」に戻す。
        前のクラスの子が選ばれたまま残ると、別の子の記録になってしまうため */
     if($('#hy_cls'))$('#hy_cls').onchange=function(){collect();r.child='';render();};
@@ -11111,7 +11144,24 @@ function hiyariModal(idx,log,K){
     m.querySelectorAll('[data-hytype]').forEach(function(cb){cb.onchange=function(){var t=cb.getAttribute('data-hytype'),i=r.types.indexOf(t);if(cb.checked&&i<0)r.types.push(t);else if(!cb.checked&&i>-1)r.types.splice(i,1);};});
     $('#hy_clear').onclick=function(){collect();r.marks=[];render();};
     $('#hy_cancel').onclick=function(){m.remove();};
-    $('#hy_save').onclick=function(){collect();if(!r.id)r.id=Date.now();if(idx!=null)log[idx]=r;else log.push(r);stSet(K,log);m.remove();edHiyari();};
+    $('#hy_save').onclick=function(){
+      collect();
+      /* 確定したあとに直したら、どこを直したか跡に積む */
+      lockDiff(r,_hySnap,HY_F);
+      _hySnap=lockSnap(r,HY_F);
+      stampWho(r);
+      if(!r.id)r.id=Date.now();
+      if(idx!=null)log[idx]=r;else{log.push(r);idx=log.length-1;}
+      stSet(K,log);m.remove();edHiyari();};
+    /* 確定の帯。確定したあとは読むだけになり、直すには園長・管理者の許可が要る。
+       保存は帯のボタンの中でも走らせる（窓を閉じずに確定できるようにするため）。 */
+    lockBarWire(m,r,function(){
+      collect();
+      if(!r.id)r.id=Date.now();
+      if(idx!=null)log[idx]=r;else{log.push(r);idx=log.length-1;}
+      stSet(K,log);
+    },render);
+    lockDisable(m,r);
   }
   render();
 }
@@ -11222,7 +11272,26 @@ function kujoModal(idx,log,K){
   function v(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  /* 確定したあとに直したところを、赤文字で残すための見比べ用 */
+  var KJ_F=[{k:'date',l:'受付日'},{k:'way',l:'受けた方法'},{k:'person',l:'申し出た方'},
+            {k:'content',l:'言われたこと'},{k:'shori',l:'対応したこと'},
+            {k:'by',l:'対応した職員'},{k:'doneDate',l:'完了した日'},{k:'third',l:'第三者委員へ報告'}];
+  var _kjSnap=lockSnap(r,KJ_F);
+  /* 窓の中で入力した値を、いったん記録に写す（確定のボタンを押すときにも使う） */
+  function kjCollect(){
+    if(!$('#kj_date'))return;
+    r.date=$('#kj_date').value;r.way=$('#kj_way').value;r.person=$('#kj_person').value.trim();
+    r.content=$('#kj_content').value;r.shori=$('#kj_shori').value;r.by=$('#kj_by').value.trim();
+    r.doneDate=$('#kj_done').value;r.third=$('#kj_third').value;
+  }
+  function kjWrite(){
+    if(!r.id)r.id=Date.now();
+    if(idx!=null)log[idx]=r;else{log.push(r);idx=log.length-1;}
+    stSet(K,log);
+  }
+  function kjRender(){
   m.innerHTML='<div class="modal" style="width:680px;"><h2>保護者対応の記録</h2>'
+    +lockBarHtml(r)
     +'<div class="muted" style="margin-bottom:10px;font-size:12px;">保護者から苦情やご要望を受けたときに、1件ずつ書きます。監査で見られる書類です。</div>'
     +'<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);">'
       +'<div class="field"><label>受付日</label><input type="date" id="kj_date" value="'+esc(r.date||'')+'"></div>'
@@ -11235,21 +11304,27 @@ function kujoModal(idx,log,K){
       +'<div class="field"><label>完了した日</label><input type="date" id="kj_done" value="'+esc(r.doneDate||'')+'"></div>'
       +'<div class="field"><label>第三者委員へ報告</label><select id="kj_third">'+['なし','報告した'].map(function(w){return '<option'+(w===(r.third||'')?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div></div>'
     +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">'
-      +'<button class="btn" id="kj_cancel">キャンセル</button>'
+      +'<button class="btn lk-skip" id="kj_cancel">キャンセル</button>'
       +'<button class="btn btn-primary" id="kj_save">保存</button></div></div>';
   $('#kj_cancel').onclick=function(){m.remove();};
+  /* 確定の帯。確定したあとは読むだけになり、直すには園長・管理者の許可が要る。 */
+  lockBarWire(m,r,function(){kjCollect();kjWrite();},kjRender);
+  lockDisable(m,r);
   $('#kj_save').onclick=function(){
-    r.date=$('#kj_date').value;r.way=$('#kj_way').value;r.person=$('#kj_person').value.trim();
-    r.content=$('#kj_content').value;r.shori=$('#kj_shori').value;r.by=$('#kj_by').value.trim();
-    r.doneDate=$('#kj_done').value;r.third=$('#kj_third').value;
+    kjCollect();
     /* 何も書かれていない行は残さない。空の行が「記録あり」と数えられてしまうため。 */
     if(!(r.date||r.person||String(r.content||'').trim()||String(r.shori||'').trim()||r.by)){
       alert('受付日か、申し出た方か、内容のどれかを入れてください。');return;
     }
+    lockDiff(r,_kjSnap,KJ_F);
+    _kjSnap=lockSnap(r,KJ_F);
+    stampWho(r);
     if(!r.id)r.id=Date.now();
     if(idx!=null)log[idx]=r;else log.push(r);
     stSet(K,log);m.remove();edKujo();
   };
+  }
+  kjRender();
 }
 function edKujo(){
   var K='rec_kujo',log=stGet(K,[]);
@@ -11265,7 +11340,7 @@ function edKujo(){
     +'<div class="tablewrap scrollx"><table><thead><tr>'
     +'<th style="width:96px;">受付日</th><th style="width:88px;">受けた方法</th><th style="width:120px;">申し出た方</th>'
     +'<th>内容</th><th>対応したこと</th><th style="width:92px;">対応した職員</th>'
-    +'<th style="width:104px;">完了</th><th style="width:88px;">第三者委員</th><th style="width:104px;"></th>'
+    +'<th style="width:104px;">完了</th><th style="width:88px;">第三者委員</th><th style="width:92px;">状態</th><th style="width:104px;"></th>'
     +'</tr></thead><tbody>'
     +(function(){
       var fyv=kujoFYNow(),view=[];
@@ -11282,10 +11357,11 @@ function edKujo(){
         +'<td>'+(r.doneDate?'<span class="pill" style="background:#EAF3DE;color:#27500A;">'+esc(fmt(r.doneDate))+'</span>'
                           :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">対応中</span>')+'</td>'
         +'<td class="row-sub">'+esc(r.third||'')+'</td>'
+        +'<td>'+rowLockPill(r)+'</td>'
         +'<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm" data-kjopen="'+i+'">ひらく</button> '
           +'<button class="btn btn-sm btn-ghost" data-kjdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
       }).join('')
-      :'<tr><td colspan="9" class="empty">'+kujoFYNow()+'年度の記録はまだありません。「受付を追加」から書きはじめてください。</td></tr>';
+      :'<tr><td colspan="10" class="empty">'+kujoFYNow()+'年度の記録はまだありません。「受付を追加」から書きはじめてください。</td></tr>';
     })()
     +'</tbody></table></div>'
     +'<div class="muted" style="font-size:11.5px;margin-top:8px;">上の年度を選ぶと、画面の表と「記録を出力」の両方がその年度になります。'
@@ -11296,8 +11372,10 @@ function edKujo(){
   sk.querySelectorAll('[data-kjopen]').forEach(function(bo){bo.onclick=function(){
     kujoModal(+bo.getAttribute('data-kjopen'),log,K);};});
   sk.querySelectorAll('[data-kjdel]').forEach(function(bk){bk.onclick=function(){
+    var ki=+bk.getAttribute('data-kjdel');
+    if(!rowLockCanDel(log[ki]))return;
     if(!confirm('この受付の記録を消しますか？'))return;
-    log.splice(+bk.getAttribute('data-kjdel'),1);save();edKujo();};});
+    log.splice(ki,1);save();edKujo();};});
   $('#kjPrint').onclick=function(){
     var fy=+(($('#kjYear')||{}).value)||kujoFYNow();
     /* 表題は年度を名乗るのに、中身は全年度が載っていた。
@@ -11314,7 +11392,7 @@ function edKujo(){
     /* 紙の表題は「苦情受付・処理の記録」のまま。監査で出す書類の正式な名前なので変えない。 */
     var b5='<p style="text-align:center;font-size:20px;font-weight:700;">苦情受付・処理の記録</p>'
       +'<p>'+fy+'年度　'+esc(SET.school||'')+'</p>'
-      +'<table><thead><tr><th style="width:76px;">受付日</th><th style="width:60px;">方法</th><th style="width:90px;">申し出た方</th><th>内容</th><th>対応したこと</th><th style="width:80px;">対応した職員</th><th style="width:76px;">完了した日</th><th style="width:70px;">第三者委員</th></tr></thead><tbody>'
+      +'<table><thead><tr><th style="width:76px;">受付日</th><th style="width:60px;">方法</th><th style="width:90px;">申し出た方</th><th>内容</th><th>対応したこと</th><th style="width:80px;">対応した職員</th><th style="width:76px;">完了した日</th><th style="width:70px;">第三者委員</th><th style="width:96px;">確定</th></tr></thead><tbody>'
       +(log.length?log.map(function(r){
         return '<tr><td style="vertical-align:top;">'+esc(r.date||'')+'</td>'
           +'<td style="vertical-align:top;">'+esc(r.way||'')+'</td>'
@@ -11323,9 +11401,15 @@ function edKujo(){
           +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.shori||'')+'</td>'
           +'<td style="vertical-align:top;white-space:pre-wrap;">'+esc(r.by||'')+'</td>'
           +'<td style="vertical-align:top;">'+esc(r.doneDate||'')+'</td>'
-          +'<td style="vertical-align:top;">'+esc(r.third||'')+'</td></tr>';
+          +'<td style="vertical-align:top;">'+esc(r.third||'')+'</td>'
+          /* 監査で見られるのは「後から書き換えていないか」。
+             確定の日時・確定した人・直した跡の件数を、紙にも出す。 */
+          +'<td style="font-size:9px;vertical-align:top;">'
+            +(isLocked(r)?esc(lockFmt(r.lockAt||''))+'<br>'+esc(r.lockBy||'')
+                +((r.fixes||[]).length?'<br>直した跡 '+(r.fixes||[]).length+'件':'')
+              :'未確定')+'</td></tr>';
         }).join('')
-        :'<tr><td colspan="8">記録がありません</td></tr>')
+        :'<tr><td colspan="9">記録がありません</td></tr>')
       +'</tbody></table>';
     printDoc('苦情受付・処理の記録（'+fy+'年度）',b5);
   };
