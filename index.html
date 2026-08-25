@@ -2872,12 +2872,63 @@ function printDoc(title,bodyHtml){
     +'<div class="print-foot">'+esc(SET.school)+'　／　出力日：'+esc(fmtY(todayISO()))+'</div>';
   window.print();
 }
+/* ══ ファイルの書き出し ═══════════════════════
+   ★iPad・iPhone の Safari は、a タグの download（保存するときの名前）を
+     効かせないことがある。そのとき、ブラウザの中の一時的な置き場のアドレス
+     （blob:http://… の長い文字列）が、そのままファイル名になって保存される。
+     Remiさんの「データ保存の後、データがアドレスみたいなものになってる」はこれ。
+     児童票だけでなく、Excelで書き出すところ全部で同じことが起きる。
+
+   iOS では、共有シート（「ファイルに保存」）から出す。
+   こちらは名前がそのまま残る。取り消されたときや使えないときは、
+   これまでどおりの形に戻し、そのうえで名前を画面に出す。 */
+function dlSafeName(name){
+  /* ファイル名に使えない文字と、端末によって化ける全角の記号を落とす。
+     日本語はそのまま残す（園が見て分かる名前のほうが大事なため）。 */
+  return String(name||'file')
+    .replace(/[\/\\:*?"<>|\r\n\t]/g,'')
+    .replace(/[（）]/g,function(c){return c==='（'?'(':')';})
+    .replace(/\s+/g,'_')
+    .slice(0,120)||'file';
+}
+function isIOS(){
+  try{
+    var ua=navigator.userAgent||'';
+    if(/iPad|iPhone|iPod/.test(ua))return true;
+    /* iPadOS 13 以降は Mac と名乗るので、指で触れるかどうかで見分ける */
+    return (navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1);
+  }catch(e){return false;}
+}
+function dlAnchor(blob,name){
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);
+}
 function dlFile(name,content,mime){
   /* ★JSON にも BOM（Excel が文字化けしないための印）を付けていたので、
      Python や Node のふつうの読み方では開けないファイルになっていた。
      BOM が要るのは Excel で開く表だけ。 */
   var bom=(/\.json$/i.test(String(name))||/json/i.test(String(mime||'')))?'':'﻿';
-  var blob=new Blob([bom+content],{type:(mime||'text/html')+';charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);}
+  var nm=dlSafeName(name);
+  var blob=new Blob([bom+content],{type:(mime||'text/html')+';charset=utf-8'});
+  /* どんな名前で出したかを画面に出す。名前が変わってしまっても、
+     何のファイルだったかが分かるようにするため。 */
+  function tell(){try{if(typeof toastAI==='function')toastAI('「'+nm+'」を書き出しました');}catch(e){}}
+  if(isIOS()&&navigator.share&&navigator.canShare&&typeof File==='function'){
+    try{
+      var f=new File([bom+content],nm,{type:blob.type});
+      if(navigator.canShare({files:[f]})){
+        navigator.share({files:[f],title:nm}).then(tell,function(){
+          /* 共有をやめたときや、うまくいかなかったときは、これまでどおりの形で出す */
+          dlAnchor(blob,nm);tell();
+        });
+        return;
+      }
+    }catch(e){}
+  }
+  dlAnchor(blob,nm);tell();
+}
 /* 画面にだけ出す補足表示（列見出しの「（自動）」など）は data-noexport を付けておき、
    Excel保存では列名に混ざらないよう取り除く。データそのものには一切触れない。 */
 function exportCellText(cell){
