@@ -2496,8 +2496,79 @@ function docFileTx(mode,fn,cb){
 function docFilePut(key,blob,cb){docFileTx('readwrite',function(st){return st.put(blob,key);},cb);}
 function docFileGet(key,cb){docFileTx('readonly',function(st){return st.get(key);},cb);}
 function docFileDel(key,cb){docFileTx('readwrite',function(st){return st['delete'](key);},cb);}
-/* 1つの書類の上限。大きすぎると端末が重くなるので、入れる前に止める。 */
+/* 1つの書類の上限。大きすぎると端末が重くなるので、入れる前に止める。
+   サーバ側（/files）も同じ 20MB で断る。 */
 var DOC_FILE_MAX=20*1024*1024;
+
+/* ══ 書類の中身の置き場 ═══════════════════════
+   これまで、書類そのもの（PDF・写真）は端末のブラウザの中にしか無かった。
+   ブラウザは容量が足りなくなると断りなく中身を捨てるし、
+   端末を買い替えれば引き継がれない。「5年保存します」と言えない状態だった。
+
+   サーバにつないでいるときは、園ごとにサーバへ預ける。
+   つないでいないとき・サーバが断ったときは、これまでどおり端末の中に置く
+   （置き場が無いよりまし）。どちらに入ったかは記録に残し、画面にも出す。 */
+var FILE_KIND_KID='園児の書類',FILE_KIND_DOC='書類格納',
+    FILE_KIND_STAFF='職員の書類',FILE_KIND_PHOTO='顔写真',FILE_KIND_SCAN='紙の記録';
+/* 見出し（ヘッダ）に日本語はそのまま置けないので、URLの形にしてから送る。 */
+function apiFileUpload(blob,meta,cb){
+  var h={'Content-Type':(blob.type||'application/octet-stream'),
+         'x-file-kind':encodeURIComponent(meta.kind||FILE_KIND_DOC),
+         'x-file-name':encodeURIComponent(meta.name||'file'),
+         'x-file-ref':encodeURIComponent(String(meta.ref==null?'':meta.ref))};
+  if(API.token())h.Authorization='Bearer '+API.token();
+  fetch(API.base()+'/files',{method:'POST',headers:h,body:blob})
+    .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+      if(!r.ok)throw new Error(j.error||('預けられませんでした（'+r.status+'）'));
+      cb(null,j);});})
+    .catch(function(e){cb(e);});
+}
+function apiFileGet(key,cb){
+  var h={};
+  if(API.token())h.Authorization='Bearer '+API.token();
+  fetch(API.base()+'/files/'+encodeURIComponent(key),{headers:h})
+    .then(function(r){
+      if(!r.ok)throw new Error('この書類は見つかりませんでした');
+      return r.blob();})
+    .then(function(b){cb(null,b);})
+    .catch(function(e){cb(e);});
+}
+function apiFileDel(key,cb){
+  var h={};
+  if(API.token())h.Authorization='Bearer '+API.token();
+  fetch(API.base()+'/files/'+encodeURIComponent(key),{method:'DELETE',headers:h})
+    .then(function(){cb&&cb(null);})
+    .catch(function(e){cb&&cb(e);});
+}
+/* 置く。cb(err, key, where)。where は 'server' か 'local'。 */
+function docFileStore(blob,meta,cb){
+  if(typeof API!=='undefined'&&API.online()){
+    apiFileUpload(blob,meta||{},function(err,r){
+      if(!err&&r&&r.key){cb(null,r.key,'server');return;}
+      var k1=docFileKey();
+      docFilePut(k1,blob,function(e2){cb(e2,k1,'local');});
+    });
+    return;
+  }
+  var k=docFileKey();
+  docFilePut(k,blob,function(e){cb(e,k,'local');});
+}
+/* 取り出す。端末の中を先に見て、無ければサーバに聞く。
+   この順にすると、前に端末へ入れたものも、サーバへ移したものも、同じように開ける。 */
+function docFileFetch(key,cb){
+  docFileGet(key,function(err,blob){
+    if(!err&&blob){cb(null,blob);return;}
+    if(typeof API!=='undefined'&&API.online()){apiFileGet(key,cb);return;}
+    cb(err||new Error('この端末に書類が見つかりませんでした'));
+  });
+}
+/* 消す。端末とサーバの両方から消す。
+   片方だけ消すと、画面から見えないのに中身が残り続ける。 */
+function docFileRemove(key,cb){
+  docFileDel(key,function(){});
+  if(typeof API!=='undefined'&&API.online())apiFileDel(key,cb||function(){});
+  else if(cb)cb();
+}
 function docSizeText(n){
   n=+n||0;
   if(n<1024)return n+' B';
@@ -13198,7 +13269,7 @@ function renderDocsAudit(){
       +(_d0.file?'この端末に取り込んだ書類（'+(_d0.file.name||'')+'）も消えます。\n':'')
       +'登録したリンク・メモも消えます。'))return;
     stSet('docSlotsCustom',docSlotsCustom().filter(function(x){return x!==n;}));
-    if(_d0.file&&_d0.file.key)docFileDel(_d0.file.key,function(){});
+    if(_d0.file&&_d0.file.key)docFileRemove(_d0.file.key);
     var d=stGet('docs',{});delete d[n];stSet('docs',d);
     renderDocs();
   };});
@@ -13222,14 +13293,13 @@ function renderDocsAudit(){
       alert('このファイルは大きすぎます（'+docSizeText(fl.size)+'）。\n'+docSizeText(DOC_FILE_MAX)+' までにしてください。');
       inp.value='';return;
     }
-    var key=docFileKey();
-    docFilePut(key,fl,function(err){
+    docFileStore(fl,{kind:FILE_KIND_DOC,name:fl.name,ref:name},function(err,key,where){
       if(err){alert('取り込めませんでした。\n'+(err.message||err));return;}
       var d=stGet('docs',{}),prev=d[name]||{};
-      /* 前に入れてあった中身は、置きかえたら消す。残すと端末が太るだけになる。 */
-      if(prev.file&&prev.file.key)docFileDel(prev.file.key,function(){});
+      /* 前に入れてあった中身は、置きかえたら消す。残すと置き場が太るだけになる。 */
+      if(prev.file&&prev.file.key)docFileRemove(prev.file.key);
       d[name]={url:prev.url||'',memo:prev.memo||'',updated:todayISO(),
-        file:{key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO()}};
+        file:{key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO(),where:where}};
       stSet('docs',d);
       renderDocs();
     });
@@ -13238,8 +13308,8 @@ function renderDocsAudit(){
   s.querySelectorAll('[data-dopen]').forEach(function(b){b.onclick=function(){
     var name=b.getAttribute('data-dopen'),r=(stGet('docs',{})[name]||{}),f=r.file;
     if(!f||!f.key){alert('この書類は取り込まれていません。');return;}
-    docFileGet(f.key,function(err,blob){
-      if(err||!blob){alert('この端末に書類が見つかりませんでした。もう一度取り込んでください。');return;}
+    docFileFetch(f.key,function(err,blob){
+      if(err||!blob){alert('書類が見つかりませんでした。もう一度取り込んでください。');return;}
       var u=URL.createObjectURL(blob);
       var w=window.open(u,'_blank');
       if(!w)alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');
@@ -13251,7 +13321,7 @@ function renderDocsAudit(){
     var name=b.getAttribute('data-dfdel'),d=stGet('docs',{}),r=d[name]||{},f=r.file;
     if(!f)return;
     if(!confirm('「'+docLabel(name)+'」に取り込んだ書類（'+(f.name||'')+'）を、この端末から消します。\n戻せません。よろしいですか？'))return;
-    docFileDel(f.key,function(){});
+    docFileRemove(f.key);
     delete r.file;
     if(!r.url&&!r.memo)delete d[name];else d[name]=r;
     stSet('docs',d);renderDocs();
@@ -15054,7 +15124,11 @@ function rpDocCard(){
       +'<button type="button" class="btn btn-sm" id="rp_docAdd">'+ic('plus')+'追加</button>'
     +'</div>'
     +'<div id="rp_docMsg" class="muted" style="font-size:11.5px;margin-top:6px;"></div>'
-    +'<div class="muted" style="font-size:11.5px;margin-top:4px;">紙の原本は園で保管してください。ここに入れた中身は<b>この端末の中だけ</b>に残り、外へは出ません。ほかの端末では出ないので、<b>いつも同じ端末から入れてください</b>。1つ '+docSizeText(DOC_FILE_MAX)+' まで。</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:4px;">紙の原本は園で保管してください。'
+      +((typeof API!=='undefined'&&API.online())
+        ?'ここに入れた中身は<b>園の記録としてサーバに保管</b>され、ほかの端末からも開けます。'
+        :'いまサーバにつないでいないため、入れた中身は<b>この端末の中だけ</b>に残ります。ほかの端末では開けません。')
+      +'1つ '+docSizeText(DOC_FILE_MAX)+' まで。</div>'
     +'</div>';
 }
 function rpDocsRender(id){
@@ -15065,7 +15139,13 @@ function rpDocsRender(id){
     return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;">'
       +'<span style="width:46px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:4px;flex:none;">'+ic('doc')+'</span>'
       +'<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">'+esc(d.kind||'')+'</div>'
-      +((f&&f.key)?'<div class="row-sub">'+esc(f.name||'')+'　'+esc(docSizeText(f.size))+'　'+esc(d.at||'')+'</div>'
+      /* ★置き場は file の中に入れている（d の直下ではない）。
+         d.where を見ていたので、端末にしか無いものまで「サーバに保管」と出ていた。
+         いちばん出してはいけない嘘なので、file から読む。
+         印が無い＝サーバに預ける前に入れたもの、なので端末あつかいにする。 */
+      +((f&&f.key)?'<div class="row-sub">'+esc(f.name||'')+'　'+esc(docSizeText(f.size))+'　'+esc(d.at||'')
+          +'　<span class="badge" style="background:'+((f.where==='server')?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'
+          +((f.where==='server')?'サーバに保管':'この端末のみ')+'</span></div>'
         :(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener" class="row-sub" style="color:var(--teal);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap;">'+esc(d.url)+'</a>'
                :'<div class="row-sub" style="color:#A32D2D;">中身が入っていません（PDF・写真かURLを入れてください）　'+esc(d.at||'')+'</div>'))
       +'</div>'
@@ -15075,8 +15155,8 @@ function rpDocsRender(id){
   box.querySelectorAll('[data-kdopen]').forEach(function(b){b.onclick=function(){
     var d=kidDocsOf(id)[+b.getAttribute('data-kdopen')]||{},f=d.file;
     if(!f||!f.key){alert('この書類は取り込まれていません。');return;}
-    docFileGet(f.key,function(err,blob){
-      if(err||!blob){alert('この端末に書類が見つかりませんでした。もう一度入れてください。');return;}
+    docFileFetch(f.key,function(err,blob){
+      if(err||!blob){alert('書類が見つかりませんでした。もう一度入れてください。');return;}
       var u=URL.createObjectURL(blob),w=window.open(u,'_blank');
       if(!w)alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');
       setTimeout(function(){URL.revokeObjectURL(u);},60000);
@@ -15085,7 +15165,7 @@ function rpDocsRender(id){
   box.querySelectorAll('[data-kddel]').forEach(function(b){b.onclick=function(){
     var i=+b.getAttribute('data-kddel'),l=kidDocsOf(id),d=l[i]||{};
     if(!confirm('「'+(d.kind||'この書類')+'」を消します。'+((d.file&&d.file.name)?'\nこの端末に入れた「'+d.file.name+'」も消えます。':'')+'\n戻せません。よろしいですか？'))return;
-    if(d.file&&d.file.key)docFileDel(d.file.key,function(){});
+    if(d.file&&d.file.key)docFileRemove(d.file.key);
     l.splice(i,1);kidDocsSet(id,l);rpDocsRender(id);
   };});
 }
@@ -15114,11 +15194,11 @@ function wireRpDocs(id){
       try{if(typeof renderRoster==='function'&&rosterTab==='list')renderRoster();}catch(e3){}
     }
     if(!pend){push(null);return;}
-    var key=docFileKey(),fl=pend;
+    var fl=pend;
     msg('取り込んでいます…');
-    docFilePut(key,fl,function(err){
+    docFileStore(fl,{kind:FILE_KIND_KID,name:fl.name,ref:id},function(err,key,where){
       if(err){msg('取り込めませんでした。'+((err&&err.message)||err||''));return;}
-      push({key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO()});
+      push({key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO(),where:where});
     });
   };
 }
