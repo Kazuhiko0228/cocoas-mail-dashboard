@@ -4733,6 +4733,18 @@ function aiPlanAdd(p){
   p.createdAt=aiNow(); p.status=p.status||'下書き';
   a.push(p); stSet('ai_plans',a.slice(-300)); return p;
 }
+/* ══ 採用した活動の状態 ═══════════════════════
+   実装指示書 §13。これまで計画が持っていたのは 下書き／承認済み だけで、
+   これは「園長が承認したか」の話。
+   「採用したあと、実際にやったのか」は別の話で、どこにも持っていなかった。
+   監査で見られるのは「計画と実際が食い違っていないか」なので、そこを持たせる。
+
+   status（下書き／承認済み）はそのまま。use を別に持つ。
+   分けないと、承認と実施が同じ欄を取り合って、どちらかが消える。 */
+var AIP_USE=['','採用済み','実施予定','実施済み','一部変更して実施','未実施'];
+var AIP_USE_COLOR={'採用済み':['#E6F1FB','#123E6B'],'実施予定':['#EEEDFE','#3C3489'],
+  '実施済み':['#EAF3DE','#27500A'],'一部変更して実施':['#FAEEDA','#854F0B'],
+  '未実施':['#F1EFE8','#5F5E5A']};
 function aiPlanUpd(id,o){
   var a=aiPlans(); a.forEach(function(x){ if(x.id===id)Object.assign(x,o); }); stSet('ai_plans',a);
 }
@@ -5063,6 +5075,34 @@ function aiCanServer(){
 
 /* クラスの様子を、送ってよい形の短い文にまとめる。
    氏名は入れない（サーバ側でも落とすが、ここでも入れない）。 */
+/* ══ 今回の条件（環境情報）══════════════════════
+   実装指示書 §5・§6。これまで、AIに渡していたのは
+   クラス名・年齢・季節・記録の要約だけだった。
+   「今日は雨だから室内で」「のりは使いたくない」「45分しか取れない」を
+   伝える口が画面に無く、出てくる案が園の都合と合わないことがあった。
+
+   ★アレルギーは「使わない材料」に書く。
+     誰のアレルギーかは送らない（材料の名前だけを送る）。
+     園児と結びつく形で外へ出すと、要配慮個人情報の第三者提供になり、
+     保護者の同意が要る。材料名だけなら、その話にならない。 */
+var AI_ENV_PLACE=['','保育室（室内）','園庭','ホール・遊戯室','おさんぽ・園外'];
+var AI_ENV_MINS =['','15分ほど','30分ほど','45分ほど','1時間以上'];
+function aiEnvAll(){ return stGet('ai_env',{})||{}; }
+function aiEnvOf(k){
+  var e=aiEnvAll()[k]||{};
+  return {place:e.place||'',mins:e.mins||'',avoid:e.avoid||'',want:e.want||''};
+}
+function aiEnvSet(k,o){ var a=aiEnvAll(); a[k]=o; stSet('ai_env',a); }
+/* AIへ渡す1文にまとめる。空のときは何も渡さない（からの条件を送らない）。 */
+function aiEnvNote(k){
+  var e=aiEnvOf(k),a=[];
+  if(e.place)a.push('活動する場所：'+e.place);
+  if(e.mins)a.push('使える時間：'+e.mins);
+  if(e.avoid)a.push('使わない材料：'+e.avoid+'（この材料を使う案は出さないでください。代わりの材料を書いてください）');
+  if(e.want)a.push('先生からの希望：'+e.want);
+  return a.join(' ／ ');
+}
+function aiEnvHasAny(k){ return !!aiEnvNote(k); }
 function aiFactsText(klass){
   try{
     var p=aiProfile(klass), f=p.facts, tg=aiToolGroups(klass);
@@ -5464,7 +5504,7 @@ function aipIdeaHTML(k){
     +subs.map(function(t){
       return '<button class="btn'+(AIP.sub===t[0]?' btn-primary':'')+' btn-sm" data-aisub="'+t[0]+'">'+t[1]+'</button>';
     }).join('')+'</div>';
-  if(AIP.sub==='craft')h+=aipCraftHTML(k);
+  if(AIP.sub==='craft')h+=aiEnvCardHTML(k)+aipCraftHTML(k);
   if(AIP.sub==='year') h+=aipYearHTML(k);
   if(AIP.sub==='plan') h+=aipPlanHTML(k);
   return h;
@@ -5569,13 +5609,64 @@ function aipYearHTML(k){
   return h;
 }
 
+/* 先生が「今回の条件」を伝える欄。制作の画面と活動計画の画面の両方に出す。 */
+function aiEnvCardHTML(k){
+  var e=aiEnvOf(k);
+  function seg(id,list,cur){
+    return '<div class="chips" style="margin:0;">'+list.map(function(o){
+      var lab=o||'指定しない';
+      return '<span class="chip'+(o===cur?' on':'')+'" data-'+id+'="'+esc(o)+'">'+esc(lab)+'</span>';
+    }).join('')+'</div>';
+  }
+  return '<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;">'
+    +'<h3 style="margin:0;flex:1;">今回の条件（任意）</h3>'
+    +(aiEnvHasAny(k)?'<span class="badge" style="background:#E6F1FB;color:#123E6B;">AIに伝えます</span>':'<span class="muted" style="font-size:11.5px;">入れなくても作れます</span>')
+    +'<button class="btn btn-sm btn-ghost" id="envClear">消す</button></div>'
+    +'<div class="muted" style="margin:0 0 12px;font-size:11.5px;line-height:1.75;">'
+    +'ここに入れたことは、次に「◯案をつくる」を押したときにAIへ伝わります。クラスごとに覚えておきます。</div>'
+    +'<div class="field" style="margin-bottom:10px;"><label>活動する場所</label>'+seg('envplace',AI_ENV_PLACE,e.place)+'</div>'
+    +'<div class="field" style="margin-bottom:10px;"><label>使える時間</label>'+seg('envmins',AI_ENV_MINS,e.mins)+'</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;">'
+      +'<div class="field" style="margin:0;"><label>使わない材料</label>'
+      +'<input id="envAvoid" value="'+esc(e.avoid)+'" placeholder="例：のり・絵の具・卵・牛乳">'
+      +'<div class="muted" style="font-size:11px;margin-top:4px;line-height:1.7;">'
+      +'アレルギーのある材料は、ここに書いてください。<b>材料の名前だけを送ります。'
+      +'どの園児のアレルギーかは送りません。</b></div></div>'
+      +'<div class="field" style="margin:0;"><label>希望・ひとこと</label>'
+      +'<input id="envWant" value="'+esc(e.want)+'" placeholder="例：はさみを使う練習を入れたい">'
+      +'<div class="muted" style="font-size:11px;margin-top:4px;line-height:1.7;">'
+      +'園児のお名前は書かないでください。書いても送る前に伏せ字にします。</div></div>'
+    +'</div>'
+    +(aiEnvHasAny(k)?'<div class="muted" style="margin-top:11px;font-size:11.5px;line-height:1.75;border-top:1px solid var(--line);padding-top:9px;">'
+      +'<b>AIへ伝える文</b>：'+esc(aiEnvNote(k))+'</div>':'')
+    +'</div>';
+}
+/* 今回の条件の配線。カードは2か所に出るので、配線もまとめてここに置く。 */
+function wireAiEnv(k){
+  function upd(o){ aiEnvSet(k,o); renderAIPlan(); }
+  [['envplace','place'],['envmins','mins']].forEach(function(p){
+    document.querySelectorAll('[data-'+p[0]+']').forEach(function(b){b.onclick=function(){
+      var e=aiEnvOf(k); e[p[1]]=b.getAttribute('data-'+p[0]); upd(e);
+    };});
+  });
+  /* ★$$ は renderAIPlan の中だけで定義されている入れ物なので、
+     ここ（外の関数）からは使えない。使うと何も配線されないまま黙って終わる。
+     素の getElementById で取る。 */
+  [['envAvoid','avoid'],['envWant','want']].forEach(function(p){
+    var el2=document.getElementById(p[0]);
+    if(el2)el2.onchange=function(){ var e=aiEnvOf(k); e[p[1]]=el2.value.replace(/^\s+|\s+$/g,''); upd(e); };
+  });
+  var cl=document.getElementById('envClear');
+  if(cl)cl.onclick=function(){ upd({place:'',mins:'',avoid:'',want:''}); };
+}
 function aipPlanHTML(k){
   var d=(AIP.res&&/^(month|week|day)$/.test(AIP.res.kind))?AIP.res.data:null;
   var h='<div class="card"><h3 style="margin-top:0;">活動計画をつくる</h3>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
     +[['month','月案'],['week','週案'],['day','日案']].map(function(x){
       return '<button class="btn btn-sm" data-aikind="'+x[0]+'">'+x[1]+'をつくる</button>';}).join('')
-    +'</div></div>';
+    +'</div></div>'
+    +aiEnvCardHTML(k);
   var chk=aiConsistency(k);
   h+='<div class="card"><div style="font-weight:800;font-size:13px;margin-bottom:7px;">計画のつながり</div>'
     +chk.map(function(c){
@@ -5859,6 +5950,13 @@ function aiapModal(plan,klass){
       var after={nerai:cur2.nerai,sugata:cur2.sugata,junbi:cur2.junbi,
                  rows:JSON.parse(JSON.stringify(cur2.rows||[]))};
       AIAP_UNDO={cls:cls,date:date,before:before,after:after,at:lockNow()};
+      /* 日案に入れた＝この案を採用した、ということ。
+         押した時点で状態を進めておく。まだ何も入っていないときだけ書く
+         （先生があとから「実施済み」に直したものを、押し直しで戻さない）。 */
+      if(plan&&plan.id&&!plan.use){
+        aiPlanUpd(plan.id,{use:'実施予定',useDate:date});
+        plan.use='実施予定'; plan.useDate=date;
+      }
         aiLog('案を日案に入れた（'+(mode==='add'?'足す':'入れ替え')+'）',fmt(date)+' '+n+'項目',cls);
       m.remove();
       aiapToastUndo();
@@ -5985,7 +6083,15 @@ function aipMemoHTML(k){
           +'　<span class="muted">'+esc(x.title||'')+'</span>'
           /* 監査で「この記述の根拠は？」と聞かれる。一覧でも見分けられるようにする */
           +(x.byAI?'<span class="badge" style="background:#EEEDFE;color:#3C3489;margin-left:6px;">AIが下書き</span>'
-                  :'<span class="badge" style="background:#F1EFE8;color:#5F5E5A;margin-left:6px;">記録から</span>')+'</td>'
+                  :'<span class="badge" style="background:#F1EFE8;color:#5F5E5A;margin-left:6px;">記録から</span>')
+          /* 採用したあと、実際にやったかどうか。監査で見られるのはここ。 */
+          +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px;">'
+            +'<select data-ause="'+esc(x.id)+'" style="width:170px;font-size:12px;padding:4px 6px;">'
+            +AIP_USE.map(function(u){return '<option value="'+esc(u)+'"'+(u===(x.use||'')?' selected':'')+'>'+esc(u||'（実施の記録なし）')+'</option>';}).join('')
+            +'</select>'
+            +(x.use?'<input type="date" data-audate="'+esc(x.id)+'" value="'+esc(x.useDate||'')+'" style="width:150px;font-size:12px;padding:4px 6px;" title="'+(x.use==='実施予定'?'やる予定の日':'やった日')+'">':'')
+            +(x.use==='一部変更して実施'?'<input data-aunote="'+esc(x.id)+'" value="'+esc(x.useNote||'')+'" placeholder="どこを変えたか" style="flex:1;min-width:150px;font-size:12px;padding:4px 6px;">':'')
+          +'</div></td>'
           +'<td style="padding:8px 0;width:88px;"><span class="badge" style="background:'
           +(x.status==='承認済み'?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'+esc(x.status)+'</span></td>'
           +'<td style="padding:8px 0;width:150px;text-align:right;white-space:nowrap;">'
@@ -6015,6 +6121,9 @@ function aipWire(k){
 
   /* クラスを変えたときに年度が前のクラスのまま残ると、
      記録があるのに「この年度の記録はまだありません」と出る */
+  /* ★try で包んで握りつぶすと、配線が失敗しても画面はふつうに出て、
+     押しても何も起きない状態に気づけない。そのまま呼ぶ。 */
+  wireAiEnv(k);
   var ks=$$('#aipK'); if(ks)ks.onchange=function(){AIP.klass=ks.value;AIMEM_FY=null;AIP.res=null;AIP.hq=0;renderAIPlan();};
   s.querySelectorAll('[data-aitab]').forEach(function(b){b.onclick=function(){
     AIP.tab=b.getAttribute('data-aitab');renderAIPlan();};});
@@ -6061,7 +6170,7 @@ function aipWire(k){
     }
     AI_NET.busy=true; AI_NET.what='制作物アイディア'; AI_NET.note='';
     renderAIPlan();
-    aiAskServer('craft',k,m).then(function(got){
+    aiAskServer('craft',k,m,{note:aiEnvNote(k)}).then(function(got){
       AI_NET.busy=false;
       /* 参加のしかた（はさみの段階と人数）・先生の配置・必要な確認は
          記録から出しているので、AIの文章では上書きしない。 */
@@ -6152,7 +6261,7 @@ function aipWire(k){
     }
     AI_NET.busy=true; AI_NET.what=nm; AI_NET.note='';
     renderAIPlan();
-    aiAskServer(kind,k).then(function(got){
+    aiAskServer(kind,k,null,{note:aiEnvNote(k)}).then(function(got){
       AI_NET.busy=false;
       /* AIが書くのは文章だけ。先生の配置・参加のしかた・個別の配慮は
          記録から出しているので、重ねずにそのまま残す。
@@ -6253,7 +6362,27 @@ function aipWire(k){
     var id=b.getAttribute('data-apr');
     var p=aiPlans().filter(function(x){return x.id===id;})[0];
     if(!p)return;
-    aipPrint(p.kind,p.data,p.klass||k,{byAI:!!p.byAI,aiFields:p.aiFields||[]});
+    aipPrint(p.kind,p.data,p.klass||k,{byAI:!!p.byAI,aiFields:p.aiFields||[],
+      use:p.use||'',useDate:p.useDate||'',useNote:p.useNote||''});
+  };});
+  s.querySelectorAll('[data-ause]').forEach(function(sl){sl.onchange=function(){
+    var id=sl.getAttribute('data-ause'),v=sl.value;
+    var o={use:v};
+    /* 実施の記録を消したときは、日付と「変えたところ」も一緒に消す。
+       残すと、状態が空なのに日付だけ残り、紙で読めない行になる。 */
+    if(!v){o.useDate='';o.useNote='';}
+    /* 日付がまだ無いときだけ、その日を入れておく。手で直せる。 */
+    else if(!(aiPlans().filter(function(x){return x.id===id;})[0]||{}).useDate
+             && (v==='実施済み'||v==='一部変更して実施'))o.useDate=todayISO();
+    aiPlanUpd(id,o);
+    aiLog('活動の状態を変えた',(v||'記録なし'),k);
+    renderAIPlan();
+  };});
+  s.querySelectorAll('[data-audate]').forEach(function(inp){inp.onchange=function(){
+    aiPlanUpd(inp.getAttribute('data-audate'),{useDate:inp.value});renderAIPlan();
+  };});
+  s.querySelectorAll('[data-aunote]').forEach(function(inp){inp.onchange=function(){
+    aiPlanUpd(inp.getAttribute('data-aunote'),{useNote:inp.value.trim()});
   };});
   s.querySelectorAll('[data-aiap]').forEach(function(b){b.onclick=function(){
     var id=b.getAttribute('data-aiap');
@@ -6316,7 +6445,13 @@ function aipPrint(kind,d,k,src){
     +'<b>この計画は下書きです。承認欄に記入のうえお使いください。</b></div>'
     /* 監査では「この記述の根拠は？」と聞かれる。
        AIが下書きした項目は、紙の上でも分かるようにしておく。 */
-    +aipSrcLine(src);
+    +aipSrcLine(src)
+    /* 監査で見られるのは「計画と実際が食い違っていないか」。紙にも出す。 */
+    +((src&&src.use)
+      ?'<div style="font-size:10px;color:#555;margin-top:3px;">実施の状態：<b>'+esc(src.use)+'</b>'
+        +(src.useDate?'　'+esc(fmt(src.useDate)):'')
+        +((src.use==='一部変更して実施'&&src.useNote)?'　変えたところ：'+esc(src.useNote):'')+'</div>'
+      :'');
   var body='';
   if(kind==='craft'){
     body='<h2 style="font-size:15px;margin:12px 0 6px;">'+esc(d.name)+'</h2>'
