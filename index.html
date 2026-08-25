@@ -11647,14 +11647,29 @@ function touenRowKids(d){
   }
   return out;
 }
+/* その日・その子の健康チェックを、紙の1マスぶんの文にする。
+   記録が無いのに「症状なし」と刷らない（全員を確かめた印が付いた日だけ、そう書ける）。 */
+function healthCellText(hd,id){
+  var i=healthEntryIdx(hd,id);
+  if(i>-1){
+    var en=hd.entries[i]||{};
+    var sy=(en.symptoms||[]).map(function(x){return x.cat+'：'+x.opts.join('・');}).join(' / ');
+    return '症状あり　'+sy+(en.other?'（'+en.other+'）':'')+(en.action?'　対応：'+en.action:'');
+  }
+  return hd.allHealthy?'症状なし':'—（未記録）';
+}
 function touenDayBody(dk,d,kids){
   var opts=SET.attendOptions||[];
+  var _hd=healthDay(dk);
   if(!d)d=stGet('rec_登園シート',{})[dk]||{klass:'',rows:{}};
   if(!d.rows)d.rows={};
   if(!kids)kids=touenRowKids(d);
   var p=String(dk).split('-'),wd=WD[new Date(+p[0],+p[1]-1,+p[2]).getDay()];
   return '<p>'+esc(String(d.klass||'').toUpperCase())+' SCHOOL 【'+wd+'曜日】　室温'+esc(d.temp||'　')+'℃ 湿度'+esc(d.hum||'　')+'%（天気：'+esc(d.weather||'　')+'）</p>'+
-    '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
+    /* ★健康チェックは画面では登園の中に入れたのに、紙は別のままだった。
+       依頼（39-14）の眼目は「別々の用紙で保管する必要なし」なので、
+       この紙に列として入れる。体温のとなり＝画面と同じ並びにする。 */
+    '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th><th style="width:150px;">健康チェック</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){
       var r=d.rows[c.id]||{opts:{}};
       /* ★生年月日が生徒台帳にしか無い子は、歳児の欄にクラス名が刷られていた
@@ -11662,9 +11677,16 @@ function touenDayBody(dk,d,kids){
       var _dob=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
       /* 歳児が分かるかどうかは、連絡先にいるかではなく生年月日があるかで決める */
       var al=_dob?ageClassOf({dob:_dob,klass:c.klass},dk):'—',ac=ageColor(al);
+      var _hc=healthCellText(_hd,c.id);
       /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
-      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(_dob?bfDob(_dob):'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'+opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
+      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(_dob?bfDob(_dob):'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'
+        +'<td style="font-size:9px;line-height:1.5;">'+esc(_hc)+'</td>'
+        +opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
+    /* 健康チェックの記録者は、登園の記録者とは別に持っている。
+       「全員に症状なし」を押した人がだれかは、監査で必ず聞かれる。 */
+    +(healthHas(_hd)?'<p style="font-size:10px;">健康チェックの記録者：'+esc(_hd.by||'　　　　')
+       +(_hd.allHealthy?'　／　本日は全員の健康（症状の有無）を確認しました。':'')+'</p>':'')
     +lockFootHtml(d);
 }
 /* 午睡チェックは登園と同じ画面にまとめてあるので、期間の紙でも登園の下に続けて出す */
@@ -11844,12 +11866,14 @@ function periodBody(type,k){
         }
       }
     }
-    /* 健康チェックも同じ画面の記録なので、同じ紙束に続けて出す。
-       記録が無い日は出さない（白紙が混ざらないように）。 */
-    var _hk=stGet('rec_健康チェック',{})[k],hb=healthHas(_hk)?healthDayBody(k):'';
+    /* ★健康チェックは、登園の紙の中に列として入っている（39-14）。
+       登園の紙が出る日は、続けて出すと同じ内容が2枚になる。
+       登園の記録が無く健康チェックだけある日だけ、健康の紙を出す。 */
+    var _hk=stGet('rec_健康チェック',{})[k];
     var out=tb+((tb&&nb)?'<div style="height:10px;"></div>':'')+nb;
-    if(hb)out+=(out?'<div style="page-break-before:always;"></div>':'')
-      +'<div style="font-size:13px;font-weight:700;margin:0 0 6px;">健康チェック</div>'+hb;
+    if(!tb&&healthHas(_hk))
+      out+=(out?'<div style="page-break-before:always;"></div>':'')
+        +'<div style="font-size:13px;font-weight:700;margin:0 0 6px;">健康チェック</div>'+healthDayBody(k);
     return out;
   }
   if(type==='健康チェック')return healthDayBody(k);
