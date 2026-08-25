@@ -5439,6 +5439,13 @@ function aiRowify(k,x){
   }
   return t;
 }
+/* 日本語の文になっているか。ひらがな・カタカナ・漢字が1文字でもあれば文とみなす。
+   AIが崩れた形で返したとき、意味の無い文字列を保育計画に載せないための関所。 */
+function aiLooksJa(t){
+  t=String(t||'');
+  if(!t||t.indexOf('[object')>-1)return false;
+  return /[\u3040-\u30ff\u4e00-\u9fff]/.test(t);
+}
 function aiMerge(base,got,only){
   if(!got)return base;
   only.forEach(function(k){
@@ -5465,7 +5472,16 @@ function aiMerge(base,got,only){
              :[v.trim()];
     }
     else if(typeof v==='string'){ if(v.trim())base[k]=v.trim(); }
-    else base[k]=v;
+    /* ★文字で返るはずの項目が、入れ子（{text:'…'}）や数字・真偽値で
+       返ってくることがある。そのまま入れると、紙に「[object Object]」「true」「1 2」
+       といったものが、保育のねらいとして刷られてしまう。
+       ここは日本語の文が入る欄なので、日本語が1文字も無いものは受け取らず、
+       記録から作った下書きを残す（読めないものを載せるより、下書きのほうがまし）。 */
+    else if(typeof v==='object'){
+      var _t=String(aiText(v)||'').trim();
+      if(aiLooksJa(_t))base[k]=_t;
+    }
+    /* 数字・真偽値は文にならないので受け取らない */
   });
   return base;
 }
