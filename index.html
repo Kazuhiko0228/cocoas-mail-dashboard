@@ -2008,7 +2008,7 @@ var AUDIT_CATS=[
   ]},
   {cat:'② 保育内容',items:[
     {key:'daily',name:'日々の活動内容記録',place:'カリキュラム（日別スケジュール・日案）',when:'運営中',sys:'curriculum',note:'1日ごとに書いて出す必要はありません。園のパンフレットや説明書に活動の内容が書いてあれば、それで足ります。指導計画（月案・週案・日案）もこの記録でまとめて出せます。'},
-    {key:'nisshi',name:'業務日報・保育日誌',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
+    {key:'nisshi',name:'保育日誌・業務日報',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
     {key:'gosui',name:'午睡チェック',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'kega',name:'事故・ヒヤリハットの記録',place:'事故・ヒヤリハット記録ファイル',when:'運営中',sys:'carerec'},
     {key:'kujo',name:'苦情受付・処理の記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
@@ -2088,7 +2088,7 @@ var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（�
    保存先の鍵は分けたまま（これまでの記録・書き出し・監査の提出をずらさないため）。 */
 /* 健康チェックは登園（出席）の中に入れた（2026-08-24）。体温のとなりに列がある。
    保存先の鍵は分けたまま（これまでの記録・紙・監査の一覧をずらさないため）。 */
-var REC_DAILY=['登園（出席）','安全点検','業務日報・保育日誌'];
+var REC_DAILY=['登園（出席）','安全点検','保育日誌・業務日報'];
 var REC_CARE=['身体測定','事故・ヒヤリハットの記録','児童票（成長の記録）','保護者対応の記録'];
 /* ?rec=生徒個人発達記録 のような古いリンク（配った紙のQRを含む）でも、
    正しい画面が開くように、先に新しい名前へ読み替える。
@@ -2104,8 +2104,11 @@ function recCareList(){
   return REC_CARE;
 }
 /* 記録の呼び名を変えたので、前の名前で呼ばれても新しい画面をひらけるようにする */
-var REC_OLD_NAME={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録','健康チェック':'登園（出席）'};
-var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','業務日報・保育日誌':'rec_日報','保護者対応の記録':'rec_kujo'};
+/* ★呼び名は保存の鍵になっている（RKEY・TASK_PAGE・SCAN_TARGETS・監査の一覧）。
+   語順を「保育日誌・業務日報」に直したので（17-1）、古い名前で保存されている
+   recType・古いリンク・年間やること からも同じ画面へ着けるようにする。 */
+var REC_OLD_NAME={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録','健康チェック':'登園（出席）','業務日報・保育日誌':'保育日誌・業務日報'};
+var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','保育日誌・業務日報':'rec_日報','保護者対応の記録':'rec_kujo'};
 function attendedToday(id){var sh=stGet('rec_登園シート',{})[todayISO()];return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
 /* 手順は園によって違うので、初期値は空にしてある。
@@ -2430,7 +2433,7 @@ function auditCanGoItem(sys,key){
 var AUDIT_REC={
   shusseki:['records','登園（出席）'],
   anzen:['records','安全点検'],
-  nisshi:['records','業務日報・保育日誌'],
+  nisshi:['records','保育日誌・業務日報'],
   gosui:['records','登園（出席）'],       /* 午睡は登園の画面の下にある */
   shintai:['carerec','身体測定'],
   hattatsu:['carerec','児童票（成長の記録）'],
@@ -3990,6 +3993,17 @@ function lockDiff(d,before,fields){
 function stampWho(d){
   if(!d||typeof d!=='object')return d;
   d.savedBy=lockWho(); d.savedAt=lockNow();
+  /* ★監査では「誰が書いたか」を1人ずつ特定できることを見られる（39-21）。
+     記録者の欄は手で書く形だったので、空のまま出される紙が多かった。
+     まだ空のときだけ、いまつないでいる職員の名前を入れる。
+     ・すでに入っている名前は書き替えない（別の人が開いただけで
+       書いた人が入れ替わってしまうため）。
+     ・空の記録には入れない。名前だけが入った記録は「記録あり」と
+       数えられてしまう（healthHas などが by を見ている）。 */
+  if(!d.by&&typeof lockHasContent==='function'&&lockHasContent(d)){
+    var _w=lockWho();
+    if(_w)d.by=_w;
+  }
   return d;
 }
 function stampText(d){
@@ -7233,7 +7247,7 @@ function renderDash(){
      ['健康チェックの記録','rec_健康チェック','健康チェック','#185FA5'],
      ['午睡チェックの記録','rec_午睡チェック','午睡チェック','#7F77DD'],
      ['安全点検の記録','rec_安全点検','安全点検','#639922'],
-     ['業務日報・保育日誌の記録','rec_日報','業務日報・保育日誌','#854F0B']
+     ['保育日誌・業務日報の記録','rec_日報','保育日誌・業務日報','#854F0B']
     ].forEach(function(t){var dn=recDoneToday(t[1]);myTasks.push({label:t[0],sub:dn?'本日分 記録済み':'本日分が未記録です',done:dn,color:t[3],go:['records',t[2]],btn:dn?'確認する':'記録する'});});
     if(!stGet('rec_身体測定',{})[todayISO().slice(0,7)])myTasks.push({label:'今月の身体測定',sub:'今月の測定がまだ記録されていません',done:false,color:'#E24B4A',go:['carerec','身体測定'],btn:'記録する'});
     myTasks.push({label:'デイリーメールの作成',sub:'毎日 17:00 ・ 保護者へ本日の様子を配信',done:false,color:'#EF9F27',go:['broadcast','dailyPre'],btn:'作成する'});
@@ -9153,7 +9167,10 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'
         +f('s_tel','電話番号',SET.tel,'例：03-1234-5678')
         +f('s_sender','メールアドレス',SET.sender,'例：info@（園のメールアドレス）')+'</div>'+
-      f('s_access','最寄り駅からの道のり',SET.access,'例：〇〇線 〇〇駅 徒歩約5分')+
+      /* ★「学校情報は 学校名・所在地・メールアドレス・電話番号 の4つでOK」（26-3）。
+         最寄り駅からの道のりは、その4つに入っていないので画面からは外す。
+         値は消さず隠して持っておく（すでに入れてある園の内容を失わないため）。 */
+      '<input type="hidden" id="s_access" value="'+esc(SET.access||'')+'">'+
       '<input type="hidden" id="s_bcc" value="'+esc(SET.bcc||'')+'">'+
       '<input type="hidden" id="s_manager" value="'+esc(SET.manager||'')+'">'+'</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('yen')+'振込口座（請求書・振込お願いで自動差し込み）</h3>'+
@@ -9916,7 +9933,7 @@ function renderCareRec(){renderRecGroup('carerec',recCareList(),'毎日ではな
    対象：毎日使い、紙のほうが早い記録（登園・安全点検・午睡・健康・業務日報・ヒヤリハット）
    データ: recScans = { 'rec_キー|日付': [{img, at, by, note, ocr}] }
    ocr は、以前あった文字読み取りの結果。機能は外したが、書いてあるものは消さない */
-var SCAN_TARGETS={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','業務日報・保育日誌':'rec_日報'};
+var SCAN_TARGETS={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','保育日誌・業務日報':'rec_日報'};
 /* 事故・ヒヤリハットの記録は落ち着いてから書く記録で文字量が多く、読み取りに失敗しやすいので取り込みの対象外。
    ただし紙で書きたい現場もあるため、記入用紙の印刷だけは残す */
 var BLANK_ONLY_TARGETS={'事故・ヒヤリハットの記録':1};
@@ -9940,14 +9957,14 @@ function scanDateOf(type){
   if(type==='身体測定')return recMonth;
   if(type==='児童票（成長の記録）')return recDevMonth;
   if(type==='安全点検')return String(recDate||todayISO()).slice(0,7);
-  /* 業務日報・保育日誌の紙は1週間まとめの様式。週1枚の紙が曜日ごとに散らばらないよう、その週の月曜日をキーにする */
-  if(type==='業務日報・保育日誌')return weekMonISO(recDate||todayISO());
+  /* 保育日誌・業務日報の紙は1週間まとめの様式。週1枚の紙が曜日ごとに散らばらないよう、その週の月曜日をキーにする */
+  if(type==='保育日誌・業務日報')return weekMonISO(recDate||todayISO());
   return recDate;
 }
 /* 画面に出す日付の見出し（月キーは「2026年7月」、週キーは「7月27日の週」と読みやすく） */
 function scanDateLabel(d,type){
   if(/^\d{4}-\d{2}$/.test(d||''))return (+d.slice(0,4))+'年'+(+d.slice(5,7))+'月';
-  if(type==='業務日報・保育日誌'&&/^\d{4}-\d{2}-\d{2}$/.test(d||''))return (+d.slice(5,7))+'月'+(+d.slice(8,10))+'日の週（月〜金）';
+  if(type==='保育日誌・業務日報'&&/^\d{4}-\d{2}-\d{2}$/.test(d||''))return (+d.slice(5,7))+'月'+(+d.slice(8,10))+'日の週（月〜金）';
   return d||'';
 }
 /* 画像を保存用に縮小（紙の文字が読める程度に長辺1400px） */
@@ -9986,7 +10003,7 @@ function scanLockedIn(type,d){
 }
 /* その紙の束が受け持つ、記録の鍵ぜんぶ */
 function scanHostKeys(type){
-  if(type==='業務日報・保育日誌'){
+  if(type==='保育日誌・業務日報'){
     var mon=weekMonISO(recDate||todayISO()),out=[],i,p=String(mon).split('-');
     for(i=0;i<5;i++){
       var dt=new Date(+p[0],+p[1]-1,+p[2]+i);
@@ -10038,13 +10055,13 @@ function scanCard(type,d){
     /* 1つの画面に紙が2つ以上あるときは、どの紙かも見出しに出す */
     +(scanSubList(recType).length>1?esc(type)+'　':'')+esc(scanDateLabel(date,type))+'</h3>'
     +(ro?'<span class="badge" style="background:#F1EFE8;color:#5F5E5A;">確定ずみ：取り込みと削除はできません'
-        +((type==='業務日報・保育日誌'||type==='安全点検')?'（この紙は'+(type==='安全点検'?'月':'週')+'ぶんで1つなので、'+(type==='安全点検'?'その月':'その週')+'に確定ずみの日があると止まります）':'')+'</span>'
+        +((type==='保育日誌・業務日報'||type==='安全点検')?'（この紙は'+(type==='安全点検'?'月':'週')+'ぶんで1つなので、'+(type==='安全点検'?'その月':'その週')+'に確定ずみの日があると止まります）':'')+'</span>'
         :'<label class="btn btn-sm btn-primary" style="cursor:pointer;margin:0;">'+ic('photo')+'撮影・スキャンを追加<input type="file" id="scanFile" accept="image/*" capture="environment" style="display:none;"></label>')
     +'<button class="btn btn-sm" id="blankPrint">'+ic('printer')+'記入用紙を印刷（QR付き）</button>'
     +(list.length?'<button class="btn btn-sm" id="scanPrint">'+ic('printer')+'取り込んだ紙を出力</button>':'')+'</div>'
     +'<div class="muted" style="margin-bottom:10px;font-size:12px;">'
     +(type==='安全点検'?'記入用紙は1ヶ月分の月間表です。1ヶ月分の記録が終わったらまとめて取り込みます。上の日付で選んでいる月の分として保管されますので、前の月の紙を取り込むときは、日付をその月に変えてください。'
-      :type==='業務日報・保育日誌'?'記入用紙は1週間（月〜金）まとめの様式です。1枚の紙は、上の日付を含む週の分としてまとめて保管されます。週のどの日を選んでいても同じ場所に入ります。'
+      :type==='保育日誌・業務日報'?'記入用紙は1週間（月〜金）まとめの様式です。1枚の紙は、上の日付を含む週の分としてまとめて保管されます。週のどの日を選んでいても同じ場所に入ります。'
       :'紙に書いた記録をそのまま撮影して保管できます。監査時は画面でも印刷でも提示できます。')
     +'</div>'
     +scanSubChips(recType)
@@ -10300,7 +10317,7 @@ function bfNormDate(type,date){
 function blankFormBody(type,date,qr){
   date=bfNormDate(type,date);
   var isMonth=/^\d{4}-\d{2}$/.test(date);
-  var isWeek=(type==='業務日報・保育日誌');
+  var isWeek=(type==='保育日誌・業務日報');
   var wd=bfWeekday(date),klass='',kids=enrolled();
   var bfDefKlass=(typeof CLASSES!=='undefined'&&CLASSES.length)?CLASSES[0]:'Pre';
   /* 紙と画面で人数が食い違うと突き合わせができないので、記入用紙もその画面と同じ園児だけを印刷する。
@@ -10401,7 +10418,7 @@ function blankFormBody(type,date,qr){
         +'<td></td></tr>';}).join('')
       +'</tbody></table>'
       +'<p style="font-size:10px;margin:4px 0 0;">あてはまる言葉を <b>◯</b> で囲んでください。何もなければ空欄のままで大丈夫です。出欠：● 出席／休 欠席</p>';
-  }else if(type==='業務日報・保育日誌'){
+  }else if(type==='保育日誌・業務日報'){
     /* 実物は1週間まとめの様式。用紙を出す日を含む週の月〜金を印刷する */
     var wp=(date||'').split('-'),bd=(wp.length>=3)?new Date(+wp[0],+wp[1]-1,+wp[2]):new Date();
     var dw=bd.getDay(),off=(dw===0?-6:1-dw);
@@ -10413,7 +10430,7 @@ function blankFormBody(type,date,qr){
       /* ここは組（日本語, English）の一覧。esc() に組をそのまま渡していたため、
          紙に「活動内容（午前）,Morning Activity」とカンマ付きで出ていた。
          ほかの用紙と同じ lb2() を通す（英語は設定が入のときだけ小さく添う）。 */
-      /* 並びと言い方は画面（業務日報・保育日誌）と同じにしてある。
+      /* 並びと言い方は画面（保育日誌・業務日報）と同じにしてある。
          欠席・早退・記録者は画面にしか無く、紙と突き合わせができなかったので足した。
          この3つは書く量が少ないので幅を細くし、活動内容の欄を広く残す。 */
       +[['活動内容（午前）','Morning Activity',0],['活動内容（午後）','Afternoon Activity',0],['使った絵本や玩具','Story Book',0],['クラスの様子・エピソード','',0],['欠席','Absent',58],['早退','Early Leave',58],['引き継ぎ・特記事項','',0],['記録者','Recorded by',58]].map(function(l){return '<th style="'+(l[2]?'width:'+l[2]+'px;':'')+'font-size:9px;">'+lb2(l[0],l[1])+'</th>';}).join('')
@@ -10542,7 +10559,7 @@ function renderRecGroup(page,list,note){
      古い導線（提出書類ナビ・年間スケジュールなど）から来ても迷子にならないよう、
      同じ画面へ寄せる。 */
   if(recType==='午睡チェック')recType='登園（出席）';
-  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'事故・ヒヤリハットの記録':edHiyari,'児童票（成長の記録）':edDev,'業務日報・保育日誌':edNippo,'保護者対応の記録':edKujo})[recType]();
+  ({'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'事故・ヒヤリハットの記録':edHiyari,'児童票（成長の記録）':edDev,'保育日誌・業務日報':edNippo,'保護者対応の記録':edKujo})[recType]();
   attachRecPaperCard();
   /* 期間まとめの口は #recBody の外に置く。編集画面を描き直しても消えないので、付け直しが要らない */
   if(page==='records'&&$('#recPeriodBox')){$('#recPeriodBox').innerHTML=periodCard();wirePeriod();}
@@ -11551,7 +11568,7 @@ function edNippo(){
      欄は空にして、カリキュラムの文は薄い字（placeholder）で見せる。
      「カリキュラムから取り込む」を押して初めて中身が入る（跡も正しく残る）。 */
   var actualVal=d.actual||'';
-  $('#recBody').innerHTML='<div class="card">'+recHead('業務日報・保育日誌','<input type="date" id="npoDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+recHead('保育日誌・業務日報','<input type="date" id="npoDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     lockBarHtml(d)+
     '<div class="field"><label>活動内容<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから取り込む</button></label>'
       +'<textarea id="npoActual" rows="4" placeholder="'+esc(currText||'')+'">'+esc(actualVal)+'</textarea>'
@@ -11574,7 +11591,7 @@ function edNippo(){
     d[p[1]]=e.target.value;save();};});
   $('#npoPrint').onclick=function(){
     /* 紙の中身は nippoDayBody にまとめた（期間まとめと同じ紙になる） */
-    printDoc('業務日報・保育日誌（'+fmt(recDate)+'）',nippoDayBody(recDate,d));
+    printDoc('保育日誌・業務日報（'+fmt(recDate)+'）',nippoDayBody(recDate,d));
   };
   lockBarWire($('#recBody'),d,save,edNippo);
   lockDisable($('#recBody'),d);
@@ -11838,7 +11855,7 @@ function periodKeys(type,from,to){
   /* 健康チェックは登園の画面に入れたので、登園でまとめて出す。
      健康だけ記録がある日も、抜けずに出るようにする。 */
   var hd=(type==='登園（出席）'||type==='健康チェック')?stGet('rec_健康チェック',{}):null;
-  var pd=(type==='業務日報・保育日誌')?stGet('rec_日報',{}):null;
+  var pd=(type==='保育日誌・業務日報')?stGet('rec_日報',{}):null;
   var p=from.split('-'),day=new Date(+p[0],+p[1]-1,+p[2]),endN=pdNum(to);
   while(pdNum(iso(day))<=endN){
     var dk=iso(day),hit=false;
@@ -14796,7 +14813,9 @@ var SP_GROUPS=[
     {k:'ageClass',label:'何歳児',opts:['','0歳児','1歳児','2歳児','3歳児','4歳児','5歳児']},
     {k:'sex',label:'性別',opts:['','男の子','女の子']},
     {k:'blood',label:'血液型',opts:['','不明','A','B','O','AB']},
-    {k:'klass',label:'配属クラス',opts:['','Pre','Kinder','一般']},
+    /* ★ここもクラス名をベタ書きしていた。設定でクラスを足しても改名しても
+       この欄だけ追随しない。ほかの画面と同じ CLASSES から作る。 */
+    {k:'klass',label:'配属クラス',opts:function(){return [''].concat(CLASSES);}},
     {k:'joinDate',label:'入園日',type:'date'},
     {k:'leaveDate',label:'退園日',type:'date'}
   ]},
@@ -15233,7 +15252,12 @@ function wireRosterList(){
 function spFieldHTML(f,p){
   var v=p[f.k]==null?'':p[f.k];
   var inp;
-  if(f.opts)inp='<select data-rp="'+esc(f.k)+'">'+f.opts.map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
+  /* 選択肢は、決め打ちの配列でも、そのとき作る関数でもよい。
+     クラスのように設定で増えるものは関数で渡す。
+     いま入っている値が一覧に無ければ、それも残す（保存した値が消えないように）。 */
+  var _o=f.opts?((typeof f.opts==='function')?f.opts():f.opts):null;
+  if(_o&&String(v)&&_o.indexOf(String(v))<0)_o=_o.concat([String(v)]);
+  if(_o)inp='<select data-rp="'+esc(f.k)+'">'+_o.map(function(o){return '<option'+(String(v)===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>';
   else if(f.type==='textarea')inp='<textarea data-rp="'+esc(f.k)+'" rows="2">'+esc(v)+'</textarea>';
   else inp='<input data-rp="'+esc(f.k)+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末の中だけ）"':(f.ph?' placeholder="'+esc(f.ph)+'"':''))+'>';
   var reqTag=f.req?' <span style="background:#FCEBEB;color:#A32D2D;border-radius:4px;padding:0 5px;font-size:10px;font-weight:700;">必須</span>':'';
@@ -15467,6 +15491,15 @@ function wireRosterProfile(){
       var arr2=DB.contacts,ch2=false;
       arr2.forEach(function(x){if(x.id===rosterSel&&x.withdrawDate!==obj.leaveDate){x.withdrawDate=obj.leaveDate;ch2=true;}});
       if(ch2)DB.contacts=arr2;
+    }
+    /* ★配属クラスは2画面で別々に持っていて、同期していなかった（36-2）。
+       生徒台帳で直しても連絡先は古いままで、登園シートも請求も古いクラスで動く。
+       一覧が `p.klass||c.klass` と逃がしているので、画面によって違うクラスが出ていた。
+       生年月日と同じように、連絡先側にもそろえる。 */
+    if(obj.klass){
+      var arrK=DB.contacts,chK=false;
+      arrK.forEach(function(x){if(x.id===rosterSel&&x.klass!==obj.klass){x.klass=obj.klass;chK=true;}});
+      if(chK)DB.contacts=arrK;
     }
     /* ★生年月日は studentProfiles にしか入らず、連絡先（c.dob）に返っていなかった。
        配置基準も歳児も c.dob しか読まないので、帯の案内どおり生徒台帳に入れて
@@ -17078,7 +17111,7 @@ function taskAddDel(name){var a=taskAddAll(),i;
 function taskNameUsed(n){var i;
   for(i=0;i<ANNUAL_TASKS.length;i++){if(ANNUAL_TASKS[i].name===n)return true;}
   return false;}
-var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'業務日報・保育日誌':['records','業務日報・保育日誌'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'保護者対応の記録':['carerec','保護者対応の記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
+var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'保育日誌・業務日報':['records','保育日誌・業務日報'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'保護者対応の記録':['carerec','保護者対応の記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
 /* 記録の呼び名を変えたので、前の名前で保存されているものからも同じ画面へ行けるようにする */
 var TASK_PAGE_OLD={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録'};
 function taskPageOf(n){return TASK_PAGE[n]||TASK_PAGE[TASK_PAGE_OLD[n]]||null;}
@@ -17497,7 +17530,7 @@ function renderTasks(){
 /* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========
    種別×自治体プロフィールから「出すべき書類・証明書」を提示。データは保守的な暫定シード。
    将来：バックエンド+AIが公式情報から最新要件を自動取得してREQ_DATAを更新する設計。 */
-var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。当システムの書類自動生成に対応。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "業務日報・保育日誌", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。当システムの書類自動生成機能に対応。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムのカリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "業務日報・保育日誌", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの業務日報・保育日誌に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}]}]};
+var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。当システムの書類自動生成に対応。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "保育日誌・業務日報", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "保育日誌・業務日報", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。当システムの書類自動生成機能に対応。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムのカリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "保育日誌・業務日報", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの保育日誌・業務日報に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}]}]};
 var REQ_ASOF='2026-07';
 var REQ_CATCOLOR={'設置・認可':'#185FA5','運営体制':'#0B5F8F','日常記録':'#854F0B','届出・報告':'#3C3489','証明書・資格':'#72243E','安全・衛生':'#27500A'};
 var REQ_STATUSES=['未着手','準備中','完了'];
@@ -17520,7 +17553,7 @@ function reqTarget(sd){
   if(/健康チェック/.test(sd))return {page:'records',rec:'健康チェック'};
   if(/身体測定/.test(sd))return {page:'records',rec:'身体測定'};
   if(/ヒヤリハット|事故/.test(sd))return {page:'records',rec:'事故・ヒヤリハットの記録'};
-  if(/業務日報|保育日誌/.test(sd))return {page:'records',rec:'業務日報・保育日誌'};
+  if(/業務日報|保育日誌/.test(sd))return {page:'records',rec:'保育日誌・業務日報'};
   if(/発達/.test(sd))return {page:'records',rec:'児童票（成長の記録）'};
   return null;
 }
@@ -17569,7 +17602,7 @@ var LOG_MAX=800, SNAP_MAX=7, LOG_SKIP={'cocoas_eventLog':1,'cocoas_snapshots':1,
 var LOG_LABEL={
   'cocoas_rec_登園シート':'登園（出席）','cocoas_rec_安全点検':'安全点検','cocoas_rec_午睡チェック':'午睡チェック',
   'cocoas_rec_健康チェック':'健康チェック','cocoas_rec_身体測定':'身体測定','cocoas_rec_hiyari':'事故・ヒヤリハットの記録',
-  'cocoas_rec_発達':'児童票（成長の記録）','cocoas_rec_日報':'業務日報・保育日誌','cocoas_curriculum':'カリキュラム',
+  'cocoas_rec_発達':'児童票（成長の記録）','cocoas_rec_日報':'保育日誌・業務日報','cocoas_curriculum':'カリキュラム',
   'cocoas_drills3':'避難訓練','cocoas_drill_proc_by_kind':'避難訓練の手順','cocoas_shifts':'シフト表',
   'cocoas_contacts':'連絡先','cocoas_staff':'職員','cocoas_studentProfiles':'生徒台帳','cocoas_enrollOptions':'請求書発行（契約・オプション）',
   'cocoas_history':'送信履歴','cocoas_dmThreads':'保護者DM','cocoas_docgen':'書類作成','cocoas_docs':'書類格納',
