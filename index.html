@@ -2540,6 +2540,45 @@ function apiFileDel(key,cb){
     .then(function(){cb&&cb(null);})
     .catch(function(e){cb&&cb(e);});
 }
+/* ══ 写真の出し方 ══════════════════════════
+   写真は、これまで文字列（データURI）そのものを保存に持っていた。
+   1枚で数百KBあり、保存の置き場（localStorage）はすぐ一杯になる。
+   サーバへ移したものは「srv:鍵」の短い文字列だけを持つ。
+   画面では、どちらの形でも同じように出せるようにする。 */
+var FILE_SRV='srv:';
+function isSrvRef(v){return String(v||'').indexOf(FILE_SRV)===0;}
+function srvKeyOf(v){return String(v||'').slice(FILE_SRV.length);}
+/* 一度取り出したものは覚えておく。画面を描き直すたびに取りに行かないため。 */
+var FIMG_CACHE={};
+/* <img data-fsrc="…"> を、あとから埋める。
+   データURIならそのまま、サーバの鍵なら取りに行ってから入れる。 */
+function wireFileImgs(root){
+  var box=root||document;
+  box.querySelectorAll('img[data-fsrc]').forEach(function(im){
+    var v=im.getAttribute('data-fsrc');
+    im.removeAttribute('data-fsrc');
+    if(!v)return;
+    if(!isSrvRef(v)){im.src=v;return;}
+    var k=srvKeyOf(v);
+    if(FIMG_CACHE[k]){im.src=FIMG_CACHE[k];return;}
+    docFileFetch(k,function(err,blob){
+      if(err||!blob){im.alt='この写真は見つかりませんでした';return;}
+      var u=URL.createObjectURL(blob);
+      FIMG_CACHE[k]=u;im.src=u;
+    });
+  });
+}
+/* データURI（文字列）を、そのままの形（Blob）に戻す。サーバへ預けるときに使う。 */
+function dataUriToBlob(u){
+  try{
+    var p=String(u).split(',');if(p.length<2)return null;
+    var mime=(p[0].match(/data:([^;]+)/)||[])[1]||'application/octet-stream';
+    if(p[0].indexOf('base64')<0)return new Blob([decodeURIComponent(p[1])],{type:mime});
+    var bin=atob(p[1]),n=bin.length,arr=new Uint8Array(n);
+    while(n--)arr[n]=bin.charCodeAt(n);
+    return new Blob([arr],{type:mime});
+  }catch(e){return null;}
+}
 /* 置く。cb(err, key, where)。where は 'server' か 'local'。 */
 function docFileStore(blob,meta,cb){
   if(typeof API!=='undefined'&&API.online()){
@@ -3120,7 +3159,9 @@ function photoOf(id){return photoStore()[id]||'';}
 function photoSet(id,dataUri){var p=photoStore();if(dataUri)p[id]=dataUri;else delete p[id];stSet('contactPhotos',p);}
 function avatarHTML(c,size){
   var s=size||34,ph=photoOf(c.id);
-  if(ph)return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;overflow:hidden;background:#eee;"><img src="'+ph+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>';
+  /* 写真は「データURI」か「srv:鍵」のどちらか。src には入れず data-fsrc に置き、
+     wireFileImgs があとから埋める（鍵のときは取りに行くため）。 */
+  if(ph)return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;overflow:hidden;background:#eee;"><img data-fsrc="'+esc(ph)+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>';
   return '<span class="avatar" style="width:'+s+'px;height:'+s+'px;font-size:'+Math.round(s*0.37)+'px;">'+initials(c.name||'')+'</span>';
 }
 /* ロゴ画像：縦横比を保ったまま縮小（幅最大420px） */
@@ -3531,6 +3572,19 @@ function splitAtPeriod(el){
   });
 }
 
+/* 画面を切り替えるたび、まだ埋まっていない写真を埋める。
+   1か所ずつ呼ぶと必ず漏れるので、ここでまとめて面倒を見る。 */
+function fimgSweep(){try{wireFileImgs(document);}catch(e){}}
+/* 画面のどこに写真が出ても埋まるように、増えたところを見張る。
+   ★1か所ずつ「ここでも埋める」と足していく形にすると必ず漏れる。
+     この製品では、その漏れ方で何度も不具合が出ている。
+     中身が増えたときだけ動かす（src を入れ替えても、それ自体では動かない）。 */
+(function(){
+  if(typeof MutationObserver==='undefined')return;
+  var t=null;
+  function later(){ if(t)return; t=setTimeout(function(){t=null;fimgSweep();},0); }
+  try{ new MutationObserver(later).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+})();
 function go(page){
   /* 生徒情報（enroll）は請求書発行（billing）に入れた。
      覚えている行き先や、古い呼び出しが enroll のままでも止まらないよう、入口で読み替える。 */
@@ -3543,6 +3597,9 @@ function go(page){
     alert('この機能は、ご契約のプランには含まれていません。');
     page='home';
   }
+  /* 描き終わったあとに、まだ埋まっていない写真を埋める。
+     1か所ずつ呼ぶと必ず漏れるので、画面の切り替えでまとめて面倒を見る。 */
+  setTimeout(fimgSweep,0);
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
   if(page!=='roster')rosterTab='list';   /* 生徒台帳は、別の画面へ行って戻ったら必ず一覧から始める */
@@ -9265,6 +9322,10 @@ function renderSettings(){
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
   if(typeof renderOptionSettings==='function')renderOptionSettings(s);
   if(typeof renderScanArchiveSettings==='function')renderScanArchiveSettings(s);
+  /* 書類・写真の預け先。端末の中だけに残っているものを数えて、まとめて預ける。
+     消えると困るものの話なので、バックアップのすぐ上に置く。 */
+  if(typeof renderFileMoveSettings==='function'
+     && (typeof currentRole!=='function'||currentRole()==='管理者'))renderFileMoveSettings(s);
   /* バックアップは全園児のデータを丸ごと持ち出せる。
      シート41行のとおり管理者だけにする。 */
   if(typeof renderBackupSettings==='function'
@@ -9536,7 +9597,7 @@ function staffModal(id){
     var list=staffDocsOf(id);
     box.innerHTML=list.length?list.map(function(d,i){
       return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;">'
-        +(d.img?'<img src="'+d.img+'" style="width:52px;height:36px;object-fit:cover;border-radius:4px;">':'<span style="width:52px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:4px;">'+ic('doc')+'</span>')
+        +(d.img?'<img data-fsrc="'+esc(d.img)+'" style="width:52px;height:36px;object-fit:cover;border-radius:4px;">':'<span style="width:52px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:4px;">'+ic('doc')+'</span>')
         +'<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">'+esc(d.kind||'')+'</div>'
         +(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener" class="row-sub" style="color:var(--teal);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap;">'+esc(d.url)+'</a>':'<div class="row-sub">'+(d.img?'画像を保管':'')+'　'+esc(d.at||'')+'</div>')
         +'</div><button type="button" class="btn btn-sm btn-ghost" data-stdocdel="'+esc(i)+'">'+ic('trash')+'</button></div>';
@@ -9955,7 +10016,7 @@ function scanCard(type,d){
     +'<div id="scanList" style="display:flex;gap:10px;flex-wrap:wrap;">'
     +(list.length?list.map(function(x,i){
       return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;width:190px;">'
-        +'<img src="'+x.img+'" data-scanview="'+esc(i)+'" style="width:100%;height:120px;object-fit:cover;border-radius:6px;cursor:zoom-in;">'
+        +'<img data-fsrc="'+esc(x.img)+'" data-scanview="'+esc(i)+'" style="width:100%;height:120px;object-fit:cover;border-radius:6px;cursor:zoom-in;">'
         +'<div class="row-sub" style="margin-top:5px;font-size:11px;">'+esc(x.at||'')+(x.by?'　'+esc(x.by):'')+'</div>'
         +(ro?'':'<div style="display:flex;gap:5px;margin-top:5px;">'
           +'<button class="btn btn-sm btn-ghost" data-scandel="'+esc(i)+'" style="font-size:11px;padding:3px 7px;">'+ic('trash')+'</button></div>')+'</div>';}).join('')
@@ -10037,7 +10098,7 @@ function wireScan(type,d){
   document.querySelectorAll('[data-scanview]').forEach(function(im){im.onclick=function(){
     var x=scansOf(type,date)[+im.getAttribute('data-scanview')];if(!x)return;
     var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
-    m.innerHTML='<div class="modal" style="width:min(880px,94vw);"><h2>取り込んだ紙の記録</h2><img src="'+x.img+'" style="width:100%;border-radius:8px;">'
+    m.innerHTML='<div class="modal" style="width:min(880px,94vw);"><h2>取り込んだ紙の記録</h2><img data-fsrc="'+esc(x.img)+'" style="width:100%;border-radius:8px;">'
       +'<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn" id="svClose">閉じる</button></div></div>';
     m.addEventListener('click',function(ev){if(ev.target===m)m.remove();});
     $('#svClose').onclick=function(){m.remove();};
@@ -10398,7 +10459,7 @@ function renderScanArchiveSettings(s){
       m.innerHTML='<div class="modal" style="width:min(880px,94vw);"><h2>'+esc(r.type)+'　'+esc(scanArchiveLabel(r))+'</h2>'
         +(l.length?'<div style="display:flex;gap:10px;flex-wrap:wrap;">'+l.map(function(x,i){
             return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;width:190px;">'
-              +'<img src="'+x.img+'" style="width:100%;border-radius:6px;">'
+              +'<img data-fsrc="'+esc(x.img)+'" style="width:100%;border-radius:6px;">'
               +'<div class="row-sub" style="margin-top:5px;font-size:11px;">'+esc(x.at||'')+(x.by?'　'+esc(x.by):'')+'</div>'
               +'<button class="btn btn-sm btn-ghost" data-scaimg="'+esc(i)+'" style="margin-top:5px;font-size:11px;padding:3px 7px;">'+ic('trash')+'この1枚を削除</button></div>';
           }).join('')+'</div>'
@@ -17593,7 +17654,161 @@ function renderOptionSettings(s){
     l.push(v);optSave(k,l);renderSettings();
   };});
 }
+/* ══ 端末に残っている書類を、サーバへ預ける ═══════════
+   置き場をサーバに変えても、すでに端末に入っているものは自動では移らない。
+   通信の細い園で黙って一斉に上げると長いあいだ固まるので、押したときにだけ動かす。 */
+function localFileList(){
+  var out=[],k,i;
+  /* 中身が端末の別の入れ物にあるもの（園児の書類・書類格納） */
+  try{
+    var kd=kidDocs();
+    for(k in kd){ if(!Object.prototype.hasOwnProperty.call(kd,k))continue;
+      (kd[k]||[]).forEach(function(d,ix){
+        if(d&&d.file&&d.file.key&&d.file.where!=='server')
+          out.push({t:'kid',id:k,i:ix,kind:FILE_KIND_KID,name:d.file.name||'書類',
+                    size:d.file.size||0,ref:k,key:d.file.key});
+      });
+    }
+  }catch(e){}
+  try{
+    var dc=stGet('docs',{});
+    for(k in dc){ if(!Object.prototype.hasOwnProperty.call(dc,k))continue;
+      var f=(dc[k]||{}).file;
+      if(f&&f.key&&f.where!=='server')
+        out.push({t:'doc',id:k,kind:FILE_KIND_DOC,name:f.name||'書類',size:f.size||0,ref:k,key:f.key});
+    }
+  }catch(e){}
+  /* 中身が文字列（データURI）で入っているもの */
+  try{
+    var ph=photoStore();
+    for(k in ph){ if(!Object.prototype.hasOwnProperty.call(ph,k))continue;
+      if(String(ph[k]).indexOf('data:')===0)
+        out.push({t:'photo',id:k,kind:FILE_KIND_PHOTO,name:'顔写真.png',
+                  size:Math.round(String(ph[k]).length*0.75),ref:k,uri:ph[k]});
+    }
+  }catch(e){}
+  try{
+    var sd=staffDocs();
+    for(k in sd){ if(!Object.prototype.hasOwnProperty.call(sd,k))continue;
+      (sd[k]||[]).forEach(function(d,ix){
+        if(d&&String(d.img||'').indexOf('data:')===0)
+          out.push({t:'staff',id:k,i:ix,kind:FILE_KIND_STAFF,name:(d.kind||'書類')+'.png',
+                    size:Math.round(String(d.img).length*0.75),ref:k,uri:d.img});
+      });
+    }
+  }catch(e){}
+  try{
+    var sc=scansAll();
+    for(k in sc){ if(!Object.prototype.hasOwnProperty.call(sc,k))continue;
+      (sc[k]||[]).forEach(function(x,ix){
+        if(x&&String(x.img||'').indexOf('data:')===0)
+          out.push({t:'scan',id:k,i:ix,kind:FILE_KIND_SCAN,name:String(k).replace(/[|]/g,'_')+'.jpg',
+                    size:Math.round(String(x.img).length*0.75),ref:k,uri:x.img});
+      });
+    }
+  }catch(e){}
+  return out;
+}
+/* 1件ぶんを預け、記録のほうを「サーバの鍵」に書き替える。
+   ★書き替えは、預けられたことを確かめてから行う。
+     先に書き替えると、失敗したときに端末の中身への道が切れて開けなくなる。 */
+function localFilePush(x,cb){
+  function saveKey(key){
+    try{
+      if(x.t==='kid'){
+        var l=kidDocsOf(x.id);
+        if(l[x.i]&&l[x.i].file){l[x.i].file.key=key;l[x.i].file.where='server';kidDocsSet(x.id,l);}
+      }else if(x.t==='doc'){
+        var d=stGet('docs',{});
+        if(d[x.id]&&d[x.id].file){d[x.id].file.key=key;d[x.id].file.where='server';stSet('docs',d);}
+      }else if(x.t==='photo'){
+        photoSet(x.id,FILE_SRV+key);
+      }else if(x.t==='staff'){
+        var sl=staffDocsOf(x.id);
+        if(sl[x.i]){sl[x.i].img=FILE_SRV+key;staffDocsSet(x.id,sl);}
+      }else if(x.t==='scan'){
+        var a=scansAll(),arr=(a[x.id]||[]).slice();
+        if(arr[x.i]){arr[x.i].img=FILE_SRV+key;a[x.id]=arr;stSet('recScans',a);}
+      }
+    }catch(e){cb(e);return;}
+    cb(null);
+  }
+  if(x.uri){
+    var b=dataUriToBlob(x.uri);
+    if(!b){cb(new Error('中身を読み取れませんでした'));return;}
+    apiFileUpload(b,{kind:x.kind,name:x.name,ref:x.ref},function(err,r){
+      if(err||!r||!r.key){cb(err||new Error('預けられませんでした'));return;}
+      saveKey(r.key);
+    });
+    return;
+  }
+  /* 端末の別の入れ物にあるものは、いったん取り出してから預ける */
+  docFileGet(x.key,function(err,blob){
+    if(err||!blob){cb(new Error('この端末に中身が見つかりませんでした'));return;}
+    apiFileUpload(blob,{kind:x.kind,name:x.name,ref:x.ref},function(e2,r){
+      if(e2||!r||!r.key){cb(e2||new Error('預けられませんでした'));return;}
+      var old=x.key;
+      saveKey(r.key);
+      /* 預け終わってから、端末の中身を消す（先に消すと、失敗したときに戻せない） */
+      docFileDel(old,function(){});
+    });
+  });
+}
 /* 設定ページ用カード */
+function renderFileMoveSettings(s){
+  var list=localFileList(),tot=0;
+  list.forEach(function(x){tot+=x.size||0;});
+  var byKind={};
+  list.forEach(function(x){byKind[x.kind]=(byKind[x.kind]||0)+1;});
+  var on=(typeof API!=='undefined'&&API.online());
+  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'書類・写真の預け先</h3>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.75;">'
+    +'書類や写真の中身は、園の記録としてサーバへ預けます。'
+    +'<b>端末の中だけに置いたままだと、ブラウザの空きが足りなくなったときに断りなく消えます。</b>'
+    +'端末を買い替えたときも引き継がれません。</div>';
+  if(!list.length){
+    html+='<div style="padding:10px 13px;border-radius:9px;background:#EAF3DE;border:1px solid #B7D48A;color:#27500A;font-size:12.5px;">'
+      +'端末の中だけに残っているものはありません。</div>';
+  }else{
+    html+='<div style="padding:10px 13px;border-radius:9px;background:#FAEEDA;border:1px solid #E9C88B;color:#6b3f08;font-size:12.5px;line-height:1.8;">'
+      +'<b>この端末の中だけに '+list.length+'件（約'+docSizeText(tot)+'）あります。</b><br>'
+      +Object.keys(byKind).map(function(k){return esc(k)+' '+byKind[k]+'件';}).join('　／　')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:11px;">'
+      +(on?'<button class="btn btn-primary btn-sm" id="fmGo">'+ic('folder')+'サーバへ預ける（'+list.length+'件）</button>'
+          :'<span class="muted" style="font-size:12px;color:#A32D2D;">いまサーバにつないでいないため、預けられません。ログインしてからお試しください。</span>')
+      +'<span class="muted" id="fmMsg" style="font-size:12px;"></span></div>'
+      +'<div id="fmLog" style="margin-top:10px;max-height:180px;overflow:auto;"></div>';
+  }
+  html+='</div>';
+  s.insertAdjacentHTML('beforeend',html);
+  var b=document.getElementById('fmGo');
+  if(b)b.onclick=function(){
+    if(!confirm(list.length+'件（約'+docSizeText(tot)+'）をサーバへ預けます。\n\n'
+      +'通信の細い場所では時間がかかります。終わるまでこの画面を閉じないでください。\n\nよろしいですか？'))return;
+    b.disabled=true;
+    var i=0,okN=0,ng=[];
+    var lg=document.getElementById('fmLog'),msg=document.getElementById('fmMsg');
+    function step(){
+      if(i>=list.length){
+        msg.innerHTML='<b>'+okN+'件を預けました。</b>'+(ng.length?'　'+ng.length+'件は預けられませんでした。':'');
+        setTimeout(function(){renderSettings();},1200);
+        return;
+      }
+      var x=list[i];
+      msg.textContent='預けています… '+(i+1)+' / '+list.length;
+      localFilePush(x,function(err){
+        if(err){ng.push(x.name);
+          lg.insertAdjacentHTML('afterbegin','<div class="li" style="color:#A32D2D;">'+esc(x.name)+'：'+esc(err.message||'失敗')+'</div>');
+        }else{okN++;
+          lg.insertAdjacentHTML('afterbegin','<div class="li">'+esc(x.kind)+'　'+esc(x.name)+'</div>');
+        }
+        i++;step();
+      });
+    }
+    step();
+  };
+}
 function renderBackupSettings(s){
   var lg=eventLog().slice(-25).reverse(),sn=snapshots().slice().reverse();
   var used=0;try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(String(k).indexOf('cocoas_')===0)used+=(localStorage.getItem(k)||'').length;}}catch(e){}
