@@ -906,7 +906,12 @@ var BCAST=[
 /* デイリーメールの骨組み。園ごとに書き方が違うので、決まった様式（Phonics・Monthly Song など）は持たない。
    〔配信日〕と〔本日の活動〕は、配信の画面で選んだ日の内容に入れ替わる。 */
 var DAILY_SUB="〔配信日〕の様子｜〔学校名〕";
-var DAILY_BODY="〔学校名〕 保護者様へ\n\nいつもお世話になっております。\n本日のお子さまの様子をお知らせします。\n\n【今日したこと】\n〔本日の活動〕\n\n【子どもたちの様子】\n〇〇\n\n【おうちへのお願い】\n〇〇"+SIG_SHORT;
+/* ★園ごとに書き方が違うので、決め打ちの文はやめた（23-2・2026-08-25 のご判断）。
+   残すのは【今日したこと】の見出しと、カリキュラムから入る〔本日の活動〕だけ。
+   毎日使うものなので、まっさらだと毎回見出しから書くことになる。
+   ほかの見出し（子どもたちの様子・おうちへのお願い）と挨拶文は消した。
+   園ごとの言い方は「メールテンプレート」で足せる。 */
+var DAILY_BODY="【今日したこと】\n〔本日の活動〕";
 var BBODY={
   dailyPre:{subject:DAILY_SUB,body:DAILY_BODY},
   dailyKinder:{subject:DAILY_SUB,body:DAILY_BODY},
@@ -4270,8 +4275,10 @@ var EG_NAV=[
         ホームの活動記録の中には残す（道が年間スケジュール経由だけになるのを防ぐ） */
      {p:'drill',   l:'避難訓練',          navHide:true},
      /* 保育研修は先生が書くものなので、活動記録の中に置く（2026-08-22）。
+        ★ただし左のタブは「保育記録」1行だけにする（30-2・2026-08-25 のご判断）。
+        2行あると別々の画面だと思われるため。ホームの活動記録のマスからは開ける。
         記録の保存先は これまでどおり hoiku_kenshu のまま。 */
-     {p:'kenshu', l:'保育研修'}]}
+     {p:'kenshu', l:'保育研修', navHide:true}]}
  ]},
  {cat:'顧客情報・料金管理',boss:true,items:[
    {k:'contacts', l:'連絡先',   i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
@@ -10650,7 +10657,8 @@ function edTouen(){
   /* 37.5℃以上の子。体温は登園の記録から読む。 */
   var _hlFever=kids.filter(function(c){return +(((d.rows||{})[c.id]||{}).temp||0)>=37.5;});
   $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+haichiBarHtml(recDate)+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
-    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select>'
+      +'<div class="muted" style="font-size:11px;margin-top:3px;">朝の時点の天気を入れてください</div></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
