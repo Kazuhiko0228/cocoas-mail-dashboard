@@ -9322,6 +9322,9 @@ function renderSettings(){
   if(typeof renderAccessSettings==='function')renderAccessSettings(s);
   if(typeof renderOptionSettings==='function')renderOptionSettings(s);
   if(typeof renderScanArchiveSettings==='function')renderScanArchiveSettings(s);
+  /* AIにつながるかの確かめ。鍵を入れた直後に、その場で分かるようにするため。 */
+  if(typeof renderAiCheckSettings==='function'
+     && (typeof currentRole!=='function'||currentRole()==='管理者'))renderAiCheckSettings(s);
   /* 書類・写真の預け先。端末の中だけに残っているものを数えて、まとめて預ける。
      消えると困るものの話なので、バックアップのすぐ上に置く。 */
   if(typeof renderFileMoveSettings==='function'
@@ -17654,6 +17657,51 @@ function renderOptionSettings(s){
     l.push(v);optSave(k,l);renderSettings();
   };});
 }
+/* ══ AIにつながるかの確かめ ═══════════════════
+   鍵（GEMINI_API_KEY）を入れた直後に、いちばん最初につまずくのは
+   「鍵が違う」か「モデルの名前がもう使えない」のどちらか。
+   画面から1回押すだけで、どちらなのかが分かるようにする。 */
+function renderAiCheckSettings(s){
+  var on=(typeof API!=='undefined'&&API.online());
+  var html='<div class="card" style="margin-bottom:16px;"><h3>'+ic('sparkle')+'AIの接続</h3>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.75;">'
+    +'AI保育計画とAI相談は、外部のAI（Google Gemini）につないで動きます。'
+    +'つながっていないあいだは、園の記録から作った下書きと、園の手順書からの答えに切り替わります。'
+    +'こわれた見え方にはなりません。</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+    +(on?'<button class="btn btn-primary btn-sm" id="aiChk">'+ic('sparkle')+'いま つながるか確かめる</button>'
+        :'<span class="muted" style="font-size:12px;color:#A32D2D;">サーバにつないでいないため、確かめられません。</span>')
+    +'</div><div id="aiChkOut" style="margin-top:11px;"></div></div>';
+  s.insertAdjacentHTML('beforeend',html);
+  var b=document.getElementById('aiChk');
+  if(!b)return;
+  b.onclick=function(){
+    var out=document.getElementById('aiChkOut');
+    b.disabled=true;out.innerHTML='<span class="muted" style="font-size:12.5px;">確かめています…（10秒ほどかかります）</span>';
+    API.call('GET','/ai/selftest').then(function(j){
+      b.disabled=false;
+      var okc=!!j.ok;
+      var box='<div style="padding:10px 13px;border-radius:9px;font-size:12.5px;line-height:1.8;background:'
+        +(okc?'#EAF3DE;border:1px solid #B7D48A;color:#27500A':'#FCEBEB;border:1px solid #E8C9C9;color:#A32D2D')+';">'
+        +'<b>'+esc(j.message||'')+'</b>';
+      if(j.model)box+='<br>いま使うモデル：<code>'+esc(j.model)+'</code>';
+      if(j.reply)box+='<br>AIからの返事：'+esc(j.reply);
+      if(j.candidates&&j.candidates.length)
+        box+='<br>使える名前：'+j.candidates.map(function(x){return '<code>'+esc(x)+'</code>';}).join('　');
+      if(j.detail)box+='<br><span style="font-size:11.5px;">'+esc(j.detail)+'</span>';
+      if(j.code==='no_key')
+        box+='<br><span style="font-size:11.5px;">Railway の cocoas-api → Variables に <code>GEMINI_API_KEY</code> を足してください。</span>';
+      if(j.code==='bad_model')
+        box+='<br><span style="font-size:11.5px;">Railway の cocoas-api → Variables の <code>GEMINI_MODEL</code> を直してください。</span>';
+      out.innerHTML=box+'</div>';
+    }).catch(function(e){
+      b.disabled=false;
+      out.innerHTML='<div style="padding:10px 13px;border-radius:9px;background:#FCEBEB;border:1px solid #E8C9C9;color:#A32D2D;font-size:12.5px;">'
+        +esc(e.message||'確かめられませんでした')+'</div>';
+    });
+  };
+}
+
 /* ══ 端末に残っている書類を、サーバへ預ける ═══════════
    置き場をサーバに変えても、すでに端末に入っているものは自動では移らない。
    通信の細い園で黙って一斉に上げると長いあいだ固まるので、押したときにだけ動かす。 */
