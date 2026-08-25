@@ -2039,7 +2039,7 @@ var AUDIT_CATS=[
   {cat:'⑤ 職員関係',items:[
     {key:'roudou_meibo',name:'労働者名簿',place:'従業員名簿ファイル',when:'年度前',sys:'staff'},
     {key:'chingin',name:'賃金台帳',place:'会社Google Drive【経理用】',when:'運営中',sys:'docs'},
-    {key:'roudou_shorui',name:'労働関係書類（雇用契約書・労働条件通知書・履歴書など）',place:'従業員名簿ファイル',when:'年度前',sys:'docs',note:'職員ひとりずつの控えは「職員管理」の職員の書類にも入れられます。'},
+    {key:'roudou_shorui',name:'労働関係書類（雇用契約書・労働条件通知書・履歴書など）',place:'従業員名簿ファイル',when:'年度前',sys:'docs',note:'労働条件通知書は「書類作成」から出せます。受け取った履歴書などの控えは、「職員管理」の職員の書類に入れてください。'},
     {key:'shift',name:'勤務表（シフト表）',place:'出勤調整申請書ファイル',when:'運営中',sys:'shift'},
     {key:'shukkin',name:'出勤簿（タイムカード）',place:'システム内（シフト表→出勤簿）',when:'運営中',sys:'timecard'},
     {key:'shikaku',name:'資格証明書（控え）',place:'従業員名簿ファイル',when:'年度前',sys:'staff:qual'},
@@ -13089,13 +13089,100 @@ function shiftImportModal(m,save,rerender){
 var dgType='危機管理マニュアル';
 function renderDocgen(){
   var s=$('section[data-page="docgen"]');
-  var types=['危機管理マニュアル','運営状況報告書','保育安全計画'];
+  /* 労働条件通知書を足した（39-10）。
+     履歴書・労働条件通知書は「職員管理」で格納（取り込み）はできたが、
+     出す（発行する）ほうが無かった。 */
+  var types=['危機管理マニュアル','運営状況報告書','保育安全計画','労働条件通知書'];
   s.innerHTML='<div class="card" style="margin-bottom:16px;"><div class="chips" style="margin-bottom:0;">'+types.map(function(t){return '<span class="chip'+(t===dgType?' on':'')+'" data-dg="'+esc(t)+'">'+t+'</span>';}).join('')+'</div></div><div id="dgBody"></div>';
   s.querySelectorAll('[data-dg]').forEach(function(b){b.onclick=function(){dgType=b.getAttribute('data-dg');renderDocgen();};});
   if(types.indexOf(dgType)<0)dgType=types[0];
-  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen})[dgType]();
+  ({'危機管理マニュアル':dgKiki,'運営状況報告書':dgUnei,'保育安全計画':dgAnzen,'労働条件通知書':dgRoudou})[dgType]();
 }
 function dgStore(){return stGet('docgen',{});}
+/* ══ 労働条件通知書（39-10）═══════════════════
+   労働基準法 第15条・施行規則 第5条で、書面で示すことが決まっている項目を並べる。
+   氏名・雇用形態・入社日・役職は職員名簿から入る。
+   賃金や就業時間は園ごとに違うので、職員ひとりずつ入れて覚えておく。
+   ★これは下書き。園の就業規則と合っているかを必ず確かめてから渡してください。 */
+var DG_ROUDOU_F=[
+  {k:'term',   l:'契約期間',            ph:'例：期間の定めなし ／ 2026年4月1日〜2027年3月31日'},
+  {k:'renew',  l:'更新の有無と判断のしかた', ph:'例：契約期間満了時の業務量・勤務成績・健康状態により判断',wide:true},
+  {k:'place',  l:'就業の場所',          ph:'例：（園の住所）'},
+  {k:'job',    l:'従事する業務',        ph:'例：保育業務全般、これに付随する業務'},
+  {k:'hours',  l:'始業・終業の時刻',    ph:'例：8:45〜17:45（シフト制）'},
+  {k:'over',   l:'所定時間外労働',      ph:'例：有（月平均5時間程度）'},
+  {k:'rest',   l:'休憩時間',            ph:'例：60分'},
+  {k:'holiday',l:'休日',                ph:'例：土日祝、年末年始（12/29〜1/3）'},
+  {k:'leave',  l:'休暇',                ph:'例：年次有給休暇（6か月継続勤務で10日）、慶弔休暇',wide:true},
+  {k:'pay',    l:'賃金（基本賃金）',    ph:'例：月給 220,000円'},
+  {k:'allow',  l:'諸手当',              ph:'例：通勤手当（実費・上限月2万円）、資格手当 10,000円',wide:true},
+  {k:'payday', l:'締切日と支払日',      ph:'例：末日締切・翌月25日払い'},
+  {k:'payway', l:'支払方法',            ph:'例：本人名義口座へ振込'},
+  {k:'raise',  l:'昇給',                ph:'例：年1回（4月）※業績により行わないことがある'},
+  {k:'bonus',  l:'賞与',                ph:'例：年2回（7月・12月）※業績により支給しないことがある'},
+  {k:'taishoku',l:'退職手当',           ph:'例：無'},
+  {k:'quit',   l:'退職に関すること',    ph:'例：自己都合退職は30日前までに届け出ること',wide:true},
+  {k:'fire',   l:'解雇の事由',          ph:'例：就業規則第○条による',wide:true},
+  {k:'ins',    l:'加入する保険',        ph:'例：雇用保険・健康保険・厚生年金'},
+  {k:'madoguchi',l:'相談の窓口',        ph:'例：園長（電話 000-0000-0000）'}
+];
+function dgRoudou(){
+  var st=dgStore().roudou||{};
+  /* 退職した職員にも出せるようにする（退職後に求められることがあるため） */
+  var staff=DB.staff||[];
+  if(!staff.length){
+    $('#dgBody').innerHTML='<div class="card"><div class="empty">職員が登録されていません。「職員管理」から登録してください。</div></div>';
+    return;
+  }
+  if(dgRoudouSel==null||!staff.filter(function(x){return x.id===dgRoudouSel;}).length)dgRoudouSel=staff[0].id;
+  var x=staff.filter(function(o){return o.id===dgRoudouSel;})[0]||{};
+  var d=Object.assign({},st[dgRoudouSel]||{});
+  function save(){var a=dgStore().roudou||{};a[dgRoudouSel]=d;dgSave('roudou',a);}
+  function paper(){
+    function v(k){var t=d[k];return t?esc(String(t)).replace(/\n/g,'<br>'):'<span style="color:#888;">（未記入）</span>';}
+    return '<p style="text-align:center;font-size:20px;font-weight:700;margin:0 0 10px;">労働条件通知書</p>'
+      /* 法律で示す書面なので、年の入った日付にする（fmt は年が落ちる） */
+      +'<p style="text-align:right;">'+esc(fmtY(todayISO()))+'</p>'
+      +'<p>'+esc(x.name||'')+' 殿</p>'
+      +'<table><tbody>'
+      +'<tr><th style="width:150px;">事業場の名称</th><td>'+esc(SET.school||'')+'</td></tr>'
+      +'<tr><th>所在地</th><td>'+esc(SET.address||'')+'</td></tr>'
+      +'<tr><th>電話</th><td>'+esc(SET.tel||'')+'</td></tr>'
+      +'<tr><th>雇用形態</th><td>'+esc(x.employ||'')+'</td></tr>'
+      +'<tr><th>役職</th><td>'+esc(x.role||'')+'</td></tr>'
+      +'<tr><th>雇入れの日</th><td>'+esc(x.joinDate?fmtY(x.joinDate):'')+'</td></tr>'
+      +DG_ROUDOU_F.map(function(f){return '<tr><th>'+esc(f.l)+'</th><td>'+v(f.k)+'</td></tr>';}).join('')
+      +'</tbody></table>'
+      +'<p style="font-size:11px;">※ ここに書かれていないことは、就業規則によります。</p>'
+      +'<div style="margin-top:22px;">'
+      +'<p>上記の労働条件を確かに受け取りました。</p>'
+      +'<p style="margin-top:18px;">年　　月　　日　　　署名　　　　　　　　　　　　　　</p></div>';
+  }
+  $('#dgBody').innerHTML='<div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;">'
+    +'<div class="card"><h3>'+ic('fileplus')+'入力</h3>'
+      +'<div class="field"><label>職員</label><select id="rdSel">'
+        +staff.map(function(o){return '<option value="'+esc(o.id)+'"'+(o.id===dgRoudouSel?' selected':'')+'>'+esc(o.name||'')+(o.leaveDate&&String(o.leaveDate)<=todayISO()?'（退職）':'')+'</option>';}).join('')
+        +'</select></div>'
+      +'<div class="muted" style="font-size:11.5px;margin-bottom:10px;line-height:1.75;">氏名・雇用形態・役職・雇入れの日は「職員管理」から入ります。'
+        +'ここに入れた内容は、その職員ぶんとして覚えておきます。</div>'
+      +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'
+      +DG_ROUDOU_F.map(function(f){
+        return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.l)+'</label>'
+          +'<input data-rd="'+esc(f.k)+'" value="'+esc(d[f.k]||'')+'" placeholder="'+esc(f.ph||'')+'"></div>';}).join('')
+      +'</div>'
+      +'<div style="margin-top:12px;padding:10px 13px;border-radius:9px;background:#FAEEDA;border:1px solid #E9C88B;color:#6b3f08;font-size:12px;line-height:1.75;">'
+      +'<b>これは下書きです。</b>労働基準法 第15条で書面に示すことが決まっている項目を並べています。'
+      +'園の就業規則と合っているかを確かめてから渡してください。</div></div>'
+    +'<div class="card">'+recHead('生成プレビュー','<button class="btn btn-sm" id="rdPrint">'+ic('printer')+'通知書を出力</button>')
+      +'<div class="preview" id="rdPrev" style="max-height:460px;overflow:auto;"></div></div></div>';
+  function upd(){$('#rdPrev').innerHTML=paper();}
+  $('#rdSel').onchange=function(e){dgRoudouSel=+e.target.value;dgRoudou();};
+  document.querySelectorAll('[data-rd]').forEach(function(inp){inp.oninput=function(){
+    d[inp.getAttribute('data-rd')]=inp.value;save();upd();};});
+  $('#rdPrint').onclick=function(){printDoc('労働条件通知書（'+(x.name||'')+'）',paper());};
+  upd();
+}
+var dgRoudouSel=null;
 function dgSave(k,v){var st=dgStore();st[k]=v;stSet('docgen',st);}
 function dgInvoice(){
   var P=SET.pricing||{plans:{},lunch:0,extended:0,material:0,admission:0};
@@ -17489,7 +17576,12 @@ function renderTasks(){
         :'<div class="empty">この月だけのやることはありません。'
           +(taskIppan()?'':'<div style="margin-top:10px;"><button class="btn btn-sm btn-primary" data-tkedit="1">'+ic('plus')+mo+'月だけのやることを足す</button></div>')
           +'</div>'))+'</div>'
-    +'<div class="card">'+recHead('年間の一覧','<button class="btn btn-sm btn-primary" id="tkPrintY">'+ic('printer')+'一覧を印刷</button>')
+    /* ★上の「毎月やること」と中身が被って見える、というご指摘（28-5）。
+       重複そのものは、この表から毎月のぶんを外して解消してある（tasksYearOnly）。
+       ただ、見出しだけでは何が違うのか分からないので、そこを書く。 */
+    +'<div class="card">'+recHead('年間の一覧（この月以外もふくむ）','<button class="btn btn-sm btn-primary" id="tkPrintY">'+ic('printer')+'一覧を印刷</button>')
+    +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">上の「毎月やること」に出ているものは、ここには出しません。'
+      +'ここに出るのは、決まった月だけに行うことです。年度のはじめに、いつ何をするかを見わたすために使います。</div>'
     +'<div class="scrollx"><table><thead><tr><th style="width:70px;">時期</th><th>やること</th><th style="width:250px;">目安</th><th style="width:160px;">使う画面</th></tr></thead><tbody>'
     +tasksYearOnly().map(function(t){
       /* 題名だけを出し、押すと「なぜ必要か」が開く。上の「毎月やること」と同じ動きにそろえる */
