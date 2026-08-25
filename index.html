@@ -9699,12 +9699,42 @@ function scanHostKeys(type){
   if(type==='安全点検')return [recDate||todayISO()];
   return [scanHostKey(type)];
 }
+/* ══ 1つの画面にまとまった記録の、紙の取り込み ══════════
+   午睡（2026-08-17）と健康チェック（2026-08-24）を登園の画面にまとめたとき、
+   その2つの「紙の取り込み」が押せなくなっていた。
+   紙のカードは、いま開いているタブ（recType）の紙しか出さないため。
+   記入用紙も取り込んだ写真も、鍵は今までどおり別々に持っているので、
+   カードの上でどの紙かを選べるようにして戻す。 */
+var SCAN_SUB='';
+function scanSubList(type){
+  if(type!=='登園（出席）')return [type];
+  var a=['登園（出席）'];
+  if(SCAN_TARGETS['午睡チェック'])a.push('午睡チェック');
+  if(SCAN_TARGETS['健康チェック'])a.push('健康チェック');
+  return a;
+}
+/* いま出す紙。ほかの記録へ移ったときに前の選択が残らないよう、
+   その画面にある紙でなければ元に戻す。 */
+function scanSubCur(type){
+  var l=scanSubList(type);
+  return (SCAN_SUB&&l.indexOf(SCAN_SUB)>-1)?SCAN_SUB:type;
+}
+function scanSubChips(type){
+  var l=scanSubList(type);
+  if(l.length<2)return '';
+  var cur=scanSubCur(type);
+  return '<div class="chips" style="margin:0 0 10px;">'
+    +l.map(function(t){return '<span class="chip'+(t===cur?' on':'')+'" data-scansub="'+esc(t)+'">'+esc(t)+'</span>';}).join('')
+    +'</div>';
+}
 function scanCard(type,d){
   var date=scanDateOf(type),list=scansOf(type,date);
   if(!SCAN_TARGETS[type])return '';
   var ro=scanLockedIn(type,d);
   return '<div class="card" id="scanBox" style="margin-top:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
-    +'<h3 style="margin:0;flex:1;">'+ic('photo')+'紙の記録を取り込む：'+esc(scanDateLabel(date,type))+'</h3>'
+    +'<h3 style="margin:0;flex:1;">'+ic('photo')+'紙の記録を取り込む：'
+    /* 1つの画面に紙が2つ以上あるときは、どの紙かも見出しに出す */
+    +(scanSubList(recType).length>1?esc(type)+'　':'')+esc(scanDateLabel(date,type))+'</h3>'
     +(ro?'<span class="badge" style="background:#F1EFE8;color:#5F5E5A;">確定ずみ：取り込みと削除はできません'
         +((type==='業務日報・保育日誌'||type==='安全点検')?'（この紙は'+(type==='安全点検'?'月':'週')+'ぶんで1つなので、'+(type==='安全点検'?'その月':'その週')+'に確定ずみの日があると止まります）':'')+'</span>'
         :'<label class="btn btn-sm btn-primary" style="cursor:pointer;margin:0;">'+ic('photo')+'撮影・スキャンを追加<input type="file" id="scanFile" accept="image/*" capture="environment" style="display:none;"></label>')
@@ -9715,6 +9745,7 @@ function scanCard(type,d){
       :type==='業務日報・保育日誌'?'記入用紙は1週間（月〜金）まとめの様式です。1枚の紙は、上の日付を含む週の分としてまとめて保管されます。週のどの日を選んでいても同じ場所に入ります。'
       :'紙に書いた記録をそのまま撮影して保管できます。監査時は画面でも印刷でも提示できます。')
     +'</div>'
+    +scanSubChips(recType)
     +'<div id="scanList" style="display:flex;gap:10px;flex-wrap:wrap;">'
     +(list.length?list.map(function(x,i){
       return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;width:190px;">'
@@ -9812,6 +9843,12 @@ function wireScan(type,d){
     l.splice(+b.getAttribute('data-scandel'),1);scansSet(type,date,l);
     try{scanNoteAll(type,n0+'枚',l.length+'枚');}catch(e5){}
     renderRecGroup(recPageOf(type),recPageOf(type)==='carerec'?recCareList():REC_DAILY);
+  };});
+  document.querySelectorAll('[data-scansub]').forEach(function(b){b.onclick=function(){
+    SCAN_SUB=b.getAttribute('data-scansub');
+    var old=$('#scanBox');
+    if(old&&old.parentNode)old.parentNode.removeChild(old);
+    attachRecPaperCard(d);
   };});
   var bp=$('#blankPrint');if(bp)bp.onclick=function(){printBlankForm(type);};
   var sp=$('#scanPrint');
@@ -10228,7 +10265,10 @@ function attachRecPaperCard(d){
   /* ★付いているかどうかを取り込みボタン（#scanFile）で見ていた。
      確定ずみの日はそのボタンが無いので「まだ付いていない」と判断され、
      確定を知らないカードがもう1枚付いて、そちらから消せてしまっていた。 */
-  if(SCAN_TARGETS[recType]){if(!$('#scanBox')){b.insertAdjacentHTML('beforeend',scanCard(recType,d));wireScan(recType,d);}}
+  /* 登園の画面は、午睡・健康チェックの紙も持っている。上のチップで選んだ紙を出す。 */
+  if(SCAN_TARGETS[recType]){if(!$('#scanBox')){
+    var _st=scanSubCur(recType);
+    b.insertAdjacentHTML('beforeend',scanCard(_st,d));wireScan(_st,d);}}
   else if(BLANK_ONLY_TARGETS[recType]){if(!$('#blankOnlyPrint')){b.insertAdjacentHTML('beforeend',blankOnlyCard(recType));wireBlankOnly(recType);}}
 }
 function recHead(title,extra){return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><h3 style="margin:0;">'+ic('activity')+title+'</h3><span style="flex:1;"></span>'+(extra||'')+'</div>';}
