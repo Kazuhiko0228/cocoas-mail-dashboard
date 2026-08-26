@@ -5344,10 +5344,17 @@ function aiAskServer(kind,klass,period,extra){
       return (f.minAge!=null)?('満'+f.minAge+'歳'):'';
     }catch(e){return '';}})(),
     season:AI_SEASON[m]||'',
-    facts:aiFactsText(klass)
+    /* クラスの様子には、園が自由に書いたメモ（p.note）が入る。ここも落とす。 */
+    facts:aiScrub(aiFactsText(klass))
   };
-  if(extra&&extra.aim)body.aim=extra.aim;
-  if(extra&&extra.note)body.note=extra.note;
+  /* ★相談（/ai/ask）には名簿ベースの伏せ字（aiScrub）を掛けていたのに、
+     計画（/ai/plan）には掛かっていなかった。
+     「今回の条件」や「クラスの様子」は自由に書ける欄なので、
+     先生が「さくらは卵アレルギー」と書けば、そのまま外へ出ていた。
+     サーバ側でも落とすが、名簿を持っているのは画面だけなので
+     敬称なしの氏名を落とせるのはここだけ。 */
+  if(extra&&extra.aim)body.aim=aiScrub(extra.aim);
+  if(extra&&extra.note)body.note=aiScrub(extra.note);
   return API.call('POST','/ai/plan',body)
     .then(function(j){ return (j&&j.data)?j.data:null; })
     .catch(function(e){ AI_NET.note=e.message||''; return null; });
@@ -5441,6 +5448,20 @@ function aiRowify(k,x){
 }
 /* 日本語の文になっているか。ひらがな・カタカナ・漢字が1文字でもあれば文とみなす。
    AIが崩れた形で返したとき、意味の無い文字列を保育計画に載せないための関所。 */
+/* AIが足す「安全上の注意」を、紙に出せる形だけにする。
+   ★ここは aiMerge を通らない道なので、崩れた返事の検査が効いていなかった。
+     いちばん守りたい欄（安全）に「AIからの追加：[object Object]」が
+     刷られてしまう状態だった。 */
+function aiSafeLines(arr){
+  var out=[];
+  (arr||[]).forEach(function(x){
+    var t=(x&&typeof x==='object')?aiText(x):String(x==null?'':x);
+    t=String(t).trim();
+    if(!aiLooksJa(t))return;          /* 日本語の文になっていないものは載せない */
+    out.push('AIからの追加：'+t);
+  });
+  return out;
+}
 function aiLooksJa(t){
   t=String(t||'');
   if(!t||t.indexOf('[object')>-1)return false;
@@ -5455,12 +5476,21 @@ function aiMerge(base,got,only){
       if(!v.length)return;
       /* 中身が「一日の流れ」「週の流れ」のような組のときは、そのまま入れる。
          ここで文字列にしてしまうと、曜日や時刻が消えてしまう。 */
-      base[k]=v.map(function(x){
-        /* ★組で受け取るはずの項目（一日の流れ・一週間の流れ）に
-           文字列が混ざると、その行だけ欄が空で出る。行の形に直す。 */
-        if(k==='times'||k==='days')return aiRowify(k,x);
-        return (x&&typeof x==='object')?aiText(x):String(x);
-      });
+      /* ★中身を検査せず String(x) していたので、数字や真偽値が返ると
+         「3」「true」「null」が準備物や予想される子どもの姿に並んでいた。
+         日本語の文になっていないものは落とす。全部落ちたら、記録から作った
+         下書きをそのまま残す（読めないものを載せるより、下書きのほうがまし）。 */
+      if(k==='times'||k==='days'){
+        base[k]=v.map(function(x){return aiRowify(k,x);});
+      }else{
+        var _lines=[];
+        v.forEach(function(x){
+          var t=(x&&typeof x==='object')?aiText(x):String(x==null?'':x);
+          t=String(t).trim();
+          if(aiLooksJa(t))_lines.push(t);
+        });
+        if(_lines.length)base[k]=_lines;
+      }
     }
     /* ★組（一日の流れ・一週間の流れ・材料など）で受け取るはずの項目が
        1本の文字列で返ってくることがある。そのまま map を呼ぶと画面が
@@ -6444,7 +6474,7 @@ function aipWire(k){
          AIが書いた分は下へ足すだけにする。 */
       if(got&&got.safe){
         var addS=(Object.prototype.toString.call(got.safe)==='[object Array]')?got.safe:[String(got.safe)];
-        d.safe=keepSafe.concat(addS.map(function(x){return 'AIからの追加：'+String(x);}));
+        d.safe=keepSafe.concat(aiSafeLines(addS));
       }else{ d.safe=keepSafe; }
       AIP.res={kind:'craft',data:d,byAI:!!got,aiFields:filled2};
       aiLog('制作物アイディアをつくった'+(got?'（AI）':'（下書き）'),k+' '+m); renderAIPlan();
@@ -6517,7 +6547,7 @@ function aipWire(k){
       /* AIの安全の注意は、園の記録から出した一文を消さずに後ろへ足す */
       if(got&&got.safe){
         var add=(Object.prototype.toString.call(got.safe)==='[object Array]')?got.safe:[String(got.safe)];
-        merged.safe=(merged.safe||[]).concat(add.map(function(x){return 'AIからの追加：'+String(x);}));
+        merged.safe=(merged.safe||[]).concat(aiSafeLines(add));
         if(filled.indexOf('safe')<0)filled.push('safe');
       }
       AIP.res={kind:kind,data:merged,byAI:!!got,aiFields:filled};
@@ -19124,10 +19154,27 @@ function aiNameList(){
   out.sort(function(a,b){return b.length-a.length;});
   return out;
 }
+/* 全角で書かれていると落ちなかった（日本語入力では全角のほうがふつうに出る）。
+   落とす前に、数字・英字・記号を半角へそろえる。サーバ側にも同じ関所がある。 */
+function aiToHalf(t){
+  return String(t==null?'':t)
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);})
+    .replace(/[－ー―‐−]/g,'-')
+    .replace(/[．]/g,'.')
+    .replace(/[＠]/g,'@');
+}
+/* 住所。園の住所は別の欄から入るので、ここで落として困るのは
+   先生が本文に書いてしまったご家庭の住所だけ。 */
+var AI_ADDR_LIKE=new RegExp('('
+  +'〒\\s*\\d{3}-?\\d{4}'
+  +'|(北海道|東京都|(京都|大阪)府|[一-龥]{2,3}県)[^。、\n]{2,30}'
+  +'|[一-龥ぁ-んァ-ヶー]{1,8}(市|区|町|村)[^。、\n]{0,12}?\\d+[-‐−ー－]\\d+'
+  +')','g');
 function aiScrub(t){
-  var s=String(t==null?'':t);
+  var s=aiToHalf(t);
   aiNameList().forEach(function(w){ s=s.split(w).join('○○'); });
   return s.replace(AI_MAIL_LIKE,'○○')
+          .replace(AI_ADDR_LIKE,'○○')
           .replace(AI_TEL_LIKE,'○○')
           .replace(AI_NAME_LIKE,'○○$1');
 }
