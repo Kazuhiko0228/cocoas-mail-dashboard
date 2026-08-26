@@ -2,658 +2,1502 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MEMORY LANE ｜ 体験プロトタイプ（QRを読む → Memory Movie が届く）</title>
-<meta name="description" content="MEMORY LANE Ver.0.1 の画面遷移プロトタイプ。QR読み取りから、Mission、撮影、共有Memory、AI編集、そして未来の通知まで。">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0B0D0F">
+<title>MEMORY LANE ｜ アプリプロトタイプ</title>
+<meta name="description" content="MEMORY LANE のネイティブアプリ・プロトタイプ。QRを読むところから、Mission、撮影、共有Memory、Memory Movie、未来の通知まで。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <style>
+/* ══ トークン ══════════════════════════════════════ */
 :root{
   color-scheme: dark;
-  --bg:#0A0B0D; --panel:#121317; --panel-2:#191B20; --line:#2A2D34;
-  --ink:#F2EFE9; --muted:#9AA0A8; --muted-2:#6C727A;
-  --amber:#E3A857; --amber-d:#B9812F; --sea:#4F8FA8; --rose:#C97B6E;
-  --sans:"Hiragino Kaku Gothic ProN","Yu Gothic",YuGothic,"Noto Sans JP","Hiragino Sans",sans-serif;
-  --serif:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Noto Serif JP",serif;
+  --ink-0:#0B0D0F;      /* アプリ地 */
+  --ink-1:#14181B;      /* カード */
+  --ink-2:#1C2328;      /* 入力・押下 */
+  --ink-3:#252E34;
+  --hair:#232B31;
+  --txt:#F1EDE6;
+  --txt-2:#A3ACB2;
+  --txt-3:#6E797F;
+  --amber:#E9B466;      /* 主アクション・Mission */
+  --amber-d:#B98A3E;
+  --amber-w:#2A2114;    /* 主アクションの淡い地 */
+  --sea:#63A8B8;        /* NATURAL・情報 */
+  --sea-w:#12252A;
+  --rose:#D98878;       /* 人・ライブ */
+  --ok:#7FB98A;
+  --ui:"Zen Kaku Gothic New",-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  --mincho:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  --r-card:16px; --r-lg:22px;
+  --ease:cubic-bezier(.32,.72,0,1);
+  --tabh:60px;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.75;
-  -webkit-font-smoothing:antialiased;font-feature-settings:"palt" 1}
-button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-.mockbar{background:#221B0C;border-bottom:1px solid #4A3A16;color:#E3C07A;font-size:12px;
-  padding:8px 20px;text-align:center}
-.mockbar a{color:#E3A857}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:#07080A;color:var(--txt);font-family:var(--ui);
+  font-feature-settings:"palt" 1;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  overflow:hidden;padding:0}
+button,input{font:inherit;color:inherit;background:none;border:none}
+button{cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+canvas{display:block}
 
-/* ── レイアウト ───────────────────────── */
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:40px;
-  max-width:1180px;margin-inline:auto;padding:34px 24px 80px}
-@media(max-width:960px){.stage{grid-template-columns:1fr;gap:28px;padding-top:22px}}
+/* ══ 端末の外側 ══════════════════════════════════ */
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px 0}
+.bezel{
+  width:393px;height:min(852px,calc(100dvh - 108px));
+  background:var(--ink-0);border-radius:46px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 10px #16191C, 0 0 0 11.5px #2C3136, 0 40px 90px -20px rgba(0,0,0,.85);
+}
+.stagecap{display:flex;align-items:center;gap:10px;font-size:11.5px;color:#5C666D;letter-spacing:.06em}
+.stagecap a{color:#8A6F3E;text-decoration:none;border-bottom:1px solid #3A2F19}
+.stagecap b{color:#7E8890;font-weight:500}
+.dev{display:flex;gap:6px;align-items:center}
+.dev button{border:1px solid #23282C;border-radius:99px;padding:5px 13px;font-size:11.5px;color:#8D979E;
+  background:#101315;transition:.15s}
+.dev button:hover{color:var(--amber);border-color:#3A3222}
+.dev .lbl{font-size:10.5px;color:#4E575D;letter-spacing:.14em;margin-right:2px}
+@media(max-width:700px){
+  .stage{gap:0;padding:0;height:100dvh;width:100%}
+  .bezel{width:100%;height:100dvh;border-radius:0;box-shadow:none}
+  .stagecap{position:fixed;bottom:0;left:0;right:0;z-index:900;background:rgba(7,8,10,.92);
+    backdrop-filter:blur(10px);border-top:1px solid #1A1E21;padding:7px 12px;justify-content:center;
+    flex-wrap:wrap;row-gap:4px}
+}
 
-.brand{text-align:center;margin-bottom:26px}
-.brand h1{font-family:var(--serif);font-size:23px;letter-spacing:.34em;font-weight:600}
-.brand p{color:var(--muted);font-size:12.5px;letter-spacing:.14em;margin-top:6px}
+/* ══ アプリの器 ══════════════════════════════════ */
+.app{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--ink-0);overflow:hidden}
+.statusbar{flex:none;height:50px;display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 30px 6px;font-size:13.5px;font-weight:700;letter-spacing:.02em;z-index:20;pointer-events:none}
+.statusbar .r{display:flex;gap:5px;align-items:center;opacity:.95}
+.statusbar svg{display:block}
+.viewport{flex:1;position:relative;overflow:hidden}
 
-/* ── スマホ枠 ─────────────────────────── */
-.phonewrap{display:flex;flex-direction:column;align-items:center}
-.phone{width:390px;max-width:100%;height:800px;background:#000;border:9px solid #1C1E23;
-  border-radius:44px;box-shadow:0 30px 80px rgba(0,0,0,.6);position:relative;overflow:hidden}
-.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:132px;height:26px;
-  background:#1C1E23;border-radius:0 0 16px 16px;z-index:40}
-.statusbar{position:absolute;top:0;left:0;right:0;height:44px;display:flex;align-items:center;
-  justify-content:space-between;padding:0 24px;font-size:12px;color:#E7E4DE;z-index:30;
-  font-variant-numeric:tabular-nums}
-.screen{position:absolute;inset:0;padding:52px 20px 22px;display:none;flex-direction:column;
-  overflow-y:auto;background:var(--bg);animation:fade .32s ease}
-.screen.on{display:flex}
-@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.screen::-webkit-scrollbar{width:0}
+/* ── ビュー（push/pop 遷移） ── */
+.view{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--ink-0);
+  visibility:hidden;transform:translateX(100%);transition:transform .42s var(--ease),opacity .3s ease}
+.view.on{visibility:visible;transform:none}
+.view.behind{visibility:visible;transform:translateX(-24%);opacity:.4}
+.view.modal{transform:translateY(100%)}
+.view.modal.on{transform:none}
+.view.fade{transform:none;opacity:0}
+.view.fade.on{opacity:1}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  padding:0 20px calc(var(--tabh) + 30px)}
+.scroll.nopad{padding-bottom:30px}
+.scroll::-webkit-scrollbar{width:0}
 
-.kicker{font-size:11px;letter-spacing:.22em;color:var(--amber);margin-bottom:8px}
-.h{font-family:var(--serif);font-size:22px;line-height:1.55;letter-spacing:.02em}
-.h.sm{font-size:18px}
-.sub{color:var(--muted);font-size:13px;margin-top:10px}
-.spacer{flex:1}
+/* ── ナビゲーションバー ── */
+.nav{flex:none;height:44px;display:flex;align-items:center;padding:0 12px;gap:4px;position:relative;z-index:10}
+.nav .t{position:absolute;left:0;right:0;text-align:center;font-size:15px;font-weight:700;pointer-events:none}
+.nav button{display:flex;align-items:center;gap:2px;font-size:15px;color:var(--amber);padding:6px 6px;border-radius:8px}
+.nav button:active{opacity:.5}
+.nav .sp{margin-left:auto}
+.nav.solid{background:rgba(11,13,15,.82);backdrop-filter:blur(18px);border-bottom:1px solid var(--hair)}
 
-.btn{display:block;width:100%;text-align:center;background:var(--amber);color:#17130A;
-  font-weight:700;font-size:15px;padding:15px;border-radius:14px;letter-spacing:.04em}
-.btn:active{transform:translateY(1px)}
-.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
-.btn.dark{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
-.btnrow{display:flex;gap:10px;margin-top:10px}
+/* ── タイポ ── */
+.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--amber);font-weight:700}
+.ltitle{font-family:var(--mincho);font-size:29px;line-height:1.35;letter-spacing:.01em;margin-top:2px}
+.ltitle.sm{font-size:23px}
+.sub{font-size:13px;color:var(--txt-2);line-height:1.85}
+.cap{font-size:11.5px;color:var(--txt-3);letter-spacing:.04em}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 10px}
+.sechead h2{font-size:13.5px;font-weight:700;letter-spacing:.04em}
+.sechead .more{font-size:12px;color:var(--amber)}
+
+/* ── ボタン ── */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  background:var(--amber);color:#1A1408;font-weight:700;font-size:15.5px;padding:15px;border-radius:15px;
+  transition:transform .12s ease,filter .15s}
+.btn:active{transform:scale(.975);filter:brightness(.92)}
+.btn.sec{background:var(--ink-2);color:var(--txt);font-weight:500}
+.btn.ghost{background:none;color:var(--txt-2);font-weight:500}
+.btn.line{background:none;border:1px solid var(--hair);color:var(--txt);font-weight:500}
+.btn:disabled{opacity:.4}
+.btnrow{display:flex;gap:10px}
 .btnrow .btn{flex:1}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
-.card + .card{margin-top:12px}
+/* ── カード ── */
+.card{background:var(--ink-1);border:1px solid var(--hair);border-radius:var(--r-card);padding:16px}
+.card.flat{border:0}
+.stack{display:flex;flex-direction:column;gap:12px}
 
-/* QR画面 */
-.viewfinder{flex:1;border-radius:20px;position:relative;overflow:hidden;
-  background:linear-gradient(160deg,#14202B,#0C1116 60%,#1B1510);margin:8px 0 16px;
-  display:flex;align-items:center;justify-content:center}
-.vf-noise{position:absolute;inset:0;opacity:.4;
-  background:radial-gradient(circle at 30% 25%,rgba(79,143,168,.35),transparent 45%),
-             radial-gradient(circle at 72% 74%,rgba(227,168,87,.28),transparent 46%)}
-.qrtarget{position:relative;width:170px;height:170px;background:#F2EFE9;border-radius:10px;
-  padding:14px;cursor:pointer;transition:transform .2s}
-.qrtarget:hover{transform:scale(1.03)}
-.qrtarget svg{width:100%;height:100%}
-.qrhint{position:absolute;bottom:22px;left:0;right:0;text-align:center;font-size:12px;color:#CFCAC1}
-.corner{position:absolute;width:34px;height:34px;border:2px solid var(--amber)}
-.c1{top:26px;left:26px;border-right:0;border-bottom:0}
-.c2{top:26px;right:26px;border-left:0;border-bottom:0}
-.c3{bottom:26px;left:26px;border-right:0;border-top:0}
-.c4{bottom:26px;right:26px;border-left:0;border-top:0}
+/* ── Mission カード ── */
+.mission{position:relative;border-radius:var(--r-lg);padding:22px 20px 20px;overflow:hidden;
+  background:linear-gradient(158deg,#221D16 0%,#15181B 62%);border:1px solid #2E2820}
+.mission::before{content:"";position:absolute;top:-40%;right:-20%;width:70%;height:120%;
+  background:radial-gradient(circle,rgba(233,180,102,.16),transparent 62%)}
+.mission .row1{display:flex;align-items:center;gap:8px;position:relative}
+.mission .day{font-size:10.5px;letter-spacing:.2em;color:var(--amber);font-weight:700}
+.mission .txt{font-family:var(--mincho);font-size:22px;line-height:1.62;margin-top:13px;position:relative}
+.mission .hint{font-size:12.5px;color:var(--txt-2);line-height:1.8;margin-top:11px;position:relative}
+.mission .meta{display:flex;gap:6px;margin-top:16px;position:relative}
+.chip{font-size:11px;border:1px solid var(--hair);border-radius:99px;padding:3px 10px;color:var(--txt-3);white-space:nowrap}
+.chip.amber{border-color:#4A3B22;color:var(--amber);background:var(--amber-w)}
+.chip.sea{border-color:#254349;color:var(--sea);background:var(--sea-w)}
+.chip.rose{border-color:#4A2E28;color:var(--rose)}
 
-/* 参加者 */
-.people{display:flex;gap:-6px;margin-top:14px}
-.av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:13px;font-weight:700;color:#17130A;border:2px solid var(--panel);margin-right:-8px}
-.avlist{display:flex;align-items:center;margin-top:14px}
-.avname{display:flex;flex-direction:column;align-items:center;gap:6px;margin-right:14px}
-.avname .av{margin:0}
-.avname span{font-size:11px;color:var(--muted)}
+/* ── メンバー ── */
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;
+  color:#12100B;font-size:13px;flex:none}
+.members{display:flex;gap:14px;overflow-x:auto;padding:2px 0 4px;margin:0 -20px;padding-inline:20px}
+.members::-webkit-scrollbar{height:0}
+.member{display:flex;flex-direction:column;align-items:center;gap:7px;flex:none;width:58px}
+.member .ring{padding:2px;border-radius:50%;border:1.5px solid transparent}
+.member.act .ring{border-color:var(--amber)}
+.member .n{font-size:11px;color:var(--txt-2);white-space:nowrap}
+.member .st{font-size:10px;color:var(--txt-3)}
 
-.consent{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--muted);
-  padding:11px 0;border-bottom:1px solid var(--line)}
-.consent b{color:var(--ink);font-weight:600;display:block;font-size:13px;margin-bottom:2px}
-.consent .ico{color:var(--amber);flex:none;width:18px;text-align:center;margin-top:2px}
+/* ── 写真グリッド ── */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin:0 -20px}
+.tile{position:relative;aspect-ratio:1;overflow:hidden;background:var(--ink-2);transition:transform .18s}
+.tile:active{transform:scale(.97)}
+.tile canvas{width:100%;height:100%;object-fit:cover}
+.tile .tag{position:absolute;top:5px;left:5px;font-size:8.5px;letter-spacing:.1em;font-weight:700;
+  background:rgba(8,10,12,.66);backdrop-filter:blur(4px);color:var(--sea);border-radius:4px;padding:2px 5px}
+.tile .who{position:absolute;bottom:5px;left:5px;font-size:9.5px;font-weight:700;
+  text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.tile .kind{position:absolute;top:5px;right:5px;color:#fff;opacity:.9;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8))}
+.chips{display:flex;gap:7px;overflow-x:auto;margin:0 -20px;padding:2px 20px 12px}
+.chips::-webkit-scrollbar{height:0}
+.chips button{font-size:12.5px;border:1px solid var(--hair);border-radius:99px;padding:6px 14px;
+  color:var(--txt-2);white-space:nowrap;transition:.15s}
+.chips button.on{background:var(--txt);color:#0E1113;border-color:var(--txt);font-weight:700}
 
-/* Mission カード */
-.mcard{background:linear-gradient(150deg,#1C1A17,#121317);border:1px solid #33302A;
-  border-radius:20px;padding:22px;position:relative;overflow:hidden}
-.mcard::after{content:"";position:absolute;inset:0;
-  background:radial-gradient(circle at 88% 8%,rgba(227,168,87,.16),transparent 55%)}
-.mcard .tag{font-size:10.5px;letter-spacing:.2em;color:var(--amber)}
-.mcard .txt{font-family:var(--serif);font-size:21px;line-height:1.6;margin-top:12px}
-.mcard .hint{font-size:12.5px;color:var(--muted);margin-top:12px}
-.mcard .meta{display:flex;gap:8px;margin-top:16px;font-size:11px;color:var(--muted-2)}
-.pill{border:1px solid var(--line);border-radius:99px;padding:3px 10px}
-.pill.on{border-color:var(--amber-d);color:var(--amber)}
+/* ── リスト（設定的な行） ── */
+.group{background:var(--ink-1);border:1px solid var(--hair);border-radius:var(--r-card);overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:13px 15px;width:100%;text-align:left;
+  border-bottom:1px solid var(--hair);transition:background .15s}
+.row:last-child{border-bottom:0}
+.row:active{background:var(--ink-2)}
+.row .ic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:none;
+  background:var(--ink-2)}
+.row .l{flex:1;min-width:0}
+.row .l b{display:block;font-size:14px;font-weight:500}
+.row .l span{display:block;font-size:11.5px;color:var(--txt-3);line-height:1.6;margin-top:1px}
+.row .v{font-size:13px;color:var(--txt-3);flex:none}
+.chev{color:var(--txt-3);flex:none}
 
-.dayrow{display:flex;gap:6px;margin-bottom:16px}
-.day{flex:1;text-align:center;font-size:11px;color:var(--muted-2);padding:7px 0;border-radius:9px;
-  border:1px solid var(--line)}
-.day.on{color:#17130A;background:var(--amber);border-color:var(--amber);font-weight:700}
-.day.done{color:var(--amber);border-color:var(--amber-d)}
+/* ── タブバー ── */
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:calc(var(--tabh) + env(safe-area-inset-bottom));
+  padding-bottom:env(safe-area-inset-bottom);display:flex;z-index:60;
+  background:rgba(11,13,15,.86);backdrop-filter:blur(22px);border-top:1px solid var(--hair);
+  transition:transform .35s var(--ease)}
+.tabbar.hide{transform:translateY(110%)}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--txt-3);font-size:10px;font-weight:500;transition:color .18s}
+.tabbar button.on{color:var(--amber)}
+.tabbar button:active{opacity:.6}
+.tabbar .badge{position:absolute;top:6px;margin-left:18px;min-width:15px;height:15px;border-radius:99px;
+  background:var(--rose);color:#1A0E0B;font-size:9.5px;font-weight:700;display:flex;align-items:center;
+  justify-content:center;padding:0 4px;transform:scale(0);transition:transform .3s var(--ease)}
+.tabbar .badge.on{transform:scale(1)}
 
-/* カメラ */
-.cam{flex:1;border-radius:20px;overflow:hidden;position:relative;margin:10px 0 14px;
-  display:flex;align-items:flex-end;padding:18px}
-.cam .capline{font-family:var(--serif);font-size:16px;text-shadow:0 2px 12px rgba(0,0,0,.7)}
-.shutter{width:70px;height:70px;border-radius:50%;border:4px solid var(--ink);margin:0 auto;
-  display:flex;align-items:center;justify-content:center}
-.shutter i{width:56px;height:56px;border-radius:50%;background:var(--ink);display:block}
-.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:60}
-.flash.go{animation:fl .45s ease}
-@keyframes fl{0%{opacity:.85}100%{opacity:0}}
+/* ── シート ── */
+.scrim{position:absolute;inset:0;background:rgba(4,5,6,.62);backdrop-filter:blur(2px);z-index:70;
+  opacity:0;pointer-events:none;transition:opacity .34s ease}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:80;background:var(--ink-1);
+  border-radius:26px 26px 0 0;border-top:1px solid #2A3238;padding:10px 20px calc(24px + env(safe-area-inset-bottom));
+  transform:translateY(102%);visibility:hidden;max-height:88%;overflow-y:auto;
+  transition:transform .44s var(--ease), visibility .44s}
+.sheet.on{transform:none;visibility:visible}
+.sheet::-webkit-scrollbar{width:0}
+.handle{width:38px;height:4px;border-radius:99px;background:#39434A;margin:0 auto 16px}
 
-/* ギャラリー */
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:14px}
-.ph{aspect-ratio:3/4;border-radius:8px;position:relative;overflow:hidden;display:flex;
-  align-items:flex-end;padding:6px;font-size:9.5px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8)}
-.ph .badge{position:absolute;top:5px;left:5px;background:rgba(10,11,13,.72);color:var(--amber);
-  font-size:8.5px;border-radius:4px;padding:1px 5px;letter-spacing:.06em}
-.ph .who{position:absolute;top:5px;right:5px;font-size:8.5px;background:rgba(10,11,13,.72);
-  border-radius:4px;padding:1px 5px}
+/* ── トースト ── */
+.toast{position:absolute;left:50%;bottom:calc(var(--tabh) + 22px);transform:translate(-50%,14px);
+  background:rgba(28,35,40,.96);backdrop-filter:blur(14px);border:1px solid #333D44;border-radius:14px;
+  padding:11px 18px;font-size:13px;z-index:120;opacity:0;pointer-events:none;
+  transition:opacity .26s ease,transform .32s var(--ease);white-space:nowrap;display:flex;gap:8px;align-items:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
 
-/* 投票 */
-.opt{display:flex;align-items:center;gap:12px;padding:13px;border:1px solid var(--line);
-  border-radius:14px;margin-top:9px;width:100%;text-align:left}
-.opt.sel{border-color:var(--amber);background:#1A1710}
-.opt .av{margin:0}
+/* ── QRスキャン ── */
+.scanwrap{position:absolute;inset:0;overflow:hidden;background:#05070A}
+.scanwrap canvas{position:absolute;inset:0;width:100%;height:100%}
+.scanmask{position:absolute;inset:0;background:rgba(4,6,8,.5)}
+.frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-56%);width:230px;height:230px}
+.frame .qr{position:absolute;inset:26px;background:#F3F0EA;border-radius:8px;padding:12px}
+.frame .qr svg{width:100%;height:100%;display:block}
+.brk{position:absolute;width:34px;height:34px;border:2.5px solid var(--amber);border-radius:3px}
+.brk.a{top:0;left:0;border-right:0;border-bottom:0;border-radius:8px 0 0 0}
+.brk.b{top:0;right:0;border-left:0;border-bottom:0;border-radius:0 8px 0 0}
+.brk.c{bottom:0;left:0;border-right:0;border-top:0;border-radius:0 0 0 8px}
+.brk.d{bottom:0;right:0;border-left:0;border-top:0;border-radius:0 0 8px 0}
+.scanline{position:absolute;left:8px;right:8px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--amber),transparent);
+  animation:scan 2.4s var(--ease) infinite;box-shadow:0 0 14px rgba(233,180,102,.7)}
+@keyframes scan{0%,100%{top:10px}50%{top:212px}}
+.scanfoot{position:absolute;left:0;right:0;bottom:0;padding:0 26px calc(34px + env(safe-area-inset-bottom));
+  text-align:center}
 
-/* 生成中 */
-.progress{height:3px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:20px}
-.progress i{display:block;height:100%;width:0;background:var(--amber);transition:width .5s linear}
-.loglist{margin-top:18px;font-size:12.5px;color:var(--muted);line-height:2.1}
-.loglist div{opacity:.25;transition:opacity .4s}
-.loglist div.on{opacity:1;color:var(--ink)}
-.loglist div.on::before{content:"● ";color:var(--amber);font-size:9px;vertical-align:2px}
+/* ── カメラ ── */
+.camwrap{position:absolute;inset:0;background:#000;overflow:hidden}
+.camwrap canvas{position:absolute;inset:0;width:100%;height:100%}
+.camtop{position:absolute;top:0;left:0;right:0;padding:12px 16px;display:flex;align-items:center;gap:10px;
+  background:linear-gradient(rgba(0,0,0,.6),transparent)}
+.camtop .mm{flex:1;font-family:var(--mincho);font-size:14.5px;line-height:1.5;
+  text-shadow:0 1px 8px rgba(0,0,0,.9)}
+.camctl{position:absolute;left:0;right:0;bottom:0;padding:0 26px calc(30px + env(safe-area-inset-bottom));
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(transparent,rgba(0,0,0,.72))}
+.shutter{width:74px;height:74px;border-radius:50%;border:4px solid #fff;padding:4px;transition:transform .1s}
+.shutter i{display:block;width:100%;height:100%;border-radius:50%;background:#fff;transition:transform .1s}
+.shutter:active i{transform:scale(.86)}
+.camside{width:52px;display:flex;justify-content:center;color:#fff}
+.modeseg{position:absolute;left:0;right:0;bottom:calc(122px + env(safe-area-inset-bottom));
+  display:flex;justify-content:center;gap:20px;font-size:12px;letter-spacing:.14em;color:rgba(255,255,255,.55)}
+.modeseg button.on{color:var(--amber);font-weight:700}
+.zoompills{position:absolute;left:0;right:0;bottom:calc(166px + env(safe-area-inset-bottom));
+  display:flex;justify-content:center;gap:6px}
+.zoompills button{width:34px;height:34px;border-radius:50%;background:rgba(10,12,14,.45);
+  backdrop-filter:blur(6px);color:rgba(255,255,255,.7);font-size:11px;font-weight:700}
+.zoompills button.on{color:var(--amber);background:rgba(10,12,14,.7);font-size:12.5px}
+.focusbox{position:absolute;width:74px;height:74px;border:1.4px solid var(--amber);border-radius:6px;
+  margin:-37px 0 0 -37px;opacity:0;pointer-events:none}
+.focusbox.go{animation:foc 1.3s ease}
+@keyframes foc{0%{opacity:0;transform:scale(1.35)}18%{opacity:1;transform:scale(1)}
+  70%{opacity:1}100%{opacity:0}}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:130}
+.flash.go{animation:fl .42s ease}
+@keyframes fl{0%{opacity:.9}100%{opacity:0}}
+.flyer{position:absolute;z-index:125;border-radius:8px;overflow:hidden;pointer-events:none;
+  transition:transform .62s var(--ease),opacity .62s ease}
 
-/* ムービー */
-.player{aspect-ratio:9/16;max-height:420px;border-radius:16px;position:relative;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(160deg,#1A2A33,#0D1116 55%,#231A11)}
-.player .ttl{font-family:var(--serif);font-size:19px;text-align:center;letter-spacing:.08em;
-  text-shadow:0 2px 20px rgba(0,0,0,.8);z-index:2}
-.player .bar{position:absolute;left:14px;right:14px;bottom:14px;height:2px;background:rgba(255,255,255,.25)}
-.player .bar i{display:block;height:100%;width:34%;background:var(--ink)}
-.scenes{margin-top:14px}
-.scene{display:flex;gap:11px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);
-  font-size:12.5px}
-.scene .t{color:var(--muted-2);font-variant-numeric:tabular-nums;flex:none;width:38px}
-.scene .n{color:var(--muted);font-size:11px}
+/* ── ムービー ── */
+.poster{position:relative;border-radius:var(--r-lg);overflow:hidden;aspect-ratio:4/5}
+.poster canvas{position:absolute;inset:0;width:100%;height:100%}
+.poster .veil{position:absolute;inset:0;background:linear-gradient(transparent 30%,rgba(6,8,10,.9))}
+.poster .in{position:absolute;left:0;right:0;bottom:0;padding:20px}
+.poster .tt{font-family:var(--mincho);font-size:25px;letter-spacing:.06em;line-height:1.4}
+.poster .dt{font-size:11.5px;color:var(--txt-2);letter-spacing:.12em;margin-top:5px}
+.playbtn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;
+  border-radius:50%;background:rgba(12,15,17,.55);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.28);
+  display:flex;align-items:center;justify-content:center;transition:transform .16s}
+.playbtn:active{transform:translate(-50%,-50%) scale(.92)}
+.lockcard{border:1px dashed #2C353B;border-radius:var(--r-lg);padding:26px 20px;text-align:center;background:#101416}
+.prog{height:3px;background:var(--ink-3);border-radius:99px;overflow:hidden;margin-top:18px}
+.prog i{display:block;height:100%;width:0;background:var(--amber);border-radius:99px;transition:width .5s linear}
+.genlog{margin-top:16px;display:flex;flex-direction:column;gap:9px}
+.genlog div{font-size:12.5px;color:var(--txt-3);display:flex;gap:9px;align-items:center;opacity:.4;transition:.4s}
+.genlog div.on{opacity:1;color:var(--txt)}
+.genlog .dot{width:5px;height:5px;border-radius:50%;background:var(--txt-3);flex:none}
+.genlog div.on .dot{background:var(--amber);box-shadow:0 0 8px rgba(233,180,102,.8)}
+.chapter{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--hair);align-items:center}
+.chapter:last-child{border-bottom:0}
+.chapter .th{width:52px;height:52px;border-radius:9px;overflow:hidden;flex:none;background:var(--ink-2)}
+.chapter .th canvas{width:100%;height:100%}
+.chapter .tx{flex:1;min-width:0}
+.chapter .tx b{font-size:13.5px;font-weight:500;display:block}
+.chapter .tx span{font-size:11px;color:var(--txt-3)}
+.chapter .t{font-size:11.5px;color:var(--txt-3);flex:none}
 
-.chat{margin-top:12px}
-.msg{display:flex;gap:9px;margin-top:11px;align-items:flex-start}
-.msg .bub{background:var(--panel-2);border-radius:14px;padding:9px 13px;font-size:13px;max-width:78%}
+/* プレイヤー */
+.player{position:absolute;inset:0;background:#000;display:flex;flex-direction:column}
+.pstage{flex:1;position:relative;overflow:hidden}
+.pstage canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;transform:scale(1.02);
+  transition:opacity .85s ease, transform 2.8s linear}
+.pstage canvas.on{opacity:1;transform:scale(1.06)}
+.pcap{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-family:var(--mincho);font-size:17px;
+  text-shadow:0 2px 14px rgba(0,0,0,.9);padding:0 30px;transition:opacity .5s}
+.pbar{flex:none;padding:14px 20px calc(20px + env(safe-area-inset-bottom))}
+.ptrack{height:3px;background:rgba(255,255,255,.22);border-radius:99px;overflow:hidden}
+.ptrack i{display:block;height:100%;width:0;background:#fff}
+.ptime{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.55);margin-top:7px}
+
+/* 反応 */
+.msg{display:flex;gap:9px;align-items:flex-end;margin-top:10px}
+.msg .bub{background:var(--ink-2);border-radius:16px 16px 16px 5px;padding:9px 14px;font-size:13.5px;max-width:76%}
 .msg.me{flex-direction:row-reverse}
-.msg.me .bub{background:#2A2317;color:#F0E4CE}
+.msg.me .bub{background:#33291A;color:#F5E7CE;border-radius:16px 16px 5px 16px}
+.msg .nm{font-size:10px;color:var(--txt-3);margin-bottom:3px}
 
-/* 課金 */
-.price{display:flex;align-items:baseline;gap:6px;margin-top:14px}
-.price b{font-size:30px;font-family:var(--serif)}
-.price span{color:var(--muted);font-size:12px}
-.ck{font-size:13px;color:var(--muted);padding:6px 0;display:flex;gap:9px}
-.ck::before{content:"✓";color:var(--amber)}
+/* 同意行 */
+.consent{display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--hair)}
+.consent:last-child{border-bottom:0}
+.consent .ck{width:19px;height:19px;border-radius:6px;background:var(--amber-w);border:1px solid #4A3B22;
+  display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px}
+.consent b{display:block;font-size:13.5px;font-weight:500;margin-bottom:2px}
+.consent span{font-size:11.5px;color:var(--txt-3);line-height:1.7}
 
-/* 通知 */
-.notif{background:rgba(30,32,38,.94);border:1px solid var(--line);border-radius:18px;padding:14px 15px;
-  backdrop-filter:blur(8px);margin-top:11px}
-.notif .app{font-size:10.5px;letter-spacing:.2em;color:var(--muted-2);margin-bottom:5px}
-.notif .t{font-size:13.5px;font-weight:600}
-.notif .b{font-size:12.5px;color:var(--muted);margin-top:3px}
+/* 未来の通知 */
+.notif{background:rgba(28,35,40,.9);border:1px solid #2C353B;border-radius:16px;padding:13px 15px;display:flex;gap:11px}
+.notif .ap{width:30px;height:30px;border-radius:8px;background:linear-gradient(140deg,#E9B466,#B4713A);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.notif .hd{font-size:10px;color:var(--txt-3);letter-spacing:.1em;display:flex;justify-content:space-between}
+.notif .t{font-size:13.5px;font-weight:500;margin-top:2px}
+.notif .b{font-size:12px;color:var(--txt-2);margin-top:2px;line-height:1.6}
 
-/* ── 右カラム：フローマップ ─────────────── */
-.side{position:sticky;top:24px;align-self:start}
-@media(max-width:960px){.side{position:static}}
-.side h2{font-size:12px;letter-spacing:.2em;color:var(--muted);margin-bottom:14px}
-.step{display:flex;gap:12px;align-items:flex-start;padding:9px 11px;border-radius:11px;width:100%;
-  text-align:left;border:1px solid transparent;transition:.16s}
-.step:hover{background:var(--panel)}
-.step.on{background:var(--panel);border-color:var(--amber-d)}
-.step .no{font-size:11px;color:var(--muted-2);font-variant-numeric:tabular-nums;flex:none;width:22px;
-  padding-top:2px}
-.step.on .no{color:var(--amber)}
-.step .tt{display:block;font-size:13px;font-weight:600}
-.step .dd{display:block;font-size:11.5px;color:var(--muted-2);line-height:1.6;margin-top:1px}
-.sidefoot{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;
-  color:var(--muted-2);line-height:1.9}
-.sidefoot a{color:var(--amber)}
-.notebox{background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--amber-d);
-  border-radius:0 12px 12px 0;padding:12px 14px;margin-top:16px;font-size:12px;color:var(--muted);line-height:1.85}
-.notebox b{color:var(--ink);display:block;font-size:12px;margin-bottom:3px;font-weight:600}
+/* タイムライン */
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--hair)}
+.tlrow{position:relative;padding:9px 0;display:flex;gap:12px;align-items:baseline}
+.tlrow::before{content:"";position:absolute;left:-21px;top:16px;width:9px;height:9px;border-radius:50%;
+  background:var(--ink-0);border:1.5px solid var(--txt-3)}
+.tlrow.now::before{background:var(--amber);border-color:var(--amber);box-shadow:0 0 10px rgba(233,180,102,.6)}
+.tlrow .y{font-size:11.5px;color:var(--txt-3);width:34px;flex:none}
+.tlrow .n{font-size:13.5px}
+.tlrow.fut .n{color:var(--txt-3)}
+
+.pricebox{border:1px solid #3B3222;background:linear-gradient(160deg,#20191010,#141719);border-radius:var(--r-lg);padding:18px}
+.pricebox .p{font-family:var(--mincho);font-size:30px}
+.pricebox .p small{font-size:12px;color:var(--txt-3);font-family:var(--ui);margin-left:6px}
+.ckline{display:flex;gap:9px;font-size:13px;color:var(--txt-2);padding:4px 0}
+.ckline svg{flex:none;margin-top:4px}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.08ms !important}
+}
 </style>
 </head>
 <body>
-<div class="mockbar">これは MEMORY LANE Ver.0.1 の <b>画面遷移プロトタイプ</b>です。実データ・課金・撮影機能は動きません。／ <a href="doc.html">構想書と仕様はこちら</a></div>
-
 <div class="stage">
-  <div class="phonewrap">
-    <div class="brand">
-      <h1>MEMORY LANE</h1>
-      <p>何気ない日常を、未来へ。</p>
+  <div class="bezel">
+   <div class="app" id="app">
+
+    <div class="statusbar">
+      <span class="num" id="clock">19:42</span>
+      <span class="r">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1" opacity=".4"/></svg>
+        <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 4.2a10 10 0 0 1 14 0M3.6 6.9a6.3 6.3 0 0 1 8.8 0"/><circle cx="8" cy="9.6" r="1.1" fill="currentColor" stroke="none"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".6" y=".6" width="20" height="10.8" rx="3" stroke="currentColor" stroke-opacity=".45"/><rect x="2.2" y="2.2" width="16" height="7.6" rx="1.8" fill="currentColor"/><path d="M22.5 4v4a2.2 2.2 0 0 0 0-4z" fill="currentColor" fill-opacity=".45"/></svg>
+      </span>
     </div>
 
-    <div class="phone">
-      <div class="notch"></div>
-      <div class="statusbar"><span id="clock">19:42</span><span>●●● ⌁ ▮</span></div>
-      <div class="flash" id="flash"></div>
+    <div class="viewport" id="viewport">
 
-      <!-- 01 QR -->
-      <section class="screen on" id="s-qr">
-        <div class="kicker">01　QRを読み取る</div>
-        <div class="h sm">アプリを開かなくていい。<br>置いてあるQRを、読むだけ。</div>
-        <div class="viewfinder">
-          <div class="vf-noise"></div>
-          <div class="corner c1"></div><div class="corner c2"></div>
-          <div class="corner c3"></div><div class="corner c4"></div>
-          <div class="qrtarget" onclick="go('join')" id="qrbox"></div>
-          <div class="qrhint">QRコードをタップして読み取る</div>
-        </div>
-        <div class="sub" style="margin:0 0 12px">BAR 桜坂GARAGE のテーブルに置かれたQR。ホテル、飲食店、観光施設、学校、部室 ── どこにでも置ける。</div>
-      </section>
-
-      <!-- 02 参加・同意 -->
-      <section class="screen" id="s-join">
-        <div class="kicker">02　Memoryに参加する</div>
-        <div class="h">沖縄 3泊4日<br>2026.08.25 – 08.28</div>
-        <div class="sub">BAR 桜坂GARAGE から招待されました。</div>
-        <div class="avlist" id="joinAvs"></div>
-        <div class="card" style="margin-top:18px">
-          <div class="consent"><span class="ico">◎</span><div><b>撮る人の同意も、撮られる人の同意も先に取る</b>参加した時点で「このMemoryの中で撮られること」に同意します。</div></div>
-          <div class="consent"><span class="ico">◎</span><div><b>公開範囲はこのMemoryの参加者だけ</b>外部公開・SNS投稿は、本人が選んだときだけ。</div></div>
-          <div class="consent"><span class="ico">◎</span><div><b>自分が写った写真は、いつでも削除できる</b>理由を書く必要はありません。</div></div>
-          <div class="consent" style="border:0"><span class="ico">◎</span><div><b>隠し撮りのためのサービスにはしない</b>参加していない人は、Memoryに入りません。</div></div>
-        </div>
-        <div class="spacer"></div>
-        <button class="btn" onclick="go('profile')">同意して参加する</button>
-        <div class="btnrow"><button class="btn ghost" onclick="go('qr')">やめる</button></div>
-      </section>
-
-      <!-- 03 プロフィール -->
-      <section class="screen" id="s-profile">
-        <div class="kicker">03　名前だけ決める</div>
-        <div class="h sm">アカウント登録は、あとでいい。</div>
-        <div class="sub">まずは今日、この4人の中での呼び名だけ。</div>
-        <div class="card" style="margin-top:20px">
-          <div style="font-size:11px;color:var(--muted);letter-spacing:.1em">ニックネーム</div>
-          <input id="nameInput" value="カズ" maxlength="8"
-            style="width:100%;background:transparent;border:0;border-bottom:1px solid var(--line);
-            color:var(--ink);font-size:22px;font-family:var(--serif);padding:8px 0;margin-top:6px;outline:none">
-          <div style="font-size:11.5px;color:var(--muted-2);margin-top:10px">電話番号もメールも、Memory Movieを受け取るときまで聞きません。</div>
-        </div>
-        <div class="spacer"></div>
-        <button class="btn" onclick="setName()">はじめる</button>
-      </section>
-
-      <!-- 04 ホーム -->
-      <section class="screen" id="s-home">
-        <div class="dayrow" id="dayrow"></div>
-        <div style="display:flex;align-items:baseline;justify-content:space-between">
-          <div class="kicker" style="margin:0">04　今日のMission</div>
-          <div style="font-size:11px;color:var(--muted-2)" id="homeCount">みんなで 0 枚</div>
-        </div>
-        <div class="mcard" style="margin-top:12px" id="homeMission"></div>
-        <div class="sub" style="font-size:12px">時間は指定しない。ポーズも指定しない。<br>頭の片隅に置いて、一日を過ごすだけ。</div>
-        <div class="btnrow" style="margin-top:14px">
-          <button class="btn" onclick="go('camera')">撮る</button>
-          <button class="btn dark" onclick="go('gallery')">みんなのMemory</button>
-        </div>
-        <div class="card" style="margin-top:14px">
-          <div style="font-size:11px;letter-spacing:.14em;color:var(--muted)">同じ旅の、ほかの3人には</div>
-          <div style="font-size:12.5px;color:var(--muted-2);margin-top:8px;line-height:1.95" id="othersMissions"></div>
-          <div style="font-size:11.5px;color:var(--amber);margin-top:10px">4人に、4つの視点。だから同じ旅が4通り残る。</div>
-        </div>
-        <div class="spacer"></div>
-        <button class="btn ghost" id="advance" onclick="nextDay()">▸ 一日を進める（プロトタイプ操作）</button>
-      </section>
-
-      <!-- 05 カメラ -->
-      <section class="screen" id="s-camera">
-        <div class="kicker">05　「今だ」と思った瞬間に撮る</div>
-        <div class="cam" id="camView"><div class="capline" id="camCap"></div></div>
-        <div class="shutter" onclick="shoot()"><i></i></div>
-        <div class="sub" style="text-align:center;font-size:11.5px">Missionは義務じゃない。撮らなくてもいい日があっていい。</div>
-        <div class="btnrow" style="margin-top:12px"><button class="btn ghost" onclick="go('home')">戻る</button></div>
-      </section>
-
-      <!-- 06 ギャラリー -->
-      <section class="screen" id="s-gallery">
-        <div class="kicker">06　一つの共有Memoryに集まる</div>
-        <div class="h sm">沖縄 3泊4日</div>
-        <div class="sub" style="font-size:12px" id="galSub"></div>
-        <div class="grid" id="grid"></div>
-        <div style="font-size:11.5px;color:var(--muted-2);margin-top:14px;line-height:1.9">
-          <span style="color:var(--amber)">NATURAL</span> ＝ 誰もカメラを見ていない一枚。<br>
-          AIはこの一枚を中心にMemory Movieを編集する。
-        </div>
-        <div class="spacer"></div>
-        <div class="btnrow"><button class="btn ghost" onclick="go('home')">戻る</button></div>
-      </section>
-
-      <!-- 07 投票 -->
-      <section class="screen" id="s-vote">
-        <div class="kicker">07　初日の夜だけ、ひとつ質問</div>
-        <div class="h">この旅で、一番写真を<br>撮っている人は誰？</div>
-        <div class="sub">答えは、本人には見せません。</div>
-        <div style="margin-top:16px" id="voteOpts"></div>
-        <div class="spacer"></div>
-        <button class="btn" onclick="go('voteres')">決定</button>
-      </section>
-
-      <section class="screen" id="s-voteres">
-        <div class="kicker">07　結果</div>
-        <div class="h">4人とも「ユウキ」<br>と答えました。</div>
-        <div class="card" style="margin-top:18px">
-          <div style="font-size:12.5px;color:var(--muted);line-height:2">
-            明日、ユウキ以外の3人にだけ、こう届きます。
+      <!-- ══ QRスキャン ══ -->
+      <section class="view fade on" id="v-scan" data-tab="none">
+        <div class="scanwrap">
+          <canvas id="scanCam"></canvas>
+          <div class="scanmask"></div>
+          <div class="frame">
+            <div class="brk a"></div><div class="brk b"></div><div class="brk c"></div><div class="brk d"></div>
+            <div class="scanline"></div>
+            <button class="qr" id="qrBtn" aria-label="QRコードを読み取る"></button>
           </div>
-          <div class="mcard" style="margin-top:12px">
-            <div class="tag">DAY 2 ／ MISSION</div>
-            <div class="txt">今日は、ユウキを撮ってあげよう。</div>
-            <div class="hint">時間もポーズも指定しない。本人には知らせない。</div>
-          </div>
-          <div style="font-size:12px;color:var(--muted-2);margin-top:12px;line-height:1.9">
-            撮る人ほど、自分の写真が残らない。<br>この偏りを、サービス側から直す。
+          <div class="scanfoot">
+            <div class="eyebrow" style="margin-bottom:9px">MEMORY LANE</div>
+            <div class="ltitle sm">置いてあるQRを、<br>読むだけ。</div>
+            <p class="sub" style="margin-top:12px">BAR 桜坂GARAGE のテーブルにあるQR。<br>アプリを開かなくても、ここから始まります。</p>
+            <p class="cap" style="margin-top:18px;color:var(--amber)">▸ 枠の中のQRをタップ</p>
           </div>
         </div>
-        <div class="spacer"></div>
-        <button class="btn" onclick="nextDay()">DAY 2 へ</button>
       </section>
 
-      <!-- 08 旅の終わり -->
-      <section class="screen" id="s-end">
-        <div class="spacer"></div>
-        <div style="text-align:center">
-          <div class="kicker">08　LAST DAY 22:10</div>
-          <div class="h" style="font-size:24px">旅が、終わりました。</div>
-          <div class="sub">4人から 63枚の写真、9本の動画、2つの音声が集まりました。</div>
+      <!-- ══ 名前 ══ -->
+      <section class="view" id="v-name" data-tab="none">
+        <div class="nav"><button onclick="pop('v-scan')">
+          <svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1.5 2 9l7.5 7.5"/></svg>戻る</button></div>
+        <div class="scroll nopad">
+          <div class="eyebrow" style="margin-top:20px">STEP 2 / 2</div>
+          <h1 class="ltitle">この4人の中での<br>呼び名を決める。</h1>
+          <p class="sub" style="margin-top:12px">アカウント登録は、Memory Movieを受け取るときで大丈夫です。電話番号もメールも、まだ聞きません。</p>
+          <div class="card" style="margin-top:26px;padding:18px">
+            <div class="cap">ニックネーム</div>
+            <input id="nameInput" value="カズ" maxlength="8" autocomplete="off"
+              style="width:100%;font-family:var(--mincho);font-size:26px;padding:10px 0 8px;outline:none;
+                     border-bottom:1.5px solid var(--amber-d);border-radius:0">
+            <div class="cap" style="margin-top:10px">あとから変えられます</div>
+          </div>
+          <div style="margin-top:22px" class="stack">
+            <div class="cap">アイコンの色</div>
+            <div style="display:flex;gap:12px" id="colorPick"></div>
+          </div>
         </div>
-        <div class="spacer"></div>
-        <button class="btn" onclick="generate()">ここからは、AIの役割</button>
-        <div class="sub" style="text-align:center;font-size:11.5px;margin-top:12px">
-          人間が「瞬間」を見つける。AIが「思い出」を編集する。
+        <div style="padding:14px 20px calc(20px + env(safe-area-inset-bottom))">
+          <button class="btn" onclick="finishOnboard()">はじめる</button>
         </div>
       </section>
 
-      <!-- 09 生成中 -->
-      <section class="screen" id="s-gen">
-        <div class="spacer"></div>
-        <div class="kicker">09　編集中</div>
-        <div class="h sm">あなたたちの沖縄を、<br>一本にまとめています。</div>
-        <div class="progress"><i id="bar"></i></div>
-        <div class="loglist" id="genlog">
-          <div>写真・動画・音声を時系列に並べています</div>
-          <div>誰もカメラを見ていない一枚を選んでいます</div>
-          <div>笑い声のある10秒を抜き出しています</div>
-          <div>ユウキが写っている写真を集めています</div>
-          <div>4人それぞれの視点をつないでいます</div>
-          <div>音楽と字幕をつけています</div>
+      <!-- ══ 今日 ══ -->
+      <section class="view fade" id="v-today" data-tab="today">
+        <div class="nav">
+          <span style="font-size:12.5px;color:var(--txt-2);padding-left:8px">沖縄 3泊4日</span>
+          <span class="sp"></span>
+          <button onclick="openSheet('sheet-notif')" aria-label="通知">
+            <svg width="19" height="20" viewBox="0 0 20 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 1.8a5.6 5.6 0 0 1 5.6 5.6c0 5 2 6.5 2 6.5H2.4s2-1.5 2-6.5A5.6 5.6 0 0 1 10 1.8ZM8.2 17.4a2 2 0 0 0 3.6 0"/></svg>
+          </button>
         </div>
-        <div class="spacer"></div>
-        <div class="sub" style="font-size:11.5px">完成まで、実際には数時間〜翌日。<br>「すぐ見られない」ことも、体験の一部にする。</div>
+        <div class="scroll">
+          <div class="eyebrow" id="tDay">DAY 1 ／ 8月25日（月）</div>
+          <h1 class="ltitle" style="margin-bottom:18px">今日のMission</h1>
+          <div class="mission" id="tMission"></div>
+          <p class="sub" style="margin-top:14px;font-size:12.5px">
+            時間は指定しません。ポーズも指定しません。<br>頭の片隅に置いて、一日を過ごすだけ。</p>
+          <div class="btnrow" style="margin-top:16px">
+            <button class="btn" onclick="openCamera()">
+              <svg width="19" height="17" viewBox="0 0 20 18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.8 5.2h3.4L6.8 2.4h6.4l1.6 2.8h3.4v10.4H1.8z" stroke-linejoin="round"/><circle cx="10" cy="10.2" r="3.4"/></svg>
+              撮る</button>
+            <button class="btn sec" onclick="tab('memory')" style="flex:0 0 46%">みんなのMemory</button>
+          </div>
+
+          <div class="sechead"><h2>この旅のメンバー</h2><span class="more num" id="tCount">0枚</span></div>
+          <div class="members" id="tMembers"></div>
+
+          <div id="tExtra"></div>
+
+          <div class="sechead"><h2>ほかの3人には</h2></div>
+          <div class="group" id="tOthers"></div>
+          <p class="cap" style="margin-top:10px;line-height:1.8;color:var(--amber)">
+            4人に、4つの視点。だから同じ旅が4通り残ります。</p>
+        </div>
       </section>
 
-      <!-- 10 ムービー -->
-      <section class="screen" id="s-movie">
-        <div class="kicker">10　後日、参加者全員に届く</div>
-        <div class="h sm" style="margin-bottom:12px">あなたたちの沖縄が、完成しました。</div>
+      <!-- ══ Memory ══ -->
+      <section class="view fade" id="v-memory" data-tab="memory">
+        <div class="nav solid">
+          <span class="t">沖縄 3泊4日</span>
+          <span class="sp"></span>
+          <button onclick="openSheet('sheet-people')" aria-label="参加者">
+            <svg width="21" height="16" viewBox="0 0 22 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3.2"/><path d="M2 14.5c0-3 2.7-4.6 6-4.6s6 1.6 6 4.6"/><path d="M15 3.2a3 3 0 0 1 0 5.6M17 14.5c0-2.3-1-3.6-2.4-4.3"/></svg>
+          </button>
+        </div>
+        <div class="scroll">
+          <div style="display:flex;gap:10px;margin-top:14px" id="mStats"></div>
+          <div class="chips" style="margin-top:16px" id="mChips"></div>
+          <div class="grid" id="mGrid"></div>
+          <p class="cap" style="margin-top:16px;line-height:1.9">
+            <span style="color:var(--sea);font-weight:700">NATURAL</span> ＝ 誰もカメラを見ていない一枚。<br>
+            AIはこの一枚を中心にMemory Movieを編集します。</p>
+        </div>
+      </section>
+
+      <!-- ══ ムービー ══ -->
+      <section class="view fade" id="v-movie" data-tab="movie">
+        <div class="nav"><span class="t">Memory Movie</span></div>
+        <div class="scroll" id="movieBody"></div>
+      </section>
+
+      <!-- ══ 自分 ══ -->
+      <section class="view fade" id="v-me" data-tab="me">
+        <div class="nav"><span class="t">自分</span></div>
+        <div class="scroll">
+          <div style="display:flex;gap:14px;align-items:center;margin:16px 0 4px">
+            <div class="av" id="meAv" style="width:56px;height:56px;font-size:20px"></div>
+            <div>
+              <div style="font-family:var(--mincho);font-size:21px" id="meName">カズ</div>
+              <div class="cap" style="margin-top:2px">参加中のMemory 1件 ／ 累計 3件</div>
+            </div>
+          </div>
+
+          <div class="sechead"><h2>これまでのMemory</h2></div>
+          <div class="tl">
+            <div class="tlrow now"><span class="y num">2026</span><span class="n">沖縄 3泊4日<span class="cap"> ・ 進行中</span></span></div>
+            <div class="tlrow"><span class="y num">2025</span><span class="n">卒業旅行（7人）</span></div>
+            <div class="tlrow"><span class="y num">2025</span><span class="n">実家に帰った3日間</span></div>
+            <div class="tlrow fut"><span class="y num">2028</span><span class="n">──</span></div>
+          </div>
+          <p class="cap" style="margin-top:8px;line-height:1.85">
+            自分が撮った写真だけじゃなく、自分と関わってきた人たちから見た自分が積み上がっていきます。</p>
+
+          <div class="sechead"><h2>未来から届く</h2><span class="more" onclick="openSheet('sheet-notif')">すべて見る</span></div>
+          <div class="stack" id="meNotif"></div>
+
+          <div class="sechead"><h2>データと同意</h2></div>
+          <div class="group">
+            <button class="row" onclick="openSheet('sheet-privacy')">
+              <span class="ic"><svg width="15" height="17" viewBox="0 0 16 18" fill="none" stroke="var(--amber)" stroke-width="1.6"><path d="M8 1.2 14.6 4v5.2c0 4-2.8 6.6-6.6 7.6-3.8-1-6.6-3.6-6.6-7.6V4z" stroke-linejoin="round"/></svg></span>
+              <span class="l"><b>自分が写ったものを消す</b><span>理由を書く必要はありません</span></span>
+              <svg class="chev" width="8" height="13" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l6 6-6 6"/></svg>
+            </button>
+            <button class="row" onclick="toast('このMemoryは、参加した4人だけが見られます')">
+              <span class="ic"><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="var(--sea)" stroke-width="1.6"><circle cx="9" cy="9" r="7.2"/><path d="M1.8 9h14.4M9 1.8c3.6 3.9 3.6 10.5 0 14.4-3.6-3.9-3.6-10.5 0-14.4"/></svg></span>
+              <span class="l"><b>公開範囲</b><span>このMemoryの参加者だけ</span></span>
+              <span class="v">4人</span>
+            </button>
+            <button class="row" onclick="toast('写真・動画・音声を、そのまま書き出せます')">
+              <span class="ic"><svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="var(--txt-2)" stroke-width="1.6" stroke-linecap="round"><path d="M9 1.8v10M5 8l4 4 4-4M2.4 15.6h13.2"/></svg></span>
+              <span class="l"><b>元データを持ち出す</b><span>囲い込みません</span></span>
+              <svg class="chev" width="8" height="13" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l6 6-6 6"/></svg>
+            </button>
+          </div>
+          <p class="cap" style="margin-top:22px;text-align:center;line-height:1.9">
+            MEMORY LANE Ver.0.1（プロトタイプ）<br>何気ない日常を、未来へ。</p>
+        </div>
+      </section>
+
+      <!-- ══ カメラ ══ -->
+      <section class="view modal" id="v-camera" data-tab="none">
+        <div class="camwrap">
+          <canvas id="camCanvas"></canvas>
+          <div class="camtop">
+            <button onclick="closeCamera()" style="color:#fff;padding:6px" aria-label="閉じる">
+              <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M2 2l14 14M16 2 2 16"/></svg>
+            </button>
+            <span class="mm" id="camMission"></span>
+          </div>
+          <div class="focusbox" id="camFocus"></div>
+          <div class="zoompills">
+            <button onclick="zoomPick(this)">.5</button>
+            <button class="on" onclick="zoomPick(this)">1×</button>
+            <button onclick="zoomPick(this)">2</button>
+          </div>
+          <div class="modeseg" id="camModes">
+            <button class="on" data-m="photo" onclick="camMode('photo')">写真</button>
+            <button data-m="video" onclick="camMode('video')">動画</button>
+            <button data-m="audio" onclick="camMode('audio')">音声</button>
+          </div>
+          <div class="camctl">
+            <span class="camside"><svg width="22" height="20" viewBox="0 0 22 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.8" y="3.6" width="18.4" height="14.6" rx="3"/><path d="M6 3.6 7.6 1h6.8l1.6 2.6"/></svg></span>
+            <button class="shutter" id="shutterBtn" aria-label="撮影"><i></i></button>
+            <span class="camside"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 11a8 8 0 0 1 13.7-5.6M19 11a8 8 0 0 1-13.7 5.6M16.7 1.6v3.8h-3.8M5.3 20.4v-3.8h3.8"/></svg></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ 写真詳細 ══ -->
+      <section class="view" id="v-photo" data-tab="none">
+        <div class="nav solid">
+          <button onclick="pop('v-memory')">
+            <svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1.5 2 9l7.5 7.5"/></svg>Memory</button>
+          <span class="sp"></span>
+          <button onclick="openSheet('sheet-photo')" aria-label="操作">
+            <svg width="19" height="5" viewBox="0 0 20 5" fill="currentColor"><circle cx="2.5" cy="2.5" r="2"/><circle cx="10" cy="2.5" r="2"/><circle cx="17.5" cy="2.5" r="2"/></svg></button>
+        </div>
+        <div class="scroll nopad" id="photoBody"></div>
+      </section>
+
+      <!-- ══ プレイヤー ══ -->
+      <section class="view modal" id="v-player" data-tab="none">
         <div class="player">
-          <div class="ttl">OKINAWA<br><span style="font-size:12px;letter-spacing:.3em">2026.08.25 – 08.28</span></div>
-          <div class="bar"><i></i></div>
-        </div>
-        <div class="scenes">
-          <div class="scene"><span class="t">0:04</span><div>空港でまだ荷物を持っている4人<span class="n"> ／ アヤ ・ DAY1</span></div></div>
-          <div class="scene"><span class="t">0:21</span><div>海を見ているユウキの横顔<span class="n"> ／ カズ ・ DAY2 ・ NATURAL</span></div></div>
-          <div class="scene"><span class="t">0:38</span><div>笑い声だけの10秒<span class="n"> ／ ケント ・ DAY2 ・ 音声</span></div></div>
-          <div class="scene"><span class="t">0:52</span><div>車内で寝ているアヤ<span class="n"> ／ ユウキ ・ DAY3</span></div></div>
-          <div class="scene"><span class="t">1:10</span><div>何でもない最後の朝<span class="n"> ／ 全員 ・ LAST DAY</span></div></div>
-        </div>
-        <div class="chat">
-          <div class="msg"><div class="bub">これいつ撮った？？</div></div>
-          <div class="msg me"><div class="bub">2日目。全然気づいてなかったでしょ</div></div>
-          <div class="msg"><div class="bub">俺の写真こんなにあるの初めてなんだけど</div></div>
-        </div>
-        <div style="font-size:11.5px;color:var(--amber);margin-top:14px;line-height:1.9">
-          この「これいつ撮った？」が出たら、<br>このサービスは成立している。
-        </div>
-        <div class="btnrow" style="margin-top:16px">
-          <button class="btn" onclick="go('pay')">4日間を一本の映画にする</button>
-        </div>
-        <div class="btnrow"><button class="btn ghost" onclick="go('future')">▸ 1年後へ</button></div>
-      </section>
-
-      <!-- 11 課金 -->
-      <section class="screen" id="s-pay">
-        <div class="kicker">11　ここで、はじめて課金</div>
-        <div class="h">4日間の沖縄を、<br>一つの映画にしますか？</div>
-        <div class="sub">ホテル・BAR・海・観光。それぞれの短いMemory Movieは無料です。</div>
-        <div class="card" style="margin-top:18px">
-          <div style="font-size:11px;letter-spacing:.16em;color:var(--amber)">FULL MEMORY MOVIE</div>
-          <div class="price"><b>¥1,800</b><span>／ 1 Memory・参加者全員が視聴可</span></div>
-          <div style="margin-top:12px">
-            <div class="ck">4日間すべてを再編集した3〜5分の本編</div>
-            <div class="ck">4人それぞれの視点で切った、4バージョン</div>
-            <div class="ck">元データ（写真・動画・音声）の一括ダウンロード</div>
-            <div class="ck">1年後・5年後・10年後に、また届く</div>
+          <div class="pstage" id="pStage">
+            <button onclick="stopPlayer()" style="position:absolute;top:14px;left:14px;z-index:5;color:#fff;
+              background:rgba(0,0,0,.4);border-radius:99px;padding:8px;backdrop-filter:blur(6px)" aria-label="閉じる">
+              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M2 2l14 14M16 2 2 16"/></svg></button>
+            <div class="pcap" id="pCap"></div>
+          </div>
+          <div class="pbar">
+            <div class="ptrack"><i id="pFill"></i></div>
+            <div class="ptime"><span id="pNow">0:00</span><span>3:12</span></div>
           </div>
         </div>
-        <div class="sub" style="font-size:11.5px">体験する → 好きになる → 完成作品に払う。<br>最初に課金して、参加率を落とさない。</div>
-        <div class="spacer"></div>
-        <button class="btn" onclick="go('future')">購入する</button>
-        <div class="btnrow"><button class="btn ghost" onclick="go('future')">今はしない</button></div>
       </section>
 
-      <!-- 12 未来 -->
-      <section class="screen" id="s-future">
-        <div class="kicker">12　Memoryは、その日で終わらない</div>
-        <div class="h sm">未来から、通知が来る。</div>
-        <div class="notif">
-          <div class="app">MEMORY LANE ・ 1週間後</div>
-          <div class="t">1週間前の今日、沖縄にいました。</div>
-          <div class="b">まだ誰も見ていない写真が7枚あります。</div>
-        </div>
-        <div class="notif">
-          <div class="app">MEMORY LANE ・ 1年後</div>
-          <div class="t">1年前の今日、4人で沖縄にいました。</div>
-          <div class="b">あの日のMemory Movieを再生する</div>
-        </div>
-        <div class="notif">
-          <div class="app">MEMORY LANE ・ 5年後</div>
-          <div class="t">2026年8月26日。<br>ユウキが海を見ていました。</div>
-          <div class="b">この1枚は、カズが撮りました。</div>
-        </div>
-        <div class="card" style="margin-top:18px">
-          <div style="font-size:12.5px;color:var(--muted);line-height:2">
-            2027 沖縄旅行 ／ 2028 卒業 ／ 2029 友達の結婚式 ／ 2031 自分の結婚 ／ 2033 子ども誕生 ……<br>
-            <span style="color:var(--ink)">自分と関わってきた人たちから見た、自分の人生が残っていく。</span>
-          </div>
-        </div>
-        <div class="spacer"></div>
-        <button class="btn ghost" onclick="reset()">最初から見る</button>
-      </section>
+    </div><!-- /viewport -->
 
-    </div><!-- /phone -->
+    <!-- ══ タブバー ══ -->
+    <nav class="tabbar hide" id="tabbar">
+      <button data-t="today" onclick="tab('today')">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18" opacity=".45"/><circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/></svg>
+        今日</button>
+      <button data-t="memory" onclick="tab('memory')">
+        <span class="badge" id="tabBadge">0</span>
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.2" y="3.2" width="7.4" height="7.4" rx="2"/><rect x="13.4" y="3.2" width="7.4" height="7.4" rx="2"/><rect x="3.2" y="13.4" width="7.4" height="7.4" rx="2"/><rect x="13.4" y="13.4" width="7.4" height="7.4" rx="2"/></svg>
+        Memory</button>
+      <button data-t="movie" onclick="tab('movie')">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.6" y="4.6" width="18.8" height="14.8" rx="2.4"/><path d="M7.4 4.6v14.8M16.6 4.6v14.8M2.6 12h18.8" opacity=".5"/></svg>
+        ムービー</button>
+      <button data-t="me" onclick="tab('me')">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8.4" r="3.9"/><path d="M4.6 20.4c0-4 3.3-6.2 7.4-6.2s7.4 2.2 7.4 6.2"/></svg>
+        自分</button>
+    </nav>
+
+    <div class="scrim" id="scrim" onclick="closeSheet()"></div>
+
+    <!-- ══ シート：参加 ══ -->
+    <div class="sheet" id="sheet-join">
+      <div class="handle"></div>
+      <div class="eyebrow">BAR 桜坂GARAGE から招待</div>
+      <h2 class="ltitle sm" style="margin-top:6px">沖縄 3泊4日</h2>
+      <p class="cap" style="margin-top:6px">2026.08.25 – 08.28 ／ 参加 4人</p>
+      <div class="members" style="margin-top:16px" id="joinMembers"></div>
+      <div class="card" style="margin-top:14px;padding:4px 16px">
+        <div class="consent"><span class="ck"><svg width="11" height="9" viewBox="0 0 12 10" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5l3.4 3.4L11 1.6"/></svg></span>
+          <div><b>このMemoryの中で撮られることに同意します</b><span>参加していない人は、Memoryに入りません。</span></div></div>
+        <div class="consent"><span class="ck"><svg width="11" height="9" viewBox="0 0 12 10" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5l3.4 3.4L11 1.6"/></svg></span>
+          <div><b>公開範囲は、この4人だけ</b><span>外部公開もSNS投稿も、本人が選んだときだけ。</span></div></div>
+        <div class="consent"><span class="ck"><svg width="11" height="9" viewBox="0 0 12 10" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5l3.4 3.4L11 1.6"/></svg></span>
+          <div><b>自分が写ったものは、いつでも消せます</b><span>理由の入力は求めません。</span></div></div>
+      </div>
+      <div class="stack" style="margin-top:16px">
+        <button class="btn" onclick="closeSheet();push('v-name')">同意して参加する</button>
+        <button class="btn ghost" onclick="closeSheet()">やめる</button>
+      </div>
+    </div>
+
+    <!-- ══ シート：投票 ══ -->
+    <div class="sheet" id="sheet-vote">
+      <div class="handle"></div>
+      <div class="eyebrow">初日の夜だけ、ひとつ質問</div>
+      <h2 class="ltitle sm" style="margin-top:6px">この旅で、一番写真を<br>撮っている人は誰？</h2>
+      <p class="cap" style="margin-top:8px">答えは、本人には見せません。</p>
+      <div class="group" style="margin-top:16px" id="voteList"></div>
+      <button class="btn" style="margin-top:16px" onclick="submitVote()">決定</button>
+    </div>
+
+    <!-- ══ シート：投票結果 ══ -->
+    <div class="sheet" id="sheet-voteres">
+      <div class="handle"></div>
+      <div class="eyebrow">結果</div>
+      <h2 class="ltitle sm" style="margin-top:6px">4人とも「ユウキ」<br>と答えました。</h2>
+      <p class="sub" style="margin-top:10px">明日、ユウキ以外の3人にだけ、これが届きます。</p>
+      <div class="mission" style="margin-top:14px">
+        <div class="row1"><span class="day">DAY 2 ／ MISSION</span></div>
+        <div class="txt">今日は、ユウキを撮ってあげよう。</div>
+        <div class="hint">時間もポーズも指定しない。本人には知らせない。</div>
+      </div>
+      <p class="cap" style="margin-top:14px;line-height:1.9">
+        撮る人ほど、自分の写真が残らない。<br>この偏りを、サービス側から直します。</p>
+      <button class="btn" style="margin-top:16px" onclick="closeSheet();nextDay()">DAY 2 へ</button>
+    </div>
+
+    <!-- ══ シート：課金 ══ -->
+    <div class="sheet" id="sheet-pay">
+      <div class="handle"></div>
+      <div class="eyebrow">FULL MEMORY MOVIE</div>
+      <h2 class="ltitle sm" style="margin-top:6px">4日間の沖縄を、<br>一つの映画にしますか？</h2>
+      <div class="pricebox" style="margin-top:16px">
+        <div class="p num">¥1,800<small>／ 参加者4人とも視聴できます</small></div>
+        <div style="margin-top:12px" id="payList"></div>
+      </div>
+      <p class="cap" style="margin-top:14px;line-height:1.9">
+        スポットごとの短いMemory Movieは無料です。<br>体験する → 好きになる → 完成作品に払う。</p>
+      <div class="stack" style="margin-top:16px">
+        <button class="btn" onclick="buy()">購入する</button>
+        <button class="btn ghost" onclick="closeSheet()">今はしない</button>
+      </div>
+    </div>
+
+    <!-- ══ シート：通知 ══ -->
+    <div class="sheet" id="sheet-notif">
+      <div class="handle"></div>
+      <div class="eyebrow">MEMORYは、その日で終わらない</div>
+      <h2 class="ltitle sm" style="margin-top:6px">未来から、通知が来る。</h2>
+      <div class="stack" style="margin-top:16px" id="notifList"></div>
+      <button class="btn sec" style="margin-top:16px" onclick="closeSheet()">閉じる</button>
+    </div>
+
+    <!-- ══ シート：参加者 ══ -->
+    <div class="sheet" id="sheet-people">
+      <div class="handle"></div>
+      <h2 class="ltitle sm">参加している4人</h2>
+      <p class="cap" style="margin-top:6px">誰が何枚撮ったかのランキングは出しません。競争にすると、自然さが消えるからです。</p>
+      <div class="group" style="margin-top:16px" id="peopleList"></div>
+      <button class="btn sec" style="margin-top:16px" onclick="closeSheet()">閉じる</button>
+    </div>
+
+    <!-- ══ シート：写真操作 ══ -->
+    <div class="sheet" id="sheet-photo">
+      <div class="handle"></div>
+      <div class="group">
+        <button class="row" onclick="closeSheet();toast('端末に保存しました')">
+          <span class="l"><b>この写真を保存</b></span></button>
+        <button class="row" onclick="closeSheet();toast('4人のMemoryから削除しました')">
+          <span class="l"><b style="color:var(--rose)">自分が写っているので消す</b><span>理由の入力は求めません。編集中のMovieからも外れます</span></span></button>
+      </div>
+      <button class="btn sec" style="margin-top:12px" onclick="closeSheet()">キャンセル</button>
+    </div>
+
+    <!-- ══ シート：プライバシー ══ -->
+    <div class="sheet" id="sheet-privacy">
+      <div class="handle"></div>
+      <h2 class="ltitle sm">自分が写ったものを消す</h2>
+      <p class="sub" style="margin-top:10px">撮った人の同意はいりません。あなたが写っている写真・動画・音声を選んで消せます。完成したMemory Movieからも、作り直して外します。</p>
+      <div class="grid" style="margin-top:16px;margin-inline:0;gap:3px" id="privacyGrid"></div>
+      <div class="stack" style="margin-top:16px">
+        <button class="btn line" onclick="closeSheet();toast('選んだ2件を削除しました')">選んだものを消す</button>
+        <button class="btn ghost" onclick="closeSheet()">閉じる</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="flash" id="flash"></div>
+   </div><!-- /app -->
+  </div><!-- /bezel -->
+
+  <div class="stagecap">
+    <span class="lbl">PROTOTYPE</span>
+    <div class="dev">
+      <button onclick="devAdvance()" id="devMain">一日を進める</button>
+      <button onclick="devEnd()">旅を終える</button>
+      <button onclick="resetAll()">最初から</button>
+    </div>
+    <b>・</b>
+    <a href="doc.html">構想書</a><a href="biz.html">BtoB管理画面</a>
   </div>
-
-  <!-- 右カラム -->
-  <aside class="side">
-    <h2>① 画面遷移（12ステップ）</h2>
-    <div id="steps"></div>
-    <div class="notebox">
-      <b>この叩き台で証明したいこと</b>
-      「このサービスがあったから、本来なら存在しなかった写真・動画が生まれたか？」<br>
-      ここがYESなら進む。NOなら、どれだけAI動画が綺麗でも失敗。
-    </div>
-    <div class="sidefoot">
-      関連：<a href="doc.html">構想書・仕様書（①〜⑤）</a><br>
-      <a href="biz.html">BtoB管理画面プロトタイプ</a><br>
-      <a href="index.html">MEMORY LANE トップ</a>
-    </div>
-  </aside>
 </div>
-
 <script src="missions.js"></script>
 <script>
-/* ── データ ───────────────────────────── */
-const MEMBERS = [
-  {n:'カズ',  c:'#E3A857', me:true},
-  {n:'ユウキ',c:'#4F8FA8'},
-  {n:'アヤ',  c:'#C97B6E'},
-  {n:'ケント',c:'#8FA86B'}
-];
-const TONES = [
-  'linear-gradient(150deg,#2A4658,#12242E)','linear-gradient(150deg,#4A3320,#1D1610)',
-  'linear-gradient(150deg,#3A4A2E,#161C12)','linear-gradient(150deg,#503040,#1E1219)',
-  'linear-gradient(150deg,#1F3A44,#0F1A1F)','linear-gradient(150deg,#5A4326,#221A11)'
-];
-/* DAY ごとの、4人それぞれのMission（missions.js から引く） */
+/* ═══════════════════════════════════════════════════
+   写真の生成（外部画像を使わず、Canvasで「写真らしい絵」を描く）
+   ═══════════════════════════════════════════════════ */
+const seeded = s => { let t = s + 0x6D2B79F5;
+  return () => { t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61);
+    return ((t ^ t>>>14) >>> 0) / 4294967296; }; };
+const lerpGrad = (g,x0,y0,x1,y1,stops) => {
+  const gr = g.createLinearGradient(x0,y0,x1,y1);
+  stops.forEach(([p,c])=>gr.addColorStop(p,c)); return gr; };
+function person(g,x,y,s,col){                       // 人のシルエット（頭・首・肩）
+  g.fillStyle = col;
+  g.beginPath(); g.moveTo(x - s*0.9, y + s*1.6);
+  g.quadraticCurveTo(x - s*0.86, y - s*0.16, x - s*0.3, y - s*0.42);
+  g.lineTo(x + s*0.3, y - s*0.42);
+  g.quadraticCurveTo(x + s*0.86, y - s*0.16, x + s*0.9, y + s*1.6);
+  g.closePath(); g.fill();
+  g.beginPath(); g.arc(x, y - s*0.78, s*0.42, 0, 7); g.fill();
+}
+const SCENE = {
+  sea(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,0,h*0.58,[[0,'#7FB4C6'],[.62,'#BBD6D8'],[1,'#DEE9E2']]); g.fillRect(0,0,w,h*0.58);
+    g.fillStyle='rgba(255,252,240,.5)'; g.beginPath(); g.arc(w*0.74,h*0.2,h*0.075,0,7); g.fill();
+    g.fillStyle = lerpGrad(g,0,h*0.58,0,h,[[0,'#3B7C92'],[.5,'#255E75'],[1,'#12384A']]); g.fillRect(0,h*0.58,w,h*0.42);
+    for(let i=0;i<14;i++){ const y=h*0.6+R()*h*0.4;
+      g.fillStyle=`rgba(226,242,244,${.05+R()*.16})`;
+      g.fillRect(R()*w, y, w*(.06+R()*.3), 1+R()*1.6); }
+    g.fillStyle='rgba(240,248,246,.5)'; g.fillRect(0,h*0.575,w,1.2);
+    const ps = Math.min(w,h)*(.15+R()*.05);
+    person(g, w*(.56+R()*.26), h*0.575 + ps*0.95, ps, 'rgba(14,20,24,.86)');
+  },
+  sunset(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,0,h,[[0,'#4E3A5C'],[.34,'#C4655E'],[.62,'#EFA860'],[.78,'#F3C87F'],[1,'#3C2C33']]);
+    g.fillRect(0,0,w,h);
+    g.fillStyle='rgba(255,236,190,.85)'; g.beginPath(); g.arc(w*0.5,h*0.66,h*0.09,0,7); g.fill();
+    for(let i=0;i<5;i++){ g.fillStyle=`rgba(58,38,46,${.16+R()*.2})`;
+      g.fillRect(0, h*(.14+i*.09) + R()*8, w, 3+R()*7); }
+    g.fillStyle='rgba(30,22,28,.92)'; g.fillRect(0,h*0.74,w,h*0.26);
+    g.fillStyle='rgba(246,205,150,.35)'; g.fillRect(w*0.46,h*0.74,w*0.08,h*0.26);
+    const s1 = Math.min(w,h)*0.15, s2 = Math.min(w,h)*0.13;
+    person(g, w*0.3,  h*0.74 + s1*0.9, s1, 'rgba(18,14,18,.92)');
+    person(g, w*0.44, h*0.74 + s2*0.9, s2, 'rgba(18,14,18,.92)');
+  },
+  bar(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,w,h,[[0,'#2C1D14'],[.55,'#1E1410'],[1,'#12100E']]); g.fillRect(0,0,w,h);
+    g.filter='blur(6px)';
+    for(let i=0;i<9;i++){ g.fillStyle=`rgba(240,182,96,${.1+R()*.3})`;
+      g.beginPath(); g.arc(R()*w, R()*h*0.62, h*(.02+R()*.05), 0, 7); g.fill(); }
+    g.filter='none';
+    g.fillStyle='rgba(66,40,24,.95)'; g.fillRect(0,h*0.7,w,h*0.3);
+    g.fillStyle='rgba(96,60,34,.8)'; g.fillRect(0,h*0.7,w,2);
+    for(let i=0;i<4;i++){ const x=w*(.08+i*.14)+R()*8;
+      g.fillStyle=`rgba(28,20,16,.8)`; g.fillRect(x, h*0.42, w*0.045, h*0.28);
+      g.fillStyle=`rgba(233,180,102,${.1+R()*.2})`; g.fillRect(x, h*0.42, w*0.02, h*0.28); }
+    const pn = 2 + (R()>.55?1:0);
+    for(let i=0;i<pn;i++)
+      person(g, w*(.16+i*.29+R()*.06), h*(.84+R()*.08), Math.min(w,h)*(.16+R()*.05),
+             `rgba(${14+i*4},${11+i*3},${9+i*3},.9)`);
+    const gn = 1 + Math.round(R());
+    for(let i=0;i<gn;i++){ const gx=w*(.24+i*.32+R()*.12), gy=h*(.7+R()*.05);
+      g.fillStyle='rgba(246,222,178,.5)';
+      g.beginPath(); g.moveTo(gx-w*0.035,gy-h*0.09); g.lineTo(gx+w*0.035,gy-h*0.09);
+      g.lineTo(gx+w*0.018,gy); g.lineTo(gx-w*0.018,gy); g.closePath(); g.fill();
+      g.fillStyle='rgba(233,180,102,.75)';
+      g.beginPath(); g.moveTo(gx-w*0.028,gy-h*0.055); g.lineTo(gx+w*0.028,gy-h*0.055);
+      g.lineTo(gx+w*0.018,gy); g.lineTo(gx-w*0.018,gy); g.closePath(); g.fill(); }
+    g.fillStyle='rgba(246,214,150,.14)';
+    g.beginPath(); g.ellipse(w*0.78,h*0.78,w*0.14,h*0.05,0,0,7); g.fill();
+  },
+  terminal(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,0,h,[[0,'#DCE4E8'],[.55,'#C6D2D8'],[1,'#8E9AA2']]); g.fillRect(0,0,w,h);
+    for(let i=0;i<4;i++){ g.fillStyle='rgba(255,255,255,.55)';
+      g.fillRect(w*(.04+i*.25), h*0.06, w*0.19, h*0.46); }
+    g.fillStyle='rgba(120,138,150,.5)'; g.fillRect(0,h*0.52,w,3);
+    g.fillStyle='rgba(150,166,176,.35)';
+    for(let i=0;i<5;i++) g.fillRect(w*(.02+i*.2), h*0.06, 3, h*0.46);
+    g.fillStyle='rgba(60,72,80,.25)'; g.fillRect(0,h*0.55,w,h*0.45);
+    person(g, w*0.26, h*0.86, Math.min(w,h)*0.17, 'rgba(30,38,44,.86)');
+    person(g, w*0.5,  h*0.9,  Math.min(w,h)*0.19, 'rgba(24,30,36,.9)');
+    person(g, w*0.74, h*0.85, Math.min(w,h)*0.16, 'rgba(34,42,48,.84)');
+    g.fillStyle='rgba(255,255,255,.22)'; g.fillRect(0,0,w,h*0.3);
+  },
+  night(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,0,h,[[0,'#0C1520'],[.6,'#16202C'],[1,'#0A1017']]); g.fillRect(0,0,w,h);
+    for(let i=0;i<7;i++){ const bw=w*(.1+R()*.16), x=i*w*.15-R()*10, bh=h*(.2+R()*.4);
+      g.fillStyle=`rgba(10,16,22,${.7+R()*.3})`; g.fillRect(x,h-bh,bw,bh);
+      for(let k=0;k<5;k++) if(R()>.45){ g.fillStyle=`rgba(240,206,140,${.2+R()*.5})`;
+        g.fillRect(x+4+R()*(bw-10), h-bh+6+R()*(bh-14), 3, 4); } }
+    g.filter='blur(3px)';
+    g.fillStyle='rgba(233,140,102,.6)'; g.fillRect(w*0.08,h*0.3,w*0.2,h*0.06);
+    g.fillStyle='rgba(99,168,184,.5)'; g.fillRect(w*0.66,h*0.22,w*0.16,h*0.05);
+    g.filter='none';
+    g.fillStyle='rgba(210,180,140,.1)'; g.fillRect(0,h*0.86,w,h*0.14);
+  },
+  car(g,w,h,R){
+    g.fillStyle='#0D1114'; g.fillRect(0,0,w,h);
+    g.save(); g.beginPath();
+    g.moveTo(w*0.1,h*0.16); g.lineTo(w*0.92,h*0.1); g.lineTo(w*0.92,h*0.64); g.lineTo(w*0.1,h*0.66);
+    g.closePath(); g.clip();
+    g.fillStyle = lerpGrad(g,0,h*0.1,0,h*0.66,[[0,'#9FC3CE'],[.5,'#6E9E86'],[1,'#3E5A46']]);
+    g.fillRect(0,0,w,h);
+    g.filter='blur(4px)';
+    for(let i=0;i<10;i++){ g.fillStyle=`rgba(255,255,255,${.05+R()*.2})`;
+      g.fillRect(R()*w, h*(.1+R()*.5), w*(.1+R()*.4), 2+R()*5); }
+    g.filter='none'; g.restore();
+    g.fillStyle='#14181C'; g.fillRect(0,h*0.64,w,h*0.36);
+    g.fillStyle='rgba(40,48,54,.9)'; g.fillRect(0,h*0.62,w,h*0.04);
+    g.fillStyle='rgba(233,180,102,.14)'; g.beginPath(); g.arc(w*0.85,h*0.2,h*0.12,0,7); g.fill();
+    person(g, w*0.28, h*0.62, Math.min(w,h)*0.16, 'rgba(12,16,20,.9)');
+  },
+  room(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,w,h,[[0,'#2B2723'],[1,'#171614']]); g.fillRect(0,0,w,h);
+    const wx=w*0.14, wy=h*0.12, ww=w*0.5, wh=h*0.46;
+    g.fillStyle = lerpGrad(g,0,wy,0,wy+wh,[[0,'#CFE0E4'],[.6,'#A9C6C9'],[1,'#DCD2C0']]);
+    g.fillRect(wx,wy,ww,wh);
+    g.fillStyle='rgba(24,22,20,.9)'; g.fillRect(wx+ww*0.48,wy,2.5,wh); g.fillRect(wx,wy+wh*0.46,ww,2.5);
+    g.strokeStyle='rgba(22,20,18,.9)'; g.lineWidth=3; g.strokeRect(wx,wy,ww,wh);
+    g.fillStyle='rgba(214,206,190,.9)'; g.fillRect(wx+ww+w*0.03,h*0.06,w*0.1,h*0.6);
+    g.fillStyle = lerpGrad(g,wx,wy,wx+ww*1.5,h,[[0,'rgba(240,232,210,.28)'],[1,'rgba(240,232,210,0)']]);
+    g.fillRect(0,0,w,h);
+    g.fillStyle='rgba(48,42,38,.95)'; g.fillRect(0,h*0.72,w,h*0.28);
+    g.fillStyle='rgba(206,196,178,.85)'; g.beginPath();
+    g.ellipse(w*0.42,h*0.8,w*0.34,h*0.09,0,0,7); g.fill();
+  },
+  food(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,w,h,[[0,'#5A4130'],[1,'#3A2A1E']]); g.fillRect(0,0,w,h);
+    for(let i=0;i<9;i++){ g.fillStyle=`rgba(24,16,10,${.06+R()*.08})`; g.fillRect(0,i*h*.12,w,3); }
+    g.fillStyle='#EFE9DD'; g.beginPath(); g.arc(w*0.46,h*0.52,Math.min(w,h)*0.29,0,7); g.fill();
+    g.fillStyle='rgba(0,0,0,.08)'; g.beginPath(); g.arc(w*0.46,h*0.52,Math.min(w,h)*0.29,0.6,2.4); g.fill();
+    const c=['#C4622F','#E2A13C','#8AA34E','#B33F32'];
+    for(let i=0;i<7;i++){ g.fillStyle=c[i%4];
+      g.beginPath(); g.arc(w*(.34+R()*.26), h*(.4+R()*.24), Math.min(w,h)*(.03+R()*.055),0,7); g.fill(); }
+    g.fillStyle='rgba(238,222,196,.9)'; g.beginPath();
+    g.ellipse(w*0.9,h*0.86,w*0.16,h*0.13,-0.5,0,7); g.fill();
+  },
+  group(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,w,h,[[0,'#3B3129'],[.55,'#251E1B'],[1,'#171412']]); g.fillRect(0,0,w,h);
+    g.filter='blur(7px)';
+    for(let i=0;i<7;i++){ g.fillStyle=`rgba(238,190,116,${.08+R()*.22})`;
+      g.beginPath(); g.arc(R()*w, R()*h*0.5, h*(.02+R()*.045), 0, 7); g.fill(); }
+    g.filter='none';
+    const cols=['rgba(16,14,13,.92)','rgba(22,19,17,.92)','rgba(12,11,10,.94)'];
+    const gp = 3 + (R()>.6?1:0);
+    for(let i=0;i<gp;i++)
+      person(g, w*(.16+i*(0.68/Math.max(1,gp-1))+R()*.05), h*(.86+R()*.08),
+             Math.min(w,h)*(.17+R()*.05), cols[i%3]);
+    g.fillStyle='rgba(246,214,150,.1)'; g.fillRect(0,0,w,h*0.4);
+  },
+  sleep(g,w,h,R){
+    g.fillStyle = lerpGrad(g,0,0,0,h,[[0,'#1E2735'],[.6,'#161C26'],[1,'#0E121A']]); g.fillRect(0,0,w,h);
+    g.fillStyle='rgba(150,180,205,.14)'; g.fillRect(w*0.6,0,w*0.4,h*0.5);
+    for(let i=0;i<5;i++){ g.fillStyle=`rgba(58,72,92,${.35+R()*.3})`;
+      g.beginPath(); g.ellipse(w*(.2+i*.2), h*(.82+R()*.1), w*0.26, h*0.1, R()*0.5-0.25, 0, 7); g.fill(); }
+    g.fillStyle='rgba(20,26,34,.95)';
+    g.beginPath(); g.ellipse(w*0.4,h*0.55,w*0.17,h*0.14,-0.3,0,7); g.fill();
+    g.fillStyle='rgba(190,210,230,.07)'; g.fillRect(0,0,w,h*0.3);
+  },
+  wave(g,w,h,R){
+    g.fillStyle='#14181B'; g.fillRect(0,0,w,h);
+    const n=Math.max(12,Math.floor(w/7));
+    for(let i=0;i<n;i++){ const a=(Math.sin(i*.7)*.5+.5)*.7 + R()*.3;
+      g.fillStyle=`rgba(233,180,102,${.35+a*.5})`;
+      const bh=h*0.5*a+2; g.fillRect(i*(w/n)+1.5, (h-bh)/2, Math.max(2,w/n-3), bh); }
+  }
+};
+
+function grain(g,w,h,R){
+  const n = Math.floor(w*h/26);
+  for(let i=0;i<n;i++){ g.fillStyle = `rgba(${R()>.5?255:0},${R()>.5?250:10},${R()>.5?240:20},${.02+R()*.05})`;
+    g.fillRect(R()*w, R()*h, 1, 1); }
+}
+function vignette(g,w,h){
+  const r = g.createRadialGradient(w/2,h*0.45,Math.min(w,h)*0.2, w/2,h/2,Math.max(w,h)*0.78);
+  r.addColorStop(0,'rgba(0,0,0,0)'); r.addColorStop(1,'rgba(0,0,0,.5)');
+  g.fillStyle=r; g.fillRect(0,0,w,h);
+}
+function paint(cv, kind, seed){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const w = cv.clientWidth || cv.parentElement.clientWidth || 120;
+  const h = cv.clientHeight || cv.parentElement.clientHeight || 120;
+  if(!w || !h) return;
+  cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  const R = seeded(seed*2654435761 % 2147483647);
+  (SCENE[kind] || SCENE.group)(g,w,h,R);
+  grain(g,w,h,R); vignette(g,w,h);
+}
+const cvs = (cls) => { const c=document.createElement('canvas'); if(cls) c.className=cls; return c; };
+
+/* ═══════════════════════════════════════════════════
+   データ
+   ═══════════════════════════════════════════════════ */
 const M = id => window.ML_MISSIONS.find(m=>m.id===id);
+const MEMBERS = [
+  {n:'カズ',   c:'#E9B466', me:true},
+  {n:'ユウキ', c:'#63A8B8'},
+  {n:'アヤ',   c:'#D98878'},
+  {n:'ケント', c:'#8FAE72'}
+];
+const DAYNAME = {1:'DAY 1',2:'DAY 2',3:'DAY 3',4:'LAST DAY'};
+const DATES   = {1:'8月25日（火）',2:'8月26日（水）',3:'8月27日（木）',4:'8月28日（金）'};
 const PLAN = {
   1:{me:M('T01'), others:[['ユウキ',M('T05')],['アヤ',M('T03')],['ケント',M('T04')]]},
-  2:{me:M('T02'), others:[['アヤ',M('T02')],['ケント',M('T02')],['ユウキ',M('T09')]], note:'ユウキ本人にだけ、違うMissionが届く'},
+  2:{me:{id:'T02',media:'photo',text:'今日は、ユウキを撮ってあげよう。',
+        hint:'時間もポーズも指定しません。本人には知らせていません。'},
+     others:[['アヤ',M('T02')],['ケント',M('T02')],['ユウキ',M('T09')]],
+     note:'ユウキ本人にだけ、違うMissionが届いています'},
   3:{me:M('T03'), others:[['ユウキ',M('T07')],['アヤ',M('T08')],['ケント',M('T06')]]},
   4:{me:M('T12'), others:[['ユウキ',M('T11')],['アヤ',M('T12')],['ケント',M('T07')]]}
 };
-const DAYNAME = {1:'DAY 1',2:'DAY 2',3:'DAY 3',4:'LAST DAY'};
-
-const STEPS = [
-  ['qr','QRを読み取る','テーブル・客室・部室に置かれたQR。アプリ未インストールでもブラウザで開く'],
-  ['join','Memoryに参加','同意・公開範囲・削除権限をここで必ず提示する'],
-  ['profile','名前を決める','会員登録は後回し。参加のハードルを最小に'],
-  ['home','今日のMission','一人ひとり違うMissionが1日1〜2件だけ届く'],
-  ['camera','撮る','「今だ」と思った瞬間だけ。撮らない日があっていい'],
-  ['gallery','共有Memory','4人の写真・動画・音声が1か所に集まる'],
-  ['vote','いつも撮る人を決める','初日の夜だけの質問。本人には見せない'],
-  ['voteres','翌日のMissionへ反映','「今日はユウキを撮ろう」が3人に届く'],
-  ['end','旅の終わり','ここまでが人間の役割'],
-  ['gen','AIが編集','写真を撮らせるのではなく、思い出を編集させる'],
-  ['movie','Memory Movieが届く','「これいつ撮った？」が生まれるかを見る'],
-  ['pay','完成作品に課金','体験→好きになる→払う、の順番'],
-  ['future','未来から届く','1週間後・1年後・5年後・10年後']
+const SEED_PHOTOS = [
+  {d:1,by:'アヤ',  k:'terminal', t:'空港で、まだ荷物を持ったまま', m:'photo', nat:false, tm:'11:24'},
+  {d:1,by:'ユウキ',k:'night', t:'国際通り',                     m:'photo', nat:false, tm:'18:02'},
+  {d:1,by:'アヤ',  k:'bar',   t:'乾杯',                         m:'photo', nat:false, tm:'20:15'},
+  {d:1,by:'ユウキ',k:'bar',   t:'笑ってるケント',               m:'photo', nat:true,  tm:'21:40'},
+  {d:1,by:'ケント',k:'night', t:'桜坂の夜',                     m:'photo', nat:false, tm:'22:58'},
+  {d:1,by:'カズ',  k:'food',  t:'タコライス',                   m:'photo', nat:false, tm:'19:31'},
+  {d:2,by:'カズ',  k:'sea',   t:'海を見ているユウキ',           m:'photo', nat:true,  tm:'14:12'},
+  {d:2,by:'アヤ',  k:'sea',   t:'ユウキの後ろ姿',               m:'photo', nat:true,  tm:'14:26'},
+  {d:2,by:'ケント',k:'car',   t:'移動中の車内',                 m:'photo', nat:true,  tm:'16:40'},
+  {d:2,by:'ユウキ',k:'food',  t:'ソーキそば',                   m:'photo', nat:false, tm:'12:50'},
+  {d:2,by:'ケント',k:'wave',  t:'4人の笑い声 0:10',             m:'audio', nat:true,  tm:'21:05'},
+  {d:2,by:'アヤ',  k:'group', t:'ユウキとみんな',               m:'video', nat:true,  tm:'22:11'},
+  {d:3,by:'カズ',  k:'sunset',t:'今日の夕日',                   m:'photo', nat:false, tm:'18:44'},
+  {d:3,by:'ユウキ',k:'sleep', t:'車内で寝ているアヤ',           m:'photo', nat:true,  tm:'15:20'},
+  {d:3,by:'ケント',k:'room',  t:'部屋でくだらない話',           m:'video', nat:true,  tm:'23:30'},
+  {d:3,by:'アヤ',  k:'bar',   t:'二軒目',                       m:'photo', nat:false, tm:'23:58'},
+  {d:4,by:'カズ',  k:'room',  t:'朝、窓を開けた',               m:'photo', nat:false, tm:'06:50'},
+  {d:4,by:'アヤ',  k:'group', t:'何でもない最後の朝',           m:'photo', nat:true,  tm:'09:12'}
+];
+const CHAPTERS = [
+  ['0:04','空港でまだ荷物を持っている4人','アヤ ・ DAY1','terminal'],
+  ['0:21','海を見ているユウキの横顔','カズ ・ DAY2 ・ NATURAL','sea'],
+  ['0:38','笑い声だけの10秒','ケント ・ DAY2 ・ 音声','wave'],
+  ['0:52','車内で寝ているアヤ','ユウキ ・ DAY3','sleep'],
+  ['1:24','誰も撮っていなかった夕日','カズ ・ DAY3','sunset'],
+  ['2:40','何でもない最後の朝','アヤ ・ LAST DAY ・ NATURAL','group']
+];
+const NOTIFS = [
+  ['1週間後','1週間前の今日、沖縄にいました。','まだ誰も見ていない写真が7枚あります。'],
+  ['1年後','1年前の今日、4人で沖縄にいました。','あの日のMemory Movieを再生する'],
+  ['5年後','2026年8月26日。ユウキが海を見ていました。','この1枚は、カズが撮りました。'],
+  ['10年後','10年前の今日、この4人で笑っていました。','声だけの10秒が残っています。']
 ];
 
-let state = {day:1, name:'カズ', photos:[], voted:'ユウキ'};
+/* ═══════════════════════════════════════════════════
+   状態
+   ═══════════════════════════════════════════════════ */
+let S = { day:1, name:'カズ', color:'#E9B466', phase:'trip', shots:[], filter:'all',
+          unseen:0, bought:false, voted:'ユウキ', onboarded:false };
+const photos = () => [...SEED_PHOTOS.filter(p=>p.d<=S.day), ...S.shots];
+const mediaIcon = m => m==='video'
+  ? '<svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor"><path d="M2 2.6h7.2v8.8H2z" opacity=".9"/><path d="M10.4 6 13 4.2v5.6L10.4 8z"/></svg>'
+  : m==='audio'
+  ? '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8V6M5 10.5V3.5M8 12V2M11 9V5"/></svg>' : '';
 
-/* ── 初期の写真（他メンバーが撮ったもの） ── */
-const SEED = [
-  {by:'アヤ',  cap:'空港',           nat:false, day:1},
-  {by:'ユウキ',cap:'国際通り',       nat:false, day:1},
-  {by:'ケント',cap:'海',             nat:true,  day:1},
-  {by:'アヤ',  cap:'乾杯',           nat:false, day:1},
-  {by:'ユウキ',cap:'笑ってるケント', nat:true,  day:1},
-  {by:'ケント',cap:'夜の桜坂',       nat:false, day:1}
-];
+/* ═══════════════════════════════════════════════════
+   ナビゲーション
+   ═══════════════════════════════════════════════════ */
+const V = id => document.getElementById(id);
+const TABVIEW = {today:'v-today', memory:'v-memory', movie:'v-movie', me:'v-me'};
+let stack = ['v-scan'], curTab = 'today';
 
-/* ── 画面制御 ─────────────────────────── */
-function go(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
-  document.getElementById('s-'+id).classList.add('on');
-  document.querySelectorAll('.step').forEach(b=>b.classList.toggle('on', b.dataset.id===id));
-  if(id==='home') renderHome();
-  if(id==='gallery') renderGrid();
-  if(id==='camera') renderCam();
-  window.scrollTo({top:0,behavior:'smooth'});
+function afterNav(id){
+  const t = V(id).dataset.tab;
+  document.getElementById('tabbar').classList.toggle('hide', t==='none' || !S.onboarded);
+  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
 }
-function setName(){
-  state.name = document.getElementById('nameInput').value.trim() || 'あなた';
-  MEMBERS[0].n = state.name;
-  go('home');
+function push(id){
+  const cur = stack[stack.length-1]; if(cur===id) return;
+  const c = V(cur), n = V(id);
+  n.classList.remove('behind'); n.classList.add('on');
+  c.classList.remove('on'); if(!n.classList.contains('modal')) c.classList.add('behind');
+  stack.push(id); afterNav(id);
 }
-function nextDay(){
-  if(state.day>=4){ go('end'); return; }
-  state.day++;
-  go('home');
+function pop(){
+  if(stack.length<2) return;
+  const c = V(stack.pop()), p = V(stack[stack.length-1]);
+  c.classList.remove('on'); p.classList.remove('behind'); p.classList.add('on');
+  afterNav(stack[stack.length-1]);
+}
+function tab(name){
+  curTab = name;
+  const id = TABVIEW[name];
+  stack.forEach(s=>{ V(s).classList.remove('on','behind'); });
+  stack = [id];
+  V(id).classList.add('on');
+  afterNav(id);
+  if(name==='memory'){ S.unseen=0; badge(); renderMemory(); }
+  if(name==='movie') renderMovie();
+  if(name==='today') renderToday();
+  if(name==='me') renderMe();
+  V(id).querySelector('.scroll')?.scrollTo({top:0});
+}
+function badge(){
+  const b = document.getElementById('tabBadge');
+  b.textContent = S.unseen; b.classList.toggle('on', S.unseen>0);
 }
 
-/* ── 描画 ─────────────────────────────── */
-function av(m,size){
-  return `<div class="av" style="background:${m.c};${size?`width:${size}px;height:${size}px;font-size:${size/3}px`:''}">${m.n[0]}</div>`;
+/* シート */
+let openedSheet = null;
+function openSheet(id){
+  if(openedSheet) V(openedSheet).classList.remove('on');
+  openedSheet = id;
+  if(id==='sheet-privacy') renderPrivacy();
+  V(id).classList.add('on');
+  document.getElementById('scrim').classList.add('on');
 }
-function renderJoin(){
-  document.getElementById('joinAvs').innerHTML =
-    MEMBERS.map(m=>`<div class="avname">${av(m)}<span>${m.n}</span></div>`).join('') +
-    `<div style="font-size:11.5px;color:var(--muted-2);margin-left:4px">4人が参加中</div>`;
+function closeSheet(){
+  if(openedSheet) V(openedSheet).classList.remove('on');
+  openedSheet = null;
+  document.getElementById('scrim').classList.remove('on');
 }
-function renderHome(){
-  document.getElementById('dayrow').innerHTML = [1,2,3,4].map(d=>
-    `<div class="day ${d===state.day?'on':(d<state.day?'done':'')}">${DAYNAME[d]}</div>`).join('');
-  const p = PLAN[state.day];
-  const mm = state.day===2 ? {id:'T02',media:'photo',text:'今日は、ユウキを撮ってあげよう。',
-      hint:'時間は指定しない。ポーズも指定しない。本人には知らせない。'} : p.me;
-  document.getElementById('homeMission').innerHTML = `
-    <div class="tag">${DAYNAME[state.day]} ／ MISSION ${mm.id||''}</div>
+/* トースト */
+let toastT;
+function toast(msg, icon){
+  const t = document.getElementById('toast');
+  t.innerHTML = (icon||'') + '<span>'+msg+'</span>';
+  t.classList.add('on'); clearTimeout(toastT);
+  toastT = setTimeout(()=>t.classList.remove('on'), 2400);
+}
+
+/* ═══════════════════════════════════════════════════
+   部品
+   ═══════════════════════════════════════════════════ */
+const hash = s => { let h=2166136261; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);} return (h>>>0)%99991; };
+const mem  = n => MEMBERS.find(m=>m.n===n) || MEMBERS[0];
+function avHTML(m, size){
+  const s = size||34;
+  return `<div class="av" style="background:${m.c};width:${s}px;height:${s}px;font-size:${Math.round(s*0.4)}px">${m.n[0]}</div>`;
+}
+function tileHTML(p,i){
+  return `<button class="tile" data-i="${i}" onclick="openPhoto(${i})">
+    ${p.nat?'<span class="tag">NATURAL</span>':''}
+    ${p.m!=='photo'?`<span class="kind">${mediaIcon(p.m)}</span>`:''}
+    <span class="who" style="color:${mem(p.by).c}">${p.by}</span></button>`;
+}
+function paintTiles(root, list){
+  root.querySelectorAll('.tile').forEach((el,idx)=>{
+    const p = list[Number(el.dataset.i)] ?? list[idx]; if(!p) return;
+    const c = cvs(); el.prepend(c); paint(c, p.k, hash(p.t+p.by));
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   今日
+   ═══════════════════════════════════════════════════ */
+function renderToday(){
+  const p = PLAN[S.day], mm = p.me;
+  document.getElementById('tDay').textContent = `${DAYNAME[S.day]} ／ ${DATES[S.day]}`;
+  document.getElementById('tMission').innerHTML = `
+    <div class="row1"><span class="day">MISSION ${mm.id}</span>
+      <span class="chip amber">${window.ML_MEDIA_LABEL[mm.media]}</span></div>
     <div class="txt">${mm.text}</div>
     <div class="hint">${mm.hint}</div>
-    <div class="meta"><span class="pill on">${window.ML_MEDIA_LABEL[mm.media]}</span>
-      <span class="pill">期限なし</span><span class="pill">スキップ可</span></div>`;
-  document.getElementById('othersMissions').innerHTML =
-    p.others.map(([n,m])=>`<div>${n} ── ${m.text}</div>`).join('') +
-    (p.note?`<div style="color:var(--muted-2);font-size:11px;margin-top:6px">※ ${p.note}</div>`:'');
-  const total = SEED.length + state.photos.length;
-  document.getElementById('homeCount').textContent = `みんなで ${total} 枚`;
-  document.getElementById('advance').textContent =
-    state.day===1 ? '▸ 一日の終わりへ（プロトタイプ操作）'
-    : state.day>=4 ? '▸ 旅を終える（プロトタイプ操作）' : '▸ 次の日へ（プロトタイプ操作）';
-  document.getElementById('advance').onclick = state.day===1 ? ()=>go('vote') : nextDay;
+    <div class="meta"><span class="chip">期限なし</span><span class="chip">スキップ可</span>
+      <span class="chip">${(()=>{const n=S.shots.filter(x=>x.d===S.day).length;
+        return n ? `今日 ${n}件` : '今日はまだ';})()}</span></div>`;
+
+  const all = photos();
+  document.getElementById('tCount').textContent = `${all.length}枚`;
+  document.getElementById('tMembers').innerHTML = MEMBERS.map(m=>{
+    const n = all.filter(x=>x.by===m.n).length;
+    return `<div class="member ${m.me?'act':''}"><div class="ring">${avHTML(m,44)}</div>
+      <span class="n">${m.n}</span><span class="st num">${n}枚</span></div>`;
+  }).join('');
+
+  document.getElementById('tOthers').innerHTML = p.others.map(([n,ms])=>`
+    <div class="row"><span class="ic" style="background:${mem(n).c}22">${avHTML(mem(n),22)}</span>
+      <span class="l"><b style="font-family:var(--mincho)">${ms.text}</b><span>${n}</span></span></div>`).join('')
+    + (p.note?`<div class="row"><span class="l"><span style="color:var(--txt-3)">※ ${p.note}</span></span></div>`:'');
+
+  const ex = document.getElementById('tExtra');
+  if(S.day===1){
+    ex.innerHTML = `<div class="card" style="margin-top:20px;border-color:#3B3222;background:linear-gradient(150deg,#1D1912,#14181B)">
+      <div class="eyebrow">今夜だけの質問</div>
+      <div style="font-family:var(--mincho);font-size:17px;margin-top:6px;line-height:1.6">
+        この旅で、一番写真を撮っている人は誰？</div>
+      <p class="cap" style="margin-top:8px">答えは本人には見せません。明日のMissionに使います。</p>
+      <button class="btn sec" style="margin-top:14px" onclick="openSheet('sheet-vote')">答える</button></div>`;
+  } else if(S.day===4){
+    ex.innerHTML = `<div class="card" style="margin-top:20px">
+      <div class="eyebrow">まもなく</div>
+      <div style="font-family:var(--mincho);font-size:17px;margin-top:6px">旅が終わると、ここからはAIの役割。</div>
+      <p class="cap" style="margin-top:8px">人が「瞬間」を見つけ、AIが「思い出」を編集します。</p>
+      <button class="btn sec" style="margin-top:14px" onclick="devEnd()">旅を終える</button></div>`;
+  } else ex.innerHTML = '';
 }
-function renderCam(){
-  const mm = state.day===2 ? {text:'今日は、ユウキを撮ってあげよう。'} : PLAN[state.day].me;
-  document.getElementById('camView').style.background = TONES[state.day % TONES.length];
-  document.getElementById('camCap').textContent = mm.text;
+
+/* ═══════════════════════════════════════════════════
+   Memory
+   ═══════════════════════════════════════════════════ */
+function renderMemory(){
+  const all = photos();
+  const cnt = m => all.filter(p=>p.m===m).length;
+  document.getElementById('mStats').innerHTML = [
+    ['写真',cnt('photo')],['動画',cnt('video')],['音声',cnt('audio')],['視点','4人']
+  ].map(([l,v])=>`<div class="card flat" style="flex:1;background:var(--ink-1);padding:12px 10px;text-align:center;border:1px solid var(--hair)">
+      <div class="num" style="font-family:var(--mincho);font-size:20px">${v}</div>
+      <div class="cap" style="margin-top:1px">${l}</div></div>`).join('');
+
+  const FIL = [['all','すべて'],['mine','自分が撮った'],['nat','NATURAL'],['other','写真以外']];
+  document.getElementById('mChips').innerHTML = FIL.map(([k,l])=>
+    `<button class="${S.filter===k?'on':''}" onclick="setFilter('${k}')">${l}</button>`).join('');
+
+  const list = all.filter(p=> S.filter==='all' ? true
+    : S.filter==='mine' ? p.by===S.name
+    : S.filter==='nat'  ? p.nat : p.m!=='photo');
+  const g = document.getElementById('mGrid');
+  g.innerHTML = list.length ? list.map((p,i)=>tileHTML(p,i)).join('')
+    : `<div style="grid-column:1/-1;padding:40px 20px;text-align:center" class="cap">まだありません</div>`;
+  window.__mlist = list;
+  requestAnimationFrame(()=>paintTiles(g, list));
 }
-function shoot(){
+function setFilter(k){ S.filter=k; renderMemory(); }
+
+function openPhoto(i){
+  const p = (window.__mlist||photos())[i]; if(!p) return;
+  const b = document.getElementById('photoBody');
+  b.innerHTML = `<div style="margin:0 -20px"><div id="phBig" style="aspect-ratio:4/5;position:relative;background:#000"></div></div>
+    <div style="padding-top:16px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${p.nat?'<span class="chip sea">NATURAL</span>':''}
+        <span class="chip">${window.ML_MEDIA_LABEL[p.m]}</span>
+        <span class="chip">${DAYNAME[p.d]}</span><span class="chip num">${p.tm}</span></div>
+      <div style="font-family:var(--mincho);font-size:19px;margin-top:14px">${p.t}</div>
+      <div class="group" style="margin-top:16px">
+        <div class="row"><span class="ic" style="background:transparent;padding:0">${avHTML(mem(p.by),26)}</span>
+          <span class="l"><b>${p.by} が撮影</b><span>${DAYNAME[p.d]} ${p.tm}</span></span></div>
+        <div class="row"><span class="l"><b style="font-family:var(--mincho);font-weight:500">${p.mis || missionOf(p)}</b>
+          <span>このMissionから生まれた一枚</span></span></div>
+      </div>
+      <p class="cap" style="margin-top:14px;line-height:1.85">
+        写っている人は誰でも、この一枚を消せます。右上の… から。</p>
+    </div>`;
+  const c = cvs(); c.style.cssText='width:100%;height:100%';
+  document.getElementById('phBig').append(c);
+  push('v-photo');
+  requestAnimationFrame(()=>paint(c, p.k, hash(p.t+p.by)));
+}
+const missionOf = p => (PLAN[p.d]?.others.find(o=>o[0]===p.by)?.[1]?.text) || PLAN[p.d]?.me.text || '—';
+
+/* ═══════════════════════════════════════════════════
+   カメラ
+   ═══════════════════════════════════════════════════ */
+const CAMKIND = {1:'bar',2:'sea',3:'sunset',4:'room'};
+let camTimer=null, camM='photo';
+function openCamera(){
+  document.getElementById('camMission').textContent = PLAN[S.day].me.text;
+  push('v-camera');
+  const cv = document.getElementById('camCanvas');
+  const tick = () => paint(cv, CAMKIND[S.day], hash('cam'+S.day)+Math.floor(Math.random()*7));
+  requestAnimationFrame(tick);
+  clearInterval(camTimer); camTimer = setInterval(tick, 900);
+}
+function closeCamera(){ clearInterval(camTimer); camTimer=null; pop(); }
+document.getElementById('camCanvas').addEventListener('click', e=>{
+  const box = document.getElementById('camFocus');
+  const r = e.currentTarget.getBoundingClientRect();
+  box.style.left = (e.clientX - r.left) + 'px';
+  box.style.top  = (e.clientY - r.top)  + 'px';
+  box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
+});
+function zoomPick(el){
+  document.querySelectorAll('.zoompills button').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+function camMode(m){ camM=m;
+  document.querySelectorAll('#camModes button').forEach(b=>b.classList.toggle('on', b.dataset.m===m)); }
+
+document.getElementById('shutterBtn').addEventListener('click', ()=>{
   const f = document.getElementById('flash');
   f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
-  const caps = {1:'全員',2:'ユウキ',3:'誰も見ていない',4:'何でもない今'};
-  state.photos.push({by:state.name, cap:caps[state.day], nat:state.day!==1, day:state.day, mine:true});
-  setTimeout(()=>go('gallery'), 480);
+  const caps = {1:'乾杯',2:'ユウキ',3:'誰も見ていない一枚',4:'何でもない今'};
+  const shot = {d:S.day, by:S.name, k:camM==='audio'?'wave':CAMKIND[S.day], t:caps[S.day],
+                m:camM, nat:S.day!==1, tm:nowHM(), mine:true};
+  S.shots.push(shot); S.unseen++; badge();
+  flyToTab(shot);
+  setTimeout(()=>{ closeCamera(); toast('Memoryに追加しました');
+    renderToday(); }, 420);
+});
+function flyToTab(shot){
+  try{
+    const from = document.getElementById('shutterBtn').getBoundingClientRect();
+    const to   = document.querySelector('.tabbar button[data-t="memory"]').getBoundingClientRect();
+    const app  = document.getElementById('app').getBoundingClientRect();
+    const el = document.createElement('div'); el.className='flyer';
+    el.style.cssText = `left:${from.left-app.left+7}px;top:${from.top-app.top+7}px;width:60px;height:60px`;
+    const c = cvs(); c.style.cssText='width:60px;height:60px'; el.append(c);
+    document.getElementById('app').append(el);
+    paint(c, shot.k, hash(shot.t+shot.by));
+    requestAnimationFrame(()=>{
+      el.style.transform = `translate(${to.left-from.left+8}px,${to.top-from.top+10}px) scale(.28)`;
+      el.style.opacity = '.2';
+    });
+    setTimeout(()=>el.remove(), 700);
+  }catch(e){}
 }
-function renderGrid(){
-  const all = [...SEED, ...state.photos];
-  document.getElementById('galSub').textContent =
-    `${all.length}枚 ／ 4人の視点 ／ ${DAYNAME[state.day]}まで`;
-  document.getElementById('grid').innerHTML = all.map((p,i)=>{
-    const m = MEMBERS.find(x=>x.n===p.by) || MEMBERS[0];
-    return `<div class="ph" style="background:${TONES[i%TONES.length]};${p.mine?'outline:1px solid var(--amber)':''}">
-      ${p.nat?'<span class="badge">NATURAL</span>':''}
-      <span class="who" style="color:${m.c}">${p.by}</span>${p.cap}</div>`;
-  }).join('');
-}
-function renderVote(){
-  document.getElementById('voteOpts').innerHTML = MEMBERS.map(m=>
-    `<button class="opt ${m.n==='ユウキ'?'sel':''}" onclick="pick(this)">${av(m)}<span>${m.n}</span></button>`).join('');
-}
-function pick(el){
-  document.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel'));
-  el.classList.add('sel');
-}
-function generate(){
-  go('gen');
-  const logs = document.querySelectorAll('#genlog div');
-  logs.forEach(l=>l.classList.remove('on'));
-  document.getElementById('bar').style.width='0';
-  logs.forEach((l,i)=>setTimeout(()=>{
-    l.classList.add('on');
-    document.getElementById('bar').style.width = ((i+1)/logs.length*100)+'%';
-  }, 420*(i+1)));
-  setTimeout(()=>go('movie'), 420*logs.length + 900);
-}
-function reset(){ state={day:1,name:'カズ',photos:[],voted:'ユウキ'}; MEMBERS[0].n='カズ'; go('qr'); }
+const nowHM = () => { const d=new Date();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
 
-/* ── サイドのフローマップ ─────────────── */
-document.getElementById('steps').innerHTML = STEPS.map(([id,t,d],i)=>
-  `<button class="step ${i===0?'on':''}" data-id="${id}" onclick="go('${id}')">
-     <span class="no">${String(i+1).padStart(2,'0')}</span>
-     <span><span class="tt">${t}</span><span class="dd">${d}</span></span>
-   </button>`).join('');
+/* ═══════════════════════════════════════════════════
+   ムービー
+   ═══════════════════════════════════════════════════ */
+function renderMovie(){
+  const b = document.getElementById('movieBody');
+  if(S.phase==='trip'){
+    b.innerHTML = `
+      <div class="lockcard" style="margin-top:14px">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--txt-3)" stroke-width="1.5" style="margin:0 auto 12px"><rect x="4" y="10.5" width="16" height="10.5" rx="3"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+        <div style="font-family:var(--mincho);font-size:18px">旅が終わると、<br>ここに届きます。</div>
+        <p class="cap" style="margin-top:10px;line-height:1.9">
+          すぐには見られません。<br>「後日届く」ところまでが、この体験です。</p>
+      </div>
+      <div class="sechead"><h2>いま集まっているもの</h2></div>
+      <div class="group">
+        <div class="row"><span class="l"><b>写真・動画・音声</b><span>4人ぶん</span></span>
+          <span class="v num">${photos().length}件</span></div>
+        <div class="row"><span class="l"><b>NATURAL な一枚</b><span>誰もカメラを見ていない</span></span>
+          <span class="v num">${photos().filter(p=>p.nat).length}件</span></div>
+        <div class="row"><span class="l"><b>完成予定</b><span>最終日の翌日</span></span>
+          <span class="v">8月29日</span></div>
+      </div>
+      <div class="sechead"><h2>先に届いている短編</h2><span class="cap">無料</span></div>
+      <div class="stack" id="spots"></div>
+      <p class="cap" style="margin-top:14px;line-height:1.9">
+        スポットごとの短いMemory Movieは無料です。<br>旅全体を一本にまとめたものだけが、あとで有料になります。</p>`;
+    const spots = [['BAR 桜坂GARAGE の夜','0:42','bar'],['海に行った日','0:38','sea']];
+    document.getElementById('spots').innerHTML = spots.map(([t,d],i)=>`
+      <button class="row" style="border:1px solid var(--hair);border-radius:14px;background:var(--ink-1)"
+        onclick="toast('短編Memory Movieを再生します')">
+        <span class="ic" style="width:54px;height:40px;border-radius:8px;overflow:hidden;padding:0" id="sp${i}"></span>
+        <span class="l"><b>${t}</b><span>${d} ／ このスポットの分だけ</span></span>
+        <svg class="chev" width="8" height="13" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l6 6-6 6"/></svg>
+      </button>`).join('');
+    requestAnimationFrame(()=>spots.forEach(([t,d,k],i)=>{
+      const el=document.getElementById('sp'+i); if(!el) return;
+      const c=cvs(); c.style.cssText='width:100%;height:100%'; el.append(c); paint(c,k,hash(t)); }));
 
-/* ── 飾りのQR（読み取り対象） ─────────── */
-(function drawQR(){
-  const N=21, cell=100/N, seed=[[0,0],[0,1],[1,0],[1,1]];
-  let r=[];
-  const fin=(ox,oy)=>{for(let y=0;y<7;y++)for(let x=0;x<7;x++){
-    const on = x===0||x===6||y===0||y===6||(x>1&&x<5&&y>1&&y<5);
-    if(on) r.push([ox+x,oy+y]);}};
-  fin(0,0); fin(N-7,0); fin(0,N-7);
-  let s=7;
-  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-    const inFin=(x<8&&y<8)||(x>N-9&&y<8)||(x<8&&y>N-9);
-    if(inFin) continue;
-    s=(s*1103515245+12345)&0x7fffffff;
-    if((s>>16)%2) r.push([x,y]);
+  } else if(S.phase==='gen'){
+    b.innerHTML = `
+      <div style="padding:40px 0 0">
+        <div class="eyebrow">編集中</div>
+        <div class="ltitle" style="margin-top:6px">あなたたちの沖縄を、<br>一本にまとめています。</div>
+        <div class="prog"><i id="genBar"></i></div>
+        <div class="genlog" id="genLog">
+          ${['写真・動画・音声を時系列に並べています',
+             '誰もカメラを見ていない一枚を選んでいます',
+             '笑い声のある10秒を抜き出しています',
+             'ユウキが写っている写真を集めています',
+             '4人それぞれの視点をつないでいます',
+             '音楽と字幕をつけています'
+            ].map(t=>`<div><span class="dot"></span>${t}</div>`).join('')}
+        </div>
+        <p class="cap" style="margin-top:26px;line-height:1.9">
+          実際には数時間〜翌日かかります。<br>その間に、旅は思い出に変わります。</p>
+      </div>`;
+    runGen();
+
+  } else {
+    const nat = photos().filter(p=>p.nat).length;
+    b.innerHTML = `
+      <div class="poster" style="margin-top:12px" id="poster">
+        <div class="veil"></div>
+        <button class="playbtn" onclick="playMovie()" aria-label="再生">
+          <svg width="20" height="22" viewBox="0 0 20 22" fill="#fff"><path d="M3 1.6 18 11 3 20.4z"/></svg></button>
+        <div class="in"><div class="tt">あなたたちの沖縄</div>
+          <div class="dt num">2026.08.25 – 08.28 ／ 3分12秒</div></div>
+      </div>
+      <div class="stack" style="margin-top:14px">
+        <button class="btn" onclick="playMovie()">再生する</button>
+        ${S.bought
+          ? `<div class="card" style="text-align:center"><span class="chip amber">購入済み</span>
+             <p class="cap" style="margin-top:8px">4人ぶんの視点別バージョンと元データも見られます。</p></div>`
+          : `<button class="btn line" onclick="openSheet('sheet-pay')">4日間を一本の映画にする ¥1,800</button>`}
+      </div>
+      <div class="sechead"><h2>この映画に入った瞬間</h2><span class="cap">${nat}件のNATURAL</span></div>
+      <div id="chapters"></div>
+      <div class="sechead"><h2>4人の反応</h2></div>
+      <div>
+        <div class="msg"><div>${avHTML(mem('ケント'),26)}</div><div><div class="nm">ケント</div><div class="bub">これいつ撮った？？</div></div></div>
+        <div class="msg me"><div class="bub">2日目。全然気づいてなかったでしょ</div></div>
+        <div class="msg"><div>${avHTML(mem('ユウキ'),26)}</div><div><div class="nm">ユウキ</div><div class="bub">俺の写真こんなにあるの初めてなんだけど</div></div></div>
+      </div>
+      <div class="card" style="margin-top:18px;border-color:#3B3222">
+        <div class="eyebrow">この反応が、合否そのもの</div>
+        <p class="sub" style="margin-top:6px;font-size:12.5px">
+          「これいつ撮った？」が出たなら、このサービスがあったから生まれた写真がある、ということです。</p>
+      </div>`;
+    requestAnimationFrame(()=>{
+      const po=document.getElementById('poster');
+      if(po){ const c=cvs(); c.style.cssText='width:100%;height:100%'; po.prepend(c); paint(c,'sunset',4242); }
+      const ch=document.getElementById('chapters');
+      if(ch){ ch.innerHTML = CHAPTERS.map(([t,n,s],i)=>`
+        <div class="chapter"><span class="th" id="ch${i}"></span>
+          <span class="tx"><b>${n}</b><span>${s}</span></span><span class="t num">${t}</span></div>`).join('');
+        CHAPTERS.forEach(([t,n,s,k],i)=>{ const el=document.getElementById('ch'+i);
+          const c=cvs(); c.style.cssText='width:100%;height:100%'; el.append(c); paint(c,k,hash(n)); });
+      }
+    });
   }
-  document.getElementById('qrbox').innerHTML =
+}
+function runGen(){
+  const logs = [...document.querySelectorAll('#genLog div')];
+  const bar = document.getElementById('genBar');
+  logs.forEach((l,i)=>setTimeout(()=>{
+    l.classList.add('on'); if(bar) bar.style.width = ((i+1)/logs.length*100)+'%';
+  }, 500*(i+1)));
+  setTimeout(()=>{ if(S.phase!=='gen') return;
+    S.phase='ready'; S.unseen=0; badge();
+    renderMovie(); toast('Memory Movie が届きました', '🎞');
+  }, 500*logs.length + 1000);
+}
+
+/* プレイヤー */
+let playT=[];
+function playMovie(){
+  push('v-player');
+  const st = document.getElementById('pStage');
+  st.querySelectorAll('canvas').forEach(c=>c.remove());
+  const cans = CHAPTERS.map(([t,n,s,k])=>{ const c=cvs(); st.prepend(c); return c; });
+  requestAnimationFrame(()=>CHAPTERS.forEach(([t,n,s,k],i)=>paint(cans[i],k,hash(n))));
+  const cap = document.getElementById('pCap'), fill = document.getElementById('pFill'),
+        now = document.getElementById('pNow');
+  playT.forEach(clearTimeout); playT=[];
+  const step = 2200;
+  CHAPTERS.forEach(([t,n,s],i)=>{
+    playT.push(setTimeout(()=>{
+      cans.forEach((c,j)=>c.classList.toggle('on', j===i));
+      cap.textContent = n;
+      fill.style.transition = `width ${step}ms linear`;
+      fill.style.width = ((i+1)/CHAPTERS.length*100)+'%';
+      now.textContent = t;
+    }, step*i));
+  });
+  playT.push(setTimeout(()=>{ cap.textContent='あなたたちの沖縄が、完成しました。'; }, step*CHAPTERS.length));
+  playT.push(setTimeout(()=>{ stopPlayer(); if(!S.bought) openSheet('sheet-pay'); }, step*CHAPTERS.length+1800));
+}
+function stopPlayer(){
+  playT.forEach(clearTimeout); playT=[];
+  const f=document.getElementById('pFill'); f.style.transition='none'; f.style.width='0';
+  if(stack[stack.length-1]==='v-player') pop();
+}
+function buy(){ S.bought=true; closeSheet(); renderMovie(); toast('4人ぶんの視点別バージョンを作成中です'); }
+
+/* ═══════════════════════════════════════════════════
+   自分
+   ═══════════════════════════════════════════════════ */
+function renderMe(){
+  document.getElementById('meAv').style.background = S.color;
+  document.getElementById('meAv').textContent = S.name[0];
+  document.getElementById('meName').textContent = S.name;
+  document.getElementById('meNotif').innerHTML = NOTIFS.slice(0,2).map(n=>notifHTML(n)).join('');
+}
+const notifHTML = ([w,t,b]) => `
+  <div class="notif"><span class="ap">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#1A1408" stroke-width="1.7"><rect x="1.4" y="3.6" width="13.2" height="10" rx="2.4"/><circle cx="8" cy="8.6" r="2.6"/></svg></span>
+    <div style="flex:1"><div class="hd"><span>MEMORY LANE</span><span>${w}</span></div>
+      <div class="t">${t}</div><div class="b">${b}</div></div></div>`;
+
+/* ═══════════════════════════════════════════════════
+   投票・プライバシー
+   ═══════════════════════════════════════════════════ */
+let votePick = 'ユウキ';
+function renderVote(){
+  document.getElementById('voteList').innerHTML = MEMBERS.map(m=>`
+    <button class="row" onclick="votePick='${m.n}';renderVote()" style="${votePick===m.n?'background:var(--amber-w)':''}">
+      <span class="ic" style="background:transparent;padding:0">${avHTML(m,28)}</span>
+      <span class="l"><b>${m.n}</b></span>
+      ${votePick===m.n?'<svg width="15" height="12" viewBox="0 0 12 10" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M1 5l3.4 3.4L11 1.6"/></svg>':''}
+    </button>`).join('');
+}
+function submitVote(){ S.voted='ユウキ'; closeSheet(); setTimeout(()=>openSheet('sheet-voteres'), 340); }
+function renderPrivacy(){
+  const mine = photos().filter(p=>p.nat).slice(0,6);
+  const g = document.getElementById('privacyGrid');
+  g.innerHTML = mine.map((p,i)=>`<button class="tile" data-i="${i}" onclick="this.style.outline=this.style.outline?'':'2px solid var(--rose)';this.style.outlineOffset='-2px'"></button>`).join('');
+  requestAnimationFrame(()=>paintTiles(g, mine));
+}
+
+/* ═══════════════════════════════════════════════════
+   進行（プロトタイプ操作）
+   ═══════════════════════════════════════════════════ */
+function nextDay(){
+  if(S.day>=4){ devEnd(); return; }
+  S.day++; tab('today'); toast(`${DAYNAME[S.day]} になりました`);
+  devLabel();
+}
+function devAdvance(){
+  if(!S.onboarded){ openSheet('sheet-join'); return; }
+  if(S.phase!=='trip'){ tab('movie'); return; }
+  if(S.day===1){ openSheet('sheet-vote'); return; }
+  nextDay();
+}
+function devEnd(){
+  if(!S.onboarded) return;
+  S.phase='gen'; tab('movie'); devLabel();
+}
+function devLabel(){
+  const b = document.getElementById('devMain');
+  b.textContent = !S.onboarded ? 'QRを読む'
+    : S.phase!=='trip' ? 'ムービーを見る'
+    : S.day===1 ? '初日の夜へ' : `${DAYNAME[Math.min(S.day+1,4)]} へ`;
+}
+function resetAll(){
+  S = { day:1, name:'カズ', color:'#E9B466', phase:'trip', shots:[], filter:'all',
+        unseen:0, bought:false, voted:'ユウキ', onboarded:false };
+  MEMBERS[0].n='カズ'; MEMBERS[0].c='#E9B466';
+  closeSheet(); badge(); devLabel();
+  stack.forEach(s=>V(s).classList.remove('on','behind'));
+  stack=['v-scan']; V('v-scan').classList.add('on'); afterNav('v-scan');
+}
+function finishOnboard(){
+  S.name = (document.getElementById('nameInput').value||'あなた').trim().slice(0,8);
+  MEMBERS[0].n = S.name; MEMBERS[0].c = S.color;
+  S.onboarded = true; devLabel();
+  tab('today');
+  setTimeout(()=>toast('最初のMissionが届きました'), 500);
+}
+
+/* ═══════════════════════════════════════════════════
+   初期化
+   ═══════════════════════════════════════════════════ */
+(function initQR(){
+  const N=25, cell=100/N; let r=[], s=9;
+  const fin=(ox,oy)=>{for(let y=0;y<7;y++)for(let x=0;x<7;x++){
+    if(x===0||x===6||y===0||y===6||(x>1&&x<5&&y>1&&y<5)) r.push([ox+x,oy+y]); }};
+  fin(0,0); fin(N-7,0); fin(0,N-7);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    if((x<8&&y<8)||(x>N-9&&y<8)||(x<8&&y>N-9)) continue;
+    s=(s*1103515245+12345)&0x7fffffff; if((s>>16)%2) r.push([x,y]); }
+  document.getElementById('qrBtn').innerHTML =
     `<svg viewBox="0 0 100 100">${r.map(([x,y])=>
-      `<rect x="${(x*cell).toFixed(2)}" y="${(y*cell).toFixed(2)}" width="${cell.toFixed(2)}" height="${cell.toFixed(2)}" fill="#0A0B0D"/>`).join('')}</svg>`;
+      `<rect x="${(x*cell).toFixed(2)}" y="${(y*cell).toFixed(2)}" width="${cell.toFixed(2)}" height="${cell.toFixed(2)}" fill="#0B0D0F"/>`).join('')}</svg>`;
 })();
+document.getElementById('qrBtn').addEventListener('click', ()=>openSheet('sheet-join'));
 
-/* ── 時計 ─────────────────────────────── */
-setInterval(()=>{
-  const d=new Date();
-  document.getElementById('clock').textContent =
-    String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-},1000);
+document.getElementById('colorPick').innerHTML = ['#E9B466','#63A8B8','#D98878','#8FAE72','#B49BD8']
+  .map((c,i)=>`<button onclick="pickColor('${c}',this)" class="av" style="background:${c};width:38px;height:38px;
+    ${i===0?'outline:2px solid var(--txt);outline-offset:2px':''}"></button>`).join('');
+function pickColor(c, el){
+  S.color = c; MEMBERS[0].c = c;
+  document.querySelectorAll('#colorPick button').forEach(b=>b.style.outline='');
+  el.style.outline='2px solid var(--txt)'; el.style.outlineOffset='2px';
+}
 
-renderJoin(); renderVote(); renderHome();
+document.getElementById('joinMembers').innerHTML = MEMBERS.map(m=>
+  `<div class="member"><div class="ring">${avHTML(m,44)}</div><span class="n">${m.n}</span></div>`).join('');
+document.getElementById('peopleList').innerHTML = MEMBERS.map(m=>`
+  <div class="row"><span class="ic" style="background:transparent;padding:0">${avHTML(m,28)}</span>
+    <span class="l"><b>${m.n}${m.me?'（自分）':''}</b><span>${m.me?'このMemoryの参加者':'8月25日から参加'}</span></span></div>`).join('');
+document.getElementById('notifList').innerHTML = NOTIFS.map(n=>notifHTML(n)).join('');
+document.getElementById('payList').innerHTML = [
+  '4日間すべてを再編集した3〜5分の本編',
+  '4人それぞれの視点で切った、4バージョン',
+  '写真・動画・音声の元データを全部ダウンロード',
+  '1年後・5年後・10年後に、また届く'
+].map(t=>`<div class="ckline"><svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M1 5l3.4 3.4L11 1.6"/></svg>${t}</div>`).join('');
+renderVote();
+
+/* スキャン画面のカメラ映像（BARの店内） */
+requestAnimationFrame(()=>{
+  const sc = document.getElementById('scanCam');
+  paint(sc,'bar',7);
+  setInterval(()=>{ if(V('v-scan').classList.contains('on')) paint(sc,'bar',7+Math.floor(Math.random()*5)); }, 1100);
+});
+
+/* 時計 */
+const clk = () => { document.getElementById('clock').textContent = nowHM(); };
+clk(); setInterval(clk, 20000);
+
+['app','viewport'].forEach(id=>{
+  const el = document.getElementById(id);
+  el.addEventListener('scroll', ()=>{ el.scrollTop=0; el.scrollLeft=0; });
+});
+devLabel(); badge();
+window.addEventListener('resize', ()=>{ if(curTab==='memory') renderMemory(); });
 </script>
 </body>
 </html>
