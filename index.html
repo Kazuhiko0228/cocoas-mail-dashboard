@@ -19176,6 +19176,15 @@ function aiAskRemote(q,fallback){
   },40000);
   API.call('POST','/ai/ask',{kind:'相談',q:sent})
     .then(function(j){
+      /* ★サーバ側でも、いのちに関わる問いは止めている（画面の関所を抜けた分の最後の受け）。
+         止められたときは、AIの答えを待たずに園の手順書へ戻す。 */
+      if(j&&j.code==='urgent'){
+        if(!finish())return;
+        aiLog('AI相談（いのちに関わるため止めた）','【問い】'+sent,'');
+        aiPush('bot',String(j.error||'いのちに関わるおそれのあるご相談です。すぐに人を呼び、迷ったら119番してください。'));
+        aiRender(fallback);
+        return;
+      }
       var t=(j&&j.text)?String(j.text).trim():'';
       if(!t)throw new Error('AIからの返事が空でした');
       if(!finish())return;
@@ -19189,7 +19198,11 @@ function aiAskRemote(q,fallback){
       var m=(e&&e.message)||'通信に失敗しました';
       /* 聞けなかったことも残す。園から見て「無かったこと」にしない。 */
       aiLog('AI相談（つながらず）','【問い】'+sent+'\n【理由】'+m,'');
-      aiPush('bot','AIには聞けませんでした（'+aiEsc(m)+'）。これまでどおり、園の手順書からお答えします。');
+      /* ★1日の上限に達したときは、サーバがその文をそのまま返してくる。
+         「聞けませんでした（…）」で包むと理由がぼやけるので、そのまま出す。
+         待っても今日は直らないことが伝わらないと、先生が何度も押すことになる。 */
+      if(/上限|本日はお休み/.test(m)) aiPush('bot',aiEsc(m));
+      else aiPush('bot','AIには聞けませんでした（'+aiEsc(m)+'）。これまでどおり、園の手順書からお答えします。');
       aiRender(fallback);
     });
 }
