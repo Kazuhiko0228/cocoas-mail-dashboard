@@ -436,7 +436,8 @@ function tenantHTML(){
   var sts=['見込み','商談中','モニター','契約中','解約予定','解約済'];
   return '<button class="back" id="bk">‹ 園の一覧にもどる</button>'
     +'<h2>'+esc(d.tenant.name)+'</h2>'
-    +'<div class="lead">'+esc(d.tenant.code)+'　'+statusPill(c.status)+'　'+planTag(c.plan)+'</div>'
+    +'<div class="lead">'+esc(d.tenant.code)+'　'+statusPill(c.status)+'　'+planTag(c.plan)
+      +(d.tenant.active===false?'　<span class="pill" style="background:#FBEBEB;color:#9C3535;border:1px solid #EDCDCD;">利用停止中</span>':'')+'</div>'
 
     +'<div class="tiles">'
     +tile('在籍園児',d.seats,'名','いまの帳簿から')
@@ -488,6 +489,21 @@ function tenantHTML(){
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
     +'初期パスワードは、初回ログインのときに園の方が必ず変更します。'
     +'同じログインIDがすでにあるときは作りません（いま使っている方のパスワードが変わらないようにするため）。</div>'
+    +'</div>'
+
+    +'<div class="card"><h3>この園の利用</h3>'
+    +(d.tenant.active===false
+      ? '<div class="note">いまこの園は<b>利用停止中</b>です。職員も保護者もログインできません。'
+        +'記録は消していないので、再開すればそのまま使えます。</div>'
+      : '<div class="note">いまこの園は<b>使える状態</b>です。'
+        +'契約を「解約済」にしても、それだけでは入口は閉じません。閉じるにはここで止めます。</div>')
+    +'<div class="row" style="margin-top:10px;">'
+    +'<button class="btn '+(d.tenant.active===false?'':'sec')+' sm" id="tn_act">'
+      +(d.tenant.active===false?'この園の利用を再開する':'この園の利用を止める')+'</button>'
+    +'<span class="msg" id="tn_m"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
+    +'止めても記録は消しません（5年保存のため）。解約した園から「記録を出したい」と言われたら、'
+    +'いったん再開して取り出していただき、また止めてください。</div>'
     +'</div>'
 
     +'<div class="card"><h3>契約</h3>'
@@ -860,6 +876,21 @@ function wire(){
         render();
       })
       .catch(function(e){say('ua_m',e.message);});
+  };
+
+  /* 園の利用を止める・再開する。押し間違いが重いので、必ず一度たずねる。 */
+  if($('tn_act'))$('tn_act').onclick=function(){
+    var now=!(DATA.one&&DATA.one.tenant&&DATA.one.tenant.active===false);  /* いま使える状態か */
+    var nm=(DATA.one&&DATA.one.tenant&&DATA.one.tenant.name)||'この園';
+    var msg=now
+      ? nm+' の利用を止めます。\n\n職員も保護者も、この園にログインできなくなります。\n'
+        +'記録は消しません。あとから再開できます。\n\nよろしいですか？'
+      : nm+' の利用を再開します。\n\nまたログインできるようになります。\n\nよろしいですか？';
+    if(!confirm(msg))return;
+    say('tn_m',now?'停止中…':'再開中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/active',{active:!now})
+      .then(function(){render();})
+      .catch(function(e){say('tn_m',e.message);});
   };
 
   /* 書類 */
