@@ -14000,6 +14000,21 @@ function serverLogin(){
     .then(function(j){
       API.setToken(j.token);API.setTenant(j.tenant);
       sessionStorage.setItem('cocoas_serverUser',JSON.stringify(j.user));
+      /* この端末は、これ以降サーバで使う端末になる。デモのアカウントでは入れなくなる。 */
+      setServerBound();
+      /* 通信が切れた日に、この人だけは入れるようにする。
+         パスワードそのものは残さない（PBKDF2 で15万回かけた形だけ）。 */
+      try{
+        CRED.hash(pw,function(rec){
+          if(!rec)return;
+          var accs=staffAccounts(),hit=accs.filter(function(a){
+            return String(a.loginId).toLowerCase()===String(j.user.loginId).toLowerCase();})[0];
+          if(!hit){hit={id:Date.now(),loginId:j.user.loginId,name:j.user.name,role:j.user.role};accs.push(hit);}
+          hit.server=true;hit.pwh=rec;hit.name=j.user.name;hit.role=j.user.role;
+          delete hit.pw;delete hit.seed;
+          stSet('staffAccounts',accs);
+        });
+      }catch(e){}
       return SYNC.pull().then(function(){
         if(j.user.mustChange)setTimeout(function(){passwordChangeModal(true);},400);
         location.reload();
@@ -14008,6 +14023,24 @@ function serverLogin(){
     .catch(function(e){err.textContent=e.message;err.style.display='block';$('#slGo2').textContent='ログイン';$('#slGo2').disabled=false;});
 }
 function serverUser(){try{return JSON.parse(sessionStorage.getItem('cocoas_serverUser'));}catch(e){return null;}}
+/* ══ この端末は、サーバにつないで使う端末か ══════════════
+   ★通信が切れると API.enabled() が false になり、
+     デモの3アカウント（admin/admin・shiraga/shiraga・staff/staff）で入れてしまった。
+     しかもパスワードはログインIDと同じで、ログイン画面に書いてある。
+     WiFiを切る、開発者ツールで通信を1つ止める、それだけで管理者として入れる。
+     園のタブレットには同期した実データが残っているので、
+     置き忘れ・盗難のときにログインが意味をなさなくなる。
+
+   一度でもサーバへログインした端末は「サーバで使う端末」として印を付け、
+   そのあとは通信が切れても、デモのアカウントでは入れないようにする。
+   代わりに、その端末でログインした本人だけが、自分のIDとパスワードで入れる
+   （パスワードは PBKDF2 で15万回かけた形でだけ端末に残す。元に戻せない形）。 */
+function serverBound(){ try{ return localStorage.getItem('edugrow_serverBound')==='1'; }catch(e){ return false; } }
+function setServerBound(){ try{ localStorage.setItem('edugrow_serverBound','1'); }catch(e){} }
+/* 通信が切れたときに使える人の一覧（この端末でログインした人だけ） */
+function offlineAccounts(){
+  return staffAccounts().filter(function(a){ return a.server&&a.pwh; });
+}
 function passwordChangeModal(force){
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.innerHTML='<div class="modal" style="width:460px;"><h2>パスワードの変更</h2>'
@@ -14295,6 +14328,10 @@ function staffLoginBy(loginId,pw,cb){
   var a=arr.filter(function(x){return String(x.loginId).toLowerCase()===loginId;})[0];
   /* パスワードが空のままログインできてしまわないようにします。 */
   if(!a||!pw){cb(false);return;}
+  /* ★サーバで使う端末では、デモのアカウントを通さない。
+     画面に出さないだけだと、IDを手で打てば通ってしまう。
+     通してよいのは、この端末で実際にサーバへログインした人だけ。 */
+  if(serverBound()&&!a.server){cb(false);return;}
   function grant(){sessionStorage.setItem('cocoas_staffSession',a.id);cb(true);}
   if(a.pwh){CRED.verify(pw,a.pwh,function(ok){if(ok)grant();else cb(false);});return;}
   var old=(a.pw==null)?'':String(a.pw).trim();
@@ -14452,6 +14489,37 @@ function showStaffLogin(){
     $('#slLocal').onclick=function(){if(confirm('サーバに接続せず、この端末だけで使いますか？（入力した内容は他の端末と共有されません）')){API.setBase('');location.reload();}};
     return;
   }
+  /* ★サーバで使う端末が通信を失ったときに、デモのアカウントを出さない。
+     出すと、WiFiを切るだけで管理者として入れてしまう。
+     この端末でログインしたことがある人だけを出す。 */
+  if(serverBound()){
+    var offs=offlineAccounts();
+    ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2>'
+      +'<div class="sl-sub"><b>サーバにつながりません。</b><br>'
+      +(offs.length
+        ? 'この端末でログインしたことがある方は、いつものIDとパスワードで入れます。<br>書いた記録は、つながったときにまとめて送ります。'
+        : 'この端末では、まだどなたもログインしていません。<br>通信がつながってから、もう一度お試しください。')
+      +'</div>'
+      +(offs.length
+        ? offs.map(function(a){var col=roleColor(a.role);
+            return '<div class="sl-acc" data-slacc="'+esc(a.id)+'"><div>'
+              +'<div style="font-weight:600;font-size:13.5px;">'+esc(a.name)+'</div>'
+              +'<div style="font-size:11.5px;color:var(--tx3);">'+esc(a.loginId)+'</div></div>'
+              +'<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+esc(a.role)+'</span></div>';
+          }).join('')
+          +'<div class="sl-form"><div class="sl-err" id="slErr">IDまたはパスワードが違います</div>'
+          +'<input id="slId" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false">'
+          +'<input id="slPw" type="password" placeholder="パスワード">'
+          +'<button id="slGo">ログイン</button></div>'
+        : '')
+      +'<div style="margin-top:14px;text-align:center;">'
+      +'<button class="btn btn-sm" id="slRetry">つなぎ直す</button></div>'
+      +'</div>';
+    ov.style.display='flex';
+    if($('#slRetry'))$('#slRetry').onclick=function(){location.reload();};
+    wireLocalLogin(ov);
+    return;
+  }
   ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2><div class="sl-sub">EduGrow 保育管理システム（デモ）。<br>アカウントをタップ、またはID・パスワードでログインしてください。</div>'
     +staffAccounts().map(function(a){var col=roleColor(a.role);return '<div class="sl-acc" data-slacc="'+esc(a.id)+'"><div><div style="font-weight:600;font-size:13.5px;">'+esc(a.name)+'</div><div style="color:var(--tx2);font-size:11.5px;">ID: '+esc(a.loginId)+'</div></div><span class="rl" style="background:'+col.bg+';color:'+col.fg+';">'+esc(a.role)+'</span></div>';}).join('')
     +'<div class="sl-form"><div class="sl-err" id="slErr">IDまたはパスワードが違います</div><input id="slId" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false"><input id="slPw" type="password" placeholder="パスワード" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="sl-go" id="slGo">ログイン</button></div>'
@@ -14465,6 +14533,11 @@ function showStaffLogin(){
         return '<tr><td>'+esc(a.loginId)+'</td><td>'+esc(a.role)+'</td></tr>';}).join('')
     +'</table></div></div></div>';
   ov.style.display='flex';
+  wireLocalLogin(ov);
+}
+/* 端末の中のアカウントで入るときの配線。
+   デモの画面と、サーバにつながらないときの画面の、どちらからも使う。 */
+function wireLocalLogin(ov){
   /* タップしただけでログインできてしまうと、公開中の画面が実質ノーガードになる。
      ログインIDを埋めるだけにして、パスワードは入力してもらう。 */
   ov.querySelectorAll('[data-slacc]').forEach(function(b){b.onclick=function(){
@@ -14476,7 +14549,9 @@ function showStaffLogin(){
   var ht=document.getElementById('slHintT'),hb=document.getElementById('slHintB');
   if(ht)ht.onclick=function(){hb.classList.toggle('hide');
     ht.textContent=hb.classList.contains('hide')?'デモのログイン情報を見る':'デモのログイン情報を隠す';};
-  document.getElementById('slGo').onclick=function(){
+  var go=document.getElementById('slGo');
+  if(!go)return;   /* この端末でログインした人がまだ居ないときは、入力欄そのものが無い */
+  go.onclick=function(){
     var b=document.getElementById('slGo'),e=document.getElementById('slErr');
     e.style.display='none';b.disabled=true;b.textContent='確認中…';
     staffLoginBy(document.getElementById('slId').value,document.getElementById('slPw').value,function(ok){
