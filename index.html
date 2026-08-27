@@ -14934,6 +14934,33 @@ function trStatusFrom(r){
   if(r.result==='検討中')return t>=4?'🔥入園見込み':'体験後 検討中';
   return '体験後 検討中';
 }
+/* ══ 体験結果報告から、フォローアップのメールを作る ═══════════
+   安田さんのご依頼「体験結果報告のところからはフォローアップのメールで
+   メール送信できるように（ここだけはメール対応）」。
+   ひな形は自分で「どの状況に出すものか」（targets）を持っているので、
+   体験の結果から出た状況に合うものを選ぶ。手で選び直すこともできる。 */
+function trMailTpl(c,r){
+  var st=r?trStatusFrom(r):String((c&&c.status)||'');
+  /* 体験の直後は「お礼」。長く検討される方・連絡がつかない方には「後追い」。
+     入園が決まった方には「書類のご案内」。送信画面で選び直せる。 */
+  var order=(st==='長期見込み'||st==='連絡不通')?['followup','thanks','documents']
+           :(st==='入園 確定')?['documents','thanks','followup']
+           :['thanks','followup','documents','confirm','schedule'];
+  var all=mailTplAll();
+  for(var i=0;i<order.length;i++){
+    var t=all[order[i]];
+    if(t&&t.targets&&t.targets.indexOf(st)>=0)return order[i];
+  }
+  return 'thanks';
+}
+var trMailNext=false;   /* 「保存してメールを作る」で来たかどうか */
+/* メールを作れる相手かどうか。宛先が無いものに送信画面を出しても行き止まりになる。 */
+function trMailOk(c,r){
+  if(!c||!c.email)return false;
+  if(!r)return false;                                /* 報告を書く前は、後追いも何もない */
+  if(r.result==='見送り（NG）')return false;          /* 見送りに後追いは出さない */
+  return (typeof canView!=='function')||canView('compose');
+}
 /* 報告内容を連絡先・生徒台帳へ反映（一般が入力しても、見えない場所まで届く） */
 function trApply(id,r){
   var arr=DB.contacts,hit=false;
@@ -15021,11 +15048,21 @@ function renderTrial(){
             :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未報告</span>')+'</td>'
         +'<td class="row-sub">'+(nx.when?esc(nx.when):'<span class="muted">—</span>')+(nx.who?'<div class="row-sub" style="color:var(--tx3);">後追い：'+esc(nx.who)+'</div>':'')+(nx.what?'<div class="row-sub" style="color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;">'+esc(nx.what)+'</div>':'')+'</td>'
         +'<td class="row-sub">'+esc((r&&r.wishTime)||'—')+'</td>'
-        +'<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm'+(r?'':' btn-primary')+'" data-tredit="'+esc(c.id)+'">'+(r?'報告を見る・編集':'報告を書く')+'</button></td></tr>';}).join('')
+        +'<td style="text-align:right;white-space:nowrap;">'
+        +(trMailOk(c,r)?'<button class="btn btn-sm" data-trmail="'+esc(c.id)+'" style="margin-right:6px;">'+ic('mail')+'フォローアップメール</button>':'')
+        +'<button class="btn btn-sm'+(r?'':' btn-primary')+'" data-tredit="'+esc(c.id)+'">'+(r?'報告を見る・編集':'報告を書く')+'</button></td></tr>';}).join('')
       :'<tr><td colspan="7" class="empty">体験の予定がありません</td></tr>')
     +'</tbody></table></div></div>';
   $('#trNew').onclick=function(){trialModal(null);};
   s.querySelectorAll('[data-tredit]').forEach(function(b){b.onclick=function(){trialModal(+b.getAttribute('data-tredit'));};});
+  /* 個別メール送信へ。その保護者だけを選んだ状態で、合うひな形を開く。 */
+  s.querySelectorAll('[data-trmail]').forEach(function(b){b.onclick=function(){
+    var cid=+b.getAttribute('data-trmail');
+    var c=DB.contacts.filter(function(x){return x.id===cid;})[0];
+    if(!c)return;
+    if(!c.email){alert('この方のメールアドレスが入っていません。\n顧客リストで登録してからお使いください。');return;}
+    routeTo(['compose',trMailTpl(c,trGet(cid)),cid]);
+  };});
 }
 function trialModal(id){
   var isNew=!id,c=id?DB.contacts.filter(function(x){return x.id===id;})[0]:null;
@@ -15057,7 +15094,7 @@ function trialModal(id){
       +f('次回アクション','tr_next',(r.nextAct||r.hqAction||''),'例：8月の見学に再度お誘い')
       +'<div class="field"><label>次回アクション時期</label><input type="date" id="tr_nextd" value="'+esc((r.nextDate||(/^\d{4}-\d{2}-\d{2}$/.test(r.replyBy||'')?r.replyBy:'')))+'"></div></div>'
     +'<div class="muted" style="font-size:11.5px;margin-bottom:10px;">保存すると、顧客リストの進捗（体験結果と温度感から自動で決まります）・共有事項・結果報告・質問されたこと・次回アクションと、生徒台帳のお子様情報に反映されます。すでに書かれている欄は、そのまま残ります。</div>'
-    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;"><button class="btn" id="tr_cancel">キャンセル</button><button class="btn" id="tr_copy">'+ic('doc')+'報告用テンプレをコピー</button><button class="btn btn-primary" id="tr_save">'+ic('check')+'保存して反映</button></div></div>';
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;"><button class="btn" id="tr_cancel">キャンセル</button><button class="btn" id="tr_copy">'+ic('doc')+'報告用テンプレをコピー</button><button class="btn" id="tr_mail">'+ic('mail')+'保存してメールを作る</button><button class="btn btn-primary" id="tr_save">'+ic('check')+'保存して反映</button></div></div>';
   function read(){
     var o={trialDate:$('#tr_date').value,by:$('#tr_by').value,course:$('#tr_course').value,child:$('#tr_child').value,kana:$('#tr_kana').value,dob:$('#tr_dob').value,
       campus:$('#tr_campus').value,join:[],result:$('#tr_result').value,temp:$('#tr_temp').value,wishTime:$('#tr_wish').value,price:$('#tr_price').value,
@@ -15087,7 +15124,16 @@ function trialModal(id){
     }
     o.at=todayISO();trSave(tid,o);trApply(tid,o);
     m.remove();renderTrial();
+    /* 「保存してメールを作る」で来たときは、そのまま個別メール送信へ移る。
+       その保護者だけが選ばれ、体験の結果に合うひな形が開く。 */
+    if(trMailNext){
+      trMailNext=false;
+      var _c=DB.contacts.filter(function(x){return x.id===tid;})[0];
+      if(_c&&_c.email)routeTo(['compose',trMailTpl(_c,trGet(tid)),tid]);
+      else alert('メールアドレスが入っていないので、メールは作れませんでした。\n顧客リストで登録してからお使いください。');
+    }
   };
+  if($('#tr_mail'))$('#tr_mail').onclick=function(){trMailNext=true;$('#tr_save').click();};
 }
 
 /* ========== 生徒台帳（生徒情報を1か所に集約）＋自宅マップ ==========
