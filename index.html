@@ -1039,7 +1039,10 @@ function seed(){return [
 ];}
 
 var DB={
-  get contacts(){try{return JSON.parse(localStorage.getItem('cocoas_contacts'))||seed();}catch(e){return seed();}},
+  /* ★空のときに見本を返していたので、書き込みを止めても見本が出ていた。
+     サーバで使う端末では、空は空のまま返す（実在しない園児を出さない）。
+     mockAllowed はこの下で定義されるが、関数宣言なので読み込み時にはもう使える。 */
+  get contacts(){try{var v=JSON.parse(localStorage.getItem('cocoas_contacts'));if(v)return v;return mockAllowed()?seed():[];}catch(e){return mockAllowed()?seed():[];}},
   set contacts(v){localStorage.setItem('cocoas_contacts',JSON.stringify(v));},
   get settings(){try{return JSON.parse(localStorage.getItem('cocoas_settings'))||{};}catch(e){return{};}},
   set settings(v){localStorage.setItem('cocoas_settings',JSON.stringify(v));},
@@ -1047,7 +1050,7 @@ var DB={
   set history(v){localStorage.setItem('cocoas_history',JSON.stringify(v));},
   get curriculum(){try{return JSON.parse(localStorage.getItem('cocoas_curriculum'));}catch(e){return null;}},
   set curriculum(v){localStorage.setItem('cocoas_curriculum',JSON.stringify(v));},
-  get staff(){try{return JSON.parse(localStorage.getItem('cocoas_staff'))||staffSeed();}catch(e){return staffSeed();}},
+  get staff(){try{var v=JSON.parse(localStorage.getItem('cocoas_staff'));if(v)return v;return mockAllowed()?staffSeed():[];}catch(e){return mockAllowed()?staffSeed():[];}},
   set staff(v){localStorage.setItem('cocoas_staff',JSON.stringify(v));},
   get auditStatus(){try{return JSON.parse(localStorage.getItem('cocoas_audit'))||{};}catch(e){return {};}},
   set auditStatus(v){localStorage.setItem('cocoas_audit',JSON.stringify(v));}
@@ -1055,7 +1058,17 @@ var DB={
 /* モックデータの版数。コード側のサンプル（連絡先・職員）を更新したらここを上げると、
    各端末の古いデータが次回アクセス時に自動で最新へ入れ替わる（データ変更は開発側でのみ行う運用）。 */
 var MOCK_VERSION=2;
-if(!localStorage.getItem('cocoas_contacts')||stGetRaw('mockVersion')!==MOCK_VERSION){
+/* ★サーバにつないで使う端末では、見本を入れない。
+   入れると、こうなる：
+   ・サーバに園児が1人も居ない園（開設したばかりの園）では、
+     読み込みで上書きされないので見本が残る
+   ・そのあと何か1つ書き換えると、見本の園児5名がサーバへ送られる
+   ・園の一覧にも、登園シートにも、監査に出す紙にも、実在しない園児が並ぶ
+   商談のデモ（サーバにつないでいない端末）では、これまでどおり見本を入れる。 */
+function mockAllowed(){
+  try{ return localStorage.getItem('edugrow_serverBound')!=='1'; }catch(e){ return true; }
+}
+if(mockAllowed()&&(!localStorage.getItem('cocoas_contacts')||stGetRaw('mockVersion')!==MOCK_VERSION)){
   DB.contacts=seed();DB.staff=staffSeed();localStorage.setItem('cocoas_mockVersion',JSON.stringify(MOCK_VERSION));
 }
 function stGetRaw(k){try{return JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){return null;}}
@@ -15218,7 +15231,14 @@ function kidDocCount(kind){
   ks.forEach(function(c){if(kidDocHas(c.id,kind))n++;});
   return {done:n,total:ks.length};
 }
-function spSeed(){var s=stGet('studentProfiles',null);if(!s){stSet('studentProfiles',SP_SEED);}if(!stGet('mapConfig',null)){stSet('mapConfig',DEFAULT_MAP);}}
+/* ★見本の生徒情報（健康・アレルギー・住所）も、サーバで使う端末には入れない。
+   入れると、実在しない園児の健康情報が、監査に出す紙に並ぶ。
+   園の位置（地図）の既定は、見本というより初期値なので、こちらは入れる。 */
+function spSeed(){
+  var s=stGet('studentProfiles',null);
+  if(!s&&(typeof mockAllowed!=='function'||mockAllowed()))stSet('studentProfiles',SP_SEED);
+  if(!stGet('mapConfig',null)){stSet('mapConfig',DEFAULT_MAP);}
+}
 function spStore(){return stGet('studentProfiles',{});}
 function mapCfg(){return stGet('mapConfig',DEFAULT_MAP);}
 function spDefaults(c){var nm=(c.name||'').split(/[\s　]+/);return {klass:c.klass||'',grade:c.klass||'',lastName:nm[0]||'',firstName:childName(c),dob:c.dob||'',joinDate:c.admissionDate||'',schoolMail:c.email||'',mName:c.name||'',mTel:c.phone||'',mMail:c.email||'',history:'無',hospital:'無',febrile:'無',respiratory:'無'};}
