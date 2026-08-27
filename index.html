@@ -13802,7 +13802,11 @@ var API_BASE_DEFAULT='https://cocoas-api-production.up.railway.app';
       ③ 最初の園と管理者を作る
    false のあいだは、これまでどおり端末の中だけで動く（保存もこの端末の中だけ）。
    なので、画面に「裏で保存されます」とは書かない。嘘になるため。 */
-var API_LIVE=false;
+/* サーバの準備ができたので開けた（2026-08-27）。
+   ①コードの反映 ②Railwayの変数 ③最初の園と管理者 の3つが済んでいる。
+   つないでいない端末・ログインしていない端末では、これまでどおり
+   端末の中だけで動く（API.online() が false になるため）。 */
+var API_LIVE=true;
 /* サーバから返事があったかどうか。
    札を true にしたあとでも、サーバが止まっているときは端末の中だけで動かすための備え。
    前回たしかめた結果を控えておき、次に開いたときに効かせる
@@ -19444,8 +19448,20 @@ function apiHealthCheck(){
   if(!API_LIVE){mark(false);return;}
   if(!base){mark(false);return;}
   try{
+    /* ★控えを書くだけで、いま動いている画面の API_ALIVE を直していなかった。
+       そのため、はじめて開いた端末では必ず「つながっていない」扱いになり、
+       もう一度読み込むまでサーバを使えなかった。その場でも効かせる。 */
     fetch(base+'/health').then(function(r){return r.json();})
-      .then(function(j){mark(!!(j&&j.ok));})
+      .then(function(j){
+        var ok=!!(j&&j.ok);
+        mark(ok);
+        if(ok&&!API_ALIVE){
+          API_ALIVE=true;
+          /* すでに描き終わった画面があれば、つながった前提で描き直す
+             （「AIにつながっていません」の札を出したままにしないため） */
+          try{if(typeof page!=='undefined'&&page)go(page);}catch(e){}
+        }
+      })
       .catch(function(){mark(false);});
   }catch(e){mark(false);}
 }
