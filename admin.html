@@ -466,6 +466,30 @@ function tenantHTML(){
       +'</div>':'')
     +'</div>'
 
+    /* ★園を作っても、その園の職員アカウントを作る口は「園の管理者としてログイン済み」を
+       求めるので、最初のひとりが永久に作れなかった。運営がここで作る。 */
+    +'<div class="card"><h3>園のログインアカウント</h3>'
+    +(d.staff.length
+      ? '<div class="lines">'+d.staff.map(function(u){
+          return '<div><span class="l">'+esc(u.name||'')+'（'+esc(u.login_id)+'）'
+            +'<span class="tag">'+esc(u.role||'')+'</span></span>'
+            +'<span class="y">'+(u.last_login_at?('最終ログイン '+String(u.last_login_at).slice(0,10)):'未ログイン')+'</span></div>';
+        }).join('')+'</div>'
+      : '<div class="note">この園には、まだログインできる人がいません。'
+        +'下から最初の管理者を作ってください。</div>')
+    +'<div class="grid3" style="margin-top:11px;">'
+    +'<label>ログインID<input id="ua_id" placeholder="admin"></label>'
+    +'<label>お名前<input id="ua_nm" placeholder="園長"></label>'
+    +'<label>初期パスワード<input id="ua_pw" placeholder="8文字以上"></label>'
+    +'</div>'
+    +'<div class="row" style="margin-top:10px;">'
+    +'<button class="btn sec sm" id="ua_go">'+(d.staff.length?'管理者を追加する':'最初の管理者を作る')+'</button>'
+    +'<span class="msg" id="ua_m"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
+    +'初期パスワードは、初回ログインのときに園の方が必ず変更します。'
+    +'同じログインIDがすでにあるときは作りません（いま使っている方のパスワードが変わらないようにするため）。</div>'
+    +'</div>'
+
     +'<div class="card"><h3>契約</h3>'
     +'<div class="grid3">'
     +'<div class="f"><label>プラン</label><select id="c_plan">'
@@ -818,6 +842,24 @@ function wire(){
     say('cm','記録中…',true);
     API.call('POST','/admin/tenants/'+openId+'/seats',{})
       .then(function(j){render();}).catch(function(e){say('cm',e.message);});
+  };
+  /* 園の最初の管理者を作る。作ったあと、園へ伝える文言をそのまま出す。 */
+  if($('ua_go'))$('ua_go').onclick=function(){
+    /* ここは上の契約フォームとは別のスコープなので、値は素直に取る */
+    function val(i){var e=$(i);return e?String(e.value||'').trim():'';}
+    var id=val('ua_id'),nm=val('ua_nm'),pw=val('ua_pw');
+    if(!id){say('ua_m','ログインIDを入れてください');return;}
+    if(pw.length<8){say('ua_m','パスワードは8文字以上にしてください');return;}
+    say('ua_m','作成中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/admin',{loginId:id,name:nm,password:pw})
+      .then(function(j){
+        /* パスワードは返ってこないので、いま入れた値をその場で見せる。
+           画面を作り直すと消えるため、先に控えていただく。 */
+        alert('作成しました。\n\n園コード： '+j.tenantCode+'\nログインID： '+j.user.login_id
+          +'\n初期パスワード： '+pw+'\n\nこの3つを園の方へお伝えください。\n初回ログインでパスワードの変更を求めます。');
+        render();
+      })
+      .catch(function(e){say('ua_m',e.message);});
   };
 
   /* 書類 */
