@@ -7608,7 +7608,7 @@ function renderContacts(){
         else if(c.kind==='withdrawn')badge='<span class="pill st-退園">退園・'+esc(c.klass||'')+'</span>'+(c.dob?'<div class="row-sub" style="margin-top:4px;">'+ageClassOf(c)+'</div>':'');
         else{
           var chase=c.chase||{},chaseList=[];
-          if(chase.ng)chaseList.push('見込み追いNG');if(chase.honbu)chaseList.push('本部');if(chase.mg)chaseList.push('MG＋本部');
+          if(chase.ng)chaseList.push('後追いNG');if(chase.honbu)chaseList.push('本部');if(chase.mg)chaseList.push('MG＋本部');
           badge=statusPill(c.status)+'<div class="row-sub" style="margin-top:4px;">'+(c.wishKlass?c.wishKlass+'希望':'')+(c.source?' ・ '+c.source:'')+(c.trialBy?' ・ 担当'+c.trialBy:'')+'</div>'
             +(c.concerns?'<div style="margin-top:5px;display:inline-flex;align-items:flex-start;gap:5px;background:#E6F1FB;border:1px solid #C3DCF5;color:#123E6B;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>共有</b>'+esc(c.concerns)+'</div>':'')
             +((chaseList.length||c.chaseNote)?'<div style="margin-top:4px;display:inline-flex;align-items:flex-start;gap:5px;background:#E6F1FB;border:1px solid #C3DCF5;color:#123E6B;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>追い状況</b>'+esc([chaseList.join('・'),c.chaseNote].filter(Boolean).join(' ／ '))+'</div>':'');
@@ -7650,7 +7650,7 @@ function renderContacts(){
   });});
   /* 「手入力のまま」の札を消す。前に手で入れていた額を捨てて、自動計算に戻す。 */
   s.querySelectorAll('[data-feeclear]').forEach(function(b){b.addEventListener('click',function(){
-    if(!confirm('手で入れた金額を消します。\n\nこのあとは、料金設定からの自動計算になります。\n料金設定がまだ空のときは 0円 と出ます。\n\nよろしいですか？'))return;
+    if(!confirm('手で入れた金額を消します。\n\nこのあとは、料金設定からの通常料金になります。\n料金設定がまだ空のときは 0円 と出ます。\n\nよろしいですか？'))return;
     var _fid=+b.getAttribute('data-feeclear');
     var _arr=DB.contacts,_fc=_arr.filter(function(x){return x.id===_fid;})[0];
     if(!_fc)return;
@@ -7975,12 +7975,15 @@ function contactModal(id){
       '<div class="grid" style="grid-template-columns:1.4fr 1fr 1fr;"><div class="field"><label>進捗フェーズ（温度感）</label><select id="f_status">'+stOpts+'</select></div><div class="field"><label>体験日</label><input type="date" id="f_date" value="'+esc((c.date||''))+'"></div><div class="field"><label>体験時刻</label><input id="f_ttime" value="'+(c.trialTime||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="10:00"></div></div>'+
       '<div class="field"><label>結果報告</label><textarea id="f_report" rows="3" placeholder="体験当日の結果や、お子様のご様子をそのまま書いてください">'+esc((c.report||''))+'</textarea></div>'+
       '<div class="field"><label>質問されたこと</label><textarea id="f_qs" rows="3" placeholder="保護者から聞かれたことを、箇条書きで書いてください">'+esc((c.questions||''))+'</textarea></div>'+
-      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>次回アクション日</label><input type="date" id="f_next" value="'+esc((c.nextAction||''))+'"></div><div class="field"><label>アクション方法</label><select id="f_nmethod">'+['','メール','電話','対面','LINE'].map(function(o){return '<option'+((c.nextMethod||'')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div><div class="field"><label>担当</label><input id="f_by" value="'+(c.trialBy||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>'+
+      /* ★Remiさんのご指摘（2026-07-27）で、「次回アクション」と「後追い担当」を
+         別の見出しに分けた。マネージャーが後追いすることもあるため。 */
+      '<div id="leadNext" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">次回アクション</label>'+
+      '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>次回アクション日</label><input type="date" id="f_next" value="'+esc((c.nextAction||''))+'"></div><div class="field"><label>アクション方法</label><select id="f_nmethod">'+['','メール','電話','対面','LINE'].map(function(o){return '<option'+((c.nextMethod||'')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div><div class="field"><label>担当</label><input id="f_by" value="'+(c.trialBy||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div></div>'+
 
       '<div class="field"><label>共有事項</label><textarea id="f_concerns" rows="2" placeholder="例：送迎時間・料金・英語レベルなど、園内で共有しておくこと">'+esc((c.concerns||''))+'</textarea></div>'+
-      '<div id="leadPost" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">見込み追い（体験後フォロー）</label><div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">'+
+      '<div id="leadPost" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">後追い担当</label><div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">'+
         [['f_cng','NG',(c.chase&&c.chase.ng)],['f_chonbu','本部対応',(c.chase&&c.chase.honbu)],['f_cmg','MG対応',(c.chase&&c.chase.mg)]].map(function(t){return '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="'+t[0]+'" style="width:auto;"'+(t[2]?' checked':'')+'>'+t[1]+'</label>';}).join('')+'</div>'+
-        '<div class="field"><label>本部見込み追い状況</label><textarea id="f_cnote" rows="2">'+esc((c.chaseNote||''))+'</textarea></div></div>'+
+        '<div class="field"><label>後追いの状況</label><textarea id="f_cnote" rows="2">'+esc((c.chaseNote||''))+'</textarea></div></div>'+
       '<div id="leadConfirm" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">入園確定後の対応</label><div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>入園説明会日</label><input type="date" id="f_brief" value="'+esc((c.briefingDate||''))+'"></div><div class="field"><label>請求書状況</label><select id="f_inv">'+invOpts+'</select></div><div class="field"><label>入園初日</label><input type="date" id="f_first" value="'+esc((c.firstDay||''))+'"></div></div></div>'+
       (_fromLead?'<div id="leadToEnroll" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;"><label style="font-weight:500;color:var(--tx);margin-bottom:6px;display:block;">入園が決まったら</label><button type="button" class="btn" id="f_toEnroll">在園児に移す</button><div class="muted" style="font-size:11.5px;margin-top:6px;">押すと、クラス・入園日・通園曜日の欄が出ます。入れてから「保存」を押してください。保存すると、この方は顧客リストから「連絡先」に移ります。</div></div>':'')+
     '</div>'+
@@ -8012,7 +8015,7 @@ function contactModal(id){
       try{_auto=enrMonthly(enrOf(c,_mk));}catch(e){_auto=0;}
       var _sp=feeSpecialOf(c);   /* 前に入れた額が残っている子に、そのことを伝えるため */
       return '<div style="background:#F7F9FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;line-height:1.9;">'
-        +'月額（自動計算・'+(+_mk.split('-')[1])+'月分）　<b style="font-size:15px;">'+esc(yen(_auto))+'</b>'
+        +'月額（通常料金・'+(+_mk.split('-')[1])+'月分）　<b style="font-size:15px;">'+esc(yen(_auto))+'</b>'
         +(_sp!=null?'　<span class="tag" style="background:#FCEBEB;color:#A32D2D;">前に入れた特別料金 '+esc(yen(_sp))+' が残っています（もう使いません）</span>':'')
         +'<br>引落日　<b>'+esc(String(c.withdrawDay||27))+'</b> 日'
         +'<div class="muted" style="font-size:11.5px;margin-top:3px;">引落日は「請求書発行」の上の表で直します。</div>'
@@ -8874,7 +8877,7 @@ function curPrintDoc(){
       +'<td style="font-size:10px;">'+tx(sc.teacher)+'</td>'
       +'<td style="text-align:center;">'+(sc.daycare?'●':'')+'</td><td style="font-size:10px;">'+tx(sc.memo)+'</td></tr>';
   }
-  body+='<h2>日別スケジュール</h2><table style="table-layout:fixed;"><thead><tr><th style="width:44px;">日付</th><th style="width:28px;">曜</th><th>午前</th><th>午後</th><th style="width:70px;">担当</th><th style="width:40px;">託児</th><th style="width:110px;">メモ</th></tr></thead><tbody>'
+  body+='<h2>日別スケジュール</h2><table style="table-layout:fixed;"><thead><tr><th style="width:44px;">日付</th><th style="width:28px;">曜</th><th>活動内容（午前）</th><th>活動内容（午後）</th><th style="width:70px;">担当</th><th style="width:40px;">託児</th><th style="width:110px;">メモ</th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="7">この月の予定はまだ登録されていません。</td></tr>')+'</tbody></table>';
   printDoc('カリキュラム（'+y+'年'+mo+'月・'+cls+'）',body);
 }
@@ -9030,7 +9033,7 @@ function renderCurriculum(){
   {
     var dim=new Date(y,mo,0).getDate(),rows='';
     for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select><input data-samt="'+esc(date)+'" value="'+esc(v(sc.amText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select><input data-spmt="'+esc(date)+'" value="'+esc(v(sc.pmText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><input data-stea="'+esc(date)+'" value="'+esc(v(sc.teacher))+'" placeholder="担当"></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><button class="btn btn-sm'+(actRepGet(curClass,date).done==='やった'?' btn-primary':'')+'" data-rep="'+esc(date)+'">'+(actRepGet(curClass,date).done?esc(actRepGet(curClass,date).done):'記録')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
-    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>午前</th><th>午後</th><th style="width:110px;">担当</th><th style="width:76px;">日案</th><th style="width:88px;">実施</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>活動内容（午前）</th><th>活動内容（午後）</th><th style="width:110px;">担当</th><th style="width:76px;">日案</th><th style="width:88px;">実施</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   }
   /* 週ごとの欄はやめて、月間のねらいと日別を1つの画面にまとめた（2026-08-22）。
      いま書いてある週の内容は、上の curMigrateWeekToDay() で各日へ写してある。
@@ -16084,7 +16087,7 @@ function billContractHTML(kids,mk){
      0円のまま出すと「無料」と伝わってしまうので、先に出しておく。 */
   var priceSet=(function(){var t=0;Object.keys(P.plans||{}).forEach(function(k){t+=+P.plans[k]||0;});return t>0;})();
   var warn=priceSet?'':'<div class="card" style="margin-bottom:14px;border-color:#F3C9C9;"><h3 style="color:#A32D2D;">'+ic('alert')+'料金設定がまだ入っていません</h3>'
-    +'<div style="font-size:12.5px;line-height:1.9;">コースプランの単価が0円のため、自動計算は0円になります。'
+    +'<div style="font-size:12.5px;line-height:1.9;">コースプランの単価が0円のため、通常料金は0円になります。'
     +'「設定 → 料金設定」で単価を入れてください。<br>'
     +'入るまでは、連絡先の一覧とご案内メールには、前に手で入れていた月額をそのまま出します（0円で届かないようにするためです）。</div></div>';
   if(!kids.length)return warn;
@@ -16108,7 +16111,7 @@ function billContractHTML(kids,mk){
       +'<th style="width:96px;">延長保育<div class="enrunit">'+yen(P.extended)+'/回</div><div class="enrunit">曜日から</div></th>'
       +'<th style="width:72px;text-align:center;">教育関連費<div class="enrunit">'+yen(P.material)+'</div></th>'
       +'<th style="width:60px;">引落日</th>'
-      +'<th style="width:108px;text-align:right;">今月の請求額<div class="enrunit">'+(+mk.split('-')[1])+'月分・自動計算</div></th>'
+      +'<th style="width:108px;text-align:right;">今月の請求額<div class="enrunit">'+(+mk.split('-')[1])+'月分・通常料金</div></th>'
       +(canPay?'<th style="width:96px;">お支払い</th>':'')
       /* 明細は、請求書発行の一覧からこちらへ移した（2026-08-24 安田さんのご依頼）。
          金額を決める場所と、金額を直す窓を同じ表にそろえるため。 */
@@ -16182,7 +16185,7 @@ function billContractBind(s,kids,mk){
      連絡先の窓に「前に入れた特別料金が残っています（もう使いません）」と出る。 */
   /* 「手入力のまま」の札を消す。前に手で入れていた額を捨てて、自動計算に戻す。 */
   s.querySelectorAll('[data-feeclear]').forEach(function(b){b.onclick=function(){
-    if(!confirm('手で入れた金額を消します。\n\nこのあとは、料金設定からの自動計算になります。\n料金設定がまだ空のときは 0円 と出ます。\n\nよろしいですか？'))return;
+    if(!confirm('手で入れた金額を消します。\n\nこのあとは、料金設定からの通常料金になります。\n料金設定がまだ空のときは 0円 と出ます。\n\nよろしいですか？'))return;
     var fid=+b.getAttribute('data-feeclear');
     var farr=DB.contacts,fc=farr.filter(function(x){return x.id===fid;})[0];if(!fc)return;
     fc.feeAmount=0;fc.feeChecked=false;DB.contacts=farr;renderBilling();
@@ -16431,7 +16434,7 @@ function renderBilling(){
       +'押した日（'+fmt(todayISO())+'）が発行日になります。\n'
       +'未来WAの「マイページ → 保育料のご請求」に出ます。\n'
       +'※メールは送りません。'
-      +(_pz.length?'\n\n休園中の園児が'+_pz.length+'名ふくまれます（'+_pnm+'）。\n金額は自動計算のままです。手で決めるときは、上の表の「明細」から。':'')
+      +(_pz.length?'\n\n休園中の園児が'+_pz.length+'名ふくまれます（'+_pnm+'）。\n金額は通常料金のままです。手で決めるときは、上の表の「明細」から。':'')
       +'\nよろしいですか？'))return;
     t.forEach(function(x){invIssue(x.r);invSend(mk,x.c,x.r);});
     alert(t.length+'件を未来WAへ送りました（「送付済」にしました）。\n'
@@ -16462,7 +16465,7 @@ function invModal(mk,id){
       /* 休園中の子は、自動計算だと通っていた月と同じ額が出る。
          そのことと、どこで額を決めるかを、この窓の中で伝える。 */
       +(c.paused?'<div style="background:#F7F9FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.9;margin-bottom:10px;">'
-        +'この園児は休園中です。下の自動計算は、通っていた月と同じ額のままです。<br>'
+        +'この園児は休園中です。下の通常料金は、通っていた月と同じ額のままです。<br>'
         +'この月のプラン・教育関連費・給食・延長保育のかわりに、下の「この月だけの金額」に入れた額を使います。入園金・その他の項目・割引は、そのあとに足し引きします。</div>':'')
       +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
         +'<div class="field"><label>コースプラン</label><select id="im_plan">'+Object.keys(P.plans||{}).map(function(k){return '<option'+(k===r.plan?' selected':'')+'>'+k+'</option>';}).join('')+'</select></div>'
@@ -16474,7 +16477,7 @@ function invModal(mk,id){
         +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_mat" style="width:auto;"'+(r.material?' checked':'')+'>教育関連費</label>'
         +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" id="im_adm" style="width:auto;"'+(r.admission?' checked':'')+'>入園金（初回）</label></div>'
       +'<div class="field"><label>この月だけの金額</label>'
-        +'<input type="number" id="im_special" value="'+esc((r.special==null?'':r.special))+'" placeholder="空欄＝プラン・給食・延長保育から自動計算">'
+        +'<input type="number" id="im_special" value="'+esc((r.special==null?'':r.special))+'" placeholder="空欄＝プラン・給食・延長保育からの通常料金">'
         +'<div class="muted" style="font-size:11.5px;line-height:1.8;margin-top:4px;">'
         +'入っているときは、プラン・教育関連費・給食・延長保育のかわりに、この額ひとつで請求します（入園金・その他の項目・割引は別に足し引きします）。</div></div>'
       +'<div class="grid" style="grid-template-columns:1fr 2fr;">'
