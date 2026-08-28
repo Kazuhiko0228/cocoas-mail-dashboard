@@ -1795,6 +1795,11 @@ function nichiModal(cls,date){
       +'　※人数と日付は在籍から入れています</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
       +'<button class="btn btn-sm" id="niAI">'+ic('sparkles')+'AIで下書き</button>'
+      /* §13 「AIと活動を考える」で採用した活動を、この日案に入れる。
+         採用ずみのものがあるときだけ出す。押すまで書類は変わらない。 */
+      +((function(){var pd=(typeof aiActPendOf==='function')?aiActPendOf(cls):null;
+         return pd?'<button class="btn btn-sm btn-primary" id="niAct">'+ic('spark')
+           +'採用した活動を入れる（'+esc(pd.data.name)+'）</button>':'';})())
       +'<button class="btn btn-sm" id="niPrint">'+ic('printer')+'印刷</button>'
       +'<span style="flex:1;"></span>'
       +'<div style="display:flex;align-items:center;gap:6px;"><span class="muted" style="font-size:12px;">天気</span>'
@@ -1879,6 +1884,36 @@ function nichiModal(cls,date){
       env:NICHI.env.slice()};
   }
   function msg(t){var e=$('#niMsg');e.textContent=t;e.style.display=t?'':'none';}
+
+  /* ══ §13 採用した活動を、この日案に入れる ══════════════
+     ★先生がすでに書いてある欄は上書きしない。空の欄だけ入れる。
+       黙って書き換えると、書いた文が消えたことに気づけないため。
+       入れたあとは預かりを外す（同じものが何度も出ないように）。 */
+  if($('#niAct'))$('#niAct').onclick=function(){
+    var pd=aiActPendOf(cls); if(!pd){return;}
+    var x=pd.data,put=[],skip=[];
+    function set(id,label,val){
+      var e=$('#'+id); if(!e||!val)return;
+      if(String(e.value||'').replace(/^\s+|\s+$/g,'')){skip.push(label);return;}
+      e.value=val; put.push(label);
+    }
+    set('niKatsudo','主な活動',x.name+(x.summary?('\n'+x.summary):''));
+    set('niNerai','ねらい',x.aim||'');
+    set('niJunbi','準備・材料',
+      (x.materials||[]).join('\n')+((x.prep&&x.prep.length)?('\n【準備】'+x.prep.join(' / ')):''));
+    /* 一日の流れは、1行も書かれていないときだけ「進め方」から作る */
+    var written=NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length;
+    if(!written&&x.steps&&x.steps.length){
+      NICHI.rows=x.steps.map(function(t){return {t:'',c:t,h:'',src:'ai'};});
+      drawRows(); put.push('一日の流れ');
+    }else if(x.steps&&x.steps.length){skip.push('一日の流れ');}
+    /* 注意点は「環境構成」ではなく、先生に読んでいただく形で出す */
+    aiActPendSet(cls,null);
+    var e2=$('#niAct'); if(e2)e2.remove();
+    msg('入れました：'+(put.length?put.join('・'):'なし')
+      +(skip.length?('　／ すでに書かれていたので触っていません：'+skip.join('・')):'')
+      +((x.safe&&x.safe.length)?('　／ 注意点：'+x.safe.join(' / ')):''));
+  };
 
   $('#niAI').onclick=function(){
     var b=$('#niAI'); b.disabled=true; msg('下書きを作っています…');
@@ -5739,8 +5774,17 @@ function aiActPlaces(){
 }
 var AIACT={open:false,klass:'',step:'in',busy:false,ideas:[],err:'',
            back:null,detailOpen:false,rejected:[],
+           qlist:[],qi:0,qans:{},
            inp:{minutes:'おまかせ',place:'保育室',when:'今週',date:'',want:'おまかせ',free:''},
            det:{}};
+
+/* ══ 採用したものを、書類に入れるまで預かる（§13）══════════
+   採用したその場で書類を書き換えない。書類は先生が開いたときに、
+   その先生が押してから入れる。黙って書き換えると、
+   先生が書いた文が消えたことに気づけないため。 */
+function aiActPend(){return stGet('aiActPend',{});}
+function aiActPendOf(k){var a=aiActPend();return a[k]||null;}
+function aiActPendSet(k,v){var a=aiActPend();if(v)a[k]=v;else delete a[k];stSet('aiActPend',a);}
 
 /* 採用・却下の記録。次の提案（§16）と作り直し（§12）で読む。 */
 function aiActLog(){return stGet('aiActLog',[]);}
@@ -5767,10 +5811,101 @@ function aiActPast(k){
   if(!a.length)return '';
   return a.map(function(x){return '・'+x.name+(x.report?('（'+x.report+'）'):'');}).join('\n');
 }
+/* ══ §7 生成前の追加質問 ═══════════════════════════
+   条件だけでは幅が広すぎるときに、1問ずつ聞く。最大3問。
+   「答えで提案が実際に変わる」ものだけを置く。
+   「今後の提案にも反映」を選ばれたものは、そのクラスに覚えて二度と聞かない。 */
+var AIACT_Q=[
+  {k:'move',q:'今回、特に取り入れたい動きはありますか？',
+   opts:['歩く・走る','またぐ・登る','投げる・転がす','押す・引く','バランスを取る','音楽に合わせて動く','複数の動きを組み合わせる','おまかせ'],
+   when:function(i){return i.want==='運動遊び';}},
+  {k:'craft',q:'制作で重視したいことはありますか？',
+   opts:['季節を感じる','手指を使う','色や形を楽しむ','自由に表現する','持ち帰れる作品にする','共同制作にする','おまかせ'],
+   when:function(i){return i.want==='制作';}},
+  {k:'have',q:'今回使えそうな物を選んでください',multi:true,
+   opts:['紙・段ボール','クレヨン・絵の具','のり・テープ','布・毛糸','自然物（落ち葉・どんぐり）','水・氷','音の出るもの','ボール・フープ'],
+   when:function(){return !String(AIACT.det.useMat||'').replace(/^\s+|\s+$/g,'');}},
+  {k:'fun',q:'どんな面白さを加えたいですか？',
+   opts:['冒険や探検のストーリー','色や音の変化','子どもたちで協力する','身近な物を意外な使い方で遊ぶ','季節らしいテーマ','何が起こるか分からない仕掛け','おまかせ'],
+   when:function(i){return i.want==='おまかせ'&&!i.free;}}
+];
+/* クラスごとに覚えている答え（「今後の提案にも反映」で保存されたもの） */
+function aiActPref(){return stGet('aiActPref',{});}
+function aiActPrefOf(k){return aiActPref()[k]||{};}
+function aiActPrefSet(k,q,v){var a=aiActPref();if(!a[k])a[k]={};a[k][q]=v;stSet('aiActPref',a);}
+/* いま聞くべき質問を選ぶ。覚えているものは外す。最大3問。 */
+function aiActPickQ(){
+  var saved=aiActPrefOf(AIACT.klass),out=[],i;
+  for(i=0;i<AIACT_Q.length&&out.length<3;i++){
+    var q=AIACT_Q[i];
+    if(saved[q.k])continue;
+    var ok=true; try{ ok=q.when?q.when(AIACT.inp):true; }catch(e){ ok=false; }
+    if(ok)out.push(q);
+  }
+  return out;
+}
+/* 覚えている答えと、いま答えてもらった分を、1つの文にまとめる */
+function aiActQText(){
+  var saved=aiActPrefOf(AIACT.klass),out=[],i;
+  for(i=0;i<AIACT_Q.length;i++){
+    var q=AIACT_Q[i],v=AIACT.qans[q.k]||saved[q.k];
+    if(v&&v!=='おまかせ')out.push(q.q.replace(/[？?]$/,'')+'：'+v);
+  }
+  return out.join(' ／ ');
+}
+function aiActQHTML(){
+  var q=AIACT.qlist[AIACT.qi]; if(!q)return '';
+  var cur=AIACT.qans[q.k]||'';
+  var sel=q.multi?String(cur).split('・').filter(Boolean):[cur];
+  return '<div class="muted" style="font-size:11.5px;">あと'+(AIACT.qlist.length-AIACT.qi)+'問　（'
+    +(AIACT.qi+1)+' / '+AIACT.qlist.length+'）</div>'
+    +'<h3 style="margin:8px 0 12px;font-size:16px;">'+esc(q.q)+'</h3>'
+    +'<div style="margin-bottom:6px;">'
+    +q.opts.map(function(o){
+      var on=sel.indexOf(o)>=0;
+      return '<button type="button" class="btn btn-sm'+(on?' btn-primary':'')+'" data-aiq="'+esc(o)+'" style="margin:0 6px 6px 0;">'+esc(o)+'</button>';
+    }).join('')+'</div>'
+    +(q.multi?'<div class="muted" style="font-size:11.5px;">いくつでも選べます。</div>':'')
+    +'<div style="display:flex;gap:10px;justify-content:space-between;margin-top:18px;flex-wrap:wrap;">'
+      +'<button type="button" class="btn" id="aiq_skip">この質問はとばす</button>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+      +'<button type="button" class="btn" id="aiq_keep">今後も同じ答えでよい</button>'
+      +'<button type="button" class="btn btn-primary" id="aiq_next">'
+      +((AIACT.qi>=AIACT.qlist.length-1)?'この条件で3案をつくる':'次へ')+'</button></div></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:10px;">'
+    +'「今後も同じ答えでよい」を押すと、このクラスでは次から聞きません。</div>';
+}
+function aiActQWire(){
+  var m=$('#aiActBg'); if(!m)return;
+  var q=AIACT.qlist[AIACT.qi]; if(!q)return;
+  m.querySelectorAll('[data-aiq]').forEach(function(b){b.onclick=function(){
+    var v=b.getAttribute('data-aiq');
+    if(q.multi){
+      var cur=String(AIACT.qans[q.k]||'').split('・').filter(Boolean);
+      var i=cur.indexOf(v);
+      if(i>=0)cur.splice(i,1); else cur.push(v);
+      AIACT.qans[q.k]=cur.join('・');
+    }else{ AIACT.qans[q.k]=(AIACT.qans[q.k]===v)?'':v; }
+    aiActDraw();
+  };});
+  if($('#aiq_skip'))$('#aiq_skip').onclick=function(){AIACT.qans[q.k]='';aiActQStep();};
+  if($('#aiq_next'))$('#aiq_next').onclick=function(){aiActQStep();};
+  if($('#aiq_keep'))$('#aiq_keep').onclick=function(){
+    if(!AIACT.qans[q.k]){alert('先に答えを選んでください。');return;}
+    aiActPrefSet(AIACT.klass,q.k,AIACT.qans[q.k]);
+    aiActQStep();
+  };
+}
+function aiActQStep(){
+  AIACT.qi++;
+  if(AIACT.qi>=AIACT.qlist.length){AIACT.step='out';aiActGo();return;}
+  aiActDraw();
+}
 /* ── 窓を開く。back には、閉じたあとに描き直す関数を渡す。 ── */
 function aiActOpen(klass,back){
   AIACT.open=true; AIACT.klass=klass||aiK(); AIACT.step='in';
   AIACT.ideas=[]; AIACT.err=''; AIACT.busy=false; AIACT.rejected=[];
+  AIACT.qlist=[]; AIACT.qi=0; AIACT.qans={};
   AIACT.back=back||null; AIACT.detailOpen=false;
   aiActDraw();
 }
@@ -5800,6 +5935,7 @@ function aiActInner(){
     +'<div class="muted" style="font-size:11.5px;margin-bottom:12px;">クラス・年齢・ねらい・これまでの活動は、園の記録から自動で読み込みます。'
     +'ここで入れるのは4つだけです。</div>';
 
+  if(AIACT.step==='q')return head+aiActQHTML();
   if(AIACT.step==='out')return head+aiActResultHTML();
 
   var i=AIACT.inp;
@@ -5874,11 +6010,18 @@ function aiActResultHTML(){
 }
 function aiActWire(){
   var m=$('#aiActBg'); if(!m)return;
+  if(AIACT.step==='q'){aiActQWire();return;}
   m.querySelectorAll('[data-aia]').forEach(function(b){b.onclick=function(){
     AIACT.inp[b.getAttribute('data-aia')]=b.getAttribute('data-aiv'); aiActSaveInputs(); aiActDraw();};});
   if($('#aia_more'))$('#aia_more').onclick=function(){aiActSaveInputs();AIACT.detailOpen=!AIACT.detailOpen;aiActDraw();};
   if($('#aia_cancel'))$('#aia_cancel').onclick=aiActClose;
-  if($('#aia_go'))$('#aia_go').onclick=function(){aiActSaveInputs();aiActGo();};
+  if($('#aia_go'))$('#aia_go').onclick=function(){
+    aiActSaveInputs();
+    /* §7 条件だけでは幅が広すぎるときは、先に1問ずつ聞く。無ければそのまま作る。 */
+    AIACT.qlist=aiActPickQ(); AIACT.qi=0;
+    if(AIACT.qlist.length){AIACT.step='q';aiActDraw();return;}
+    aiActGo();
+  };
   if($('#aia_back'))$('#aia_back').onclick=function(){AIACT.step='in';AIACT.err='';aiActDraw();};
   if($('#aia_again'))$('#aia_again').onclick=function(){aiActGo();};
   m.querySelectorAll('[data-aiadopt]').forEach(function(b){b.onclick=function(){aiActAdopt(+b.getAttribute('data-aiadopt'),false);};});
@@ -5910,7 +6053,8 @@ function aiActGo(){
     note:aiScrub(aiEnvNote(k)),
     daysLeft:aiActDays(),
     minutes:i.minutes, place:i.place,
-    want:aiScrub(want), detail:aiScrub(aiActDetailText()),
+    want:aiScrub(want),
+    detail:aiScrub([aiActDetailText(),aiActQText()].filter(Boolean).join(' ／ ')),
     past:aiScrub(aiActPast(k)),
     rejected:AIACT.rejected.length?aiScrub(AIACT.rejected.join('\n')):''
   }).then(function(got){
@@ -5932,11 +6076,16 @@ function aiActAdopt(idx,edit){
   var k=AIACT.klass;
   aiActLogAdd({at:aiNow(),klass:k,name:x.name,how:'採用',by:(currentStaff()?currentStaff().name:''),report:''});
   aiPlanAdd({kind:'活動提案',klass:k,title:x.name,data:x,byAI:true,
-             status:edit?'下書き':'下書き',adopted:true});
+             status:'下書き',adopted:true});
   AIP.res={kind:'活動提案',data:x,byAI:true,aiFields:['name','summary','aim','materials','prep','steps','help','safe']};
+  /* §13 書類に入れるために預かる。日案・カリキュラムを開いたときに出る。 */
+  aiActPendSet(k,{at:aiNow(),klass:k,data:x});
   aiActClose();
-  alert('「'+x.name+'」を下書きとして保存しました。\n\nAI保育計画 → AI記録管理 から開けます。'
-    +(edit?'\n\n直してからお使いください。':''));
+  alert('「'+x.name+'」を採用しました。\n\n'
+    +'・日案を開くと「AIで採用した活動を入れる」が出ます\n'
+    +'・月間カリキュラムの活動欄にも同じボタンが出ます\n'
+    +'・AI保育計画 → AI記録管理 にも下書きとして残ります'
+    +(edit?'\n\n入れたあとで直してお使いください。':''));
   if(typeof go==='function')go('aiplan');
 }
 /* §12 却下。理由をふまえて作り直す。 */
@@ -9348,7 +9497,18 @@ function renderCurriculum(){
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">'
     +'<div style="font-size:13px;font-weight:600;flex:1;">月間の活動内容（'+curClass+'・月に1回登録）</div>'
     /* §4 活動づくりの入口。書類の活動欄のそばに置く。 */
-    +'<button class="btn btn-sm" id="curActBtn">'+ic('spark')+'AIと活動を考える</button></div>'+
+    +'<button class="btn btn-sm" id="curActBtn">'+ic('spark')+'AIと活動を考える</button></div>'
+    /* §13 採用した活動を、この月の活動内容へ入れる。どの行に入れるかは先生が選ぶ。 */
+    +((function(){
+      var pd=(typeof aiActPendOf==='function')?aiActPendOf(curClass):null;
+      if(!pd)return '';
+      return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#EAF3DE;border:1px solid #C3DCBE;border-radius:9px;padding:8px 11px;margin-bottom:10px;font-size:12.5px;">'
+        +'<span style="flex:1;min-width:180px;">AIで採用した活動があります：<b>'+esc(pd.data.name)+'</b></span>'
+        +'<select id="curActPick" style="width:auto;min-width:140px;">'
+        +types.map(function(t){return '<option>'+esc(t)+'</option>';}).join('')+'</select>'
+        +'<button type="button" class="btn btn-sm btn-primary" id="curActPut">この行に入れる</button>'
+        +'<button type="button" class="btn btn-sm" id="curActDrop">いまは入れない</button></div>';
+    })())+
       types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+esc(t)+'</span><input data-actm="'+esc(t)+'|goal" value="'+esc(v(m.goal))+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+esc(t)+'|teacher" value="'+esc(v(m.teacher))+'" placeholder="担当" style="width:110px;"></div>';}).join('')+
       (types.length?'':'<div class="empty">まだ活動がありません。下の「活動内容を編集」から足すと、ここに入ります。</div>')+
       curActTypeBox(types)+'</div>';
@@ -9386,6 +9546,27 @@ function renderCurriculum(){
      欄ごと作り直され、焦点が外れて、続けて打った文字がどこにも入らなかった。
      値は curActMSet で保存ずみ、画面の文字も打ったとおりなので、作り直さない。 */
   if($('#curActBtn'))$('#curActBtn').onclick=function(){aiActOpen(curClass,renderCurriculum);};
+  /* §13 先生が選んだ行に入れる。すでに書いてある欄は上書きしない。 */
+  if($('#curActPut'))$('#curActPut').onclick=function(){
+    var pd=aiActPendOf(curClass); if(!pd)return;
+    var t=$('#curActPick').value,x=pd.data,m=curActMGet(curClass,t),put=[],skip=[];
+    function fill(key,label,val){
+      if(!val)return;
+      if(String(m[key]||'').replace(/^\s+|\s+$/g,'')){skip.push(label);return;}
+      m[key]=val; put.push(label);
+    }
+    /* ★この行に書けるのは「ねらい・目標」だけ。teacher は担当者の欄なので触らない。 */
+    fill('goal','ねらい・目標',x.name+(x.aim?('　'+x.aim):''));
+    curActMSet(curClass,t,m);
+    aiActPendSet(curClass,null);
+    renderCurriculum();
+    alert('「'+t+'」に入れました。\n\n入れたもの：'+(put.length?put.join('・'):'なし')
+      +(skip.length?('\nすでに書かれていたので触っていません：'+skip.join('・')):''));
+  };
+  if($('#curActDrop'))$('#curActDrop').onclick=function(){
+    if(!confirm('採用した活動の預かりを外します。\n\nAI保育計画 → AI記録管理 には下書きとして残ります。\nよろしいですか？'))return;
+    aiActPendSet(curClass,null); renderCurriculum();
+  };
   s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){
     var p=actSplitKey(inp.getAttribute('data-actm')),m=curActMGet(curClass,p[0]);
     m[p[1]]=inp.value;curActMSet(curClass,p[0],m);};});
