@@ -7928,10 +7928,13 @@ function rosterImportModal(){
   };
 }
 
-function contactModal(id){
+/* 生徒台帳から足しているところかどうか。足し終わったら、その子のプロフィールへ移る。 */
+var rosterAdding=false;
+function contactModal(id,forceKind){
   /* 新しく足すときの区分は、いま開いている画面に合わせる。
-     連絡先管理でリードを既定にすると、保存しても一覧に出ず「追加されない」ように見えるため。 */
-  var _defKind=(CONTACT_SCOPE==='lead')?'lead':'enrolled';
+     連絡先管理でリードを既定にすると、保存しても一覧に出ず「追加されない」ように見えるため。
+     生徒台帳から足すときは在園児で決め打ちにする（forceKind）。 */
+  var _defKind=forceKind||((CONTACT_SCOPE==='lead')?'lead':'enrolled');
   var cs=DB.contacts,c=id?cs.filter(function(x){return x.id===id;})[0]:{kind:_defKind,name:'',child:'',email:'',phone:'',status:'体験前 日程調整中',date:'',receivedDate:todayISO(),source:'HPフォーム',wishKlass:'Pre',format:'オフライン',trialBy:'',trialTime:'',nextAction:'',concerns:'',invoiceStatus:'未作成',klass:'Pre',feeAmount:52000,withdrawDay:27,withdrawDate:'',note:''};
   var kind=c.kind||'lead';
   var stOpts=LEAD_STATUSES.map(function(o){return '<option'+(o===c.status?' selected':'')+'>'+o+'</option>';}).join('');
@@ -8066,8 +8069,8 @@ function contactModal(id){
     var _ef=$('#enrolledFields');
     if(_ef&&_ef.scrollIntoView)_ef.scrollIntoView({block:'nearest'});
   };
-  $('#f_cancel').onclick=function(){m.remove();};
-  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  $('#f_cancel').onclick=function(){rosterAdding=false;m.remove();};
+  m.addEventListener('click',function(e){if(e.target===m){rosterAdding=false;m.remove();}});
   $('#f_save').onclick=function(){
     /* 元の行を写してから、この窓に出ていた欄だけを差し替える。
        行をまるごと作り直すと、窓に出ていない欄（問い合わせ日・問合せ方法・体験日・入園説明会日・
@@ -8104,7 +8107,11 @@ function contactModal(id){
     if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
     DB.contacts=arr;
     try{if(pendingPhoto)photoSet(nc.id,pendingPhoto);else if(photoCleared)photoSet(nc.id,'');}catch(e){alert('写真を保存できませんでした（保存容量が不足している可能性があります）');}
-    m.remove();renderContacts();
+    m.remove();
+    /* 生徒台帳から足したときは、そのままその子のプロフィールを開く。
+       連絡先の一覧に戻すと「入れたのに見当たらない」ように見えるため。 */
+    if(rosterAdding){rosterAdding=false;rosterSel=nc.id;rosterTab='profile';renderRoster();}
+    else renderContacts();
   };
 }
 
@@ -15045,7 +15052,7 @@ function renderTrial(){
     +(leads.length?leads.map(function(c){var r=trGet(c.id);
       var nx=trNext(c,r);
       return '<tr><td class="row-sub" style="white-space:nowrap;">'+((r&&r.trialDate)?fmt(r.trialDate):(c.date?fmt(c.date):'—'))+'</td>'
-        +'<td class="row-name">'+esc(c.child||'—')+'<div class="row-sub">'+esc(c.name||'')+' 様</div></td>'
+        +'<td class="row-name">'+esc(childFullNameHon(c)||c.child||'—')+'<div class="row-sub">'+esc(c.name||'')+' 様</div></td>'
         +'<td class="row-sub">'+esc((r&&r.by)||c.trialBy||'—')+'</td>'
         +'<td>'+(r?statusPill(trStatusFrom(r))+'<div class="row-sub">温度感 '+String(r.temp||'').charAt(0)+'</div>'
             :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未報告</span>')+'</td>'
@@ -15070,6 +15077,18 @@ function renderTrial(){
 function trialModal(id){
   var isNew=!id,c=id?DB.contacts.filter(function(x){return x.id===id;})[0]:null;
   var r=(id&&trGet(id))||{trialDate:todayISO(),by:((typeof currentStaff==='function'&&currentStaff())?currentStaff().name:''),child:c?c.child:'',kana:c?(c.childKana||''):'',dob:c?(c.dob||''):'',campus:SET.school||'',course:c?(c.wishKlass||'Pre'):'Pre',join:['母','子'],result:'検討中',wishTime:'',temp:'3（普通）',price:'特になし',focus:'どちらも',other:'',question:'',childState:'',extra:'',replyBy:'',hqAction:'',kintone:'未',parentName:c?c.name:'',email:c?c.email:'',phone:c?c.phone:''};
+  /* ★お名前・ふりがな・生年月日は、この報告が持つものではなく生徒台帳のもの。
+     報告に写した古い値が残っていると、台帳を直しても体験結果報告だけ古いままになる
+     （安田さんのご依頼 2026-08-24「生徒台帳に反映されたものは即時で体験結果報告にも」）。
+     窓を開くたび、生きているほうから入れ直す。 */
+  if(c){
+    var _sp=(typeof spGet==='function')?spGet(c.id):{};
+    var _nm=(typeof childFullName==='function')?childFullName(c):'';
+    if(_nm)r.child=_nm;
+    var _kn=(typeof spKanaText==='function')?spKanaText(spKanaSplit(_sp)):'';
+    if(_kn)r.kana=_kn; else if(c.childKana)r.kana=c.childKana;
+    if(_sp&&_sp.dob)r.dob=_sp.dob; else if(c.dob)r.dob=c.dob;
+  }
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   function f(lab,idd,val,ph){return '<div class="field"><label>'+lab+'</label><input id="'+idd+'" value="'+String(val||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'></div>';}
@@ -15596,7 +15615,7 @@ function renderRoster(){
 }
 function rosterList(kids){
   var kc=kidDocCount('利用契約書');
-  return '<div class="card"><div style="display:flex;align-items:center;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
+  return '<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm btn-primary" id="rosterAdd">'+ic('plus')+'園児を追加</button><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
     +'<div style="display:flex;gap:10px;align-items:flex-start;background:'+(kc.done>=kc.total&&kc.total?'#EAF3DE':'#FAEEDA')+';border:1px solid '+(kc.done>=kc.total&&kc.total?'#639922':'#E9C88B')+';border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:12.5px;line-height:1.6;color:'+(kc.done>=kc.total&&kc.total?'#27500A':'#6b3f08')+';">'
       +'<div style="flex:1;">利用契約書（保護者がサインしたもの）　<b>在園 '+kc.total+'名のうち '+kc.done+'名ぶん登録済み</b>'
       +'<div style="font-size:11.5px;margin-top:2px;">「開く」→ いちばん下の「サインをいただいた書類」から、園児ひとりずつ入れられます。</div></div></div>'
@@ -15605,6 +15624,9 @@ function rosterList(kids){
     +'</tbody></table></div>';
 }
 function wireRosterList(){
+  /* ★安田さんのご依頼（2026-08-24）「生徒台帳で、登録などもできるようにして」。
+     入れる窓は連絡先と同じものを使う。窓を2つ作ると、片方だけ直したときに食い違うため。 */
+  if($('#rosterAdd'))$('#rosterAdd').onclick=function(){rosterAdding=true;contactModal(null,'enrolled');};
   if($('#rosterPrint'))$('#rosterPrint').onclick=function(){
     var kids=enrolled();
     var body='<table><thead><tr><th>お子様</th><th>振りがな・英語表記</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
@@ -15627,6 +15649,25 @@ function spFieldHTML(f,p){
   else inp='<input data-rp="'+esc(f.k)+'" type="'+(f.type==='date'?'date':'text')+'" value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'+(f.sensitive?' placeholder="（この端末の中だけ）"':(f.ph?' placeholder="'+esc(f.ph)+'"':''))+'>';
   var reqTag=f.req?' <span style="background:#FCEBEB;color:#A32D2D;border-radius:4px;padding:0 5px;font-size:10px;font-weight:700;">必須</span>':'';
   return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+reqTag+(f.sensitive?' 🔒':'')+'</label>'+inp+'</div>';
+}
+/* ══ 通園曜日とオプション（生徒台帳にも出す）═══════════════
+   ★安田さんのご依頼（2026-08-24）。連絡先にしかなかった表を生徒台帳にも出す。
+     ただし**置き場は増やさない**。読むのも書くのも連絡先の dayOpts のまま。
+     置き場を2つにすると、登園シートの初期値と請求の給食・延長で違う曜日が出る。 */
+function rpDayCard(id){
+  var c=DB.contacts.filter(function(x){return x.id===id;})[0]||{};
+  var dop=dayOptsOf(c);
+  return '<div class="card" style="margin-bottom:12px;"><h3 style="font-size:14px;">'+ic('clock')+'通園曜日とオプション</h3>'
+    +'<div class="scrollx"><table style="margin:0;"><thead><tr><th style="width:64px;">曜日</th>'
+      +'<th style="text-align:center;">通園</th><th style="text-align:center;">給食</th><th style="text-align:center;">延長保育</th></tr></thead><tbody>'
+    +WEEK5.map(function(d){var o=dop[d]||{};return '<tr><td class="row-name">'+d+'</td>'
+      +'<td style="text-align:center;"><input type="checkbox" data-rday="'+d+'|go" style="width:auto;"'+(o.go?' checked':'')+'></td>'
+      +'<td style="text-align:center;"><input type="checkbox" data-rday="'+d+'|lunch" style="width:auto;"'+(o.lunch?' checked':'')+(o.go?'':' disabled')+'></td>'
+      +'<td style="text-align:center;"><input type="checkbox" data-rday="'+d+'|long" style="width:auto;"'+(o.long?' checked':'')+(o.go?'':' disabled')+'></td></tr>';}).join('')
+    +'</tbody></table></div>'
+    +'<div class="muted" style="margin-top:6px;font-size:11.5px;">「通園」にチェックした曜日だけ 給食 / 延長保育 を選べます。'
+    +'上の「保存」で入ります。ここで直した内容は<b>連絡先にも同じように入ります</b>（置き場は1つです）。'
+    +'登園シートの初期値と、<b>まだ発行していない</b>請求書の給食・延長にも使われます。</div></div>';
 }
 function spCardHTML(grp,p){
   return '<div class="card" style="margin-bottom:12px;"><h3 style="font-size:14px;">'+esc(grp.g)+'</h3>'
@@ -15696,6 +15737,7 @@ function rosterProfile(kids){
   var sel='<select id="rpSel" style="width:200px;">'+kids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===rosterSel?' selected':'')+'>'+esc(childFullName(c))+'（'+esc(c.klass)+'）</option>';}).join('')+'</select>';
   var h='<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><h3 style="margin:0;">'+ic('idcard')+'個別プロフィール</h3>'+sel+'<span style="flex:1;"></span><button class="btn btn-sm" id="rpMapBtn">'+ic('pin')+'この子を地図で見る</button><button class="btn btn-primary btn-sm" id="rpSave">'+ic('check')+'保存</button> <span class="muted" id="rpMsg"></span></div>';
   h+=spCardHTML(SP_GROUPS[0],p);
+  h+=rpDayCard(rosterSel);
   h+=spCardHTML(SP_GROUPS[1],p);
   h+=rpGuardCard(rpGuards);
   h+=rpHealthCard(p);
@@ -15807,6 +15849,19 @@ function wireRosterProfile(){
   if($('#rpSel'))$('#rpSel').onchange=function(){rosterSel=+this.value;renderRoster();};
   wireRpDocs(rosterSel);
   if($('#rpMapBtn'))$('#rpMapBtn').onclick=function(){rosterTab='map';renderRoster();};
+  /* 「通園」を外したら、その曜日の給食・延長も外す（連絡先の窓と同じ動き） */
+  document.querySelectorAll('[data-rday]').forEach(function(cb){
+    if(!/\|go$/.test(cb.getAttribute('data-rday')))return;
+    cb.onchange=function(){
+      var d=cb.getAttribute('data-rday').split('|')[0];
+      ['lunch','long'].forEach(function(k){
+        var t=document.querySelector('[data-rday="'+d+'|'+k+'"]');
+        if(!t)return;
+        t.disabled=!cb.checked;
+        if(!cb.checked)t.checked=false;
+      });
+    };
+  });
   wireRpGuards();
   if($('#rpGuardAdd'))$('#rpGuardAdd').onclick=function(){
     rpGuards=rpReadGuards();
@@ -15865,6 +15920,25 @@ function wireRosterProfile(){
       var arrK=DB.contacts,chK=false;
       arrK.forEach(function(x){if(x.id===rosterSel&&x.klass!==obj.klass){x.klass=obj.klass;chK=true;}});
       if(chK)DB.contacts=arrK;
+    }
+    /* ★通園曜日とオプション。置き場は連絡先の dayOpts のまま（増やさない）。
+       days / lunch / long も、連絡先の窓と同じ形で写しておく。 */
+    if(document.querySelector('[data-rday]')){
+      var dopR={};
+      WEEK5.forEach(function(d){
+        var g=document.querySelector('[data-rday="'+d+'|go"]'),
+            l=document.querySelector('[data-rday="'+d+'|lunch"]'),
+            lg=document.querySelector('[data-rday="'+d+'|long"]');
+        dopR[d]={go:!!(g&&g.checked),lunch:!!(g&&g.checked&&l&&l.checked),long:!!(g&&g.checked&&lg&&lg.checked)};
+      });
+      var arrD=DB.contacts,chD=false;
+      arrD.forEach(function(x){
+        if(x.id!==rosterSel)return;
+        x.dayOpts=dopR;x.days=daysStrOf(dopR);
+        x.lunch=dayCount(dopR,'lunch')>0;x.long=dayCount(dopR,'long')>0;
+        chD=true;
+      });
+      if(chD)DB.contacts=arrD;
     }
     /* ★生年月日は studentProfiles にしか入らず、連絡先（c.dob）に返っていなかった。
        配置基準も歳児も c.dob しか読まないので、帯の案内どおり生徒台帳に入れて
