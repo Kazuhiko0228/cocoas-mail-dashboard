@@ -5117,9 +5117,14 @@ function aiProfile(klass){
 
 /* ── 年間発達マップ ────────────────────── */
 var AI_MONTHS=['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
-var AI_SEASON={'4月':'進級・新しい環境','5月':'新緑・こいのぼり','6月':'梅雨・雨','7月':'水遊び・夏',
-  '8月':'夏・暑さ','9月':'秋のはじまり','10月':'運動会・実り','11月':'落ち葉・木の実',
-  '12月':'冬・年末の行事','1月':'お正月・雪','2月':'節分・寒さ','3月':'進級・卒園'};
+/* ★ここには季節と行事が混ざっていて、「季節」としてAIへ送っていた。
+   「10月は運動会・実り」は行事の話で、季節ではない（実装指示書 §3-計画4）。
+   季節（AI_SEASON）と、その月らしい行事・できごと（AI_EVENT）に分ける。 */
+var AI_SEASON={'4月':'春','5月':'春','6月':'梅雨','7月':'夏','8月':'夏','9月':'秋',
+  '10月':'秋','11月':'秋','12月':'冬','1月':'冬','2月':'冬','3月':'春'};
+var AI_EVENT={'4月':'進級・新しい環境','5月':'新緑・こいのぼり','6月':'雨','7月':'水遊び',
+  '8月':'暑さ','9月':'秋のはじまり','10月':'運動会・実り','11月':'落ち葉・木の実',
+  '12月':'年末の行事','1月':'お正月・雪','2月':'節分','3月':'進級・卒園'};
 var AI_AIM={
  0:{健康:'安心して眠り、食べ、機嫌よく過ごす',人間関係:'決まった保育者との間に安心をつくる',
     環境:'見る・触れる・音を聞くことを楽しむ',言葉:'表情や声に応えてもらう心地よさを知る',表現:'音や手ざわりに反応して体を動かす'},
@@ -5143,17 +5148,17 @@ function aiYearMap(klass){
     var aim=aiAimFor(base);
     var prev=i>0?AI_MONTHS[i-1]:null, next=i<11?AI_MONTHS[i+1]:null;
     return {
-      month:m, season:AI_SEASON[m],
+      month:m, season:AI_SEASON[m], event:AI_EVENT[m],
       outlook:(i<3?'新しい生活の流れに慣れ、安心して過ごせるようにする時期。'
               :i<6?'できることが増え、自分でやってみようとする姿が出てくる時期。'
               :i<9?'友達との関わりが増え、一緒に楽しむ経験を重ねる時期。'
                   :'一年の育ちを確かめ、次の学年へつなぐ時期。')
              +(f.ageSpread>=2?'クラスの中で発達の幅があるため、同じ活動でも参加のしかたを分けます。':''),
-      aim:AI_SEASON[m]+'に触れながら、'+aim.健康.replace(/。$/,'')+'。',
+      aim:AI_EVENT[m]+'に触れながら、'+aim.健康.replace(/。$/,'')+'。',
       five:aim,
       help:(f.perStaff>8?'先生1人あたり '+f.perStaff+'名と多いため、少人数に分けて進めます。'
                         :'一人ひとりの様子を見ながら、必要なときに手を添えます。'),
-      env:AI_SEASON[m]+'に関するものを、子どもが自分で手に取れる高さに置きます。',
+      env:AI_EVENT[m]+'に関するものを、子どもが自分で手に取れる高さに置きます。',
       home:'今月の育ちの姿を、未来WA のお知らせでご家庭に伝えます。',
       safe:(f.hiyari.n?'これまでのヒヤリハット '+f.hiyari.n+'件をふまえ、動線と道具の置き場所を事前に確認します。'
                       :'活動前に、動線と道具の置き場所を確認します。'),
@@ -5275,7 +5280,7 @@ function aiCraft(klass,opt){
           'のりを口に入れないよう、そばで見守ります',
           (f.hiyari.n?'これまでのヒヤリハット '+f.hiyari.n+'件をふまえ、机のまわりの動線を確認します':'机のまわりの動線を確認します')]),
     display:'廊下の掲示板に、名前を伏せて並べます。持ち帰りは月末にまとめて行います。',
-    letter:'今月は'+AI_SEASON[m]+'を題材に「'+base.n+'」に取り組みました。'
+    letter:'今月は'+AI_EVENT[m]+'を題材に「'+base.n+'」に取り組みました。'
       +'お子さまが自分で素材を選び、'+base.aim+'ことをねらいとしています。'
       +'一人ひとりの育ちに合わせて、参加のしかたを変えています。'
   };
@@ -5290,7 +5295,7 @@ function aiCraft(klass,opt){
 
    APIキーはサーバの中だけにある。この画面には持たせない
    （このファイルは公開しているので、置くと誰でも読めてしまう）。 */
-var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作'};
+var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作',act:'活動提案'};
 var AI_NET={busy:false, last:null, note:''};
 
 function aiCanServer(){
@@ -5388,6 +5393,8 @@ function aiAskServer(kind,klass,period,extra){
       return (f.minAge!=null)?('満'+f.minAge+'歳'):'';
     }catch(e){return '';}})(),
     season:AI_SEASON[m]||'',
+    /* 行事は季節と別に送る（混ぜると「10月の季節は運動会」になる） */
+    event:AI_EVENT[m]||'',
     /* クラスの様子には、園が自由に書いたメモ（p.note）が入る。ここも落とす。 */
     facts:aiScrub(aiFactsText(klass))
   };
@@ -5402,6 +5409,11 @@ function aiAskServer(kind,klass,period,extra){
   /* 実施までの日数。呼ぶ側が持っていればそれを使い、無ければこちらで出す。 */
   var _dl=(extra&&extra.daysLeft!=null)?extra.daysLeft:aiDaysLeft(kind,m);
   if(_dl!=null)body.daysLeft=String(_dl);
+  /* 「AIと活動を考える」で入れてもらった条件。サーバが受け取る名前と同じにしておく。
+     空のものは送らない（送ると、指示文に空の行が増えるだけ）。 */
+  ['minutes','place','want','event','detail','past','rejected'].forEach(function(kk){
+    if(extra&&extra[kk])body[kk]=String(extra[kk]);
+  });
   return API.call('POST','/ai/plan',body)
     .then(function(j){ return (j&&j.data)?j.data:null; })
     .catch(function(e){ AI_NET.note=e.message||''; return null; });
@@ -5585,10 +5597,10 @@ function aiPlanGen(klass,kind,period){
   var _ageKnown=(_lo!=null)||(f.minAge!=null);
   var aim=aiAimFor(_lo!=null?_lo:(f.minAge!=null?f.minAge:2));
   if(!_ageKnown)aim='（このクラスは生年月日の記録が無いため、ねらいは先生が入れてください）';
-  var season=AI_SEASON[m]||'';
+  var season=AI_SEASON[m]||'',ev=AI_EVENT[m]||'';
   var base={
     klass:klass, kind:kind, period:m, season:season,
-    aim:season+'に触れながら、'+aim.環境.replace(/。$/,'')+'。',
+    aim:(ev||season)+'に触れながら、'+aim.環境.replace(/。$/,'')+'。',
     expect:['自分で選ぼうとする姿','友達のしていることに目を向ける姿',
             (f.ageSpread>=2?'できることの差が出やすいため、待つ・見る時間も大切にする':'繰り返し試そうとする姿')],
     env:season+'に関するものを、子どもが自分で手に取れる高さに置きます。',
@@ -5689,6 +5701,254 @@ var AIP={tab:'idea', sub:'craft', klass:null, res:null, chat:[], hq:0, hans:{}};
 
 function aiK(){ if(!AIP.klass||aiKlasses().indexOf(AIP.klass)<0)AIP.klass=aiKlasses()[0]; return AIP.klass; }
 
+/* ══════════════════════════════════════════════════════════
+   AIと活動を考える（Remiさんの実装指示書）
+   §4 入口ボタン → §5 4項目の入力 → §6 ＋少し詳しく設定する
+   → §10 3案（おすすめ／かんたん／別方向） → §11 採用・修正・却下
+   → §12 却下の理由をふまえて作り直す → §16 次の提案
+   毎回の入力は4つだけ。園に登録ずみのものは聞かない（§2-1）。
+   ══════════════════════════════════════════════════════════ */
+var AIACT_MIN  =['10分程度','15分程度','20〜30分','30分以上','おまかせ'];
+var AIACT_WHEN =['今日','明日','今週','来週','今月','来月','日付を選ぶ','まだ決まっていない'];
+var AIACT_WANT =['制作','室内遊び','運動遊び','戸外遊び','感触遊び','音楽・リズム遊び',
+                 'ごっこ遊び','自然遊び','季節・行事','おまかせ'];
+/* 詳細設定（§6）。答えられないものは空のままでよい。 */
+var AIACT_DETAIL=[
+  {k:'interest',l:'最近、興味を示しているもの'},
+  {k:'recent',  l:'最近やった動作・遊び'},
+  {k:'wantMove',l:'今回してほしい動作'},
+  {k:'level',   l:'活動の難しさ',opts:['','やさしめ','ふつう','すこし挑戦','おまかせ']},
+  {k:'prepMin', l:'準備にかけられる時間',opts:['','10分まで','30分まで','前日から','おまかせ']},
+  {k:'dirty',   l:'汚れてよいか',opts:['','汚れてよい','少しなら','汚したくない','おまかせ']},
+  {k:'takeHome',l:'持ち帰るか',opts:['','持ち帰る','園で飾る','どちらでも']},
+  {k:'useMat',  l:'使いたい素材'},
+  {k:'noMat',   l:'使いたくない素材'},
+  {k:'avoid',   l:'避けたい活動'},
+  {k:'other',   l:'その他の希望'}
+];
+/* 場所は園に登録されているものを先に出す（§5-2）。 */
+function aiActPlaces(){
+  var base=['保育室','園庭','ホール','テラス','公園・散歩','その他','おまかせ'],out=[],i;
+  try{
+    var e=(typeof aiEnvOf==='function')?aiEnvOf(aiK()):null;
+    if(e&&e.place&&base.indexOf(e.place)<0)out.push(e.place);
+    if(e&&e.place)out.push(e.place);
+  }catch(x){}
+  for(i=0;i<base.length;i++)if(out.indexOf(base[i])<0)out.push(base[i]);
+  return out;
+}
+var AIACT={open:false,klass:'',step:'in',busy:false,ideas:[],err:'',
+           back:null,detailOpen:false,rejected:[],
+           inp:{minutes:'おまかせ',place:'保育室',when:'今週',date:'',want:'おまかせ',free:''},
+           det:{}};
+
+/* 採用・却下の記録。次の提案（§16）と作り直し（§12）で読む。 */
+function aiActLog(){return stGet('aiActLog',[]);}
+function aiActLogAdd(o){var a=aiActLog();a.unshift(o);if(a.length>40)a.length=40;stSet('aiActLog',a);}
+
+/* 「今週」などから、実施まであと何日かを出す（§8）。 */
+function aiActDays(){
+  var w=AIACT.inp.when;
+  if(w==='今日')return 0;
+  if(w==='明日')return 1;
+  if(w==='今週')return 3;
+  if(w==='来週')return 10;
+  if(w==='今月')return 15;
+  if(w==='来月')return 40;
+  if(w==='日付を選ぶ'&&AIACT.inp.date){
+    var d=Math.round((new Date(AIACT.inp.date+'T00:00:00')-new Date(todayISO()+'T00:00:00'))/86400000);
+    return d<0?0:d;
+  }
+  return null;
+}
+/* これまでにやった活動と、そのときの様子（§3・§16）。 */
+function aiActPast(k){
+  var a=aiActLog().filter(function(x){return x.klass===k&&x.how==='採用';}).slice(0,4);
+  if(!a.length)return '';
+  return a.map(function(x){return '・'+x.name+(x.report?('（'+x.report+'）'):'');}).join('\n');
+}
+/* ── 窓を開く。back には、閉じたあとに描き直す関数を渡す。 ── */
+function aiActOpen(klass,back){
+  AIACT.open=true; AIACT.klass=klass||aiK(); AIACT.step='in';
+  AIACT.ideas=[]; AIACT.err=''; AIACT.busy=false; AIACT.rejected=[];
+  AIACT.back=back||null; AIACT.detailOpen=false;
+  aiActDraw();
+}
+function aiActClose(){
+  AIACT.open=false;
+  var m=$('#aiActBg'); if(m)m.remove();
+  if(AIACT.back)try{AIACT.back();}catch(e){}
+}
+function aiActDraw(){
+  var old=$('#aiActBg'); if(old)old.remove();
+  if(!AIACT.open)return;
+  var m=el('div',{class:'modal-bg',id:'aiActBg'});
+  $('#modalRoot').appendChild(m);
+  m.innerHTML='<div class="modal" style="width:820px;max-width:96vw;">'+aiActInner()+'</div>';
+  m.addEventListener('click',function(e){if(e.target===m)aiActClose();});
+  aiActWire();
+}
+function aiActPill(name,list,cur){
+  return list.map(function(o){
+    return '<button type="button" class="btn btn-sm'+(o===cur?' btn-primary':'')+'" data-aia="'+esc(name)+'" data-aiv="'+esc(o)+'" style="margin:0 6px 6px 0;">'+esc(o)+'</button>';
+  }).join('');
+}
+function aiActInner(){
+  var k=AIACT.klass,f=aiFacts(k);
+  var head='<h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+ic('spark')+'AIと活動を考える'
+    +'<span class="muted" style="font-size:12.5px;font-weight:400;">'+esc(k)+'　'+f.count+'名 ／ 先生 '+f.staff+'名</span></h2>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:12px;">クラス・年齢・ねらい・これまでの活動は、園の記録から自動で読み込みます。'
+    +'ここで入れるのは4つだけです。</div>';
+
+  if(AIACT.step==='out')return head+aiActResultHTML();
+
+  var i=AIACT.inp;
+  var h=head
+    +'<div class="field"><label>活動時間</label><div>'+aiActPill('minutes',AIACT_MIN,i.minutes)+'</div></div>'
+    +'<div class="field"><label>場所</label><div>'+aiActPill('place',aiActPlaces(),i.place)+'</div></div>'
+    +'<div class="field"><label>いつやるか</label><div>'+aiActPill('when',AIACT_WHEN,i.when)+'</div>'
+      +(i.when==='日付を選ぶ'?'<input type="date" id="aia_date" value="'+esc(i.date)+'" style="margin-top:6px;max-width:200px;">':'')
+      +'</div>'
+    +'<div class="field"><label>やりたいこと</label><div>'+aiActPill('want',AIACT_WANT,i.want)+'</div>'
+      +'<input id="aia_free" placeholder="自由に書いてもかまいません（例：どんぐりを使いたい）" value="'+esc(i.free)+'" style="margin-top:6px;"></div>'
+    /* §6 くわしい条件。開いたときだけ出す。 */
+    +'<div style="margin:14px 0 6px;"><button type="button" class="btn btn-sm" id="aia_more">'
+      +(AIACT.detailOpen?'− 詳しい設定を閉じる':'＋ 少し詳しく設定する')+'</button></div>'
+    +(AIACT.detailOpen
+      ? '<div class="card" style="background:var(--bg);"><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'
+        +AIACT_DETAIL.map(function(d){
+          var v=AIACT.det[d.k]||'';
+          var inp=d.opts
+            ? '<select data-aid="'+esc(d.k)+'">'+d.opts.map(function(o){return '<option'+(o===v?' selected':'')+'>'+esc(o||'（選ばない）').replace('（選ばない）','')+'</option>';}).join('')+'</select>'
+            : '<input data-aid="'+esc(d.k)+'" value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="分からなければ空のままで">';
+          return '<div class="field" style="margin:0;"><label style="font-size:11.5px;">'+esc(d.l)+'</label>'+inp+'</div>';
+        }).join('')
+        +'</div><div class="muted" style="font-size:11.5px;margin-top:8px;">答えられないものは空のままで大丈夫です。空の項目は聞きません。</div></div>'
+      : '')
+    +(AIACT.err?'<div style="margin-top:12px;padding:10px 13px;border-radius:9px;background:#FCEBEB;border:1px solid #E8C9C9;color:#A32D2D;font-size:12.5px;">'+esc(AIACT.err)+'</div>':'')
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">'
+      +'<button type="button" class="btn" id="aia_cancel">閉じる</button>'
+      +'<button type="button" class="btn btn-primary" id="aia_go"'+(AIACT.busy?' disabled':'')+'>'
+      +(AIACT.busy?'考えています…（15秒ほど）':'3つの案をつくる')+'</button></div>';
+  return h;
+}
+function aiActLis(t,a){
+  if(!a||!a.length)return '';
+  return '<div style="margin-top:7px;"><b style="font-size:11.5px;color:var(--tx3);">'+esc(t)+'</b>'
+    +'<ul style="margin:3px 0 0 1.1em;font-size:12.5px;line-height:1.85;">'
+    +a.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
+}
+function aiActResultHTML(){
+  if(!AIACT.ideas.length)return '<div class="empty">案がありません。</div>';
+  var COL={'おすすめ':['#EAF3DE','#639922','#27500A'],'かんたん':['#E7F2F9','#7FB6D8','#0F5C8C'],'別方向':['#FBF1DE','#EBD8AE','#96600A']};
+  return AIACT.ideas.map(function(x,i){
+    var c=COL[x.kind]||COL['おすすめ'];
+    return '<div class="card" style="margin-bottom:12px;border-left:4px solid '+c[1]+';">'
+      +'<div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;">'
+        +'<span class="pill" style="background:'+c[0]+';color:'+c[2]+';font-weight:700;">'+esc(x.kind||'')+'</span>'
+        +'<h3 style="margin:0;font-size:15px;">'+esc(x.name||'')+'</h3>'
+        +'<span class="muted" style="font-size:11.5px;">'+esc(x.minutes||'')+'　'+esc(x.place||'')+'</span></div>'
+      +'<p style="font-size:12.8px;line-height:1.95;margin-top:8px;">'+esc(x.summary||'')+'</p>'
+      /* §2-4 つながりの説明は、はっきりした結びつきがあるときだけ短く出す */
+      +(x.why?'<div style="margin-top:8px;padding:7px 11px;border-radius:7px;background:var(--bg);font-size:11.8px;color:var(--tx2);">'+ic('link')+' '+esc(x.why)+'</div>':'')
+      +'<div style="margin-top:9px;font-size:12.5px;"><b style="font-size:11.5px;color:var(--tx3);">ねらい</b>　'+esc(x.aim||'')+'</div>'
+      +aiActLis('準備物',x.materials)+aiActLis('準備の手順',x.prep)+aiActLis('進め方',x.steps)
+      +aiActLis('保育者の援助',x.help)+aiActLis('注意点',x.safe)
+      +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.9;">'
+        +(x.swap?'物がそろわないとき：'+esc(x.swap)+'<br>':'')
+        +(x.easy?'時間が足りないとき：'+esc(x.easy)+'<br>':'')
+        +(x.rain?'外でできないとき：'+esc(x.rain):'')+'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
+        +'<button type="button" class="btn btn-sm btn-primary" data-aiadopt="'+i+'">'+ic('check')+'この案でいく</button>'
+        +'<button type="button" class="btn btn-sm" data-aiedit="'+i+'">直してから使う</button>'
+        +'<button type="button" class="btn btn-sm" data-aireject="'+i+'">この案はやめる</button></div>'
+      +'</div>';
+  }).join('')
+  +'<div style="display:flex;gap:10px;justify-content:space-between;margin-top:14px;flex-wrap:wrap;">'
+    +'<button type="button" class="btn" id="aia_back">条件を変える</button>'
+    +'<div style="display:flex;gap:10px;"><button type="button" class="btn" id="aia_again">3つとも作り直す</button>'
+    +'<button type="button" class="btn" id="aia_cancel">閉じる</button></div></div>'
+  +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.9;">'
+    +'これはAIが作った下書きです。やるかどうかを決めるのは先生と園です。'
+    +'子どもの様子は、実際に見たことだけを書いてください。</div>';
+}
+function aiActWire(){
+  var m=$('#aiActBg'); if(!m)return;
+  m.querySelectorAll('[data-aia]').forEach(function(b){b.onclick=function(){
+    AIACT.inp[b.getAttribute('data-aia')]=b.getAttribute('data-aiv'); aiActSaveInputs(); aiActDraw();};});
+  if($('#aia_more'))$('#aia_more').onclick=function(){aiActSaveInputs();AIACT.detailOpen=!AIACT.detailOpen;aiActDraw();};
+  if($('#aia_cancel'))$('#aia_cancel').onclick=aiActClose;
+  if($('#aia_go'))$('#aia_go').onclick=function(){aiActSaveInputs();aiActGo();};
+  if($('#aia_back'))$('#aia_back').onclick=function(){AIACT.step='in';AIACT.err='';aiActDraw();};
+  if($('#aia_again'))$('#aia_again').onclick=function(){aiActGo();};
+  m.querySelectorAll('[data-aiadopt]').forEach(function(b){b.onclick=function(){aiActAdopt(+b.getAttribute('data-aiadopt'),false);};});
+  m.querySelectorAll('[data-aiedit]').forEach(function(b){b.onclick=function(){aiActAdopt(+b.getAttribute('data-aiedit'),true);};});
+  m.querySelectorAll('[data-aireject]').forEach(function(b){b.onclick=function(){aiActReject(+b.getAttribute('data-aireject'));};});
+}
+function aiActSaveInputs(){
+  var d=$('#aia_date'); if(d)AIACT.inp.date=d.value;
+  var f=$('#aia_free'); if(f)AIACT.inp.free=f.value;
+  document.querySelectorAll('[data-aid]').forEach(function(e){AIACT.det[e.getAttribute('data-aid')]=e.value;});
+}
+/* くわしい条件を、1つの文にまとめる（空の項目は入れない） */
+function aiActDetailText(){
+  var out=[];
+  AIACT_DETAIL.forEach(function(d){
+    var v=String(AIACT.det[d.k]||'').replace(/^\s+|\s+$/g,'');
+    if(v)out.push(d.l+'：'+v);
+  });
+  return out.join(' ／ ');
+}
+function aiActGo(){
+  if(AIACT.busy)return;
+  if(!aiCanServer()){AIACT.err='いまサーバにつながっていないため、AIには聞けません。';aiActDraw();return;}
+  AIACT.busy=true; AIACT.err=''; aiActDraw();
+  var k=AIACT.klass,i=AIACT.inp;
+  var want=(i.want==='おまかせ'?'':i.want);
+  if(i.free)want=(want?want+' ':'')+i.free;
+  aiAskServer('act',k,null,{
+    note:aiScrub(aiEnvNote(k)),
+    daysLeft:aiActDays(),
+    minutes:i.minutes, place:i.place,
+    want:aiScrub(want), detail:aiScrub(aiActDetailText()),
+    past:aiScrub(aiActPast(k)),
+    rejected:AIACT.rejected.length?aiScrub(AIACT.rejected.join('\n')):''
+  }).then(function(got){
+    AIACT.busy=false;
+    var list=(got&&got.ideas)?got.ideas:null;
+    if(!list||!list.length){
+      AIACT.err='AIから案が返りませんでした。'+(AI_NET.note?('（'+AI_NET.note+'）'):'')+'もう一度お試しください。';
+      AIACT.step='in';
+    }else{
+      AIACT.ideas=list; AIACT.step='out';
+      aiLog('AIと活動を考えた',k+' '+i.want+' '+i.minutes);
+    }
+    aiActDraw();
+  });
+}
+/* §11 採用。園の記録に残し、下書きとして保存する。 */
+function aiActAdopt(idx,edit){
+  var x=AIACT.ideas[idx]; if(!x)return;
+  var k=AIACT.klass;
+  aiActLogAdd({at:aiNow(),klass:k,name:x.name,how:'採用',by:(currentStaff()?currentStaff().name:''),report:''});
+  aiPlanAdd({kind:'活動提案',klass:k,title:x.name,data:x,byAI:true,
+             status:edit?'下書き':'下書き',adopted:true});
+  AIP.res={kind:'活動提案',data:x,byAI:true,aiFields:['name','summary','aim','materials','prep','steps','help','safe']};
+  aiActClose();
+  alert('「'+x.name+'」を下書きとして保存しました。\n\nAI保育計画 → AI記録管理 から開けます。'
+    +(edit?'\n\n直してからお使いください。':''));
+  if(typeof go==='function')go('aiplan');
+}
+/* §12 却下。理由をふまえて作り直す。 */
+function aiActReject(idx){
+  var x=AIACT.ideas[idx]; if(!x)return;
+  var why=prompt('「'+x.name+'」をやめる理由を、ひとことで教えてください。\n次の案づくりに使います。（空のままでもかまいません）','');
+  if(why===null)return;
+  aiActLogAdd({at:aiNow(),klass:AIACT.klass,name:x.name,how:'却下',reason:why||'',
+               by:(currentStaff()?currentStaff().name:'')});
+  AIACT.rejected.push(x.name+(why?('（理由：'+why+'）'):''));
+  aiActGo();
+}
 function renderAIPlan(){
   var s=$('section[data-page="aiplan"]'), k=aiK();
   var tabs=[['idea','アイディア自動生成'],['chat','EduGrow AI'],['memo','AI記録管理']];
@@ -5699,6 +5959,9 @@ function renderAIPlan(){
     +aiKlasses().map(function(x){return '<option'+(x===k?' selected':'')+'>'+esc(x)+'</option>';}).join('')
     +'</select></div>'
     +'<div class="muted" style="font-size:12px;">'+aiFacts(k).count+'名 ／ 先生 '+aiFacts(k).staff+'名</div>'
+    +'<span style="flex:1;"></span>'
+    /* §4 活動づくりの入口。押すと、いま選んでいるクラスを引き継いで窓が開く。 */
+    +'<button class="btn btn-sm btn-primary" id="aipActBtn">'+ic('spark')+'AIと活動を考える</button>'
     +'</div></div>'
     +'<div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto;">'
     +tabs.map(function(t){
@@ -6424,6 +6687,7 @@ function aipWire(k){
      押しても何も起きない状態に気づけない。そのまま呼ぶ。 */
   wireAiEnv(k);
   var ks=$$('#aipK'); if(ks)ks.onchange=function(){AIP.klass=ks.value;AIMEM_FY=null;AIP.res=null;AIP.hq=0;renderAIPlan();};
+  if($('#aipActBtn'))$('#aipActBtn').onclick=function(){aiActOpen(aiK(),renderAIPlan);};
   s.querySelectorAll('[data-aitab]').forEach(function(b){b.onclick=function(){
     AIP.tab=b.getAttribute('data-aitab');renderAIPlan();};});
   s.querySelectorAll('[data-aisub]').forEach(function(b){b.onclick=function(){
@@ -9080,7 +9344,11 @@ function renderCurriculum(){
      いま書いてある週の内容は、上の curMigrateWeekToDay() で各日へ写してある。
      もとの記録（CUR.content）は消していない。 */
   var monthHtml=
-    '<div class="card" style="margin-bottom:14px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">月間の活動内容（'+curClass+'・月に1回登録）</div>'+
+    '<div class="card" style="margin-bottom:14px;">'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">'
+    +'<div style="font-size:13px;font-weight:600;flex:1;">月間の活動内容（'+curClass+'・月に1回登録）</div>'
+    /* §4 活動づくりの入口。書類の活動欄のそばに置く。 */
+    +'<button class="btn btn-sm" id="curActBtn">'+ic('spark')+'AIと活動を考える</button></div>'+
       types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+esc(t)+'</span><input data-actm="'+esc(t)+'|goal" value="'+esc(v(m.goal))+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+esc(t)+'|teacher" value="'+esc(v(m.teacher))+'" placeholder="担当" style="width:110px;"></div>';}).join('')+
       (types.length?'':'<div class="empty">まだ活動がありません。下の「活動内容を編集」から足すと、ここに入ります。</div>')+
       curActTypeBox(types)+'</div>';
@@ -9117,6 +9385,7 @@ function renderCurriculum(){
   /* ★ここで画面を作り直していたので、Tab で隣の欄へ移った瞬間に
      欄ごと作り直され、焦点が外れて、続けて打った文字がどこにも入らなかった。
      値は curActMSet で保存ずみ、画面の文字も打ったとおりなので、作り直さない。 */
+  if($('#curActBtn'))$('#curActBtn').onclick=function(){aiActOpen(curClass,renderCurriculum);};
   s.querySelectorAll('[data-actm]').forEach(function(inp){inp.onchange=function(){
     var p=actSplitKey(inp.getAttribute('data-actm')),m=curActMGet(curClass,p[0]);
     m[p[1]]=inp.value;curActMSet(curClass,p[0],m);};});
