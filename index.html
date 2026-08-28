@@ -1113,8 +1113,13 @@ var SET=Object.assign({
   /* 請求書の体裁（管理側で設定） */
   invLogo:"",invCoName:"",invCoAddr:"",invCoTel:"",invCoRep:"",invCoMail:"",invRegNo:"",
   invUseAgency:false,invAgencyName:"",invAgencyAddr:"",invAgencyTel:"",invAgencyBank:"",
-  invGreeting:"平素は格別のご高配を賜り、厚く御礼申し上げます。\n下記のとおりご請求申し上げますので、お支払期日までにお振込みくださいますようお願い申し上げます。",
-  invFooter:"※振込名義はお子様のお名前でお願いいたします。\n※お振込手数料はご負担いただきますようお願いいたします。",
+  /* ★書き方が硬すぎる、というご指摘（2026-08-19）。
+     「格別のご高配を賜り」「厚く御礼申し上げます」「ご請求申し上げますので」「お願い申し上げます」と
+     かしこまった言い方が4つ重なっていて、園から保護者へのお便りの調子とずれていた。
+     メールのひな形（園からいただいた実物）と同じ、ふだんの言い方にそろえる。
+     すでに園が書き直している場合は、その文がそのまま使われる（ここは初期値）。 */
+  invGreeting:"いつもお世話になっております。\n下記のとおりご請求いたします。内容をご確認のうえ、お支払期日までにお振込みをお願いいたします。",
+  invFooter:"※お振込みは、お子様のお名前でお願いいたします。\n※振込手数料はご負担をお願いいたします。",
   /* コースの名前は入れ物として残す（請求書と契約の画面が「週3」のような名前で引いているため）。
      金額は0にして、園が「料金設定」で入れる。 */
   pricing:{plans:{'週2':0,'週3':0,'週4':0,'週5':0},lunch:0,extended:0,material:0,admission:0,options:[]}
@@ -5338,6 +5343,32 @@ function aiFactsText(klass){
   }catch(e){ return ''; }
 }
 
+/* ══ 実施まであと何日か ═══════════════════════
+   ★これを渡しておくと、サーバが準備の量を変えられる。
+     明日やる活動に「材料を取り寄せて」と書かれても間に合わないため。
+   ・日案 … その日にやるので 0
+   ・「〇月〇日」と分かるとき … その日まで
+   ・「〇月」しか分からないとき … その月の1日まで（もう過ぎていれば 0）
+   ・それ以外 … 分からないものとして渡さない（サーバは何もしない） */
+function aiDaysLeft(kind,period){
+  try{
+    if(kind==='day')return 0;
+    var s=String(period||''); if(!s)return null;
+    var t=new Date(todayISO()+'T00:00:00'),d=null;
+    var md=s.match(/(\d{1,2})月\s*(\d{1,2})日/);
+    if(md)d=new Date(t.getFullYear(),+md[1]-1,+md[2]);
+    else{
+      var mo=s.match(/(\d{1,2})月/);
+      if(mo)d=new Date(t.getFullYear(),+mo[1]-1,1);
+    }
+    if(!d)return null;
+    /* 年をまたぐ言い方。12月に「1月」と言われたら来年のこと。 */
+    if(d.getTime()<t.getTime()-86400000*120)d.setFullYear(d.getFullYear()+1);
+    var n=Math.round((d.getTime()-t.getTime())/86400000);
+    return n<0?0:n;
+  }catch(e){ return null; }
+}
+
 /* サーバに文章を書いてもらう。
    返ってくるのは決まった項目だけなので、そのまま下書きに重ねられる。 */
 function aiAskServer(kind,klass,period,extra){
@@ -5368,6 +5399,9 @@ function aiAskServer(kind,klass,period,extra){
      敬称なしの氏名を落とせるのはここだけ。 */
   if(extra&&extra.aim)body.aim=aiScrub(extra.aim);
   if(extra&&extra.note)body.note=aiScrub(extra.note);
+  /* 実施までの日数。呼ぶ側が持っていればそれを使い、無ければこちらで出す。 */
+  var _dl=(extra&&extra.daysLeft!=null)?extra.daysLeft:aiDaysLeft(kind,m);
+  if(_dl!=null)body.daysLeft=String(_dl);
   return API.call('POST','/ai/plan',body)
     .then(function(j){ return (j&&j.data)?j.data:null; })
     .catch(function(e){ AI_NET.note=e.message||''; return null; });
