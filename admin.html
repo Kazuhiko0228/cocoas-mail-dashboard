@@ -520,6 +520,15 @@ function tenantHTML(){
     +'<div class="f"><label>定額に含む園児数</label><input id="c_inc" class="num" inputmode="numeric" value="'+esc(c.seat_included==null?'':c.seat_included)+'"></div>'
     +'<div class="f"><label>超過1人あたり（税別）</label><input id="c_unit" class="num" inputmode="numeric" placeholder="未確定" value="'+esc(c.seat_unit_yen==null?'':c.seat_unit_yen)+'"></div>'
     +'</div>'
+    /* ★金額がまだ決まっていない3つ。0 のあいだは、いままでと同じ請求になる。 */
+    +'<div class="grid3">'
+    +'<div class="f"><label>初期費用（税別・契約時に1回）</label><input id="c_init" class="num" inputmode="numeric" placeholder="0＝いただかない" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
+    +'<div class="f"><label>ストアの運営手数料（％）</label><input id="c_sfee" class="num" inputmode="numeric" placeholder="0＝取らない" value="'+esc(c.store_fee_percent==null?'':c.store_fee_percent)+'"></div>'
+    +'<div class="f"><label>ストアの園への還元（％）</label><input id="c_sback" class="num" inputmode="numeric" placeholder="0＝還元しない" value="'+esc(c.store_back_percent==null?'':c.store_back_percent)+'"></div>'
+    +'</div>'
+    +'<div class="note">初期費用とストアの率は、まだ決まっていないので 0 のままにしてあります。'
+    +'0 のあいだは、いままでと同じ請求です。決まったらここに入れてください。'
+    +'手数料と還元を足して100%を超えると、出品者の取り分がなくなるので保存できません。</div>'
     +'<div class="grid3">'
     +'<div class="f"><label>キャンペーン（か月）</label><input id="c_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
     +'<div class="f"><label>キャンペーンの割引率</label><input id="c_cr" class="num" value="'+esc(c.campaign_rate)+'"></div>'
@@ -851,6 +860,10 @@ function wire(){
       seat_included:v('c_inc')===''?'':+v('c_inc'),
       seat_unit_yen:v('c_unit')===''?'':+v('c_unit'),
       campaign_months:+v('c_cm'),campaign_rate:+v('c_cr'),min_months:+v('c_mm'),
+      /* 空欄は触らない（0で上書きすると、入れてあった額が消える） */
+      initial_fee_yen:v('c_init')===''?'':+v('c_init'),
+      store_fee_percent:v('c_sfee')===''?'':+v('c_sfee'),
+      store_back_percent:v('c_sback')===''?'':+v('c_sback'),
       note:v('c_note')
     }).then(function(){render();}).catch(function(e){say('sm',e.message);});
   };
