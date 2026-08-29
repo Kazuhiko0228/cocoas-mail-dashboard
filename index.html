@@ -6716,10 +6716,79 @@ function aiapToastUndo(){
   };
 }
 
+/* ══ §14 やってみた記録 ═══════════════════════════
+   採用した活動を実際にやったあと、そのときの様子を残す。
+   ★選択肢は、その活動の「進め方」から作る（実装指示書 §19）。
+     見ていない子どもの反応をこちらで作らない。当てはまるものが無ければ、
+     選ばずに自由に書いていただく。
+   ここに残したものが、次に活動を考えるときの材料になる（§16）。 */
+function aiActDoneHTML(k){
+  var a=aiActLog().filter(function(x){return x.klass===k&&x.how==='採用';}).slice(0,8);
+  if(!a.length)return '';
+  return '<div class="card"><h3 style="margin-top:0;">'+ic('check')+'やってみた記録</h3>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:10px;">'
+    +'採用した活動です。やったあとの様子を残すと、次の提案がそこから続きます。'
+    +'見ていないことは書かないでください。</div>'
+    +a.map(function(x,i){
+      return '<div style="border-top:1px solid var(--line-2);padding:9px 0;">'
+        +'<div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;">'
+        +'<b style="font-size:13.5px;flex:1;">'+esc(x.name)+'</b>'
+        +'<span class="muted" style="font-size:11.5px;">'+esc(String(x.at||'').slice(0,10))+'</span>'
+        +(x.report
+          ? '<span class="pill" style="background:#EAF3DE;color:#27500A;">記録あり</span>'
+          : '<button type="button" class="btn btn-sm btn-primary" data-aidone="'+i+'">やってみた様子を書く</button>')
+        +'</div>'
+        +(x.report?'<div style="font-size:12.5px;line-height:1.9;margin-top:5px;color:var(--tx2);">'+esc(x.report)+'</div>':'')
+        +'</div>';
+    }).join('')+'</div>';
+}
+/* 記録を書く窓。選択肢はその活動の「進め方」から出す。 */
+function aiActDoneModal(idx,k){
+  var all=aiActLog(),list=all.filter(function(x){return x.klass===k&&x.how==='採用';});
+  var rec=list[idx]; if(!rec)return;
+  var pos=all.indexOf(rec);
+  var pl=aiPlans().filter(function(x){return x.klass===k&&x.title===rec.name&&x.data;});
+  var steps=(pl.length&&pl[pl.length-1].data.steps)?pl[pl.length-1].data.steps:[];
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.innerHTML='<div class="modal" style="width:620px;max-width:96vw;">'
+    +'<h2>やってみた様子　<span class="muted" style="font-size:13px;font-weight:400;">'+esc(rec.name)+'</span></h2>'
+    +(steps.length
+      ? '<div class="field"><label>特に楽しんでいたところ（見たものだけ選んでください）</label><div>'
+        +steps.map(function(t,i){return '<button type="button" class="btn btn-sm" data-adq="'+i+'" style="margin:0 6px 6px 0;">'+esc(t)+'</button>';}).join('')
+        +'</div><div class="muted" style="font-size:11.5px;">この一覧は、この活動の「進め方」から出しています。'
+        +'当てはまるものが無ければ、選ばずに下へ書いてください。</div></div>'
+      : '')
+    +'<div class="field"><label>そのほか、見たこと・気づいたこと</label>'
+    +'<textarea id="ad_free" rows="4" placeholder="例：紙をちぎる音を何度も試していた。時間が足りなかった。"></textarea></div>'
+    +'<div class="muted" style="font-size:11.5px;">ここに残したことが、次に活動を考えるときの材料になります。</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">'
+    +'<button type="button" class="btn" id="ad_cancel">やめる</button>'
+    +'<button type="button" class="btn btn-primary" id="ad_save">保存する</button></div></div>';
+  var picked=[];
+  m.querySelectorAll('[data-adq]').forEach(function(b){b.onclick=function(){
+    var t=b.textContent,i=picked.indexOf(t);
+    if(i>=0){picked.splice(i,1);b.className='btn btn-sm';}
+    else{picked.push(t);b.className='btn btn-sm btn-primary';}
+  };});
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  $('#ad_cancel').onclick=function(){m.remove();};
+  $('#ad_save').onclick=function(){
+    var free=String($('#ad_free').value||'').replace(/^\s+|\s+$/g,'');
+    var txt=[picked.length?('楽しんでいた：'+picked.join('・')):'',free].filter(Boolean).join(' ／ ');
+    if(!txt){alert('見たことを、ひとつでも選ぶか書いてください。');return;}
+    all[pos].report=txt;
+    all[pos].reportAt=aiNow();
+    all[pos].reportBy=(currentStaff()?currentStaff().name:'');
+    stSet('aiActLog',all);
+    aiLog('やってみた様子を残した',k+' '+rec.name);
+    m.remove(); renderAIPlan();
+  };
+}
 function aipMemoHTML(k){
   var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=aiLogVisible();
   var ps=aiPlans().filter(function(x){return x.klass===k;});
-  return '<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
+  return aiActDoneHTML(k)
+    +'<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
     +'<div class="field"><label>スクール理念</label>'
     +'<textarea id="mPh" rows="2">'+esc(aiSetup().philosophy)+'</textarea></div>'
     +'<div class="grid" style="grid-template-columns:2fr 1fr;gap:12px;">'
@@ -6837,6 +6906,9 @@ function aipWire(k){
   wireAiEnv(k);
   var ks=$$('#aipK'); if(ks)ks.onchange=function(){AIP.klass=ks.value;AIMEM_FY=null;AIP.res=null;AIP.hq=0;renderAIPlan();};
   if($('#aipActBtn'))$('#aipActBtn').onclick=function(){aiActOpen(aiK(),renderAIPlan);};
+  /* §14 やってみた記録 */
+  document.querySelectorAll('[data-aidone]').forEach(function(b){b.onclick=function(){
+    aiActDoneModal(+b.getAttribute('data-aidone'),aiK());};});
   s.querySelectorAll('[data-aitab]').forEach(function(b){b.onclick=function(){
     AIP.tab=b.getAttribute('data-aitab');renderAIPlan();};});
   s.querySelectorAll('[data-aisub]').forEach(function(b){b.onclick=function(){

@@ -68,7 +68,18 @@ function lineOf(s,idx){return s.slice(0,idx).split('\n').length;}
 
 for(const f of process.argv.slice(2)){
   const raw=fs.readFileSync(f,'utf8');
-  const code=scriptBlocks(raw).join('\n/*<<block>>*/\n');
+  const blocks=scriptBlocks(raw);
+  /* ★まず文法。ここで落ちると画面はまるごと動かない。
+     2026-08-27 に「関数の先頭が二重になっている」ファイルを通してしまったので足した。
+     見つけたら、ほかの検査に進まずここで止める（あとの結果があてにならないため）。 */
+  const vm=require('vm');
+  let ng=0;
+  blocks.forEach((b,i)=>{
+    try{ new vm.Script(b); }
+    catch(e){ ng++; console.log('■ '+f); console.log('  ★文法エラー（'+(i+1)+'つめの script）: '+e.message); }
+  });
+  if(ng){ process.exitCode=1; continue; }
+  const code=blocks.join('\n/*<<block>>*/\n');
   const S=strip(code);
 
   /* ② トップレベルの同名関数（行頭に function があるものだけ） */
