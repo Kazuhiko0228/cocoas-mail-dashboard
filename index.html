@@ -5357,9 +5357,38 @@ function aiEnvOf(k){
   return {place:e.place||'',mins:e.mins||'',avoid:e.avoid||'',want:e.want||''};
 }
 function aiEnvSet(k,o){ var a=aiEnvAll(); a[k]=o; stSet('ai_env',a); }
-/* AIへ渡す1文にまとめる。空のときは何も渡さない（からの条件を送らない）。 */
+
+/* ══ §3 園の環境（AIが参照する）═══════════════════
+   実装指示書 §3「環境情報」。クラスごとではなく園ごとに持つ。
+   道具も素材も場所も、園でひとつのものだから。
+   ★入っていなくても提案は止めない（§3の但し書き）。入っている項目だけ渡す。 */
+var AI_ENV_FIELDS=[
+  {k:'places', l:'使える場所',            ph:'保育室・園庭・ホール・テラス・近くの公園'},
+  {k:'tools',  l:'園にある道具・素材',    ph:'画用紙・クレヨン・絵の具・のり・ハサミ・段ボール・平均台・フープ',wide:true},
+  {k:'easy',   l:'ふだん使いやすい物',    ph:'すぐ出せる・数がそろっているもの'},
+  {k:'noAct',  l:'避けたい活動',          ph:'例：水を大量に使う活動、園庭を長く占有する活動'},
+  {k:'care',   l:'活動のうえでの配慮',    ph:'例：小麦を使わない、ラテックスを避ける',wide:true},
+  {k:'rules',  l:'園ごとの決まりごと',    ph:'例：制作は持ち帰らず園で飾る、園庭は10時まで',wide:true}
+];
+function aiEnvSchool(){ var o=stGet('aiEnvSchool',{}); return o&&typeof o==='object'?o:{}; }
+function aiEnvSchoolSet(o){ stSet('aiEnvSchool',o); }
+function aiEnvSchoolNote(){
+  var e=aiEnvSchool(),a=[],i;
+  for(i=0;i<AI_ENV_FIELDS.length;i++){
+    var f=AI_ENV_FIELDS[i],v=String(e[f.k]||'').replace(/^\s+|\s+$/g,'');
+    if(!v)continue;
+    if(f.k==='tools')a.push('園にある道具・素材：'+v+'（この中から選んでください。無いものは代用品を書いてください）');
+    else if(f.k==='noAct')a.push('避けたい活動：'+v+'（これに当たる案は出さないでください）');
+    else if(f.k==='care')a.push('活動のうえでの配慮：'+v+'（必ず守ってください）');
+    else a.push(f.l+'：'+v);
+  }
+  return a.join(' ／ ');
+}
+/* AIへ渡す1文にまとめる。空のときは何も渡さない（からの条件を送らない）。
+   園ぜんたいの環境と、そのクラスだけの事情を、両方まとめる。 */
 function aiEnvNote(k){
   var e=aiEnvOf(k),a=[];
+  var sc=aiEnvSchoolNote(); if(sc)a.push(sc);
   if(e.place)a.push('活動する場所：'+e.place);
   if(e.mins)a.push('使える時間：'+e.mins);
   if(e.avoid)a.push('使わない材料：'+e.avoid+'（この材料を使う案は出さないでください。代わりの材料を書いてください）');
@@ -6784,10 +6813,61 @@ function aiActDoneModal(idx,k){
     m.remove(); renderAIPlan();
   };
 }
+/* §3 園の環境を入れるカード。入っている項目だけAIへ渡る。 */
+function aiEnvSchoolCard(){
+  var e=aiEnvSchool();
+  return '<div class="card"><h3 style="margin-top:0;">'+ic('gear')+'園の環境（AIが参照します）</h3>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:11px;line-height:1.9;">'
+    +'ここに入れたものは、活動を考えるときに毎回そのまま使われます。'
+    +'園にある道具を入れておくと、<b>その中でできる活動だけ</b>が出ます。'
+    +'空のままでも活動は作れます（その項目を聞かないだけです）。'
+    +'クラス1つぶんではなく、園ぜんたいの設定です。</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'
+    +AI_ENV_FIELDS.map(function(f){
+      return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'">'
+        +'<label style="font-size:11.5px;">'+esc(f.l)+'</label>'
+        +'<textarea data-aienv="'+esc(f.k)+'" rows="'+(f.wide?2:1)+'" placeholder="'+esc(f.ph)+'">'
+        +esc(e[f.k]||'')+'</textarea></div>';
+    }).join('')
+    +'</div>'
+    +'<div style="display:flex;gap:10px;align-items:center;margin-top:11px;flex-wrap:wrap;">'
+    +'<button class="btn btn-primary btn-sm" id="aiEnvSave">保存する</button>'
+    +'<span class="muted" id="aiEnvMsg" style="font-size:12px;"></span></div></div>';
+}
+/* ══ §15 覚えていることの管理 ═══════════════════
+   AIが「このクラスではこう」と覚えているものを、園から見えるようにする。
+   覚えていること自体を見られないと、なぜその提案が出たのかが分からなくなる。
+   1つずつ忘れさせられる。 */
+function aiActMemoryCard(k){
+  var pref=aiActPrefOf(k);
+  var keys=Object.keys(pref);
+  var lg=aiActLog().filter(function(x){return x.klass===k;});
+  var adopted=lg.filter(function(x){return x.how==='採用';}).length;
+  var rejected=lg.filter(function(x){return x.how==='却下';});
+  return '<div class="card"><h3 style="margin-top:0;">'+ic('spark')+'AIが覚えていること（'+esc(k)+'）</h3>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:11px;line-height:1.9;">'
+    +'活動を考えるときに、毎回そのまま使われます。違うと思ったら忘れさせてください。</div>'
+    +(keys.length
+      ? '<div style="margin-bottom:11px;">'+keys.map(function(kk){
+          var q=null,i; for(i=0;i<AIACT_Q.length;i++)if(AIACT_Q[i].k===kk)q=AIACT_Q[i];
+          return '<div style="display:flex;gap:9px;align-items:center;border-top:1px solid var(--line-2);padding:7px 0;font-size:12.5px;">'
+            +'<span style="flex:1;">'+esc(q?q.q.replace(/[？?]$/,''):kk)+'　→　<b>'+esc(pref[kk])+'</b></span>'
+            +'<button type="button" class="btn btn-sm btn-ghost" data-aiforget="'+esc(kk)+'">忘れる</button></div>';
+        }).join('')+'</div>'
+      : '<div class="muted" style="font-size:12px;margin-bottom:11px;">まだ覚えていることはありません。'
+        +'活動を考えるときの質問で「今後も同じ答えでよい」を押すと、ここに残ります。</div>')
+    +'<div style="font-size:12.5px;line-height:1.95;border-top:1px solid var(--line-2);padding-top:9px;">'
+    +'これまでに <b>'+adopted+'</b> 件を採用、<b>'+rejected.length+'</b> 件をやめました。'
+    +(rejected.length?'<div class="muted" style="font-size:11.5px;margin-top:5px;">やめた理由は、作り直しのときだけ使います（同じ案が出ないように）。'
+      +'ためた理由は次の提案には持ち越しません。</div>':'')
+    +'</div></div>';
+}
 function aipMemoHTML(k){
   var c=aiClassOf(k), p=aiProfile(k), f=p.facts, lg=aiLogVisible();
   var ps=aiPlans().filter(function(x){return x.klass===k;});
   return aiActDoneHTML(k)
+    +aiActMemoryCard(k)
+    +aiEnvSchoolCard()
     +'<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
     +'<div class="field"><label>スクール理念</label>'
     +'<textarea id="mPh" rows="2">'+esc(aiSetup().philosophy)+'</textarea></div>'
@@ -6909,6 +6989,24 @@ function aipWire(k){
   /* §14 やってみた記録 */
   document.querySelectorAll('[data-aidone]').forEach(function(b){b.onclick=function(){
     aiActDoneModal(+b.getAttribute('data-aidone'),aiK());};});
+  /* §15 覚えていることを1つずつ忘れる */
+  document.querySelectorAll('[data-aiforget]').forEach(function(b){b.onclick=function(){
+    var kk=b.getAttribute('data-aiforget'),k2=aiK();
+    if(!confirm('この答えを忘れます。\n次に活動を考えるとき、もう一度お聞きします。\n\nよろしいですか？'))return;
+    var a=aiActPref(); if(a[k2])delete a[k2][kk];
+    stSet('aiActPref',a); aiLog('AIの記憶を消した',k2+' '+kk); renderAIPlan();
+  };});
+  /* §3 園の環境 */
+  if($('#aiEnvSave'))$('#aiEnvSave').onclick=function(){
+    var o={};
+    document.querySelectorAll('[data-aienv]').forEach(function(e){
+      o[e.getAttribute('data-aienv')]=String(e.value||'').replace(/^\s+|\s+$/g,'');});
+    aiEnvSchoolSet(o);
+    var n=AI_ENV_FIELDS.filter(function(f){return o[f.k];}).length;
+    var m=$('#aiEnvMsg');
+    if(m)m.textContent='保存しました（'+n+'項目をAIに渡します）';
+    aiLog('園の環境を保存',n+'項目');
+  };
   s.querySelectorAll('[data-aitab]').forEach(function(b){b.onclick=function(){
     AIP.tab=b.getAttribute('data-aitab');renderAIPlan();};});
   s.querySelectorAll('[data-aisub]').forEach(function(b){b.onclick=function(){
