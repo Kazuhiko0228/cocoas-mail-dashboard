@@ -15158,6 +15158,27 @@ function acctModal(acctId,staffId){
 }
 function showStaffLogin(){
   var ov=document.getElementById('staffLogin');if(!ov){ov=el('div',{id:'staffLogin'});document.body.appendChild(ov);}
+  /* ★はじめてこの端末で開いたとき、サーバの生存確認が終わる前にデモのアカウントが出て、
+     そのまま差し替わらなかった。園コードを入れる欄にたどり着けず、
+     本番の園（Test garden など）に入れなかった。
+     確認が終わるまでは待つ。終わったら、この関数がもう一度呼ばれる。 */
+  if(API_LIVE&&API.base()&&!API_CHECKED&&!API_ALIVE){
+    ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2>'
+      +'<div class="sl-sub">サーバにつながるか確認しています…</div>'
+      +'<div class="muted" style="font-size:12px;margin-top:14px;line-height:1.9;">'
+      +'数秒お待ちください。<br>'
+      +'<a href="#" id="slSkip" style="color:var(--teal);text-decoration:underline;">サーバを使わず、この端末だけで使う</a></div></div>';
+    ov.style.display='flex';
+    var sk=document.getElementById('slSkip');
+    if(sk)sk.onclick=function(e){
+      e.preventDefault();
+      if(!confirm('サーバに接続せず、この端末だけで使いますか？\n（入力した内容は他の端末と共有されません）'))return;
+      API.setBase(''); location.reload();
+    };
+    /* 万一 fetch が返ってこないときのために、10秒で先へ進む */
+    setTimeout(function(){ if(!API_CHECKED){API_CHECKED=true;showStaffLogin();} },10000);
+    return;
+  }
   if(API.enabled()){
     ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2><div class="sl-sub">'+esc(((API.tenant()||{}).name)||'EduGrow 園務管理システム')+'<br>園コードとご自身のログインID・パスワードを入力してください。</div>'+serverLoginHtml()+'</div>';
     ov.style.display='flex';
@@ -20315,14 +20336,16 @@ var _nc=$('#navContacts'); if(_nc)_nc.textContent=DB.contacts.length;
 /* サーバが動いているかを、裏で確かめて控えておく。
    ここで返事を待つと、つながらない園で画面が出るまで固まるので待たない。
    控えた結果は、次にこの画面を開いたときに効く。 */
+/* サーバの生存確認が終わったかどうか。終わるまではデモのアカウントを出さない。 */
+var API_CHECKED=false;
 function apiHealthCheck(){
   var base=API.base();
   function mark(alive){try{localStorage.setItem('edugrow_apiAlive',alive?'1':'0');}catch(e){}}
   /* 札が立つまでは、確かめにも行かない。
      行くと、園の端末から毎回サーバへ通信が出るうえ、
      つながらない園では読み込むたびに通信の失敗が記録に残るため。 */
-  if(!API_LIVE){mark(false);return;}
-  if(!base){mark(false);return;}
+  if(!API_LIVE){mark(false);API_CHECKED=true;return;}
+  if(!base){mark(false);API_CHECKED=true;return;}
   try{
     /* ★控えを書くだけで、いま動いている画面の API_ALIVE を直していなかった。
        そのため、はじめて開いた端末では必ず「つながっていない」扱いになり、
@@ -20330,16 +20353,37 @@ function apiHealthCheck(){
     fetch(base+'/health').then(function(r){return r.json();})
       .then(function(j){
         var ok=!!(j&&j.ok);
-        mark(ok);
+        mark(ok); API_CHECKED=true;
+        if(!ok){apiHealthDone();}
         if(ok&&!API_ALIVE){
           API_ALIVE=true;
+          /* ★ログインの窓が出たままだと、デモのアカウントの画面から動かない。
+             はじめてこの端末で開いた方は、園コードを入れる欄にたどり着けなかった。
+             つながった時点で、ログインの窓を出し直す。 */
+          try{
+            var _ov=document.getElementById('staffLogin');
+            if(_ov&&_ov.style.display!=='none'&&typeof showStaffLogin==='function'){
+              showStaffLogin();
+              return;
+            }
+          }catch(e){}
           /* すでに描き終わった画面があれば、つながった前提で描き直す
              （「AIにつながっていません」の札を出したままにしないため） */
           try{if(typeof page!=='undefined'&&page)go(page);}catch(e){}
         }
       })
-      .catch(function(){mark(false);});
-  }catch(e){mark(false);}
+      /* つながらなかったときも、必ず先へ進める。
+         ここで止めると、ログインの窓が「確認しています」のまま動かなくなる。 */
+      .catch(function(){mark(false);apiHealthDone();});
+  }catch(e){mark(false);API_CHECKED=true;}
+}
+/* 確認が終わったことを画面に伝える。ログインの窓が出ていれば出し直す。 */
+function apiHealthDone(){
+  API_CHECKED=true;
+  try{
+    var ov=document.getElementById('staffLogin');
+    if(ov&&ov.style.display!=='none'&&typeof showStaffLogin==='function')showStaffLogin();
+  }catch(e){}
 }
 try{apiHealthCheck();}catch(e){}
 try{applyBrand();}catch(e){}
