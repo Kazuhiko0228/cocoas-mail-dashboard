@@ -6361,7 +6361,10 @@ function aipCraftHTML(k){
     +'<div style="display:flex;gap:8px;margin-top:15px;flex-wrap:wrap;">'
     +'<button class="btn btn-primary btn-sm" id="cSave">下書きとして保存</button>'
     +'<button class="btn btn-sm" id="cAgain">別の案をつくる</button>'
-    +'<button class="btn btn-sm" id="cPrint">印刷する</button></div>'
+    +'<button class="btn btn-sm" id="cPrint">印刷する</button>'
+    /* ★保存したものがどこにあるか分からない、というご指摘（2026-08-27）。
+       その場から見に行けるようにする。 */
+    +'<button class="btn btn-sm btn-ghost" id="cSaved">保存したものを見る</button></div>'
     +'</div>';
   return h;
 }
@@ -7004,9 +7007,12 @@ function aipMemoHTML(k){
         +'</div>';
     })()
     +'<div class="card"><h3 style="margin-top:0;">つくった計画（'+ps.length+'件）</h3>'
+    +'<div class="muted" style="font-size:11.5px;margin:-4px 0 10px;">'
+    +'「下書きとして保存」「この案でいく」で入れたものが、ここに残ります。'
+    +'実際にやったかどうかは、行ごとに選んでください（監査で見られます）。</div>'
     +(ps.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
       +ps.slice().reverse().map(function(x){
-        return '<tr><td style="padding:8px 0;">'+esc({year:'年間発達マップ',month:'月案',week:'週案',day:'日案',craft:'制作物'}[x.kind]||x.kind)
+        return '<tr><td style="padding:8px 0;">'+esc({year:'年間発達マップ',month:'月案',week:'週案',day:'日案',craft:'制作物',活動提案:'活動提案'}[x.kind]||x.kind)
           +'　<span class="muted">'+esc(x.title||'')+'</span>'
           /* 監査で「この記述の根拠は？」と聞かれる。一覧でも見分けられるようにする */
           +(x.byAI?'<span class="badge" style="background:#EEEDFE;color:#3C3489;margin-left:6px;">AIが下書き</span>'
@@ -7183,9 +7189,12 @@ function aipWire(k){
     var d=AIP.res.data;
     aiPlanAdd({kind:'craft',klass:k,title:d.month+'　'+d.name,data:d,
       byAI:!!AIP.res.byAI, aiFields:AIP.res.aiFields||[]});
-    aiLog('制作物を下書き保存',d.name); renderAIPlan(); aiToast('下書きとして保存しました');
+    aiLog('制作物を下書き保存',d.name); renderAIPlan();
+    /* ★どこに入ったのかが分からない、というご指摘（2026-08-27）。行き先を言う。 */
+    aiToast('下書きとして保存しました（AI記録管理 →「つくった計画」）');
   };
   var cp=$$('#cPrint'); if(cp)cp.onclick=function(){ aipPrint('craft',AIP.res.data,k,AIP.res); };
+  var cs2=$$('#cSaved'); if(cs2)cs2.onclick=function(){ AIP.tab='memo'; renderAIPlan(); };
 
   /* 年間発達マップ */
   var yg=$$('#yGo');
@@ -8300,7 +8309,7 @@ function renderContacts(){
             +(c.concerns?'<div style="margin-top:5px;display:inline-flex;align-items:flex-start;gap:5px;background:#E6F1FB;border:1px solid #C3DCF5;color:#123E6B;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>共有</b>'+esc(c.concerns)+'</div>':'')
             +((chaseList.length||c.chaseNote)?'<div style="margin-top:4px;display:inline-flex;align-items:flex-start;gap:5px;background:#E6F1FB;border:1px solid #C3DCF5;color:#123E6B;border-radius:8px;padding:3px 9px;font-size:11.5px;line-height:1.5;"><b>追い状況</b>'+esc([chaseList.join('・'),c.chaseNote].filter(Boolean).join(' ／ '))+'</div>':'');
         }
-        return '<tr><td><div style="display:flex;align-items:center;gap:11px;">'+avatarHTML(c,34)+'<div><div class="row-name">'+esc(c.name)+' 様</div><div class="row-sub">'+esc(c.child)+(c.dob?' <span style="color:var(--tx3);">'+fmt(c.dob)+'生</span>':'')+'</div></div></div></td>'+
+        return '<tr><td><div style="display:flex;align-items:center;gap:11px;">'+avatarHTML(c,34)+'<div><div class="row-name">'+esc(c.name)+' 様</div><div class="row-sub">'+esc(childNameHon(c))+(c.dob?' <span style="color:var(--tx3);">'+fmt(c.dob)+'生</span>':'')+'</div></div></div></td>'+
           '<td><div>'+esc(c.email)+'</div><div class="row-sub">'+esc(c.phone||'')+'</div></td>'+
           '<td>'+badge+'</td><td>'+right+'</td>'+
           '<td style="text-align:right;white-space:nowrap;">'+
@@ -8657,7 +8666,14 @@ function contactModal(id,forceKind){
       +'<button type="button" class="btn btn-sm btn-ghost" id="f_photoDel">'+ic('trash')+'削除</button>'
       +'<span class="muted" style="font-size:11.5px;" id="f_photoMsg">正方形に自動で縮小して保存します</span></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>保護者名</label><input id="f_name" value="'+esc(c.name)+'"></div><div class="field"><label>保護者名のふりがな</label><input id="f_kana" value="'+esc((c.kana||''))+'" placeholder="例：たなか はなこ"></div></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>お子様のお名前</label><input id="f_child" value="'+esc(c.child)+'" placeholder="例：結愛ちゃん"></div><div class="field"><label>お子様のふりがな</label><input id="f_ckana" value="'+esc((c.childKana||''))+'" placeholder="例：たかはし こころ"></div><div class="field"><label>お子様の生年月日</label><input type="date" id="f_dobTop" value="'+esc((c.dob||''))+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;"><div class="field"><label>お子様のお名前</label><input id="f_child" value="'+esc(c.child)+'" placeholder="例：結愛"></div><div class="field"><label>お子様のふりがな</label><input id="f_ckana" value="'+esc((c.childKana||''))+'" placeholder="例：たかはし こころ"></div><div class="field"><label>お子様の生年月日</label><input type="date" id="f_dobTop" value="'+esc((c.dob||''))+'"></div>'
+    /* ★「くん・ちゃん」を自動で付けるために要る（2026-08-27 のご指示）。
+       置き場は増やしていない。生徒台帳と同じ studentProfiles.sex に入る。 */
+    +'<div class="field"><label>性別</label><select id="f_sex">'
+    +['','男の子','女の子'].map(function(o){
+      var _sx='';try{_sx=String(((typeof spStore==='function'?spStore():{})[c.id]||{}).sex||'');}catch(e){}
+      return '<option'+(o===_sx?' selected':'')+'>'+esc(o)+'</option>';}).join('')
+    +'</select><div class="muted" style="font-size:11px;margin-top:3px;">「くん・ちゃん」に使います</div></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>メールアドレス</label><input id="f_email" value="'+esc(c.email)+'"></div><div class="field"><label>電話番号</label><input id="f_phone" value="'+esc((c.phone||''))+'"></div></div>'+
     '<div id="leadFields">'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>問い合わせ日</label><input type="date" id="f_recv" value="'+esc((c.receivedDate||''))+'"></div><div class="field"><label>問合せ方法</label><select id="f_source">'+srcOpts+'</select></div></div>'+
@@ -8774,6 +8790,8 @@ function contactModal(id,forceKind){
     /* ふりがなは、リードでも在園児でも同じ欄に入れる */
     if($('#f_kana'))nc.kana=$('#f_kana').value.trim();
     if($('#f_ckana'))nc.childKana=$('#f_ckana').value.trim();
+    /* ★性別は生徒台帳のもの。ここでは入口を増やすだけで、置き場は増やさない。
+       保存は下（DB.contacts を書いたあと）で行う。id がここで決まるため。 */
     nc.email=$('#f_email').value.trim();nc.phone=$('#f_phone').value.trim();nc.note=$('#f_note').value.trim();
     if(kind==='lead'){nc.status=$('#f_status').value;nc.date=$('#f_date').value;nc.receivedDate=$('#f_recv').value;nc.source=$('#f_source').value;nc.concerns=$('#f_concerns').value.trim();nc.wishKlass=$('#f_wklass').value;nc.format=$('#f_format').value;nc.trialBy=$('#f_by').value.trim();nc.trialTime=$('#f_ttime').value.trim();nc.nextAction=$('#f_next').value;nc.nextMethod=$('#f_nmethod').value;nc.chase={ng:$('#f_cng').checked,honbu:$('#f_chonbu').checked,mg:$('#f_cmg').checked};nc.chaseNote=$('#f_cnote').value.trim();if($('#f_report'))nc.report=$('#f_report').value.trim();if($('#f_qs'))nc.questions=$('#f_qs').value.trim();nc.briefingDate=$('#f_brief').value;nc.invoiceStatus=$('#f_inv').value;nc.firstDay=$('#f_first').value;}
     else{nc.paused=!!($('#f_paused')&&$('#f_paused').checked);
@@ -8793,6 +8811,14 @@ function contactModal(id,forceKind){
     if(!nc.name||!nc.email){alert('保護者名とメールアドレスは必須です');return;}
     if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
     DB.contacts=arr;
+    /* 性別を生徒台帳へ。空にしたときは、入っていたものを消す。 */
+    try{
+      var _se=$('#f_sex');
+      if(_se&&typeof spGet==='function'&&typeof spSet==='function'){
+        var _sp=spGet(nc.id)||{};
+        if(String(_se.value||'')!==String(_sp.sex||'')){ _sp.sex=_se.value; spSet(nc.id,_sp); }
+      }
+    }catch(e){}
     try{if(pendingPhoto)photoSet(nc.id,pendingPhoto);else if(photoCleared)photoSet(nc.id,'');}catch(e){alert('写真を保存できませんでした（保存容量が不足している可能性があります）');}
     m.remove();
     /* 生徒台帳から足したときは、そのままその子のプロフィールを開く。
@@ -8855,7 +8881,7 @@ function renderCompose(){
   function fmatch(c){if(composeFilter==='すべて')return true;if(composeFilter==='在園児')return c.kind==='enrolled';if(composeFilter==='リード')return c.kind==='lead';return c.status===composeFilter;}
   function shown(){return cs.filter(fmatch);}
   function list(){
-    $('#cmpList').innerHTML=shown().map(function(c){var on=!!composeSel[c.id];var badge=c.kind==='enrolled'?'<span class="pill st-在園">在園・'+esc(c.klass)+'</span>':c.kind==='withdrawn'?'<span class="pill st-退園">退園</span>':statusPill(c.status);var age=c.dob?'<span class="tag" style="margin-left:6px;">'+ageClassOf(c)+'</span>':'';return '<div class="reci'+(on?' on':'')+'" data-id="'+esc(c.id)+'"><input type="checkbox" '+(on?'checked':'')+'><div style="flex:1;min-width:0;"><div class="row-name">'+esc(c.name)+' 様 <span class="row-sub">／ '+esc(c.child)+'</span>'+age+'</div><div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(c.email)+'</div></div>'+badge+'</div>';}).join('')||'<div class="empty">該当者なし</div>';
+    $('#cmpList').innerHTML=shown().map(function(c){var on=!!composeSel[c.id];var badge=c.kind==='enrolled'?'<span class="pill st-在園">在園・'+esc(c.klass)+'</span>':c.kind==='withdrawn'?'<span class="pill st-退園">退園</span>':statusPill(c.status);var age=c.dob?'<span class="tag" style="margin-left:6px;">'+ageClassOf(c)+'</span>':'';return '<div class="reci'+(on?' on':'')+'" data-id="'+esc(c.id)+'"><input type="checkbox" '+(on?'checked':'')+'><div style="flex:1;min-width:0;"><div class="row-name">'+esc(c.name)+' 様 <span class="row-sub">／ '+esc(childNameHon(c))+'</span>'+age+'</div><div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(c.email)+'</div></div>'+badge+'</div>';}).join('')||'<div class="empty">該当者なし</div>';
     $('#cmpList').querySelectorAll('[data-id]').forEach(function(r){r.onclick=function(){var id=+r.getAttribute('data-id');composeSel[id]=!composeSel[id];list();preview();syncAll();};});
     syncAll();preview();
   }
@@ -10680,6 +10706,23 @@ function ageClassOf(c,onDate){
   return age+'歳児';
 }
 function childName(c){return c.child.replace(/ちゃん|くん/g,'');}
+/* ══ お子様の呼び名（名前＋くん／ちゃん）══════════════
+   ★連絡先に「結菜」とだけ入っていると、一覧でも「結菜」のまま出て、
+     「湊くん」「美桜ちゃん」と並んだときにそろわない（2026-08-27 のご指摘）。
+   ・入力に くん／ちゃん が入っていれば、それをそのまま使う（園の書き方を尊重）。
+   ・入っていなければ、性別（生徒台帳）から付ける。
+   ・性別が分からないときは、何も付けない。
+     当てずっぽうで付けると、女の子を「くん」と呼ぶことになる。 */
+function childHon(c){
+  if(!c)return '';
+  var cd=String(c.child||'');
+  if(cd.indexOf('くん')>-1)return 'くん';
+  if(cd.indexOf('ちゃん')>-1)return 'ちゃん';
+  var sx='';
+  try{ sx=String(((typeof spStore==='function'?spStore():{})[c.id]||{}).sex||''); }catch(e){}
+  return sx.indexOf('男')>-1?'くん':(sx.indexOf('女')>-1?'ちゃん':'');
+}
+function childNameHon(c){ return c?(childName(c)+childHon(c)):''; }
 /* 同名の園児がいるため、一覧や印刷では「姓＋名」のフルネームで出す。
    生徒台帳（studentProfiles）の姓名を優先し、無い場合は保護者名の姓＋お子様名で組み立てる。 */
 function childFullName(c){
