@@ -14678,7 +14678,10 @@ function serverLoginHtml(){
     +'<input id="slId2" placeholder="ログインID" autocapitalize="none" autocorrect="off" spellcheck="false">'
     +'<input id="slPw2" type="password" placeholder="パスワード">'
     +'<button class="sl-go" id="slGo2">ログイン</button>'
-    +'<div style="text-align:center;margin-top:10px;"><button class="link" id="slLocal" style="background:none;border:none;color:var(--tx2);font-size:12px;text-decoration:underline;cursor:pointer;">この端末だけで使う（サーバに接続しない）</button></div>'
+    /* ★「この端末だけで使う」はここから外した（2026-08-27 安田さんのご判断）。
+       園にとっては押す理由が無く、押すと接続先が空になり、
+       画面から戻す手だてが無かった（うっかり押すと園のサーバに戻れない）。
+       お試しで見るときは URL に ?demo=1 を付ける。園の目には触れない。 */
     +'</div>';
 }
 function serverLogin(){
@@ -15199,16 +15202,8 @@ function showStaffLogin(){
   if(API_LIVE&&API.base()&&!API_CHECKED&&!API_ALIVE){
     ov.innerHTML='<div class="sl-box"><h2>🔐 職員ログイン</h2>'
       +'<div class="sl-sub">サーバにつながるか確認しています…</div>'
-      +'<div class="muted" style="font-size:12px;margin-top:14px;line-height:1.9;">'
-      +'数秒お待ちください。<br>'
-      +'<a href="#" id="slSkip" style="color:var(--teal);text-decoration:underline;">サーバを使わず、この端末だけで使う</a></div></div>';
+      +'<div class="muted" style="font-size:12px;margin-top:14px;line-height:1.9;">数秒お待ちください。</div></div>';
     ov.style.display='flex';
-    var sk=document.getElementById('slSkip');
-    if(sk)sk.onclick=function(e){
-      e.preventDefault();
-      if(!confirm('サーバに接続せず、この端末だけで使いますか？\n（入力した内容は他の端末と共有されません）'))return;
-      API.setBase(''); location.reload();
-    };
     /* 万一 fetch が返ってこないときのために、10秒で先へ進む */
     setTimeout(function(){ if(!API_CHECKED){API_CHECKED=true;showStaffLogin();} },10000);
     return;
@@ -15218,7 +15213,6 @@ function showStaffLogin(){
     ov.style.display='flex';
     $('#slGo2').onclick=serverLogin;
     $('#slPw2').addEventListener('keydown',function(e){if(e.key==='Enter')serverLogin();});
-    $('#slLocal').onclick=function(){if(confirm('サーバに接続せず、この端末だけで使いますか？（入力した内容は他の端末と共有されません）')){API.setBase('');location.reload();}};
     return;
   }
   /* ★サーバで使う端末が通信を失ったときに、デモのアカウントを出さない。
@@ -15263,8 +15257,23 @@ function showStaffLogin(){
       +'（例：ID が admin ならパスワードも admin）</div>'
     +'<table>'+staffAccounts().map(function(a){
         return '<tr><td>'+esc(a.loginId)+'</td><td>'+esc(a.role)+'</td></tr>';}).join('')
-    +'</table></div></div></div>';
+    +'</table></div>'
+    /* ★「この端末だけで使う」を押すと接続先が空になり、
+       画面から戻す手だてがどこにも無かった（設定からも外してある）。
+       うっかり押した園が、自分のサーバに戻れなくなる。ここから戻せるようにする。 */
+    +(stGetRaw('apiBase')===''
+      ? '<div style="margin-top:16px;text-align:center;border-top:1px solid var(--line);padding-top:14px;">'
+        +'<div class="muted" style="font-size:11.5px;margin-bottom:8px;line-height:1.8;">'
+        +'いまこの端末は「サーバに接続しない」設定です。<br>園の記録はサーバにそのまま残っています。</div>'
+        +'<button class="btn btn-sm btn-primary" id="slReconnect">サーバにつなぎ直す</button></div>'
+      : '')
+    +'</div></div>';
   ov.style.display='flex';
+  if($('#slReconnect'))$('#slReconnect').onclick=function(){
+    if(!confirm('サーバにつなぎ直します。\n\n園コードとご自身のID・パスワードでログインする画面に戻ります。\n\nよろしいですか？'))return;
+    try{localStorage.removeItem('cocoas_apiBase');}catch(e){}
+    location.reload();
+  };
   wireLocalLogin(ov);
 }
 /* 端末の中のアカウントで入るときの配線。
@@ -20372,6 +20381,18 @@ var _nc=$('#navContacts'); if(_nc)_nc.textContent=DB.contacts.length;
    控えた結果は、次にこの画面を開いたときに効く。 */
 /* サーバの生存確認が終わったかどうか。終わるまではデモのアカウントを出さない。 */
 var API_CHECKED=false;
+/* ══ お試しで見るときの入口 ═══════════════════════
+   URL に ?demo=1 を付けたときだけ、サーバにつながず見本のデータで動かす。
+   園のログイン画面にはボタンを出さない（うっかり押すと戻れないため）。
+   戻すときは、デモの画面の下の「サーバにつなぎ直す」を押す。 */
+try{
+  if(/[?&]demo=1(&|$)/.test(location.search)){
+    if(stGetRaw('apiBase')!==''){
+      localStorage.setItem('cocoas_apiBase',JSON.stringify(''));
+      location.replace(location.pathname);
+    }
+  }
+}catch(e){}
 function apiHealthCheck(){
   var base=API.base();
   function mark(alive){try{localStorage.setItem('edugrow_apiAlive',alive?'1':'0');}catch(e){}}
