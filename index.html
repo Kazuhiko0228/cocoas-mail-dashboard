@@ -5398,6 +5398,21 @@ function aiCanServer(){
      保護者の同意が要る。材料名だけなら、その話にならない。 */
 var AI_ENV_PLACE=['','保育室（室内）','園庭','ホール・遊戯室','おさんぽ・園外'];
 var AI_ENV_MINS =['','15分ほど','30分ほど','45分ほど','1時間以上'];
+/* 「使える時間」の言い方から、分の数を出す。指定が無いときは 20分（これまでの初期値）。 */
+function aiEnvMinsNum(k){
+  var v='';
+  try{ v=String((aiEnvOf(k)||{}).mins||''); }catch(e){}
+  if(v.indexOf('15')>=0)return 15;
+  if(v.indexOf('30')>=0)return 30;
+  if(v.indexOf('45')>=0)return 45;
+  if(v.indexOf('1時間')>=0)return 60;
+  return 20;
+}
+function aiEnvMinsLabel(k){
+  var v='';
+  try{ v=String((aiEnvOf(k)||{}).mins||''); }catch(e){}
+  return v||'指定なし（20分で作ります）';
+}
 function aiEnvAll(){ return stGet('ai_env',{})||{}; }
 function aiEnvOf(k){
   var e=aiEnvAll()[k]||{};
@@ -6300,14 +6315,19 @@ function aipIdeaHTML(k){
 function aipCraftHTML(k){
   var m=(AIP.res&&AIP.res.kind==='craft')?AIP.res.data:null;
   var h='<div class="card"><h3 style="margin-top:0;">制作物アイディアをつくる</h3>'
-    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;">'
-    +'<div class="field"><label>対象の月</label><select id="cM">'
+    /* ★時間の欄が2つあった（上の「使える時間」と、ここの「所要時間（分）」）。
+       どちらを見て作られるのか分からないので、上の「使える時間」に一本化した
+       （2026-08-27 のご指示）。 */
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;align-items:end;">'
+    +'<div class="field" style="margin:0;"><label>対象の月</label><select id="cM">'
     +AI_MONTHS.map(function(x){return '<option'+(x===(String(+todayISO().slice(5,7))+'月')?' selected':'')+'>'+x+'</option>';}).join('')
     +'</select></div>'
-    +'<div class="field"><label>所要時間（分）</label><input id="cMin" value="20" inputmode="numeric"></div>'
-    +'<div class="field"><label style="visibility:hidden;">.</label>'
+    +'<div class="field" style="margin:0;"><label style="visibility:hidden;">.</label>'
     +'<button class="btn btn-primary" id="cGo" style="width:100%;">つくる</button></div>'
-    +'</div></div>';
+    +'</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:8px;">'
+    +'かける時間は、上の「今回の条件」の<b>使える時間</b>を使います（いま：'
+    +esc(aiEnvMinsLabel(k))+'）。</div></div>';
   if(!m)return h+'<div class="card"><div style="text-align:center;color:var(--tx3);padding:30px 10px;">'
     +'月と時間を選んで「つくる」を押してください。<br>'
     +'<span style="font-size:12px;">クラスの在籍・年齢・発達記録・ヒヤリハットを読んで組み立てます。</span></div></div>';
@@ -7091,7 +7111,7 @@ function aipWire(k){
   /* 制作物 */
   var cg=$$('#cGo');
   if(cg)cg.onclick=function(){
-    var m=$$('#cM').value, mins=+($$('#cMin').value||20);
+    var m=$$('#cM').value, mins=aiEnvMinsNum(k);
     var base=aiCraft(k,{month:m,minutes:mins});
     if(!aiCanServer()){
       AIP.res={kind:'craft',data:base,byAI:false,aiFields:[]}; AI_NET.note='';
@@ -7780,7 +7800,7 @@ function renderWaOpen(){
   s.innerHTML='<div class="card">'
       /* ★何の一覧なのかが伝わらない、というご指摘（2026-08-27）。
          「保護者に何が届くか」と「それをどこから送るか」の対応表であることを先に言う。 */
-      +'<h3>'+ic('cast')+'保護者に届くもの と、送る画面</h3>'
+      +'<h3>'+ic('cast')+'未来WA でつながる</h3>'
       +'<div class="muted" style="margin:-4px 0 12px;">'
       +'保護者は、未来WA のアプリ1つで受け取ります。'
       +'送る操作は EduGrow の画面から行います。「ひらく」を押すと、その画面へ移ります。</div>'
