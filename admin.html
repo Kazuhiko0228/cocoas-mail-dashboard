@@ -474,7 +474,10 @@ function tenantHTML(){
       ? '<div class="lines">'+d.staff.map(function(u){
           return '<div><span class="l">'+esc(u.name||'')+'（'+esc(u.login_id)+'）'
             +'<span class="tag">'+esc(u.role||'')+'</span></span>'
-            +'<span class="y">'+(u.last_login_at?('最終ログイン '+String(u.last_login_at).slice(0,10)):'未ログイン')+'</span></div>';
+            +'<span class="y">'+(u.last_login_at?('最終ログイン '+String(u.last_login_at).slice(0,10)):'未ログイン')+'</span>'
+            /* ★パスワードを忘れると入る手だてが無かった。ここから作り直す。 */
+            +'<button class="btn sec sm" data-upw="'+esc(u.id)+'" data-uid="'+esc(u.login_id)+'" style="margin-left:8px;">パスワードを作り直す</button>'
+            +'</div>';
         }).join('')+'</div>'
       : '<div class="note">この園には、まだログインできる人がいません。'
         +'下から最初の管理者を作ってください。</div>')
@@ -873,6 +876,23 @@ function wire(){
       .then(function(j){render();}).catch(function(e){say('cm',e.message);});
   };
   /* 園の最初の管理者を作る。作ったあと、園へ伝える文言をそのまま出す。 */
+  /* パスワードの作り直し。押し間違いが重いので、必ず一度たずねる。 */
+  document.querySelectorAll('[data-upw]').forEach(function(b){b.onclick=function(){
+    var uid=b.getAttribute('data-upw'),lid=b.getAttribute('data-uid');
+    var pw=prompt('「'+lid+'」の新しいパスワードを入れてください（8文字以上）。\n\n'
+      +'いまのパスワードは分からなくても構いません。\n'
+      +'園の方は、次にログインしたときに必ず変更を求められます。','');
+    if(pw===null)return;
+    if(String(pw).length<8){alert('パスワードは8文字以上にしてください。');return;}
+    API.call('POST','/admin/tenants/'+openId+'/users/'+uid+'/password',{password:pw})
+      .then(function(j){
+        alert('作り直しました。\n\n園コード： '+j.tenantCode+'\nログインID： '+j.user.loginId
+          +'\n新しいパスワード： '+pw+'\n\nこの3つを園の方へお伝えください。\n初回ログインで変更を求めます。');
+        render();
+      })
+      .catch(function(e){alert(e.message);});
+  };});
+
   if($('ua_go'))$('ua_go').onclick=function(){
     /* ここは上の契約フォームとは別のスコープなので、値は素直に取る */
     function val(i){var e=$(i);return e?String(e.value||'').trim():'';}
