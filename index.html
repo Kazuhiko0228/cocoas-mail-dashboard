@@ -454,6 +454,11 @@
   #aiFab .dot{position:absolute;top:3px;right:3px;width:13px;height:13px;background:#f0a23a;border-radius:50%;border:2px solid #fff;}
   #aiPanel{position:fixed;right:22px;bottom:92px;z-index:900;width:384px;max-width:calc(100vw - 32px);height:566px;max-height:calc(100vh - 130px);background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 44px rgba(0,0,0,.22);display:none;flex-direction:column;overflow:hidden;}
   #aiPanel.open{display:flex;}
+  /* 大きく表示（⤢）。長い答えを読むためのもの。 */
+  #aiPanel.wide{right:3vw;left:3vw;bottom:3vh;top:3vh;width:auto;max-width:none;
+    height:auto;max-height:none;}
+  #aiPanel.wide .ai-body{font-size:13.5px;}
+  @media(max-width:640px){ #aiPanel.wide{right:0;left:0;top:0;bottom:0;border-radius:0;} }
   .ai-head{background:var(--teal);color:#fff;padding:13px 15px;display:flex;align-items:center;gap:10px;}
   .ai-head .t{font-weight:700;font-size:14.5px;flex:1;line-height:1.25;}
   .ai-head .t small{display:block;font-weight:400;font-size:10.5px;opacity:.85;}
@@ -469,6 +474,9 @@
   .ai-sec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;align-self:flex-start;max-width:94%;}
   .ai-sec .st{font-weight:700;color:var(--teal-d);margin-bottom:3px;font-size:12.5px;}
   .ai-sec .ss{color:var(--tx2);font-size:12px;line-height:1.55;}
+  /* AIの答えは長い文になるので、読める行間にする（2026-08-27 のご指摘） */
+  .ai-sec .ai-ans{font-size:12.8px;line-height:2.0;color:var(--tx);}
+  .ai-sec .ai-ans b{color:var(--tx);font-weight:700;}
   .ai-sec button{margin:8px 6px 0 0;background:var(--teal);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:600;cursor:pointer;}
   .ai-chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 14px 10px;background:var(--bg);}
   .ai-chips button{background:#fff;border:1px solid var(--teal-l);color:var(--teal-d);border-radius:99px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;}
@@ -3332,7 +3340,10 @@ function statusPill(s){return '<span class="pill" style="background:'+statusColo
 function statusGroup(s){if(s==='入園 確定')return 'confirmed';if(['体験後 検討中','🔥入園見込み','長期見込み','連絡不通'].indexOf(s)>-1)return 'post';if(s==='NG')return 'ng';return 'trial';}
 /* 活動の種類（クラス別）。ここは初期値にすぎない。
    園によって呼び方が違うので、「活動の内容」の画面と設定から、園ごとに足す・直す・消すができる。 */
-var ACTIVITY_TYPES={Pre:['ゲーム','運動','体づくり','フォニックス','外遊び','制作'],Kinder:['読む','書く','発表','プログラミング','算数','理科','地理','図工','料理','リトミック（外部の先生）','体育（外部の先生）']};
+/* ★「フォニックス」は英語を教える園のものなので、初期値から外した（2026-08-27 のご指示）。
+   すでに入れてある内容は消えない（呼び名を鍵にしてしまってあり、
+   下の ACT_OLD_NAMES にも残してある）。必要な園は「活動の内容を編集」から足せる。 */
+var ACTIVITY_TYPES={Pre:['ゲーム','運動','体づくり','外遊び','制作'],Kinder:['読む','書く','発表','プログラミング','算数','理科','地理','図工','料理','リトミック（外部の先生）','体育（外部の先生）']};
 /* 以前は英語の呼び名だった。入力ずみの内容は「呼び名」を鍵にしてしまってあるため、
    古い呼び名は新しい呼び名に読み替える。読み替えないと、入れた内容が画面から消える。 */
 var ACT_OLD_NAMES={'Game':'ゲーム','Gym':'運動','Motorskill':'体づくり','Phonics':'フォニックス','Outside':'外遊び','Craft':'制作','Reading':'読む','Writing':'書く','Show & Tell':'発表','ICT(プログラミング)':'プログラミング','Math':'算数','Science':'理科','Geography':'地理','Art & Craft':'図工','Cooking':'料理','rythmique（外部講師）':'リトミック（外部の先生）','P.E（外部講師）':'体育（外部の先生）'};
@@ -20070,7 +20081,8 @@ function initAI(){
   if(document.getElementById('aiFab'))return;
   var fab=el('button',{id:'aiFab',title:'保育アシスタント'},'💬<span class="dot"></span>');
   var panel=el('div',{id:'aiPanel'});
-  panel.innerHTML='<div class="ai-head"><span style="font-size:20px;">🤖</span><div class="t">EduGrow サポート<small>保育の相談と、使い方の案内</small></div><button id="aiClose">×</button></div>'
+  panel.innerHTML='<div class="ai-head"><span style="font-size:20px;">🤖</span><div class="t">EduGrow サポート<small>保育の相談と、使い方の案内</small></div>'
+    +'<button id="aiWide" title="大きく表示する">⤢</button><button id="aiClose">×</button></div>'
     +'<div class="ai-tabs"><button id="aiTabCare" class="on">保育の相談</button><button id="aiTabHelp">使い方</button></div>'
     +'<div class="ai-body" id="aiBody"></div>'
     +'<div class="ai-chips" id="aiChips"></div>'
@@ -20079,6 +20091,16 @@ function initAI(){
   document.body.appendChild(panel);document.body.appendChild(fab);
   fab.onclick=function(){AI_OPEN=!AI_OPEN;panel.classList.toggle('open',AI_OPEN);var dot=fab.querySelector('.dot');if(dot)dot.style.display='none';if(AI_OPEN&&!aiStarted){aiStarted=true;aiGreet();}};
   $('#aiClose').onclick=function(){AI_OPEN=false;panel.classList.remove('open');};
+  /* 大きく表示する。長い答えは、384px の枠では読みにくい（2026-08-27 のご依頼）。
+     選んだ大きさは、この端末に覚えておく。 */
+  function aiWideApply(on){
+    panel.classList.toggle('wide',!!on);
+    var b=$('#aiWide');
+    if(b){b.textContent=on?'⤡':'⤢';b.title=on?'もとの大きさに戻す':'大きく表示する';}
+    try{localStorage.setItem('edugrow_aiWide',on?'1':'0');}catch(e){}
+  }
+  try{ if(localStorage.getItem('edugrow_aiWide')==='1')aiWideApply(true); }catch(e){}
+  if($('#aiWide'))$('#aiWide').onclick=function(){aiWideApply(!panel.classList.contains('wide'));};
   $('#aiSend').onclick=aiSubmit;
   $('#aiInput').addEventListener('keydown',function(e){if(e.key==='Enter')aiSubmit();});
   $('#aiTabCare').onclick=function(){helpMode=false;aiTabs();};
@@ -20124,6 +20146,21 @@ function aiTabs(){
     aiAsk(b.getAttribute('data-aichip'));};});
 }
 function aiEsc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* ══ AIの答えの見た目 ═══════════════════════════
+   ★AIは Markdown で返してくることがあり、**太字** の記号がそのまま文字として
+     見えていた（2026-08-27 のご指摘）。
+   まず逃がしてから、太字・箇条書き・見出し・改行だけを組み立てる。
+   リンクや画像は作らない（差し込みの入口を増やさないため）。 */
+function aiMd(s){
+  var t=aiEsc(s==null?'':String(s));
+  t=t.replace(/\*\*\s*([^*\n]+?)\s*\*\*/g,'<b>$1</b>');      /* **太字** */
+  t=t.replace(/(^|<br>|\n)\s*#{1,4}\s*/g,'$1');                /* ### 見出しの記号は落とす */
+  t=t.replace(/(^|\n)[ \t]*[*+-][ \t]+/g,'$1・');               /* 箇条書きの記号をそろえる */
+  t=t.replace(/(^|\n)[ \t]*(\d+)\.[ \t]+/g,'$1$2. ');         /* 番号つきはそのまま */
+  t=t.replace(/\n{2,}/g,'<br><br>');
+  t=t.replace(/\n/g,'<br>');
+  return t;
+}
 
 /* ══ 相談パネルからAIに聞く ══════════════════
    これまでは、あらかじめ用意した手順書（KB）と危機管理マニュアルだけで答えていた。
@@ -20379,7 +20416,7 @@ function aiRender(r){
        どちらから出た文章なのかが、読んだ人にいつでも分かるようにするため。 */
     var ad=el('div',{class:'ai-sec'},
       '<div class="st">🤖 AIからの答え</div>'
-      +'<div class="ss">'+aiEsc(String(r.ai.text||''))+'</div>');
+      +'<div class="ss ai-ans">'+aiMd(String(r.ai.text||''))+'</div>');
     ad.style.borderLeft='4px solid #7A6FF0';
     var an=el('div',{class:'ss'},
       '<span style="font-size:10.5px;opacity:.8;">'
