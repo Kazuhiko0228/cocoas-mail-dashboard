@@ -7572,7 +7572,8 @@ function renderHome(){
   if(abs.length){
     html+='<div class="card" style="border-left:4px solid #E2A03F;">'
       +'<h3>'+ic('alert')+'保護者からの欠席・遅刻の連絡（'+abs.length+'件）</h3>'
-      +'<div class="muted" style="margin:-4px 0 10px;font-size:12px;">保護者の画面から届いたものです。登園シートには自動では入りません。</div>'
+      +'<div class="muted" style="margin:-4px 0 10px;font-size:12px;">保護者の画面から届いたものです。'
+      +'<b>登園シートの空いている欄には、自動で入ります。</b>先生が入れたものは書き換えません（違うときは印が出ます）。</div>'
       +abs.slice(0,12).map(function(a){
         var c=DB.contacts.filter(function(x){return String(x.id)===String(a.childId);})[0];
         return '<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);">'
@@ -11410,7 +11411,16 @@ function edTouen(){
   });
   /* 給食・延長保育は連絡先の通園曜日設定から「その日にまだ記録が無いときの初期値」としてだけ入れる。
      一度記録された値は、あとから通園曜日の設定を変えても書き換えない（過去日の実績が塗り替わらないようにする）。 */
-  function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ov=attendOldVal(r.opts,op);if(ov!==undefined){r.opts[op]=!!ov;return;}var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
+  function rowOf(c){var r=d.rows[c.id];if(!r){r={att:'',temp:'',opts:{}};d.rows[c.id]=r;}if(!r.opts)r.opts={};
+    /* 保護者からの欠席・遅刻。空の欄にだけ入れ、先生が入れたものは触らない。
+       違っているときは印だけ立てて、下の帯で知らせる。 */
+    var _pa=absFromParent(recDate,c.id);
+    r.fromParent=_pa?_pa.kind:'';
+    if(_pa){
+      if(!r.att){r.att=_pa.mark;r.attSrc='保護者';}
+      else if(r.att!==_pa.mark){r.attDiff=_pa.kind;}
+      else {r.attDiff='';}
+    }var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ov=attendOldVal(r.opts,op);if(ov!==undefined){r.opts[op]=!!ov;return;}var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
   var autoOpts=opts.filter(function(op){return isAutoAttendOpt(op);});
   /* 天気は「晴」「曇」「雨」から選ぶ。
      これまでに入れた文言（「晴れ」など）がある日は、その文言も選択肢に残して消さない */
@@ -11436,7 +11446,11 @@ function edTouen(){
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
-      '<td><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button></td>'+
+      '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
+        /* 保護者からの連絡で入った印と、先生の入力と食い違っている印 */
+        +(r.attSrc==='保護者'?'<span class="tag" title="保護者からの連絡で入りました。押せば直せます。" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:5px;font-size:10.5px;">保護者</span>':'')
+        +(r.attDiff?'<span class="tag" title="保護者からは「'+esc(r.attDiff)+'」と連絡が届いています" style="background:#FCEBEB;border-color:#E8C9C9;color:#A32D2D;margin-left:5px;font-size:10.5px;">連絡は'+esc(r.attDiff)+'</span>':'')
+        +'</td>'+
       '<td><input data-tt="'+esc(c.id)+'" type="number" inputmode="decimal" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
       '<td style="white-space:nowrap;">'+healthCellHtml(_hd,c)+'</td>'+
       opts.map(function(op,oi){var on=!!r.opts[op];
@@ -15155,6 +15169,26 @@ function acctModal(acctId,staffId){
     /* 空欄のときは、いまのパスワードのままにします（うっかり消さないため）。 */
     if(newPw)staffSetPassword(a,newPw,acStore);else acStore();
   };
+}
+/* ══ 保護者から届いた欠席・遅刻を、登園シートに入れる ══════════
+   ★安田さんのご依頼（#18）。これまでは手で「書き写す」を押す必要があり、
+     押し忘れると、保護者は連絡したのに登園シートは空のままだった。
+   ・先生がまだ何も入れていない欄にだけ、自動で入れる。
+   ・先生が入れたものは**上書きしない**。違っていたら、その場で印を出して知らせる。
+   ・保存はしない。画面に出すだけ。先生が確定を押したときに、その値で保存される。 */
+function absMarkOf(kind){
+  return (kind==='欠席')?'休':(kind==='遅刻')?'遅':(kind==='早退')?'早':'';
+}
+function absFromParent(date,cid){
+  try{
+    var a=PSTATE.list('absence_log').filter(function(x){
+      return x&&x.date===date&&String(x.childId)===String(cid)&&absMarkOf(x.kind);});
+    if(!a.length)return null;
+    /* 同じ日に何度も連絡が来たら、あとから来たほうを使う */
+    a.sort(function(x,y){return String(x.at||'')<String(y.at||'')?-1:1;});
+    var last=a[a.length-1];
+    return {mark:absMarkOf(last.kind),kind:last.kind,at:last.at||''};
+  }catch(e){ return null; }
 }
 function showStaffLogin(){
   var ov=document.getElementById('staffLogin');if(!ov){ov=el('div',{id:'staffLogin'});document.body.appendChild(ov);}
@@ -19274,7 +19308,7 @@ HELP_DATA.wastore={
   '商品を出すときは「ショップ出品」、イベントは「イベント」を選びます。',
   '売れたものと園への還元は「売れたもの」で見ます。'],
  tips:['おたより・デイリーメールは「全体周知・お知らせ」から送ります。保護者のアプリのおたよりに並びます。',
-  '保護者が送った欠席・遅刻・送迎時間の変更は、EduGrow のホームに届きます。登園シートには自動では入りません。',
+  '保護者が送った欠席・遅刻・送迎時間の変更は、EduGrow のホームに届きます。欠席・遅刻・早退は、登園シートの空いている欄へ自動で入ります（先生が入れたものは書き換えません）。',
   '売上・申込の名簿・保護者にお渡しするファイルは、園の職員としてログインしているときだけ出ます。'],
  faq:[{q:'保護者に写真や動画を送れますか。',
    a:'いまはできません。写真のご案内は「全体周知・お知らせ」のひな形（写真販売のお知らせ）に、外部のページのリンクを入れてお送りください。'},
