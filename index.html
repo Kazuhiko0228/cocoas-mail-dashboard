@@ -14665,7 +14665,21 @@ var API={
     if(API.token())h.Authorization='Bearer '+API.token();
     return fetch(API.base()+path,{method:method,headers:h,body:body?JSON.stringify(body):undefined})
       .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
-        if(r.status===401){API.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
+        if(r.status===401){
+          /* ★これまでは、どんな401でも「有効期限が切れました」と出して、
+             画面ごとログインに戻していた（2026-08-27 のご指摘）。
+             ・理由はサーバが返している（期限切れ／アカウントが止まっている／園が止まっている）。
+               そのまま出す。出さないと、次に起きたときも原因が分からない。
+             ・その端末で誰がログインしていたか分かるときは、画面を落とさず
+               パスワードだけ聞き直す（書きかけを消さないため）。 */
+          API.setToken('');
+          var _why=(j&&j.error)?String(j.error):'ログインの有効期限が切れました。もう一度ログインしてください。';
+          try{
+            var _u=(typeof serverUser==='function')?serverUser():null;
+            if(_u&&_u.loginId&&typeof IDLE!=='undefined'&&IDLE.relock)IDLE.relock(_why);
+          }catch(e){}
+          throw new Error(_why);
+        }
         if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
         return j;});});
   }
@@ -14955,7 +14969,7 @@ var CRED={
 var IDLE={
   MS:20*60*1000,      /* 20分さわらなければ、鍵をかけます */
   MAXMS:60*60*1000,   /* 入力の途中でも、1時間で必ず鍵をかけます（内容は消えません） */
-  last:Date.now(), locked:false, started:false, timer:null,
+  last:Date.now(), locked:false, started:false, timer:null, why:'',
   bump:function(){IDLE.last=Date.now();},
   start:function(){
     if(IDLE.started)return;IDLE.started=true;IDLE.bump();
@@ -14978,6 +14992,15 @@ var IDLE={
     if(idle<IDLE.MAXMS&&IDLE.typing())return;
     IDLE.lock();
   },
+  /* ══ 通信が401で返ったときに、画面を落とさずパスワードだけ聞き直す ══
+     ★書きかけを消さないため。理由（期限切れ／アカウントが止まっている 等）も出す。 */
+  relock:function(why){
+    if(IDLE.locked)return;
+    try{if(typeof currentStaff==='function'&&!currentStaff())return;}catch(e){return;}
+    IDLE.locked=true; IDLE.why=why||'';
+    IDLE.show();
+    IDLE.why='';
+  },
   lock:function(){
     if(IDLE.locked)return;
     try{if(typeof currentStaff==='function'&&!currentStaff())return;}catch(e){return;}
@@ -14993,8 +15016,8 @@ var IDLE={
     var s=null;try{s=(typeof currentStaff==='function')?currentStaff():null;}catch(e){}
     s=s||{};
     ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit;">'
-      +'<div style="font-size:19px;font-weight:700;margin-bottom:6px;">画面をロックしました</div>'
-      +'<div style="font-size:12.5px;color:#5F5E5A;line-height:1.75;margin-bottom:14px;">しばらく操作がなかったため、画面に鍵をかけました。<br>入力の途中の内容は消えていません。パスワードを入れると、続きからお使いいただけます。</div>'
+      +'<div style="font-size:19px;font-weight:700;margin-bottom:6px;">'+(IDLE.why?'もう一度ログインしてください':'画面をロックしました')+'</div>'
+      +'<div style="font-size:12.5px;color:#5F5E5A;line-height:1.75;margin-bottom:14px;">'+(IDLE.why?esc(IDLE.why)+'<br>':'しばらく操作がなかったため、画面に鍵をかけました。<br>')+'入力の途中の内容は消えていません。パスワードを入れると、続きからお使いいただけます。</div>'
       +'<div style="font-size:13px;font-weight:600;margin-bottom:8px;">'+esc(s.name||'')+'（'+esc(s.role||'')+'）</div>'
       +'<div id="idleErr" style="color:#B00;font-size:12px;margin-bottom:8px;display:none;line-height:1.6;"></div>'
       +'<input id="idlePw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" style="width:100%;border:1px solid #E5E2D9;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px;box-sizing:border-box;font-family:inherit;">'
