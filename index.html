@@ -14780,7 +14780,11 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
         if(SYNC.CACHED_KEYS[k]){
           var ov=null;
           try{ov=localStorage.getItem('cocoas_'+k);}catch(e2){}
-          if(ov!==nv)SYNC.stale=true;
+          /* ★文字どうしで比べていたため、中身が同じでも「並び順」が違うだけで
+             「変わった」ことになり、読み込み直し → また不一致 → …と
+             画面が点滅し続けた（2026-08-27 のご報告）。
+             中身で比べる。 */
+          if(!syncSameValue(ov,j.data[k]))SYNC.stale=true;
         }
         (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_'+k,nv);
       });
@@ -14794,6 +14798,26 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
     if(el2){el2.textContent=t;el2.style.opacity='1';if(fade)setTimeout(function(){if(el2)el2.style.opacity='.45';},1600);}
   }
 };
+/* ══ 同じ中身かどうかを、並び順を見ずに比べる ══════════════
+   JSON.stringify は鍵の並び順で文字が変わる。文字で比べると、
+   中身が同じでも「変わった」ことになり、読み込み直しが止まらなくなる。 */
+function syncNorm(v){
+  if(v===null||typeof v!=='object')return v;
+  if(Object.prototype.toString.call(v)==='[object Array]'){
+    var a=[],i;for(i=0;i<v.length;i++)a.push(syncNorm(v[i]));return a;
+  }
+  var ks=[],k,o={};
+  for(k in v)if(Object.prototype.hasOwnProperty.call(v,k))ks.push(k);
+  ks.sort();
+  for(var j=0;j<ks.length;j++)o[ks[j]]=syncNorm(v[ks[j]]);
+  return o;
+}
+function syncSameValue(rawOld,newVal){
+  var a;
+  try{ a=(rawOld==null)?undefined:JSON.parse(rawOld); }catch(e){ return false; }
+  try{ return JSON.stringify(syncNorm(a))===JSON.stringify(syncNorm(newVal)); }catch(e){ return false; }
+}
+
 /* localStorage への書き込みを検知して同期キューに積む（既存の保存処理は変更しない） */
 (function(){
   var raw=(window.__rawSet||localStorage.setItem.bind(localStorage));
@@ -15509,7 +15533,19 @@ function staffBoot(){
     SYNC.pull().then(function(){
       /* 読み直しでカリキュラムや設定が変わっていたら、画面を作り直す。
          作り直さないと、開いている画面の古い控えで上書きしてしまう。 */
-      if(SYNC.stale){location.reload();return;}
+      /* ★万一また食い違っても、読み込み直しは1回だけにする。
+         繰り返すと画面が点滅し、園が何もできなくなる（2026-08-27 のご報告）。
+         このタブを閉じるまで、2回目は走らない。 */
+      if(SYNC.stale){
+        var _once=false;
+        try{ _once=sessionStorage.getItem('cocoas_pullReload')==='1'; }catch(e){}
+        if(!_once){
+          try{ sessionStorage.setItem('cocoas_pullReload','1'); }catch(e){}
+          location.reload();return;
+        }
+        /* 2回目は、作り直しだけにして読み込み直さない */
+        try{ if(typeof page!=='undefined'&&page)go(page); }catch(e){}
+      }
       return PSTATE.pull();
     }).catch(function(){});
   }
