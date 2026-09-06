@@ -256,7 +256,7 @@ function wireLogin(){
 
 /* ── 全体の骨組み ───────────────────── */
 function shell(inner){
-  var tabs=[['home','ホーム'],['tenants','園の一覧'],['bill','請求'],['docs','書類'],['me','設定']];
+  var tabs=[['home','ホーム'],['apply','申込'],['tenants','園の一覧'],['bill','請求'],['docs','書類'],['me','設定']];
   return '<div class="top"><div><div class="lg">運営管理</div>'
     +'<div class="sub">未来WA ／ EduGrow</div></div>'
     +'<div class="sp"></div><button id="out">ログアウト</button></div>'
@@ -678,6 +678,79 @@ function docListHTML(docs,withTenant){
 }
 
 /* ── 書類（全体）───────────────────── */
+/* ══ 申込（apply.html から届いたもの）═══════════
+   タスクシート53行。メールでのお知らせと、この画面の両方で受ける。
+   メールの鍵が入っていないときは、その旨をここに出す。
+   「通知が来ない」の原因が、鍵が無いことなのか送信の失敗なのかを分けるため。 */
+var applyOpen=null;
+var APPLY_STATUS=['未対応','対応中','園を開いた','見送り'];
+function applyHTML(){
+  var d=DATA.apply||{}, list=d.applications||[], m=d.mail||{};
+  var h='';
+  /* メールの設定の状態を、いちばん上に出す */
+  h+='<div class="card"><h3>お知らせメール</h3>'
+    +(m.ok&&m.to
+      ? '<div class="note">申込が届くと、'+m.to+'件の宛先にお知らせメールを送ります。</div>'
+      : '<div class="note bad">お知らせメールは<b>送られません</b>。'
+        +esc(m.why||(m.to?'':'宛先（MAIL_TO）が入っていません'))
+        +'<br>Railway の Variables に <b>MAIL_API_KEY</b>・<b>MAIL_FROM</b>・<b>MAIL_TO</b> を入れると送るようになります。'
+        +'<br>入っていなくても、申込はこの画面に必ず残ります。</div>')
+    +'</div>';
+
+  if(applyOpen){
+    var a=applyOpen;
+    var pay=a.payload||{};
+    h+='<div class="card"><div class="row">'
+      +'<button class="btn sec sm" id="apBack">‹ 一覧にもどる</button>'
+      +'<div class="sp"></div>'
+      +'<span class="tag">受付番号 '+esc(a.id)+'</span></div>'
+      +'<h3 style="margin-top:12px;">'+esc(a.corp||'')+'　'+esc(a.person||'')+' 様</h3>'
+      +'<div class="lines">'
+      +Object.keys(pay).map(function(k){
+        return '<div><span class="l">'+esc(k)+'</span><span class="y" style="font-weight:400;text-align:right;">'
+          +esc(String(pay[k]).slice(0,300))+'</span></div>';
+      }).join('')
+      +'</div>'
+      +'<div class="grid3" style="margin-top:13px;">'
+      +'<label>状態<select id="apSt">'+APPLY_STATUS.map(function(x){
+        return '<option'+(x===a.status?' selected':'')+'>'+x+'</option>';}).join('')+'</select></label>'
+      +'<label>この園の id（開いたら入れる）<input id="apTid" value="'+esc(a.tenant_id||'')+'" placeholder="空でよい"></label>'
+      +'<label>メモ<input id="apNote" value="'+esc(a.note||'')+'"></label>'
+      +'</div>'
+      +'<div class="row" style="margin-top:10px;">'
+      +'<button class="btn sm" id="apSave">保存する</button>'
+      +'<span class="msg" id="apM"></span></div>'
+      +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.7;">'
+      +'届いた日時：'+esc(String(a.created_at).slice(0,16).replace('T',' '))
+      +(a.mail_sent_at?'　／　お知らせメール：送信ずみ':'　／　お知らせメール：'+esc(a.mail_error||'送っていません'))
+      +'</div></div>';
+    return h;
+  }
+
+  var yet=list.filter(function(x){return x.status==='未対応';}).length;
+  h+='<div class="card"><h3>申込 '+list.length+'件'+(yet?'（未対応 '+yet+'件）':'')+'</h3>'
+    +(list.length
+      ? '<div class="lines">'+list.map(function(a){
+          var col=a.status==='未対応'?'#A8701A':(a.status==='見送り'?'#8C8A82':'#2C6B43');
+          return '<div style="align-items:flex-start;">'
+            +'<span class="l"><b>'+esc(a.corp||'')+'</b>'
+            +(a.school?'　'+esc(a.school):'')
+            +'<div style="font-size:11.5px;color:var(--mute);margin-top:2px;">'
+            +esc(a.person||'')+'　'+esc(a.email||'')
+            +'　／　'+esc(a.plan||'')+'　'+(a.starts_on?esc(a.starts_on)+' 開始':'')
+            +'　／　'+esc(String(a.created_at).slice(0,10))
+            +(a.mail_sent_at?'':'　／　<span style="color:#A8701A;">メール未送信</span>')
+            +'</div></span>'
+            +'<span class="y" style="color:'+col+';white-space:nowrap;">'+esc(a.status)+'</span>'
+            +'<button class="btn sec sm" data-apopen="'+esc(a.id)+'" style="margin-left:8px;">ひらく</button>'
+            +'</div>';
+        }).join('')+'</div>'
+      : '<div class="note">まだ申込はありません。'
+        +'園にお渡しするURLは、園の画面の「申込フォームのURLをコピー」から取れます。</div>')
+    +'</div>';
+  return h;
+}
+
 function docsHTML(){
   if(!DATA.docs)return '<div class="empty">読み込んでいます…</div>';
   return '<h2>書類</h2><div class="lead">園ごとの契約書・同意書。新しい順</div>'
@@ -836,6 +909,7 @@ function load(){
   if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
   if(view==='one')   return API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;});
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
+  if(view==='apply') return API.call('GET','/admin/applications').then(function(j){DATA.apply=j;});
   if(view==='bill')  return Promise.all([
       API.call('GET','/admin/billing/status').then(function(j){DATA.bstat=j;}),
       API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(billMonth))
@@ -857,7 +931,7 @@ function load(){
 function render(){
   var r=$('root');
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
-  var inner={home:homeHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,docs:docsHTML,me:meHTML}[view];
+  var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,docs:docsHTML,me:meHTML}[view];
   r.innerHTML=shell(inner());
   wire();
   load().then(function(){
@@ -1026,6 +1100,21 @@ function wire(){
   /* ══ 見積書 ═══════════════════════════════
      ★金額は画面で計算しない。サーバが返した数字（quote / initial / tax）を
        そのまま並べる。2か所で計算すると、必ずどこかで食い違う。 */
+  /* 申込 */
+  document.querySelectorAll('[data-apopen]').forEach(function(b){b.onclick=function(){
+    API.call('GET','/admin/applications/'+b.getAttribute('data-apopen'))
+      .then(function(j){ applyOpen=j.application; render(); })
+      .catch(function(e){ alert(e.message); });
+  };});
+  if($('apBack'))$('apBack').onclick=function(){ applyOpen=null; render(); };
+  if($('apSave'))$('apSave').onclick=function(){
+    var tid=$('apTid').value.trim();
+    say('apM','保存中…',true);
+    API.call('PUT','/admin/applications/'+applyOpen.id,
+      {status:$('apSt').value, note:$('apNote').value, tenantId:tid?+tid:null})
+      .then(function(){ applyOpen=null; render(); })
+      .catch(function(e){ say('apM',e.message); });
+  };
   if($('applyCopy'))$('applyCopy').onclick=function(){
     var u=location.href.replace(/[^/]*$/,'')+'apply.html';
     var b=this;

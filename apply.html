@@ -135,6 +135,10 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
   border-bottom:3px solid var(--grow);transform:rotate(-45deg);margin-top:-5px}
 .done h3{font-family:var(--serif);font-size:22px;font-weight:600}
 .done p{font-size:13.5px;color:var(--muted);margin-top:14px;line-height:2}
+.done .sent{margin:0 auto;max-width:52ch;font-size:13px;line-height:1.85;padding:12px 16px;
+  border-radius:10px;background:var(--paper);border:1px solid var(--line);color:var(--muted)}
+.done .sent.ok{background:#EFF6EC;border-color:#C6E0BC;color:#2C5E23}
+.done .sent.ng{background:#FDECEA;border-color:#F3C8C1;color:#8E2F22}
 .done .echo{margin-top:22px;text-align:left;background:var(--paper);border:1px solid var(--line);
   border-radius:11px;padding:18px;font-size:12.5px;line-height:2;color:var(--ink-2)}
 .done .echo .hd{font-family:var(--serif);font-size:13.5px;font-weight:600;color:var(--ink);
@@ -166,7 +170,7 @@ footer a:hover{color:#fff}
 </head>
 <body>
 
-<div class="mockbar">これは公開前のモックです。「お申し込み」を押しても、まだどこにも送られません（送信先の設定はこれからです）。控えは印刷・コピーできます。</div>
+<div class="mockbar" id="mock">これは公開前のページです。控えは印刷・コピーできます。</div>
 
 <header>
   <div class="hbar">
@@ -395,8 +399,8 @@ footer a:hover{color:#fff}
       <div class="done" id="done">
         <div class="mark"></div>
         <h3>お申し込みの内容（控え）</h3>
-        <p>この画面はまだモックのため、どこにも送られていません。<br>
-          下の「印刷する」または「文字をコピーする」で控えをお手元に残してください。</p>
+        <div class="sent" id="sendState">送っています…</div>
+        <p>下の「印刷する」または「文字をコピーする」で、控えをお手元に残してください。</p>
         <div class="echo" id="echo"></div>
         <div class="btns">
           <button type="button" id="pr">印刷する</button>
@@ -424,6 +428,12 @@ footer a:hover{color:#fff}
 (function(){
   var f=document.getElementById('f'), go=document.getElementById('go'),
       ok1=document.getElementById('ok1');
+  /* 運営（株式会社BIM JAPAN）の受け口 */
+  /* ためすときは ?api=http://127.0.0.1:8877 を付けると、そちらへ送ります */
+  var API_BASE=(function(){
+    var m=/[?&]api=([^&]+)/.exec(location.search);
+    return m?decodeURIComponent(m[1]):'https://cocoas-api-production.up.railway.app';
+  })();
 
   var PREF=['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県',
     '埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県',
@@ -631,6 +641,46 @@ footer a:hover{color:#fff}
     document.getElementById('formZone').style.display='none';
     document.getElementById('done').style.display='block';
     window.scrollTo({top:0,behavior:'smooth'});
+
+    /* ── 運営（株式会社BIM JAPAN）へ送る ──
+       送れなくても、控えは画面に出したままにする。
+       印刷・コピーができれば、お申し込みそのものは無駄にならないため。 */
+    var pay={};
+    out.forEach(function(r){ if(r[0]!=='##')pay[r[0]]=r[1]; });
+    var body={
+      corp:byId('q_corp'),
+      school:(document.querySelector('#sites [data-s="園・施設名"]')||{}).value||'',
+      plan:picked('プラン'),
+      startsOn:byId('q_start'),
+      person:byId('q_name'),
+      email:byId('q_mail'),
+      tel:byId('q_tel'),
+      payload:pay
+    };
+    var st=document.getElementById('sendState');
+    st.textContent='運営に送っています…';
+    fetch(API_BASE+'/apply',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)})
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(x){
+        if(x.ok&&x.j&&x.j.ok){
+          st.innerHTML='運営に届きました。<b>受付番号 '+x.j.id+'</b>　'
+            +'2営業日以内に、担当より利用契約書をお送りします。';
+          st.className='sent ok';
+        } else {
+          st.innerHTML='<b>運営に送れませんでした。</b>'
+            +((x.j&&x.j.error)?'（'+String(x.j.error)+'）':'')
+            +'<br>お手数ですが、下の「文字をコピーする」でお控えをコピーのうえ、'
+            +'お問い合わせフォームからお送りください。';
+          st.className='sent ng';
+        }
+      })
+      .catch(function(){
+        st.innerHTML='<b>運営に送れませんでした。</b>通信の状態をご確認ください。'
+          +'<br>お手数ですが、下の「文字をコピーする」でお控えをコピーのうえ、'
+          +'お問い合わせフォームからお送りください。';
+        st.className='sent ng';
+      });
   });
 
   document.getElementById('again').addEventListener('click',function(){
