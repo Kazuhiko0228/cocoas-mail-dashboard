@@ -428,6 +428,65 @@ function tenantsHTML(){
 }
 
 /* ── 園の詳細 ───────────────────────── */
+/* ══ 支払いが滞ったときの連絡 ═══════════════════
+   日数と段はサーバ（admin.js の DUNNING_STEPS）が決める。ここでは出すだけ。 */
+function dunHTML(d){
+  var p=d.dunning||{}, log=d.dunningLog||[];
+  var h='<div class="card"><h3>お支払いが滞ったときの連絡</h3>';
+  if(!p.active){
+    h+='<div class="note">いまのところ、滞っているお支払いはありません。</div>'
+      +'<div class="row" style="margin-top:11px;">'
+      +'<label style="font-size:12px;">滞りはじめた日<input type="date" id="pdOn" style="margin-left:6px;"></label>'
+      +'<button class="btn sec sm" id="pdSet">滞っていることにする</button>'
+      +'<span class="msg" id="pdM"></span></div>'
+      +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
+      +'カード決済の失敗は自動で入りますが、銀行振込・口座振替は自動で分からないので、'
+      +'ここから入れてください。</div></div>';
+    return h;
+  }
+  var warn=(p.daysToStop!=null&&p.daysToStop<=7);
+  h+='<div style="background:'+(warn?'#FDECEA':'#FFF6E8')+';border:1px solid '+(warn?'#F5C6C0':'#F3DCB6')
+    +';border-radius:10px;padding:13px 15px;font-size:13px;line-height:1.85;color:'+(warn?'#8E2F22':'#7A4A05')+';">'
+    +'<b>'+esc(p.pastDueSince)+' から '+p.days+'日</b>が経っています。'
+    +(p.next?'次は「'+esc(p.next.step)+'」（'+esc(p.next.how)+'・期日 '+esc(p.next.dueOn||'')+'）です。':'連絡の段は終わっています。')
+    +(p.daysToStop!=null?'<br>このままですと、あと <b>'+p.daysToStop+'日</b>で利用を止めることになります。':'')
+    +'</div>';
+  h+='<div class="lines" style="margin-top:12px;">'
+    +p.steps.map(function(s){
+      var mark=s.done?'済':(s.overdue?'遅れ':'—');
+      var col=s.done?'#2C6B43':(s.overdue?'#C0392B':'var(--mute)');
+      return '<div style="align-items:flex-start;">'
+        +'<span class="l"><b>'+esc(s.step)+'</b>（'+esc(s.how)+'・'+s.day+'日目／'+esc(s.dueOn||'')+'）'
+        +'<div style="font-size:11.5px;color:var(--mute);line-height:1.7;margin-top:2px;">'+esc(s.what)
+        +'<br>'+esc(s.why)+'</div></span>'
+        +'<span class="y" style="color:'+col+';font-weight:700;white-space:nowrap;">'+mark
+        +(s.doneOn?'<div style="font-size:11px;font-weight:400;color:var(--mute);">'+esc(s.doneOn)+'</div>':'')
+        +'</span></div>';
+    }).join('')+'</div>';
+  h+='<div class="grid3" style="margin-top:12px;">'
+    +'<label>行った段<select id="dunStep">'
+    +p.steps.filter(function(s){return s.how!=='自動';}).map(function(s){
+      return '<option'+((p.next&&p.next.step===s.step)?' selected':'')+'>'+esc(s.step)+'</option>';}).join('')
+    +'<option>解除</option></select></label>'
+    +'<label>方法<input id="dunHow" placeholder="メール／電話／書面"></label>'
+    +'<label>ひとこと<input id="dunNote" placeholder="担当者不在のため折り返し待ち"></label>'
+    +'</div>'
+    +'<div class="row" style="margin-top:10px;">'
+    +'<button class="btn sec sm" id="dunGo">連絡したことを記録する</button>'
+    +'<span class="msg" id="dunM"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
+    +'入金が確認できたら「解除」を選んでください。滞りの数え直しが止まります。</div>';
+  if(log.length){
+    h+='<div class="lines" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px;">'
+      +log.map(function(r){
+        return '<div><span class="l">'+esc(r.acted_on)+'　'+esc(r.step)
+          +(r.how?'（'+esc(r.how)+'）':'')+(r.note?'　'+esc(r.note):'')+'</span>'
+          +'<span class="y" style="font-weight:400;color:var(--mute);">'+esc(r.acted_by||'')+'</span></div>';
+      }).join('')+'</div>';
+  }
+  return h+'</div>';
+}
+
 function tenantHTML(){
   var d=DATA.one;
   if(!d)return '<div class="empty">読み込んでいます…</div>';
@@ -473,6 +532,11 @@ function tenantHTML(){
           +'<span class="y num">'+h.seats+'名（超過 '+h.billable+'名）</span></div>';}).join('')
       +'</div>':'')
     +'</div>'
+
+    /* ══ 支払いが滞ったときの連絡（タスクシート56行）════
+       支払いが遅れただけで園の業務は止めない。止めるのは、
+       連絡を3回してもお返事がいただけなかったときの最後の手段。 */
+    +dunHTML(d)
 
     /* ★園を作っても、その園の職員アカウントを作る口は「園の管理者としてログイン済み」を
        求めるので、最初のひとりが永久に作れなかった。運営がここで作る。 */
@@ -881,6 +945,32 @@ function wire(){
     say('cm','記録中…',true);
     API.call('POST','/admin/tenants/'+openId+'/seats',{})
       .then(function(j){render();}).catch(function(e){say('cm',e.message);});
+  };
+
+  /* ══ 支払いが滞ったときの連絡（タスクシート56行）════ */
+  if($('pdSet'))$('pdSet').onclick=function(){
+    var on=$('pdOn')?$('pdOn').value:'';
+    if(!on){say('pdM','滞りはじめた日を入れてください');return;}
+    say('pdM','記録中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/past-due',{on:on})
+      .then(function(){render();}).catch(function(e){say('pdM',e.message);});
+  };
+  if($('dunGo'))$('dunGo').onclick=function(){
+    var st=$('dunStep')?$('dunStep').value:'';
+    if(!st){say('dunM','段を選んでください');return;}
+    if(st==='停止'&&!confirm('この園の利用を止めます。\n\n'
+      +'園の記録は消しません。お支払いが確認できたら、すぐに戻せます。\n'
+      +'書面での予告は済んでいますか。'))return;
+    say('dunM','記録中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/dunning',
+      {step:st,how:($('dunHow')?$('dunHow').value:''),note:($('dunNote')?$('dunNote').value:'')})
+      .then(function(){
+        /* 「停止」を記録したら、実際に止めるところまで行う。
+           記録だけ残って止まっていない、という食い違いを作らない。 */
+        if(st!=='停止')return null;
+        return API.call('POST','/admin/tenants/'+openId+'/active',{active:false});
+      })
+      .then(function(){render();}).catch(function(e){say('dunM',e.message);});
   };
   /* 園の最初の管理者を作る。作ったあと、園へ伝える文言をそのまま出す。 */
   /* パスワードの作り直し。押し間違いが重いので、必ず一度たずねる。 */
