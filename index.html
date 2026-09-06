@@ -19234,6 +19234,63 @@ function reqTarget(sd){
   if(/発達/.test(sd))return {page:'records',rec:'児童票（成長の記録）'};
   return null;
 }
+/* ══ 様式のもらい方 ═════════════════════════
+   自治体によって紙の形がほぼ決まっているものは、こちらで様式を作りません
+   （作ると、その自治体では受け取ってもらえない紙になるため）。
+   代わりに「どこでもらうか・どう探すか・もらった紙をどこにしまうか」を出します。 */
+function reqHowModal(it){
+  var prof=reqProfile();
+  var muni=String(prof.muni||'').replace(/^\s+|\s+$/g,'');
+  var q=(muni?muni+' ':'')+it.name.replace(/（[^）]*）/g,'');
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:560px;"><h2>'+esc(it.name)+'</h2>'
+    +'<div class="muted" style="margin:-6px 0 14px;font-size:12.5px;line-height:1.85;">'
+    +'これは、自治体ごとに紙の形が決まっている書類です。'
+    +'EduGrow では様式を作りません（園に合わない紙をお渡ししないためです）。</div>'
+
+    +'<div class="card" style="padding:14px;margin-bottom:11px;">'
+    +'<div style="font-weight:800;font-size:13px;margin-bottom:6px;">① どこでもらうか</div>'
+    +'<div style="font-size:13px;line-height:1.9;">'+esc(it.submitTo||'自治体の保育担当課')+'</div>'
+    +(it.basis?'<div class="muted" style="font-size:11.5px;margin-top:5px;">根拠：'+esc(it.basis)+'</div>':'')
+    +'</div>'
+
+    +'<div class="card" style="padding:14px;margin-bottom:11px;">'
+    +'<div style="font-weight:800;font-size:13px;margin-bottom:6px;">② どう探すか</div>'
+    +(muni
+      ? '<div style="font-size:13px;line-height:1.9;">お住まいの自治体は <b>'+esc(muni)+'</b> で登録されています。'
+        +'まずは自治体のホームページで、次のことばで探してみてください。</div>'
+      : '<div style="font-size:13px;line-height:1.9;">上の「自治体（市区町村）」に園の自治体名を入れると、'
+        +'探すことばがもっと絞りこめます。</div>')
+    +'<div style="background:var(--bg2,#F6F7F5);border:1px solid var(--line-2);border-radius:8px;'
+    +'padding:10px 13px;margin-top:9px;font-size:13px;font-weight:700;word-break:break-all;">'+esc(q)+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+    +'<button class="btn btn-sm btn-primary" id="rqCopy">このことばをコピー</button></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.8;">'
+    +'見つからないときは、自治体の保育担当課にお電話ください。'
+    +'「'+esc(it.name)+'の様式をいただきたい」とお伝えいただければ通じます。</div>'
+    +'</div>'
+
+    +'<div class="card" style="padding:14px;margin-bottom:14px;">'
+    +'<div style="font-weight:800;font-size:13px;margin-bottom:6px;">③ もらった紙をどこにしまうか</div>'
+    +'<div style="font-size:13px;line-height:1.9;">'
+    +'書いた紙は写真かPDFにして、<b>書類格納</b>に入れてください。'
+    +'監査のときに、システムの中だけで見せられるようになります。</div>'
+    +'<button class="btn btn-sm" id="rqDocs" style="margin-top:10px;">書類格納をひらく</button>'
+    +'</div>'
+
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;">'
+    +'<button class="btn" id="rqClose">閉じる</button></div></div>';
+  $('#rqClose').onclick=function(){m.remove();};
+  $('#rqDocs').onclick=function(){m.remove();go('docs');};
+  $('#rqCopy').onclick=function(){
+    var b=this;
+    function ok(){b.textContent='コピーしました';setTimeout(function(){b.textContent='このことばをコピー';},1800);}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(q).then(ok,function(){prompt('このことばで探してください',q);});
+    else prompt('このことばで探してください',q);
+  };
+}
+
 function renderReqNav(){
   var s=$('section[data-page="reqnav"]');
   var prof=reqProfile();var t=reqTypeById(prof.type);var st=reqStatusAll();
@@ -19260,7 +19317,8 @@ function renderReqNav(){
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:150px;">'
       +'<select data-rqst="'+esc(key)+'" style="width:150px;background:'+stcol+';font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
-      +(tgt?'<button class="btn btn-sm" data-rqgo="'+esc(it.systemDoc)+'">'+ic('fileplus')+'このシステムで作る</button>':'<span class="muted" style="font-size:11px;text-align:center;">システム外で用意</span>')+'</div>'
+      +(tgt?'<button class="btn btn-sm" data-rqgo="'+esc(it.systemDoc)+'">'+ic('fileplus')+'このシステムで作る</button>'
+           :'<button class="btn btn-sm" data-rqhow="'+esc(key)+'">'+ic('search')+'様式のもらい方</button>')+'</div>'
       +'</div></div>';
   }).join('')+'</div>';
   s.innerHTML=h;
@@ -19268,6 +19326,11 @@ function renderReqNav(){
   $('#rqMuni').oninput=function(){var p=reqProfile();p.muni=this.value;reqSaveProfile(p);};
   $('#rqCap').oninput=function(){var p=reqProfile();p.cap=this.value;reqSaveProfile(p);};
   s.querySelectorAll('[data-rqst]').forEach(function(sel){sel.onchange=function(){reqSetStatus(sel.getAttribute('data-rqst'),sel.value);renderReqNav();};});
+  s.querySelectorAll('[data-rqhow]').forEach(function(b){b.onclick=function(){
+    var kk=b.getAttribute('data-rqhow'), tt=reqTypeById(reqProfile().type);
+    var it=tt.items.filter(function(x){return (tt.id+'|'+x.name)===kk;})[0];
+    if(it)reqHowModal(it);
+  };});
   s.querySelectorAll('[data-rqgo]').forEach(function(b){b.onclick=function(){var tgt=reqTarget(b.getAttribute('data-rqgo'));if(!tgt)return;if(tgt.dg)dgType=tgt.dg;if(tgt.rec)recType=tgt.rec;go(tgt.rec?recPageOf(tgt.rec):tgt.page);};});
 }
 
