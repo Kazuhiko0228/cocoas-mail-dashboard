@@ -457,6 +457,9 @@ function tenantHTML(){
     +'</div>'
     +'<div class="row" style="margin-top:12px;">'
     +'<button class="btn sec sm" id="cnt">いまの在籍数を記録する</button>'
+    /* ★見積書（タスクシート51行・kazu担当・未着手）。
+       金額はすべてサーバの計算をそのまま出す。画面では計算しない。 */
+    +'<button class="btn sm" id="quote">見積書を出す</button>'
     +'<span class="msg" id="cm"></span></div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
     +'毎月の課金日に記録します。あとから「なぜこの金額か」を示せるようにするためです。</div>'
@@ -924,6 +927,80 @@ function wire(){
     API.call('POST','/admin/tenants/'+openId+'/active',{active:!now})
       .then(function(){render();})
       .catch(function(e){say('tn_m',e.message);});
+  };
+
+  /* ══ 見積書 ═══════════════════════════════
+     ★金額は画面で計算しない。サーバが返した数字（quote / initial / tax）を
+       そのまま並べる。2か所で計算すると、必ずどこかで食い違う。 */
+  if($('quote'))$('quote').onclick=function(){
+    var d=DATA.one; if(!d)return;
+    var c=d.contract||{}, q=d.quote||{}, ini=d.initial||{}, tax=d.tax||{};
+    var pl=(PLANS[c.plan]&&PLANS[c.plan].name)||c.plan||'';
+    var today=d.today||'';
+    /* 割引はマイナスで来る。「¥-7,400」ではなく「−¥7,400」と出す。 */
+    function yen2(n){
+      if(n==null)return '—';
+      return (n<0?'−':'')+yen(Math.abs(n));
+    }
+    function rows(lines){
+      return (lines||[]).map(function(l){
+        return '<tr><td>'+esc(l.label)+'</td><td class="r">'+yen2(l.yen)+'</td></tr>';}).join('');
+    }
+    function block(title,lines,total,t){
+      return '<h3>'+esc(title)+'</h3><table class="q"><tbody>'+rows(lines)
+        +'<tr class="sub"><td>小計（税別）</td><td class="r">'+yen(total)+'</td></tr>'
+        +(t?'<tr><td>消費税（'+(tax.percent||10)+'%）</td><td class="r">'+yen(t.tax)+'</td></tr>'
+            +'<tr class="tot"><td>合計（税込）</td><td class="r">'+yen(t.gross)+'</td></tr>':'')
+        +'</tbody></table>';
+    }
+    var w=window.open('','_blank');
+    if(!w){alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');return;}
+    w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8">'
+      +'<title>お見積書 '+esc(d.tenant.name)+'</title><style>'
+      +'*{box-sizing:border-box;margin:0;padding:0}'
+      +'body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#141413;'
+      +'padding:38px 42px;line-height:1.8;font-size:13px;}'
+      +'h1{font-size:22px;letter-spacing:.08em;text-align:center;margin-bottom:6px}'
+      +'.sub{text-align:center;color:#666;font-size:11.5px;margin-bottom:26px}'
+      +'.head{display:flex;justify-content:space-between;gap:30px;margin-bottom:24px}'
+      +'.to{font-size:15px;font-weight:700;border-bottom:1px solid #333;padding-bottom:6px;min-width:280px}'
+      +'.from{font-size:11.5px;color:#333;text-align:right;line-height:1.9}'
+      +'h3{font-size:13px;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid #141413}'
+      +'table.q{width:100%;border-collapse:collapse}'
+      +'table.q td{padding:9px 10px;border-bottom:1px solid #E2E0DA}'
+      +'table.q .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;width:150px}'
+      +'table.q tr.sub td{background:#F6F5F1;font-weight:700}'
+      +'table.q tr.tot td{background:#EDF1F2;font-weight:700;font-size:15px}'
+      +'.note{font-size:11.5px;color:#5F5E5A;line-height:1.95;margin-top:22px;'
+      +'border:1px solid #E2E0DA;border-radius:8px;padding:12px 14px}'
+      +'@media print{body{padding:0}}'
+      +'</style></head><body>'
+      +'<h1>お 見 積 書</h1>'
+      +'<div class="sub">発行日　'+esc(today)+'</div>'
+      +'<div class="head"><div><div class="to">'+esc(d.tenant.name)+'　御中</div>'
+      +'<div style="font-size:11.5px;color:#666;margin-top:6px;">園コード '+esc(d.tenant.code)+'</div></div>'
+      +'<div class="from"><b style="font-size:13px;">株式会社BIM JAPAN</b><br>'
+      +'〒901-0155 沖縄県那覇市赤嶺2-11-9<br>エンゼルハイム小禄赤嶺第３ 601<br>info@bimjapan.jp</div></div>'
+      +'<table class="q"><tbody>'
+      +'<tr><td>ご契約プラン</td><td class="r">'+esc(pl)+'</td></tr>'
+      +'<tr><td>在籍園児数</td><td class="r">'+(d.seats||0)+' 名</td></tr>'
+      +'<tr><td>ご利用開始日</td><td class="r">'+esc(c.started_on||'（未定）')+'</td></tr>'
+      +'</tbody></table>'
+      +block('初回のご請求（開始月の日割り）', ini.lines, ini.total, tax.initial)
+      +block('翌月以降（毎月）', q.lines, q.total, tax.monthly)
+      +'<div class="note">'
+      +'・金額はすべて税別で表示し、合計に消費税を足しています。<br>'
+      +'・初期費用はいただきません。<br>'
+      +(c.campaign_months?('・ローンチキャンペーン：'+c.campaign_months+'か月間 '
+        +Math.round((1-(+c.campaign_rate||0))*100)+'%OFF。キャンペーン後の最低契約期間は '
+        +(c.min_months||6)+'か月です。<br>'):'')
+      +'・園児数が定額に含まれる人数を超えた月は、超えた分だけ加算されます。<br>'
+      +'・このお見積りは、発行日時点の在籍数と契約条件で計算しています。<br>'
+      +'</div>'
+      +'<div style="margin-top:26px;text-align:center;">'
+      +'<button onclick="window.print()" style="padding:9px 22px;font-size:13px;cursor:pointer;">印刷する</button></div>'
+      +'</body></html>');
+    w.document.close();
   };
 
   /* 書類 */
