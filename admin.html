@@ -460,6 +460,10 @@ function tenantHTML(){
     /* ★見積書（タスクシート51行・kazu担当・未着手）。
        金額はすべてサーバの計算をそのまま出す。画面では計算しない。 */
     +'<button class="btn sm" id="quote">見積書を出す</button>'
+    /* ★申込フォーム（タスクシート53行）。商談のあと、園にこのURLをお渡しする。
+       検索には出さない（noindex）ので、URLを知っている人だけが開ける。 */
+    +'<a class="btn sec sm" href="apply.html" target="_blank" rel="noopener">申込フォームを開く</a>'
+    +'<button class="btn sec sm" id="applyCopy">申込フォームのURLをコピー</button>'
     +'<span class="msg" id="cm"></span></div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
     +'毎月の課金日に記録します。あとから「なぜこの金額か」を示せるようにするためです。</div>'
@@ -932,6 +936,13 @@ function wire(){
   /* ══ 見積書 ═══════════════════════════════
      ★金額は画面で計算しない。サーバが返した数字（quote / initial / tax）を
        そのまま並べる。2か所で計算すると、必ずどこかで食い違う。 */
+  if($('applyCopy'))$('applyCopy').onclick=function(){
+    var u=location.href.replace(/[^/]*$/,'')+'apply.html';
+    var b=this;
+    function ok(){ b.textContent='コピーしました'; setTimeout(function(){b.textContent='申込フォームのURLをコピー';},1800); }
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(ok,function(){prompt('このURLをお渡しください',u);});
+    else prompt('このURLをお渡しください',u);
+  };
   if($('quote'))$('quote').onclick=function(){
     var d=DATA.one; if(!d)return;
     var c=d.contract||{}, q=d.quote||{}, ini=d.initial||{}, tax=d.tax||{};
