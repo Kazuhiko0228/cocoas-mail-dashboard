@@ -2706,6 +2706,69 @@ function auditPickFY(data,fy){
   }
   return out;
 }
+/* ══ 監査の「足りているか」の目安 ═══════════════════
+   ★これまでは、記録が0件でも「済」を選べば済になった。
+     監査で見られるのは「選んだかどうか」ではなく「実際にあるか」なので、
+     そのままだと園が安心してしまう（2026-09-05 の実装）。
+
+   ・法令や広く決まっているものだけ、既定の目安を持つ。
+   ・自治体で回数が違うもの（発達記録など）は、既定を置かず園が決める。
+     こちらで決め打ちすると、その園にとって嘘の合格ラインになる。
+   ・目安に届かなくても「済」にはできる。紙で持っている園があるため。
+     ただし、その場で一度たずねる。 */
+/* ★件数は、画面に出している文から取り出す。文の形が項目ごとに違うので、
+     どこを読むかを項目ごとに決めておく。
+     ここを「最初に出てくる数字」で済ませると、
+     「2026年度に…」の 2026 を件数として読んでしまう。
+   ・消防用設備の自主点検（shobo）は「格納済み／未格納」で件数を出していないので、
+     目安を置かない。数で言えないものを数で判定しない。 */
+var AUDIT_LINE_DEF={
+  kunren:  {n:12, unit:'回', per:'年', pick:/^\s*(\d+)\s*\//,
+            basis:'児童福祉施設の設備及び運営に関する基準 第6条（消火・避難の訓練は少なくとも毎月1回）'},
+  shintai: {n:12, unit:'ヶ月分', per:'年', pick:/(\d+)\s*ヶ月分/,
+            basis:'月1回。多くの自治体で毎月の実施を求めています'},
+  kenben:  {n:12, unit:'ヶ月分', per:'年', pick:/(\d+)\s*ヶ月分/,
+            basis:'大量調理施設衛生管理マニュアル（調理従事者の検便は月1回以上）'},
+  anzen:   {n:12, unit:'日分', per:'年', pick:/(\d+)\s*日分/,
+            basis:'月1回以上。回数は園の規程によります'}
+};
+/* 園が決めた目安（無ければ既定）。0 を入れると「目安なし」になる。 */
+function auditLineAll(){ return stGet('auditLine',{})||{}; }
+function auditLineOf(key){
+  var mine=auditLineAll();
+  if(Object.prototype.hasOwnProperty.call(mine,key)){
+    var v=+mine[key];
+    if(!v)return null;                      /* 0 ＝ 目安を置かない */
+    var d0=AUDIT_LINE_DEF[key];
+    if(!d0||!d0.pick)return null;           /* 数で言えない項目は判定しない */
+    return {n:v,unit:d0.unit,per:d0.per,basis:'園で決めた目安'};
+  }
+  return AUDIT_LINE_DEF[key]||null;
+}
+/* 画面に出している文から、その項目の件数だけを取り出す。
+   取り方が決まっていない項目は 0（判定しない）。 */
+function auditHaveNum(key,fy){
+  var d0=AUDIT_LINE_DEF[key];
+  if(!d0||!d0.pick)return 0;
+  var t=auditDataInfo(key,fy);
+  if(!t)return 0;
+  var m=String(t).match(d0.pick);
+  return m?+m[1]:0;
+}
+/* 足りているか。目安が無いときは null（判定しない）。 */
+function auditEnough(key,fy){
+  var ln=auditLineOf(key); if(!ln)return null;
+  var have=auditHaveNum(key,fy);
+  return {have:have,need:ln.n,unit:ln.unit,per:ln.per,basis:ln.basis,ok:have>=ln.n};
+}
+function auditLineHtml(key,fy){
+  var e=auditEnough(key,fy); if(!e)return '';
+  var col=e.ok?{bg:'#EAF3DE',fg:'#27500A',t:'目安に届いています'}
+              :{bg:'#FAEEDA',fg:'#854F0B',t:'目安に足りていません'};
+  return '<div class="row-sub" style="margin-top:3px;">'
+    +'<span class="badge" style="background:'+col.bg+';color:'+col.fg+';" title="'+esc(e.basis)+'">'
+    +esc(col.t)+'　'+e.have+' / '+e.per+e.need+e.unit+'</span></div>';
+}
 function auditDataInfo(key,fy){
   fy=(fy==null)?curFY():+fy;
   switch(key){
@@ -10624,7 +10687,8 @@ function renderAudit(){
         '<td><div class="row-name">'+it.name+'</div>'
         +(it.note?'<div class="row-sub" style="color:#5F5E5A;">'+esc(it.note)+'</div>':'')
         +'<div class="row-sub" style="display:flex;align-items:center;gap:3px;"><span>'+(auditPlaceOf(it)?'保管：':'')+'</span><input data-place="'+esc(it.key)+'" value="'+String(auditPlaceOf(it)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);width:auto;min-width:160px;">'+'</div>'
-        +(function(){var di=auditDataInfo(it.key,fy);return di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'';})()+'</td>'+
+        +(function(){var di=auditDataInfo(it.key,fy);return di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'';})()
+        +auditLineHtml(it.key,fy)+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
         '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?'この画面を見る権限がありません':'園で紙に残す')+'</span>')+'</td></tr>';}).join('')+
       '</tbody></table></div>';}).join('')
@@ -10637,7 +10701,32 @@ function renderAudit(){
   if($('#auNow'))$('#auNow').onclick=function(){auditYear=curFY();renderAudit();};
   s.querySelectorAll('[data-aukind]').forEach(function(b){b.onclick=function(){auditKindF=b.getAttribute('data-aukind');renderAudit();};});
   s.querySelectorAll('[data-auwhen]').forEach(function(b){b.onclick=function(){auditWhenF=b.getAttribute('data-auwhen');renderAudit();};});
-  s.querySelectorAll('[data-st]').forEach(function(sl){sl.onchange=function(){auditSet(sl.getAttribute('data-st'),sl.value,fy);renderAudit();};});
+  s.querySelectorAll('[data-st]').forEach(function(sl){
+    /* 戻せるように、変える前の値を覚えておく */
+    sl.setAttribute('data-was',sl.value);
+    sl.onchange=function(){
+      var k=sl.getAttribute('data-st'),v=sl.value;
+      /* ★記録が目安に届いていないのに「済」にしようとしたときだけ、一度たずねる。
+         止めはしない。紙で持っている園があるため。
+         黙って通すと、監査の当日に足りていないことが分かる。 */
+      if(v==='済'){
+        var e=auditEnough(k,fy);
+        if(e&&!e.ok){
+          var nm='';
+          try{ auditItemsFlat().forEach(function(x){ if(x.key===k)nm=x.name||''; }); }catch(err){}
+          if(!confirm('「'+(nm||'この書類')+'」は、システムの記録が目安に届いていません。\n\n'
+            +'いまの記録　'+e.have+e.unit+'　／　目安　'+e.per+e.need+e.unit+'\n'
+            +'（'+e.basis+'）\n\n'
+            +'紙で保管しているなど、園でそろっている場合は「済」にして構いません。\n'
+            +'このまま「済」にしますか？')){
+            sl.value=sl.getAttribute('data-was')||'未';
+            return;
+          }
+        }
+      }
+      sl.setAttribute('data-was',v);
+      auditSet(k,v,fy);renderAudit();
+    };});
   s.querySelectorAll('[data-place]').forEach(function(inp){
     inp.onfocus=function(){inp.style.borderBottom='1px solid var(--line)';};
     inp.onblur=function(){inp.style.borderBottom='none';};
