@@ -8081,11 +8081,157 @@ function renderWaOpen(){
       }).join('')
       +'<div class="note-b" style="margin-top:13px;">'
       +'売上と還元・イベントの申込の名簿・保護者にお渡しするファイルは、'
-      +'園の職員としてログインしているときだけ出ます。</div></div>';
+      +'園の職員としてログインしているときだけ出ます。</div></div>'
+    /* ★保護者アカウントを園で作る手だてが無く、運営に頼むしかなかった。
+       未来WA は保護者が入れなければ何も始まらないので、ここに置く。
+       サーバ側で管理者だけに絞られているので、画面もそれに合わせる。 */
+    +'<div class="card" id="waPaCard"><h3>'+ic('users')+'保護者アカウント</h3>'
+      +'<div class="muted" style="margin:-4px 0 12px;">読み込んでいます…</div></div>';
   $('#waGo').onclick=waOpen;
+  waParentCard();
   s.querySelectorAll('[data-wago]').forEach(function(b){
     b.onclick=function(){ go(b.getAttribute('data-wago')); };
   });
+}
+
+/* ══ 保護者アカウント ═══════════════════════
+   未来WA は、保護者がアプリに入れなければ何も始まらない。
+   作る・止める・戻す・パスワードを作り直す、をここでまとめて行う。
+   サーバ側は管理者だけに絞ってあるので（POST /parents ほか）、画面もそれに合わせる。 */
+function waParentCard(){
+  var c=$('#waPaCard'); if(!c)return;
+  var role=(typeof currentRole==='function')?currentRole():null;
+  if(role&&role!=='管理者'){
+    c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+      +'<div class="muted" style="font-size:12.5px;line-height:1.9;">'
+      +'保護者アカウントの発行・停止は、園の管理者だけが行えます。'
+      +'ご入用のときは管理者にお伝えください。</div>';
+    return;
+  }
+  if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())){
+    c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+      +'<div class="muted" style="font-size:12.5px;line-height:1.9;">'
+      +'この端末はサーバにつないでいないため、保護者アカウントは扱えません。'
+      +'園コードでログインすると、ここで発行できます。</div>';
+    return;
+  }
+  c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+    +'<div class="muted" style="margin:-4px 0 12px;">読み込んでいます…</div>';
+  API.call('GET','/parents').then(function(j){ waParentDraw(j&&j.parents||[]); })
+    .catch(function(e){
+      c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+        +'<div class="muted" style="font-size:12.5px;">読み込めませんでした：'+esc(e.message)+'</div>';
+    });
+}
+/* 園児の名前を引く（child_ref は連絡先の id） */
+function waParentChild(ref){
+  var c=(DB.contacts||[]).filter(function(x){return String(x.id)===String(ref);})[0];
+  return c?(typeof childName==='function'?childName(c):(c.child||'')):'（園児が見つかりません）';
+}
+function waParentDraw(list){
+  var c=$('#waPaCard'); if(!c)return;
+  var live=list.filter(function(x){return x.active;});
+  var off=list.filter(function(x){return !x.active;});
+  /* まだ一度も入っていない家庭＝IDが渡っていないか、入れずに困っているサイン */
+  var never=live.filter(function(x){return !x.last_login_at;}).length;
+  /* まだアカウントの無い在園児 */
+  var has={}; list.forEach(function(x){ has[String(x.child_ref)]=1; });
+  var yet=(typeof enrolled==='function'?enrolled():[]).filter(function(x){return !has[String(x.id)];});
+
+  function row(a){
+    return '<div style="border-top:1px solid var(--line);padding:9px 0;display:flex;gap:9px;'
+      +'align-items:flex-start;flex-wrap:wrap;">'
+      +'<div style="flex:1;min-width:210px;">'
+      +'<div style="font-weight:700;font-size:13px;">'+esc(waParentChild(a.child_ref))
+      +(a.name?'　<span class="muted" style="font-weight:400;">'+esc(a.name)+'</span>':'')+'</div>'
+      +'<div class="muted" style="font-size:11.8px;margin-top:2px;">'+esc(a.email)
+      +'　／　'+(a.last_login_at?('最終ログイン '+String(a.last_login_at).slice(0,10))
+                              :'<b style="color:#A8701A;">まだ一度も入っていません</b>')
+      +(a.must_change?'　／　初期パスワードのまま':'')+'</div></div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      +(a.active
+        ? '<button class="btn btn-sm btn-ghost" data-papw="'+esc(a.id)+'">パスワードを作り直す</button>'
+          +'<button class="btn btn-sm btn-ghost" data-paoff="'+esc(a.id)+'">止める</button>'
+        : '<span class="pill" style="background:#F1EFE8;color:#5F5E5A;font-size:10.5px;">止めています</span>'
+          +'<button class="btn btn-sm" data-paon="'+esc(a.id)+'">戻す</button>')
+      +'</div></div>';
+  }
+
+  c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+    +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
+    +'保護者が未来WAに入るための、メールアドレスとパスワードです。'
+    +'<b>お渡しするのは、園コード・メールアドレス・パスワードの3つ</b>です。'
+    +'メールは自動では送られないので、園から直接お伝えください。</div>'
+    +(never?'<div class="note-b" style="margin-bottom:11px;">'
+      +'<b>'+never+'家庭</b>が、まだ一度も入っていません。'
+      +'IDが渡っていないか、入りかたが分からずにいるかもしれません。</div>':'')
+    +(live.length||off.length
+      ? live.map(row).join('')+off.map(row).join('')
+      : '<div class="muted" style="font-size:12.5px;padding:8px 0;">まだ1件もありません。</div>')
+
+    +'<div style="border-top:1px solid var(--line);margin-top:13px;padding-top:13px;">'
+    +'<div style="font-weight:700;font-size:13px;margin-bottom:9px;">新しく発行する</div>'
+    +(yet.length
+      ? '<div class="grid" style="grid-template-columns:1.2fr 1.4fr 1fr;gap:10px;">'
+        +'<div class="field" style="margin:0;"><label>園児</label><select id="paKid">'
+        +yet.map(function(x){return '<option value="'+esc(x.id)+'">'+esc(typeof childName==="function"?childName(x):(x.child||""))+'</option>';}).join('')
+        +'</select></div>'
+        +'<div class="field" style="margin:0;"><label>保護者のメールアドレス</label>'
+        +'<input id="paMail" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="hogosha@example.jp"></div>'
+        +'<div class="field" style="margin:0;"><label>はじめのパスワード（8文字以上）</label>'
+        +'<input id="paPw" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="8文字以上"></div>'
+        +'</div>'
+        +'<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;">'
+        +'<button class="btn btn-primary btn-sm" id="paGo">発行する</button>'
+        +'<span class="muted" id="paMsg" style="font-size:12px;"></span></div>'
+      : '<div class="muted" style="font-size:12.5px;">在園のお子さま全員に、アカウントが行きわたっています。</div>')
+    +'</div>';
+
+  if($('#paGo'))$('#paGo').onclick=function(){
+    var kid=$('#paKid').value, mail=$('#paMail').value.trim(), pw=$('#paPw').value;
+    if(!mail||!pw){ $('#paMsg').textContent='メールアドレスとパスワードを入れてください'; return; }
+    if(pw.length<8){ $('#paMsg').textContent='パスワードは8文字以上にしてください'; return; }
+    $('#paMsg').textContent='発行しています…';
+    API.call('POST','/parents',{email:mail,password:pw,childId:+kid})
+      .then(function(){
+        alert('発行しました。\n\n保護者にお伝えいただくのは、次の3つです。\n\n'
+          +'園コード： '+((API.tenant()||{}).code||'')+'\n'
+          +'メールアドレス： '+mail+'\n'
+          +'はじめのパスワード： '+pw+'\n\n'
+          +'※ 保護者は、最初のログインでご自身のパスワードに変えていただきます。\n'
+          +'※ メールは自動では送られません。園からお伝えください。');
+        waParentCard();
+      })
+      .catch(function(e){
+        /* 止めているアカウントで同じメールが使われているときは、戻せることを伝える */
+        $('#paMsg').textContent=e.message;
+      });
+  };
+  c.querySelectorAll('[data-paoff]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この保護者アカウントを止めます。\n\n保護者は未来WAに入れなくなります。'
+      +'注文や連絡の記録は消えません。あとから戻せます。'))return;
+    API.call('DELETE','/parents/'+b.getAttribute('data-paoff'))
+      .then(waParentCard).catch(function(e){alert(e.message);});
+  };});
+  c.querySelectorAll('[data-paon]').forEach(function(b){b.onclick=function(){
+    API.call('POST','/parents/'+b.getAttribute('data-paon')+'/active',{active:true})
+      .then(waParentCard).catch(function(e){alert(e.message);});
+  };});
+  c.querySelectorAll('[data-papw]').forEach(function(b){b.onclick=function(){
+    var pw=prompt('新しいパスワードを入れてください（8文字以上）。\n\n'
+      +'いまのパスワードは分からなくても構いません。\n'
+      +'保護者は、次にログインしたときに必ず変更を求められます。','');
+    if(pw===null)return;
+    if(String(pw).length<8){alert('パスワードは8文字以上にしてください。');return;}
+    API.call('POST','/parents/'+b.getAttribute('data-papw')+'/password',{password:pw})
+      .then(function(j){
+        alert('作り直しました。\n\n保護者にお伝えください。\n\n'
+          +'園コード： '+((API.tenant()||{}).code||'')+'\n'
+          +'メールアドレス： '+((j&&j.parent&&j.parent.email)||'')+'\n'
+          +'新しいパスワード： '+pw);
+        waParentCard();
+      }).catch(function(e){alert(e.message);});
+  };});
 }
 
 /* ---------- スクールガイド（入園時にお渡しする一式） ----------
