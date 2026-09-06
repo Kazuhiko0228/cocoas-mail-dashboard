@@ -3813,6 +3813,10 @@ function go(page){
   /* 生徒情報（enroll）は請求書発行（billing）に入れた。
      覚えている行き先や、古い呼び出しが enroll のままでも止まらないよう、入口で読み替える。 */
   if(page==='enroll')page='billing';
+  /* ★生徒情報一覧は生徒台帳に畳んだ（2026-09-05）。
+     覚えている行き先や古い呼び出しで止まらないよう、入口で読み替える。
+     TITLES と権限の表からは消さない（消すと画面が白いまま止まる）。 */
+  if(page==='kidsview'){page='roster';rosterTab='care';}
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page)){
     alert('この画面は、いまのアカウントでは開けません。園の管理者にご確認ください。');
     page='dashboard';
@@ -3826,7 +3830,9 @@ function go(page){
   setTimeout(fimgSweep,0);
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
-  if(page!=='roster')rosterTab='list';   /* 生徒台帳は、別の画面へ行って戻ったら必ず一覧から始める */
+  /* 生徒台帳は、別の画面へ行って戻ったら最初のタブから始める。
+     先生は毎日「保育に必要なこと」を見るので、そこを最初にする。 */
+  if(page!=='roster')rosterTab='care';
   /* ★職員管理の「書類の確認ビュー」を、監査のボタンの中だけで解いていた。
      サイドバーから職員管理を開くと、資格証明書の保管状況が出続けていた。
      入口が増えても漏れないよう、ここで解く（監査のボタンは go の直前で立てる）。 */
@@ -3860,7 +3866,7 @@ function go(page){
       if(wsec)wsec.hidden=false;
       renderWaOpen();
     })() :
-  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,kidsview:renderKidsView,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -4457,7 +4463,8 @@ var EG_NAV=[
    {k:'kiroku', l:'保育記録',   i:'ic:65',si:'clipboard', c:'#0B5F8F', bg:'#E3F1F9', sub:[
      {p:'records',  l:'日常チェック'},
      /* 先生用。生徒台帳は触ってほしくないので、見るだけの画面を分けた（依頼F7） */
-     {p:'kidsview', l:'生徒情報一覧'},
+     /* ★生徒情報一覧は生徒台帳の中のタブに畳んだ（2026-09-05）。
+        入口を2つ出すと、同じ園児の情報が2か所にあるように見える。 */
      {p:'roster',   l:'生徒台帳'}]},
    /* メールテンプレートは、ここ（連絡・配信）に置く。
       前は「新規顧客管理」の中にあり、プロのプランの園長だけのものになっていた。
@@ -16499,8 +16506,10 @@ function kidsRows(){
   });
 }
 
-function renderKidsView(){
-  var s=$('section[data-page="kidsview"]');
+/* ══ 生徒台帳「保育に必要なこと」（もとの生徒情報一覧）══════
+   ★2つの画面を1つに畳んだので、描く部分だけを取り出した。
+     中身は変えていない。台帳の一覧とは出す項目が違うので、どちらも残す。 */
+function kidsCareHtml(){
   var sp=spStore(), rows=kidsRows();
   var klasses=['すべて'].concat(CLASSES);
 
@@ -16520,12 +16529,9 @@ function renderKidsView(){
     +'内容を直すときは、園長・管理者に「生徒台帳」または「請求書発行」からお願いしてください。'
     +'</div></div>';
 
-  if(!rows.length){
-    s.innerHTML=head+'<div class="card"><div class="empty">該当する園児がいません</div></div>';
-    wireKidsView(); return;
-  }
+  if(!rows.length)return head+'<div class="card"><div class="empty">該当する園児がいません</div></div>';
 
-  s.innerHTML=head
+  return head
     +'<div class="card"><div class="scrollx"><table class="kvtbl"><thead><tr>'
     +'<th>園児</th><th>歳児</th><th>クラス</th>'
     +'<th>通園曜日</th><th>コース</th>'
@@ -16566,13 +16572,14 @@ function renderKidsView(){
     +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.8;">'
     +'アレルギーは赤で出しています。緊急連絡先が「未登録」の園児は、'
     +'園長・管理者に生徒台帳への登録をお願いしてください。</div></div>';
-  wireKidsView();
 }
+/* 「保育に必要なこと」の配線。もとの生徒情報一覧と同じ。 */
+function wireKidsCare(){ if(typeof wireKidsView==='function')wireKidsView(); }
 
 function wireKidsView(){
-  var k=$('#kvK'); if(k)k.onchange=function(){kidsKlass=k.value;renderKidsView();};
+  var k=$('#kvK'); if(k)k.onchange=function(){kidsKlass=k.value;renderRoster();};
   var q=$('#kvQ');
-  if(q)q.oninput=function(){kidsQ=q.value;renderKidsView();
+  if(q)q.oninput=function(){kidsQ=q.value;renderRoster();
     var n=$('#kvQ'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}};
   var pr=$('#kvPrint');
   if(pr)pr.onclick=function(){
@@ -16611,17 +16618,29 @@ function renderRoster(){
   var kids=enrolled();
   if(!rosterSel||!kids.filter(function(c){return c.id===rosterSel;}).length)rosterSel=kids.length?kids[0].id:null;
   var s=$('section[data-page="roster"]');
-  var tabs=[['list','一覧','users'],['profile','個別プロフィール','idcard'],['map','自宅マップ','map']];
+  /* ★「生徒情報一覧」と「生徒台帳」を1つに畳んだ（2026-09-05）。
+     スプレッドシート「EduGrow システム概要」①③で、生徒まわりは2つと決まっている。
+       生徒台帳 … 保育記録の中（先生〜管理者）
+       生徒情報 … 顧客情報・料金管理（園長・管理者だけ／請求書発行の中）
+     中身は別物（台帳＝ふりがな・生年月日・契約書、
+     一覧＝通園曜日・給食・緊急連絡先・平熱）なので、どちらも消さずにタブで並べる。 */
+  var tabs=[['care','保育に必要なこと','users'],['list','台帳の一覧','idcard'],
+            ['profile','個別プロフィール','idcard'],['map','自宅マップ','map']];
+  /* 先生（一般）は、編集する画面を出さない。シートで「園長・管理者」と決まっている */
+  if(typeof currentRole==='function'&&currentRole()==='一般')
+    tabs=[['care','保育に必要なこと','users'],['list','台帳の一覧','idcard']];
   var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
     +tabs.map(function(t){return '<button class="btn btn-sm'+(rosterTab===t[0]?' btn-primary':'')+'" data-rtab="'+esc(t[0])+'">'+ic(t[2])+t[1]+'</button>';}).join('')
     +'<span style="flex:1;"></span><span class="muted" style="font-size:12px;">在園 '+kids.length+'名</span></div>'
     +'<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:10px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12px;color:#6b3f08;line-height:1.55;">氏名・住所・健康などの生徒情報は<b>この端末の中だけ</b>に保存されます。ほかの端末には出ません。いま出ているのは見本です。</div></div>';
-  if(rosterTab==='list')h+=rosterList(kids);
+  if(rosterTab==='care')h+=kidsCareHtml();
+  else if(rosterTab==='list')h+=rosterList(kids);
   else if(rosterTab==='profile')h+=rosterProfile(kids);
   else h+=rosterMapHtml(rosterMapKids());
   s.innerHTML=h;
   s.querySelectorAll('[data-rtab]').forEach(function(b){b.onclick=function(){rosterTab=b.getAttribute('data-rtab');renderRoster();};});
-  if(rosterTab==='list')wireRosterList();
+  if(rosterTab==='care')wireKidsCare();
+  else if(rosterTab==='list')wireRosterList();
   else if(rosterTab==='profile')wireRosterProfile();
   else wireRosterMap(rosterMapKids());
 }

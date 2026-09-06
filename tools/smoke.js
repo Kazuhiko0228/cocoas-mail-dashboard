@@ -15,6 +15,7 @@ const {chromium}=require('/Users/slimshady/cw-scrape/node_modules/playwright');
     /* 権限で開けない画面と、別名（enroll→billing）は除く */
     const pages=await pg.evaluate(()=>Object.keys(TITLES).filter(function(p){
       if(p==='enroll')return false;                 /* billing の別名 */
+      if(p==='kidsview')return false;               /* 生徒台帳のタブに畳んだ（2026-09-05） */
       if(p==='creator')return false;                /* 別ファイル（creator.html）を開くだけ。section を持たない */
       if(!document.querySelector('section[data-page="'+p+'"]'))return false;
       try{ return canView(p)&&egPlanOfPage(p); }catch(e){ return true; }
