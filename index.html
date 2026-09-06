@@ -9394,14 +9394,30 @@ var bMgrName='',bBccVal=null;
 var TPL_PERMS_VERSION=2;
 function tplPermsDefault(){
   var o={broadcast:{},mail:{}};
-  bcastAll().forEach(function(x){o.broadcast[x.key]=x.daily?['管理者','マネージャー','一般']:['管理者','マネージャー'];});
+  bcastAll().forEach(function(x){o.broadcast[x.key]=x.daily?['管理者','マネージャー','主任','一般']:['管理者','マネージャー'];});
   /* 個別メールのひな形は、どの役職でも見られるようにする。
      見せる相手を決める表を設定から外したので、ここを絞ったままにすると
      先生の画面にひな形が1件も出ず、しかもそれを直す場所が無くなる。 */
-  mailTplKeys().forEach(function(k){o.mail[k]=['管理者','マネージャー','一般'];});
+  mailTplKeys().forEach(function(k){o.mail[k]=['管理者','マネージャー','主任','一般'];});
   return o;
 }
-function tplPerms(){var p=stGet('tplPerms',null);if(!p||stGet('tplPermsVersion',0)!==TPL_PERMS_VERSION){p=tplPermsDefault();stSet('tplPerms',p);stSet('tplPermsVersion',TPL_PERMS_VERSION);}return p;}
+function tplPerms(){var p=stGet('tplPerms',null);if(!p||stGet('tplPermsVersion',0)!==TPL_PERMS_VERSION){p=tplPermsDefault();stSet('tplPerms',p);stSet('tplPermsVersion',TPL_PERMS_VERSION);}return tplPermsAddChief(p);}
+/* ★主任・リーダーを足したとき、すでに園が保存していた設定には '主任' が無いので、
+   主任の先生にだけひな形が1件も出ない、ということが起きる。
+   シートでは 連絡・配信 は主任も○なので、「先生に見せているものは主任にも見せる」を足す。
+   版を上げて作り直すと、園が直した設定まで消えてしまうため、足すだけにしている。 */
+function tplPermsAddChief(p){
+  if(!p||typeof p!=='object')return p;
+  ['broadcast','mail'].forEach(function(kind){
+    var o=p[kind]; if(!o||typeof o!=='object')return;
+    Object.keys(o).forEach(function(k){
+      var l=o[k];
+      if(Object.prototype.toString.call(l)!=='[object Array]')return;
+      if(l.indexOf('一般')>-1&&l.indexOf('主任')<0)l.push('主任');
+    });
+  });
+  return p;
+}
 function tplAllowed(kind,key){var r=(typeof currentRole==='function')?currentRole():null;if(!r||r==='管理者')return true;var p=tplPerms()[kind]||{};var list=p[key];return !list||list.indexOf(r)>-1;}
 function bcastList(){var all=bcastAll();var l=all.filter(function(x){return tplAllowed('broadcast',x.key);});return l.length?l:all.filter(function(x){return !!x.daily;});}
 /* 全体周知・お知らせの送り先の選び方。'class'＝クラスで選ぶ、'kids'＝児童を選ぶ。
