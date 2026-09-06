@@ -4653,21 +4653,69 @@ function salesStats(){
     if(SALES_GROUP['入園'].indexOf(c.status)>-1)by[m].win++;
     if(SALES_GROUP['離脱'].indexOf(c.status)>-1)by[m].lost++;
   });
-  /* 離脱の理由。メモから拾う */
-  var reasons={};
-  leads.filter(function(c){return SALES_GROUP['離脱'].indexOf(c.status)>-1;}).forEach(function(c){
-    /* 顧客リストのメモ欄をやめ、共有事項に一本化した。
-       これまでメモに書かれた理由も読めるよう、両方を見る。 */
-    var t=(c.concerns||c.note||c.memo||'').trim();
-    var key=t?t.slice(0,18):'理由の記録なし';
-    reasons[key]=(reasons[key]||0)+1;
+  /* 理由をメモから拾う。
+     顧客リストのメモ欄をやめ、共有事項に一本化した。
+     これまでメモに書かれた理由も読めるよう、両方を見る。 */
+  function reasonsOf(list){
+    var m={};
+    list.forEach(function(c){
+      var t=(c.concerns||c.note||c.memo||'').trim();
+      var key=t?t.slice(0,18):'理由の記録なし';
+      m[key]=(m[key]||0)+1;
+    });
+    return m;
+  }
+  var reasons=reasonsOf(leads.filter(function(c){return SALES_GROUP['離脱'].indexOf(c.status)>-1;}));
+  /* 決定理由（シート18行）。入園が決まった人の共有事項から拾う */
+  var winners=leads.filter(function(c){return SALES_GROUP['入園'].indexOf(c.status)>-1;});
+  var winReasons=reasonsOf(winners);
+
+  /* アポ率（シート18行）。
+     体験の日程が決まったところまで進んだ人の割合。
+     すでに体験を終えた人・入園した人は、日程が決まっていたはずなので数に入れる。
+     まだ調整中の人は入れない（日程が決まっていないため）。 */
+  var APO_DONE=['体験前 日程調整済','オンライン後 体験日程調整済'];
+  var apo=g['体験後']+g['入園'];
+  leads.forEach(function(c){ if(APO_DONE.indexOf(c.status)>-1)apo++; });
+
+  /* 問い合わせ方法ごとの決定率。どこから来た人が決まりやすいか */
+  var bySrc={};
+  leads.forEach(function(c){
+    var k=c.source||'記録なし';
+    bySrc[k]=bySrc[k]||{n:0,win:0,lost:0};
+    bySrc[k].n++;
+    if(SALES_GROUP['入園'].indexOf(c.status)>-1)bySrc[k].win++;
+    if(SALES_GROUP['離脱'].indexOf(c.status)>-1)bySrc[k].lost++;
   });
+
+  /* 問い合わせ率（シート18行）。
+     分母は「園を知った人の数」なので、システムの中には無い。
+     ＝ 園が入れた反響数（HPのアクセス数・チラシの配布数など）で割る。
+     入っていない月は出さない。当てずっぽうの数字を出さないため。 */
+  var reach=salesReachAll(), reachN=0, inqN=0;
+  Object.keys(by).forEach(function(m){
+    var r=+(reach[m]||0);
+    if(r>0){ reachN+=r; inqN+=by[m].n; }
+  });
+
   return {
     total:total, g:g, byStatus:byStatus, months:by, reasons:reasons,
+    winReasons:winReasons, winners:winners.length, bySrc:bySrc,
+    apo:apo, apoRate:rate(apo,total),
+    reach:reach, reachN:reachN, inqN:inqN, inqRate:reachN?rate(inqN,reachN):null,
     trialRate:rate(trial,total), winRate:rate(g['入園'],total),
     lostRate:rate(g['離脱'],total),
-    winOfTrial:rate(g['入園'],trial)
+    winOfTrial:rate(g['入園'],trial),
+    winOfApo:rate(g['入園'],apo)
   };
+}
+/* 反響数（問い合わせ率の分母）。月ごとに園が入れる。
+   {'2026-09':120} の形。入っていない月は、問い合わせ率を出さない。 */
+function salesReachAll(){var a=stGet('salesReach',{});return (a&&typeof a==='object')?a:{};}
+function salesReachSet(m,v){
+  var a=salesReachAll();
+  if(v>0)a[m]=v; else delete a[m];
+  stSet('salesReach',a);
 }
 /* 数字を見て気づいたことを言う。当てずっぽうは言わない。 */
 function salesFindings(x){
@@ -4675,6 +4723,17 @@ function salesFindings(x){
   if(!x.total){ return [{lv:'warn',t:'リードがまだ登録されていません。連絡先に「リード」として登録すると、ここに数字が出ます。'}]; }
   if(x.trialRate!=null&&x.trialRate<40)
     out.push({lv:'warn',t:'体験まで進んだのが '+x.trialRate+'% です。問い合わせのあと、体験の日程を決めるところで止まっている可能性があります。'});
+  /* アポ率（シート18行）。問い合わせは来ているのに日程が決まっていない、が一番よくある詰まり */
+  if(x.apoRate!=null&&x.apoRate<50&&x.total>=10)
+    out.push({lv:'warn',t:'体験の日程が決まったのは '+x.apoRate+'% です。問い合わせは来ているのに、日程を決めるところで半分以上が止まっています。折り返しの早さと、日程の出し方（候補を2〜3日ぶん先に出す）を見てください。'});
+  if(x.apoRate!=null&&x.apoRate>=70&&x.winOfApo!=null&&x.winOfApo<30&&x.apo>=10)
+    out.push({lv:'warn',t:'日程は '+x.apoRate+'% で決まっているのに、そこから入園に至ったのは '+x.winOfApo+'% です。集客ではなく、体験の中身か、そのあとの追いかけに理由があります。'});
+  if(x.inqRate!=null&&x.inqRate<1&&x.reachN>=200)
+    out.push({lv:'warn',t:'園を知った '+x.reachN+'件のうち、問い合わせは '+x.inqRate+'% です。知ってもらう手前ではなく、知ったあとに問い合わせたくなるか（料金・空き・見学のしやすさが分かるか）を見てください。'});
+  if(Object.keys(x.winReasons).length&&!x.winReasons['理由の記録なし'])
+    out.push({lv:'ok',t:'入園が決まった方の理由が、全員ぶん残っています。次の案内は、ここに出ている言葉をそのまま使ってください。'});
+  if(x.winners>=3&&(x.winReasons['理由の記録なし']||0)===x.winners)
+    out.push({lv:'warn',t:'入園が決まった '+x.winners+'件に、決め手の記録がありません。連絡先の「共有事項」に一言だけでも残すと、何が効いているかが見えます。'});
   if(x.winOfTrial!=null&&x.winOfTrial>=50)
     out.push({lv:'ok',t:'体験まで来た方の '+x.winOfTrial+'% が入園に至っています。体験そのものは効いています。'});
   if(x.winOfTrial!=null&&x.winOfTrial<30&&x.g['体験後'])
@@ -4695,11 +4754,13 @@ function renderSales(){
       +esc(v==null?'—':v)+(u?'<span style="font-size:12px;color:var(--tx3);margin-left:3px;">'+u+'</span>':'')+'</div>'
       +(n?'<div style="font-size:11.5px;color:var(--tx3);margin-top:4px;">'+esc(n)+'</div>':'')+'</div>';
   };
+  /* シート18行の並び：問い合わせ率／アポ率／決定率／離脱率 */
   var html='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">'
     +tile('リード',x.total,'件','連絡先に登録されている数')
-    +tile('体験まで進んだ',x.trialRate,'%','体験後・入園を合わせた割合')
-    +tile('入園の決定',x.winRate,'%','リード全体に対して')
-    +tile('離脱',x.lostRate,'%','連絡不通・NG')
+    +tile('問い合わせ率',x.inqRate,'%',x.inqRate==null?'反響数を入れると出ます':x.inqN+'件 ／ 反響 '+x.reachN+'件')
+    +tile('アポ率',x.apoRate,'%','体験の日程が決まった割合（'+x.apo+'件）')
+    +tile('決定率',x.winRate,'%','リード全体に対して')
+    +tile('離脱率',x.lostRate,'%','連絡不通・NG')
     +'</div>';
 
   html+='<div class="card"><h3 style="margin-top:0;">いまの段階</h3>'
@@ -4736,6 +4797,61 @@ function renderSales(){
       +'</tbody></table>':'<div class="muted" style="text-align:center;padding:20px 0;">問い合わせの記録がまだありません</div>')
     +'</div>';
 
+  /* 決定理由（シート18行）。離脱の理由と同じ拾い方 */
+  var wk=Object.keys(x.winReasons);
+  html+='<div class="card"><h3 style="margin-top:0;">決定の理由</h3>'
+    +(wk.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
+      +wk.sort(function(a,b){return x.winReasons[b]-x.winReasons[a];}).map(function(k){
+        return '<tr><td style="padding:7px 0;">'+esc(k)+'</td>'
+          +'<td style="padding:7px 0;text-align:right;width:56px;font-variant-numeric:tabular-nums;">'+x.winReasons[k]+'件</td></tr>';
+      }).join('')+'</tbody></table>'
+      :'<div class="muted" style="text-align:center;padding:20px 0;">入園が決まった記録がまだありません</div>')
+    +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.75;">'
+    +'連絡先の「共有事項」に書かれた内容から拾っています。'
+    +'決め手になったことを書き残すほど、次の案内に使えます。</div></div>';
+
+  /* 問い合わせ方法ごとの決まりやすさ */
+  var sk=Object.keys(x.bySrc);
+  html+='<div class="card"><h3 style="margin-top:0;">問い合わせ方法ごとの決まりやすさ</h3>'
+    +(sk.length?'<table style="width:100%;font-size:12.5px;"><thead><tr>'
+      +'<th style="text-align:left;padding:6px 0;color:var(--tx3);">方法</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">問い合わせ</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">入園</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">決定率</th></tr></thead><tbody>'
+      +sk.sort(function(a,b){return x.bySrc[b].n-x.bySrc[a].n;}).map(function(k){
+        var v=x.bySrc[k], r=v.n?Math.round(v.win/v.n*1000)/10:0;
+        return '<tr><td style="padding:7px 0;">'+esc(k)+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;">'+v.n+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;">'+v.win+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;">'+r+'%</td></tr>';
+      }).join('')+'</tbody></table>'
+      :'<div class="muted" style="text-align:center;padding:20px 0;">問い合わせの記録がまだありません</div>')
+    +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.75;">'
+    +'件数が少ないうちは、率は当てになりません。20件くらい貯まってから見てください。</div></div>';
+
+  /* 問い合わせ率の分母。園に入れてもらう */
+  html+='<div class="card"><h3 style="margin-top:0;">反響数（問い合わせ率の分母）</h3>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:11px;line-height:1.9;">'
+    +'その月に<b>園を知った人の数</b>を入れてください。'
+    +'ホームページのアクセス数、チラシを配った枚数、見学会に来た人数など、園が数えているものでかまいません。'
+    +'<br>ここが空の月は、問い合わせ率を出しません（当てずっぽうの数字を出さないため）。</div>'
+    +(ms.length?'<table style="width:100%;font-size:12.5px;"><thead><tr>'
+      +'<th style="text-align:left;padding:6px 0;color:var(--tx3);">月</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">反響数</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">問い合わせ</th>'
+      +'<th style="text-align:right;padding:6px 0;color:var(--tx3);">問い合わせ率</th></tr></thead><tbody>'
+      +ms.map(function(m){
+        var r=+(x.reach[m]||0), n=x.months[m].n;
+        return '<tr><td style="padding:7px 0;">'+esc(m)+'</td>'
+          +'<td style="padding:7px 0;text-align:right;"><input data-reach="'+esc(m)+'" value="'+(r||'')+'" inputmode="numeric" placeholder="—" style="width:82px;text-align:right;padding:4px 7px;"></td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;">'+n+'</td>'
+          +'<td style="padding:7px 0;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;">'
+          +(r>0?(Math.round(n/r*1000)/10)+'%':'—')+'</td></tr>';
+      }).join('')+'</tbody></table>'
+      +'<div style="margin-top:11px;"><button class="btn btn-primary btn-sm" id="reachSave">保存する</button></div>'
+      :'<div class="muted" style="text-align:center;padding:20px 0;">問い合わせの記録がまだありません</div>')
+    +'</div>';
+
   var rk=Object.keys(x.reasons);
   html+='<div class="card"><h3 style="margin-top:0;">離脱の理由</h3>'
     +(rk.length?'<table style="width:100%;font-size:12.5px;"><tbody>'
@@ -4748,6 +4864,13 @@ function renderSales(){
     +'連絡先のメモに書かれた内容から拾っています。理由を書き残すほど、ここが役に立ちます。</div></div>';
 
   s.innerHTML=html;
+  if($('#reachSave'))$('#reachSave').onclick=function(){
+    s.querySelectorAll('[data-reach]').forEach(function(inp){
+      salesReachSet(inp.getAttribute('data-reach'),Math.max(0,parseInt(inp.value,10)||0));
+    });
+    renderSales();
+    if(typeof aiToast==='function')aiToast('保存しました');
+  };
 }
 
 
