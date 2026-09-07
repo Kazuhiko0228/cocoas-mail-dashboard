@@ -10,6 +10,7 @@ const BUILTIN=new Set(('window document localStorage sessionStorage location nav
  'Object Array String Number Boolean Math JSON Date RegExp Error TypeError Promise Map Set WeakMap '+
  'parseInt parseFloat isNaN isFinite encodeURIComponent decodeURIComponent encodeURI decodeURI '+
  'Blob File FileReader URL FormData Event CustomEvent Node Element HTMLElement Image Audio '+
+ 'FaceDetector '+   /* 端末の中の顔検出。使えない端末もあるので、必ず typeof で確かめてから呼ぶ */
  'alert confirm prompt print btoa atob crypto TextEncoder TextDecoder Intl Symbol Proxy Reflect '+
  'undefined NaN Infinity globalThis self top parent frames screen performance L structuredClone '+
  'AbortController Headers Request Response WebSocket IntersectionObserver MutationObserver ResizeObserver '+
