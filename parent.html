@@ -1106,7 +1106,7 @@ privacy:{t:'未来WA プライバシーポリシー',d:'このプライバシー
 ]}};
 
 /* ── 同意の記録 ─────────────────────────── */
-var consentDoc=null;                 /* null / 'terms' / 'privacy' */
+var consentDoc=null;                 /* null / 'terms' / 'privacy' / 'health' */
 function consentKey(){
   var c=(typeof sessionChild==='function')?sessionChild():null;
   if(!c)return 'guest';
@@ -1200,6 +1200,10 @@ function noticeOpen(){
 
 /* ── 同意画面 ───────────────────────────── */
 function consentHTML(){
+  /* 健康に関する情報の説明は、規約と同じ「読んでから戻る」の形で出す。
+     同意画面から離れずに、目的・項目・お渡し先を確かめられるようにするため。 */
+  if(consentDoc==='health')return '<div class="login-wrap" style="max-width:640px;">'
+    +'<button class="pback" id="cBack">‹ もどる</button>'+healthDocHTML()+'</div>';
   if(consentDoc)return legalHTML(consentDoc);
   var c=(typeof sessionChild==='function')?sessionChild():null;
   return '<div class="login-wrap" style="max-width:520px;">'
@@ -1268,16 +1272,26 @@ function consentHTML(){
 
     +'<div class="flabel" style="margin:20px 2px 2px;">ご確認ください（必須）</div>'
     +cChk('cChk','利用規約およびプライバシーポリシーの全文を確認し、'
-      +'これに同意します。')
+      +'これに同意します。',
+      'このアプリをお使いいただくための、いちばんの土台です。')
     +cChk('cChkP','私は、登録する児童について、親権者・未成年後見人その他、'
       +'その情報を登録し、提供するために必要な権限を有しています。'
-      +'必要な場合は、他の親権者の了解を得ています。')
-    +'<div class="flabel" style="margin:20px 2px 2px;">受け取りの設定（任意）</div>'
-    +cChk('cChkS','スポンサー・キャンペーンのお知らせを受け取ります。'
-      +'（受け取らなくても、機能はすべてお使いいただけます。あとから変更できます）')
-    /* 健康に関する情報の同意は、ここではいただかない。
-       規約第7条6項・第23条3項のとおり、入力・連携の画面で
-       目的・項目・提供先をお示ししたうえで、個別にいただく。 */
+      +'必要な場合は、他の親権者の了解を得ています。',
+      'お子さまの情報をお預かりするため、ご本人に代わって決められる立場かを確かめています。')
+
+    /* ★健康に関する情報は「要配慮個人情報」なので、
+       目的・項目・お渡し先をお示ししたうえで、別立てでいただく（法 第20条第2項）。
+       ここに並べるのは一覧性のため。**必須にはしない**。
+       必須にすると「同意しないと使えない」となり、
+       自由な意思によるご同意といえなくなるため。 */
+    +'<div class="flabel" style="margin:22px 2px 2px;">お選びください（任意・あとから変えられます）</div>'
+    +cChk('cChkH','<b>健康に関する情報</b>を、未来WA で見られるようにします。'
+      +'<a href="#" id="cHcRead" style="color:var(--edu-deep,#0F5C8C);">くわしく読む</a>',
+      '身長・体重・カウプ指数を、アプリのマイページに出します。'
+      +'アレルギー・既往症などは法律上とくに配慮が必要な情報のため、規約とは分けてうかがっています。'
+      +'同意されなくても、ほかの機能はすべてお使いいただけます。')
+    +cChk('cChkS','スポンサー・キャンペーンのお知らせを受け取ります。',
+      '受け取らなくても、機能はすべてお使いいただけます。')
 
     +'<button class="btn" id="cGo" disabled style="margin-top:14px;opacity:.45;">同意して利用をはじめる</button>'
     +'<div style="text-align:center;margin-top:13px;">'
@@ -1291,11 +1305,14 @@ function consentHTML(){
       +'版 '+esc(WA_TERMS_VER)+'　｜　同意された日時は、マイページからいつでもご確認いただけます。</div>'
     +'</div>';
 }
-function cChk(id,txt){
+function cChk(id,txt,use){
   return '<label for="'+id+'" style="display:flex;gap:11px;align-items:flex-start;margin:11px 0 0;'
     +'padding:14px;border:1px solid var(--line2);border-radius:13px;cursor:pointer;">'
     +'<input type="checkbox" id="'+id+'" style="width:20px;height:20px;margin-top:1px;flex:none;">'
-    +'<span style="font-size:13px;line-height:1.85;">'+txt+'</span></label>';
+    +'<span style="font-size:13px;line-height:1.85;">'+txt
+    /* 何に使うのかを1行そえる。「何に同意したのか分からない」状態にしないため。 */
+    +(use?'<span style="display:block;margin-top:5px;font-size:11.8px;color:var(--muted,#6B7A80);line-height:1.75;">'+use+'</span>':'')
+    +'</span></label>';
 }
 function cPoint(n,t,b){
   return '<div class="card" style="margin-bottom:9px;padding:14px 15px;">'
@@ -1363,10 +1380,20 @@ function wireConsent(){
     var ok=allChecked();
     b.disabled=!ok; b.style.opacity=ok?'1':'.45';
   };
-  ['cChk','cChkP','cChkS'].forEach(function(i){ if($(i))$(i).onchange=sync; });
+  ['cChk','cChkP','cChkS','cChkH'].forEach(function(i){ if($(i))$(i).onchange=sync; });
+  /* 「くわしく読む」で、目的・項目・お渡し先の全文へ。
+     読んでから決められるようにする（チェックは切り替えない）。 */
+  if($('cHcRead'))$('cHcRead').onclick=function(e){
+    e.preventDefault(); e.stopPropagation();
+    consentDoc='health'; render();
+  };
   if($('cGo'))$('cGo').onclick=function(){
     if(!allChecked())return;
-    consentSave(); showFab(); toast('ありがとうございます'); render();
+    consentSave();
+    /* 健康に関する情報は、ここで選ばれたとおりに残す。
+       あとからマイページで変えられる。 */
+    try{ var h=$('cChkH'); if(typeof healthSave==='function')healthSave(!!(h&&h.checked)); }catch(e){}
+    showFab(); toast('ありがとうございます'); render();
   };
   if($('cOut'))$('cOut').onclick=function(){ logout(); };
 }
@@ -1421,10 +1448,10 @@ function healthGateHTML(){
     +'<button class="btn" data-hc="open" style="margin-top:12px;">内容を読んで同意する</button>'
     +'</div>';
 }
-function healthPageHTML(){
-  var r=healthConsent();
-  return '<button class="pback" id="hcBack">‹ もどる</button>'
-    +'<div class="card"><h2 class="sec sec-c" style="margin-top:0;">健康に関する情報のお取り扱い</h2>'
+/* 読むところだけを切り出す。初回ログインの同意画面と、
+   マイページからの画面の、両方から同じものを出すため。 */
+function healthDocHTML(){
+  return '<div class="card"><h2 class="sec sec-c" style="margin-top:0;">健康に関する情報のお取り扱い</h2>'
     +'<div class="muted" style="font-size:11.5px;">版 '+esc(WA_HEALTH_VER)+'</div>'
     +'<div style="margin-top:10px;font-size:13px;line-height:1.9;">'
     +'アレルギー・既往症・服薬・体温などは、法律上「要配慮個人情報」にあたります。'
@@ -1438,7 +1465,12 @@ function healthPageHTML(){
         +'<div class="muted" style="font-size:12.5px;margin-top:3px;">'+esc(x[1])+'</div></div>';
     }).join('')+'</div>'
     +'<div class="card"><div style="font-weight:800;font-size:13.5px;margin-bottom:7px;">使いかた</div>'
-    +'<div style="font-size:13px;line-height:1.9;">'+esc(WA_HEALTH.how)+'</div></div>'
+    +'<div style="font-size:13px;line-height:1.9;">'+esc(WA_HEALTH.how)+'</div></div>';
+}
+function healthPageHTML(){
+  var r=healthConsent();
+  return '<button class="pback" id="hcBack">‹ もどる</button>'
+    +healthDocHTML()
     +(r
       ? '<div class="card" style="border-color:#C7DFA6;background:#EAF3DE;">'
         +'<div style="font-weight:800;font-size:13.5px;color:#27500A;">同意済みです</div>'
