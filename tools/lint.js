@@ -5,6 +5,15 @@
    文字列・コメント・正規表現は、1文字ずつ見て確実に読み飛ばす。 */
 const fs=require('fs'), path=require('path');
 
+/* ★引数なしで動かすと、一度もループが回らず「何も出ないまま成功」で終わっていた。
+   Codex や CI が「何も出なかった＝問題なし」と読み違えるので、ここで止める。
+   （2026-09-07 に、開発を2人体制にするにあたって追加） */
+if(process.argv.length<3){
+  console.error('使い方: node tools/lint.js <検査するHTML> [...]');
+  console.error('  例: node tools/lint.js index.html parent.html');
+  process.exit(2);
+}
+
 const BUILTIN=new Set(('window document localStorage sessionStorage location navigator history console '+
  'setTimeout clearTimeout setInterval clearInterval requestAnimationFrame fetch XMLHttpRequest '+
  'Object Array String Number Boolean Math JSON Date RegExp Error TypeError Promise Map Set WeakMap '+
@@ -169,4 +178,10 @@ for(const f of process.argv.slice(2)){
   const names=Object.keys(bad).sort();
   console.log('  ① 定義が見当たらない名前: '+(names.length?names.map(n=>n+'（'+bad[n].slice(0,3).join(',')+'行）').join(' / '):'なし'));
   console.log('  ③ 引数が多すぎる呼び出し: '+(argBad.length?argBad.join(' / '):'なし'));
+
+  /* ★①②③のどれかが出たら、終了コードを落とす。
+     これまでは何件出ても 0 で終わっていたため、
+     `node tools/lint.js index.html && git push` が素通りしていた。
+     本番は main に push した瞬間に変わるので、ここで止める。 */
+  if(dup.length||names.length||argBad.length)process.exitCode=1;
 }

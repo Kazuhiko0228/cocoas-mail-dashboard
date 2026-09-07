@@ -53,4 +53,9 @@ const {chromium}=require('/Users/slimshady/cw-scrape/node_modules/playwright');
   }
   await b.close();
   console.log(bad.length?('■ 見つかった問題\n'+bad.join('\n')):'画面・記録・タブ すべて開けた（管理者・一般とも）');
+  /* ★問題を見つけても正常終了していたため、
+     `node tools/smoke.js && git push` が素通りしていた。
+     本番は main に push した瞬間に変わるので、ここで止める。
+     （2026-09-07 に、開発を2人体制にするにあたって追加） */
+  if(bad.length)process.exitCode=1;
 })();
