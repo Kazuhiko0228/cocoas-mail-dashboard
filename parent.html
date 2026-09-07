@@ -2718,6 +2718,232 @@ function linkHTML(){
     +'</div>';
 }
 function wireLink(){}
+
+/* ══ 写真（園の行事の写真を見て、買う）══════════
+   園から配られた<b>認証キー</b>を入れた方だけが、そのイベントの写真を見られます。
+   お渡しするのは写真データだけで、現像や配送はありません。
+
+   ★写っている方でしぼる仕組みは、あえて入れていません。
+     顔で人を見分けると、まちがえたときに
+     「よそのお子さまの写真が、わが子として出る」ことが起きます。
+     園の行事の写真では、その1回が取り返しのつかない事故になります。 */
+var WPH={events:null, open:null, photos:null, ev:null, pick:{}, busy:false, msg:''};
+
+function wphYen(n){ return '¥'+String(n==null?0:n).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+function wphDate(d){ return d?String(d).slice(0,10).replace(/-/g,'/'):''; }
+
+/* スクールタブに出すカード */
+function photoHTML(c){
+  if(!WAPI.online()){
+    return '<div class="card"><h2 class="sec sec-c">📷 写真</h2>'
+      +'<div class="muted" style="font-size:12.5px;line-height:1.9;">'
+      +'園とつながっていないため、いまは写真をご覧いただけません。</div></div>';
+  }
+  if(WPH.events===null){
+    /* 1度だけ取りに行く。取れたら描き直す。 */
+    if(!WPH.busy){
+      WPH.busy=true;
+      WAPI.call('GET','/parent/photo-events').then(function(j){
+        WPH.events=j.events||[]; WPH.busy=false; render();
+      }).catch(function(){ WPH.events=[]; WPH.busy=false; render(); });
+    }
+    return '<div class="card"><h2 class="sec sec-c">📷 写真</h2>'
+      +'<div class="muted" style="font-size:12.5px;">読み込んでいます…</div></div>';
+  }
+
+  var h='<div class="card"><h2 class="sec sec-c">📷 写真</h2>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.9;margin-bottom:12px;">'
+    +'園からお配りした<b>認証キー</b>を入れると、その行事の写真が並びます。'
+    +'お渡しするのは<b>写真データ</b>です。プリントはご家庭でお願いします。</div>'
+    +'<div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">'
+    +'<input id="wphKey" placeholder="0-0000-0000" inputmode="numeric" autocapitalize="none" '
+    +'style="flex:1;min-width:150px;letter-spacing:.06em;font-weight:700;">'
+    +'<button class="btn" id="wphAdd" style="flex:none;">登録する</button></div>'
+    +'<div class="muted" id="wphKeyM" style="font-size:12px;margin-top:7px;"></div>';
+
+  if(WPH.events.length){
+    h+='<div style="margin-top:14px;">'+WPH.events.map(function(e){
+      return '<div style="border-top:1px solid var(--line);padding:11px 0;'
+        +'display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+        +'<div style="flex:1;min-width:170px;">'
+        +'<div style="font-weight:800;font-size:13.5px;">'+esc(e.name)+'</div>'
+        +'<div class="muted" style="font-size:11.8px;margin-top:2px;line-height:1.7;">'
+        +(e.shot_on?wphDate(e.shot_on)+' 撮影　':'')+e.photo_count+'枚'
+        +(e.open_to?'<br>販売は '+wphDate(e.open_to)+' まで':'')
+        +'</div></div>'
+        +(e.open
+          ? '<button class="btn" data-wphopen="'+esc(e.id)+'" style="flex:none;">写真を見る</button>'
+          : '<span class="muted" style="font-size:12px;">'
+            +(e.status==='販売終了'?'販売は終了しました':'まだ公開されていません')+'</span>')
+        +'</div>';
+    }).join('')+'</div>';
+  } else {
+    h+='<div class="muted" style="font-size:12px;margin-top:12px;line-height:1.8;">'
+      +'まだ登録された行事はありません。園からお配りした紙の認証キーをお入れください。</div>';
+  }
+  return h+'</div>';
+}
+
+/* イベントを1つ開いたところ（写真を選んで買う） */
+function photoPageHTML(){
+  var e=WPH.ev, ps=WPH.photos;
+  if(!e||ps===null){
+    return '<button class="pback" id="wphBack">‹ もどる</button>'
+      +'<div class="card"><div class="muted">読み込んでいます…</div></div>';
+  }
+  var yen=parseInt((e.prices||{}).data,10)||0;
+  var n=0; Object.keys(WPH.pick).forEach(function(k){ if(WPH.pick[k])n++; });
+  var bought=ps.filter(function(p){return p.bought;}).length;
+
+  var h='<button class="pback" id="wphBack">‹ もどる</button>'
+    +'<div class="card"><h2 class="sec sec-c" style="margin-top:0;">'+esc(e.name)+'</h2>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.9;">'
+    +(e.shot_on?wphDate(e.shot_on)+' 撮影　／　':'')+ps.length+'枚　'
+    +'／　1枚 '+wphYen(yen)+'（税込）'
+    +(e.open_to?'<br>販売は '+wphDate(e.open_to)+' までです。'
+      +'<b>お求めいただいた写真は、そのあともダウンロードできます。</b>':'')
+    +'</div>'
+    +(bought?'<div class="muted" style="font-size:12px;margin-top:7px;">'
+      +'お求めずみ '+bought+'枚。下の「受け取る」からダウンロードできます。</div>':'')
+    +'</div>';
+
+  h+='<div class="card">'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px;">'
+    +ps.map(function(p){
+      var on=!!WPH.pick[p.id];
+      return '<div style="text-align:center;">'
+        +'<div style="position:relative;">'
+        +'<img data-wphimg="'+esc(p.id)+'" alt="写真 '+p.seq+'" '
+        +'style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px;display:block;'
+        +'background:var(--line2,#eee);'+(on?'outline:3px solid var(--wa,#F5911E);outline-offset:-3px;':'')+'">'
+        +(p.bought
+          ? '<span style="position:absolute;left:4px;top:4px;background:#2C6B43;color:#fff;'
+            +'font-size:10px;padding:1px 6px;border-radius:99px;">お求めずみ</span>'
+          : '<label style="position:absolute;right:4px;top:4px;background:rgba(255,255,255,.92);'
+            +'border-radius:6px;padding:2px 5px;cursor:pointer;">'
+            +'<input type="checkbox" data-wphpick="'+esc(p.id)+'"'+(on?' checked':'')
+            +' style="width:17px;height:17px;margin:0;vertical-align:middle;"></label>')
+        +'</div>'
+        +'<div style="font-size:10px;color:var(--muted,#777);margin-top:3px;'
+        +'font-variant-numeric:tabular-nums;">'+('0000'+p.seq).slice(-5)+'</div>'
+        +(p.bought?'<button class="btn sec" data-wphget="'+esc(p.id)+'" '
+          +'style="font-size:10.5px;padding:3px 8px;margin-top:2px;">受け取る</button>':'')
+        +'</div>';
+    }).join('')
+    +'</div></div>';
+
+  /* 買うところ。下に貼りつけて、選びながら金額が見えるようにする。 */
+  h+='<div class="card" style="position:sticky;bottom:10px;z-index:5;">'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+    +'<div style="flex:1;min-width:150px;font-size:13.5px;">'
+    +'<b>'+n+'枚</b>　'+wphYen(n*yen)+'（税込）</div>'
+    +'<button class="btn" id="wphBuy"'+(n?'':' disabled style="opacity:.45;"')+'>この写真を購入する</button>'
+    +'</div>'
+    +'<div class="muted" id="wphBuyM" style="font-size:11.8px;margin-top:8px;line-height:1.75;">'
+    +'お求めいただくと、その場でダウンロードできるようになります。</div></div>';
+  return h;
+}
+
+function wirePhoto(c){
+  /* キーの登録 */
+  if(document.getElementById('wphAdd'))document.getElementById('wphAdd').onclick=function(){
+    var k=(document.getElementById('wphKey').value||'').trim();
+    if(!k){ document.getElementById('wphKeyM').textContent='認証キーを入れてください'; return; }
+    document.getElementById('wphKeyM').textContent='確かめています…';
+    WAPI.call('POST','/parent/photo-key',{key:k})
+      .then(function(j){
+        document.getElementById('wphKeyM').textContent='';
+        WPH.events=null; toast('「'+((j.event||{}).name||'行事')+'」を登録しました'); render();
+      })
+      .catch(function(e){ document.getElementById('wphKeyM').textContent=e.message; });
+  };
+  /* 入れやすいように、数字だけ入れたら自動で - を足す */
+  if(document.getElementById('wphKey'))document.getElementById('wphKey').oninput=function(){
+    var v=this.value.replace(/[^0-9]/g,'').slice(0,9);
+    this.value = v.length>5 ? (v[0]+'-'+v.slice(1,5)+'-'+v.slice(5))
+               : (v.length>1 ? (v[0]+'-'+v.slice(1)) : v);
+  };
+  document.querySelectorAll('[data-wphopen]').forEach(function(b){b.onclick=function(){
+    WPH.open=b.getAttribute('data-wphopen'); WPH.photos=null; WPH.ev=null; WPH.pick={};
+    render(); wphLoad();
+  };});
+
+  if(document.getElementById('wphBack'))document.getElementById('wphBack').onclick=function(){
+    WPH.open=null; WPH.photos=null; WPH.ev=null; WPH.pick={}; render();
+  };
+  /* 見本を1枚ずつ取る。まとめて返すと重い。 */
+  document.querySelectorAll('[data-wphimg]').forEach(function(im){
+    var id=im.getAttribute('data-wphimg');
+    wphBlob('/parent/photo/'+id+'/preview',function(u){ if(u)im.src=u; });
+  });
+  document.querySelectorAll('[data-wphpick]').forEach(function(cb){cb.onchange=function(){
+    WPH.pick[cb.getAttribute('data-wphpick')]=cb.checked; render();
+  };});
+  document.querySelectorAll('[data-wphget]').forEach(function(b){b.onclick=function(){
+    wphGet(b.getAttribute('data-wphget'));
+  };});
+  if(document.getElementById('wphBuy'))document.getElementById('wphBuy').onclick=function(){
+    var ids=Object.keys(WPH.pick).filter(function(k){return WPH.pick[k];});
+    if(!ids.length)return;
+    var yen=parseInt((WPH.ev.prices||{}).data,10)||0;
+    if(!confirm(ids.length+'枚を購入します（'+wphYen(ids.length*yen)+'・税込）。\n\n'
+      +'お求めいただいた写真は、販売の期間が過ぎたあともダウンロードできます。'))return;
+    var b=this; b.disabled=true; document.getElementById('wphBuyM').textContent='お手続きしています…';
+    WAPI.call('POST','/parent/photo-orders',{eventId:WPH.ev.id,photoIds:ids})
+      .then(function(j){
+        WPH.pick={}; WPH.photos=null;
+        toast(j.added+'枚をお求めいただきました');
+        wphLoad();
+      })
+      .catch(function(e){ b.disabled=false; document.getElementById('wphBuyM').textContent=e.message; });
+  };
+}
+
+function wphLoad(){
+  if(!WPH.open)return;
+  WAPI.call('GET','/parent/photo-events/'+WPH.open+'/photos').then(function(j){
+    WPH.ev=j.event; WPH.photos=j.photos||[]; render();
+  }).catch(function(e){
+    WPH.open=null; WPH.photos=null; toast(e.message); render();
+  });
+}
+
+/* 見本を取る。写真は Authorization が要るので、img の src に直接は入れられない。 */
+function wphBlob(path,done){
+  var h={};
+  if(WAPI.token())h.Authorization='Bearer '+WAPI.token();
+  fetch(WAPI.base()+path,{headers:h})
+    .then(function(r){ if(!r.ok)throw new Error('x'); return r.blob(); })
+    .then(function(b){ done(URL.createObjectURL(b)); })
+    .catch(function(){ done(null); });
+}
+
+/* 買った写真を受け取る（端末に保存する） */
+function wphGet(pid){
+  var h={};
+  if(WAPI.token())h.Authorization='Bearer '+WAPI.token();
+  toast('お受け取りしています…');
+  fetch(WAPI.base()+'/parent/photo/'+encodeURIComponent(String(pid))+'/download',{headers:h})
+    .then(function(r){
+      if(!r.ok){
+        if(r.status===401){WAPI.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
+        return r.json().catch(function(){return {};}).then(function(j){
+          throw new Error(j.error||('お受け取りできませんでした（'+r.status+'）'));
+        });
+      }
+      return r.blob();
+    })
+    .then(function(b){
+      var u=URL.createObjectURL(b);
+      var a=document.createElement('a');
+      a.href=u; a.download='photo-'+pid+'.jpg';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){try{URL.revokeObjectURL(u);}catch(e){}},4000);
+      toast('写真を受け取りました');
+    })
+    .catch(function(e){ toast(e.message); });
+}
+
 /* 所属スクールの情報（住所・連絡先・HP・SNS） */
 function schoolInfoHTML(){
   var s=stGet('settings',{})||{}, sns=stGet('sns',{})||{};
@@ -3916,10 +4142,12 @@ function wirePortal(c){
   }
   if(tab==='school'){
     if(!linked){sc.innerHTML=linkHTML();wireLink();return;}
+    /* 写真を開いているあいだは、その画面だけにする（縦に長くなりすぎるため） */
+    if(WPH.open){ sc.innerHTML=photoPageHTML(); wireCommon(c); wirePhoto(c); return; }
     /* homeHTML と newsHTML はどちらも「おたより・キャンペーン・SNS」を描画するため、
        並べると同じものが2度出る。スクールタブは newsHTML（全件）に一本化する。 */
     /* 依頼どおりの並び：出欠・連絡（履歴を内包）→ 園からの個人メッセージ → おたより・SNS */
-    sc.innerHTML=attHTML(c)+dmHTML(c)+newsHTML(c);
+    sc.innerHTML=attHTML(c)+dmHTML(c)+photoHTML(c)+newsHTML(c);
   }
   else if(tab==='play') sc.innerHTML=waPostOpen?feedPageHTML(waPostOpen,'play')
     :'<div id="feedZone">'+feedHTML('play')+'</div>';
@@ -3940,7 +4168,7 @@ function wirePortal(c){
   /* 健康に関する情報の同意画面を出しているあいだは、
      もとの画面のボタンは無くなっているので、その配線はしない */
   if(waHealthView) return;
-  if(tab==='school'){wireAtt(c);wireDM(c);}
+  if(tab==='school'){wireAtt(c);wireDM(c);wirePhoto(c);}
   if(tab==='play') waPostOpen?wirePostActs('play'):wireFeed('play');
   if(tab==='learn') waPostOpen?wirePostActs('learn'):wireFeed('learn');
   if(tab==='store') wireStore(c);
