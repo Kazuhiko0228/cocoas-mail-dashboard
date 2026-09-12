@@ -389,6 +389,11 @@
   .info{background:#E6F1FB;color:#0C447C;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.6;}
   /* 急ぎのご連絡は電話、と伝える帯。青い案内と並ぶので色と左線で分ける */
   .info-urg{background:#FCEBEB;color:#A32D2D;border-radius:12px;padding:11px 13px;font-size:13px;font-weight:700;line-height:1.6;border-left:4px solid #D45B5B;}
+
+/* ことばの切り替え（日本語 ⇄ EN） */
+.langtg{display:inline-flex;border:1px solid var(--line,#ddd);border-radius:99px;overflow:hidden;background:#fff;cursor:pointer;padding:0;font-family:inherit;margin-right:8px}
+.langtg span{font-size:11px;font-weight:700;padding:5px 9px;color:#777;line-height:1.4}
+.langtg span.on{background:var(--wa,#F5911E);color:#fff}
 </style>
 </head>
 <body>
@@ -991,6 +996,8 @@ function isGuest(){return sessionStorage.getItem('cocoas_wa_guest')==='1';}
 var lastTab=null;
 function render(){
   var c=sessionChild();
+  /* 描き終わったあとに、画面の文字を英語へ差し替える（日本語のときは何もしない） */
+  setTimeout(function(){try{langApply(document.body);langToggleWire();}catch(e){}},0);
   if(!c&&!isGuest()){document.getElementById('root').innerHTML=loginHTML();wireAuth();return;}
   /* まだご同意をいただいていない、または規約の版が上がったときは、
      先に同意画面をお出しする。 */
@@ -1551,6 +1558,8 @@ function loginHTML(){
   var demo=isDemoContacts();
   var en=demo?enrolled():[];
   return '<div class="login-wrap">'
+    /* ログイン前でも英語に切り替えられるように（外国人の保護者はここで詰まる） */
+    +'<div style="text-align:right;margin-bottom:6px;">'+langToggleHTML()+'</div>'
     +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div>'+(waSchoolSet()?'<div class="sub" style="margin-top:8px;">'+esc(waSchoolSet())+'</div>':'')+'</div>'
     +'<div class="err" id="loginErr"></div>'
     +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
@@ -2944,6 +2953,100 @@ function wphGet(pid){
     .catch(function(e){ toast(e.message); });
 }
 
+
+/* ══ ことばの切り替え（日本語 ⇄ English）════════
+   EduGrow（園の画面）と同じ仕組み。保護者のうち日本語を読まない方のため。
+   ★画面に出す文字だけを差し替え、保存する値には一切ふれない。
+     辞書に無いことばは日本語のまま出る（壊れない）。 */
+var LANG_KEY='edugrow_lang';
+function langNow(){ try{ return localStorage.getItem(LANG_KEY)==='en'?'en':'ja'; }catch(e){ return 'ja'; } }
+function langSet(v){ try{ localStorage.setItem(LANG_KEY,v==='en'?'en':'ja'); }catch(e){} try{ render(); }catch(e){} }
+var LANG_SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,INPUT:1,NOSCRIPT:1};
+function langApply(root){
+  if(langNow()!=='en')return;
+  if(!root||!document.createTreeWalker)return;
+  var dict=EN_DICT;
+  try{
+    var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false),n,hits=[];
+    while((n=w.nextNode())){
+      var p=n.parentNode; if(!p||LANG_SKIP[p.nodeName])continue;
+      if(p.closest&&p.closest('[data-nolang]'))continue;
+      var raw=n.nodeValue,key=raw.replace(/^\s+|\s+$/g,'');
+      if(!key||!dict[key])continue;
+      hits.push([n,raw,key]);
+    }
+    hits.forEach(function(h){
+      var n=h[0],p=n.parentNode;
+      /* 選ぶ欄は value が無いと文字がそのまま保存値になるので、先に value に日本語を入れる */
+      if(p.nodeName==='OPTION'&&!p.hasAttribute('value'))p.setAttribute('value',p.textContent);
+      n.nodeValue=h[1].replace(h[2],dict[h[2]]);
+    });
+    var els=root.querySelectorAll?root.querySelectorAll('[placeholder],[title],[aria-label]'):[];
+    [].forEach.call(els,function(e){['placeholder','title','aria-label'].forEach(function(a){
+      var v=e.getAttribute(a); if(!v)return; var k=v.replace(/^\s+|\s+$/g,''); if(dict[k])e.setAttribute(a,dict[k]);});});
+  }catch(e){}
+}
+function langToggleHTML(){
+  var en=langNow()==='en';
+  return '<button id="langTg" class="langtg" data-nolang="1" aria-label="'+(en?'日本語に切り替える':'Switch to English')+'">'
+    +'<span class="'+(en?'':'on')+'">日本語</span><span class="'+(en?'on':'')+'">EN</span></button>';
+}
+function langToggleWire(){ var b=document.getElementById('langTg'); if(b)b.onclick=function(){ langSet(langNow()==='en'?'ja':'en'); }; }
+/* 英語の辞書。鍵は日本語そのもの。無いことばは日本語のまま出る。 */
+var EN_DICT={
+'スクール':'School','あそぶ':'Play','まなぶ':'Learn','ストア':'Store','つながる':'Connect','マイページ':'My Page',
+'園とつながる':'Connect to school','ログアウト':'Log out','ログイン':'Log in','メールアドレス':'Email','パスワード':'Password',
+'パスワードをお忘れですか？':'Forgot your password?','まずは教材だけ見てみる':'Browse materials first',
+'📅 出欠・連絡':'📅 Attendance & Notices','💬 園からの個人メッセージ':'💬 Messages from school','📢 園からのおたより・お知らせ':'📢 Newsletters',
+'📷 写真':'📷 Photos','日付':'Date','区分':'Type','欠席':'Absent','送迎時間変更':'Pickup time change','病欠':'Sick','都合欠':'Personal',
+'伝えたいこと（自由記入）':'Message (optional)','この内容を送信する':'Send','🗒 連絡の履歴':'🗒 History','既読':'Read','返信する':'Reply',
+'送信する':'Send','登録する':'Register','写真を見る':'View photos','この写真を購入する':'Buy these photos','受け取る':'Download',
+'お求めずみ':'Purchased','きょうの様子':'Today’s Updates','✨ きょうの様子':'✨ Today’s Updates','登園':'Drop-off','降園':'Pick-up','お迎え':'Picked up by',
+'まだきょうの様子は届いていません':'No updates yet today','食事':'Meal','午睡':'Nap','排泄':'Toilet','気分':'Mood','できごと':'Moment','けが・体調':'Injury / health',
+'💴 保育料のご請求':'💴 Tuition invoices','お支払い済み':'Paid','お支払いのお願い':'Payment due','お支払期日：':'Due: ',
+'🧾 購入履歴・配送状況':'🧾 Orders & delivery','🎫 イベントの申込履歴':'🎫 Event sign-ups','🏫 所属スクール':'🏫 Your school','電話をかける':'Call',
+'同意して利用をはじめる':'Agree and start','同意せずにログアウトする':'Log out without agreeing','利用規約を読む':'Read the Terms','プライバシーポリシーを読む':'Read the Privacy Policy',
+'ご確認ください（必須）':'Please confirm (required)','お選びください（任意・あとから変えられます）':'Optional (you can change later)',
+'募集中':'Open','開催済み':'Past','すべて':'All','詳細':'Details','申込をする':'Sign up','お申し込みずみです':'Signed up',
+'閲覧履歴':'History','お気に入り':'Favorites','保存済み':'Saved','コメントを送る':'Post comment','もっと見る':'Show more'
+};
+
+
+/* ══ きょうの様子（園から届く1行の記録）══════════
+   園の先生が「きょうの様子」に書いたもの。rec_きょうの様子 はサーバが
+   わが子の行だけを渡すので、ここに出るのは自分のお子さまの分だけ。
+   あわせて、登園シートに残った登園・降園の時刻とお迎えの方も出す。 */
+function dayNotesHTML(c){
+  var t=todayISO();
+  var att=((stGet('rec_登園シート',{})||{})[t]||{}).rows||{}; var r=att[c.id]||{};
+  var a=stGet('rec_きょうの様子',{})||{};
+  var days=Object.keys(a).filter(function(d){return d<=t;}).sort().reverse().slice(0,7);
+  var icons={'食事':'🍚','午睡':'😴','排泄':'🚽','気分':'😊','できごと':'✨','けが・体調':'🩹','まとめ':'📝'};
+  var en=(typeof langNow==='function'&&langNow()==='en');
+  var h='<div class="card"><h2 class="sec sec-c">✨ きょうの様子</h2>';
+  if(r.come||r.leave){
+    h+='<div class="muted" style="font-size:12.5px;margin-bottom:8px;">'
+      +(r.come?'<span>登園</span> '+esc(r.come):'')+(r.leave?'　／　<span>降園</span> '+esc(r.leave):'')
+      +(r.pickedBy?'　／　<span>お迎え</span>：<span data-nolang="1">'+esc(r.pickedBy)+'</span>':'')+'</div>';
+  }
+  var any=false;
+  days.forEach(function(d){
+    var l=((a[d]||{}).rows||{})[c.id]||[]; if(!l.length)return; any=true;
+    h+='<div style="font-weight:800;font-size:12.5px;margin:10px 0 4px;">'+(d===t?'<span>きょう</span>':esc(d.slice(5).replace('-','/')))+'</div>'
+      +l.map(function(e){
+        /* AI が作った1日のまとめは、段落として大きめに。英語のときは英語版を出す */
+        if(e.kind==='まとめ'){
+          return '<div style="background:#FFF8EC;border:1px solid #F3DCB6;border-radius:10px;padding:10px 12px;margin:6px 0;font-size:13px;line-height:1.9;" data-nolang="1">'
+            +'📝 '+esc((en&&e.en)?e.en:(e.text||''))+'</div>';
+        }
+        return '<div style="display:flex;gap:8px;font-size:13px;line-height:1.8;border-top:1px solid var(--line);padding:6px 0;">'
+        +'<span class="muted" style="font-variant-numeric:tabular-nums;">'+esc(e.t||'')+'</span>'
+        +'<span>'+(icons[e.kind]||'·')+' <span>'+esc(e.kind||'')+'</span></span><span style="flex:1;" data-nolang="1">'+esc(e.text||'')+'</span></div>';}).join('');
+  });
+  if(!any)h+='<div class="muted" style="font-size:12.5px;">まだきょうの様子は届いていません</div>';
+  return h+'</div>';
+}
+
 /* 所属スクールの情報（住所・連絡先・HP・SNS） */
 function schoolInfoHTML(){
   var s=stGet('settings',{})||{}, sns=stGet('sns',{})||{};
@@ -4070,6 +4173,7 @@ function portalHTML(c){
         +'</div>';
     })()
     +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
+    +langToggleHTML()
     +'<button class="out" id="logout">'+(linked?'ログアウト':'ログイン')+'</button>'
     +'</div>'
     /* PC では左に花びらのナビを出し、スマホでは下のタブバーになる */
@@ -4147,7 +4251,7 @@ function wirePortal(c){
     /* homeHTML と newsHTML はどちらも「おたより・キャンペーン・SNS」を描画するため、
        並べると同じものが2度出る。スクールタブは newsHTML（全件）に一本化する。 */
     /* 依頼どおりの並び：出欠・連絡（履歴を内包）→ 園からの個人メッセージ → おたより・SNS */
-    sc.innerHTML=attHTML(c)+dmHTML(c)+photoHTML(c)+newsHTML(c);
+    sc.innerHTML=attHTML(c)+dayNotesHTML(c)+dmHTML(c)+photoHTML(c)+newsHTML(c);
   }
   else if(tab==='play') sc.innerHTML=waPostOpen?feedPageHTML(waPostOpen,'play')
     :'<div id="feedZone">'+feedHTML('play')+'</div>';
