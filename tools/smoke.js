@@ -21,7 +21,7 @@ const {chromium}=require('/Users/slimshady/cw-scrape/node_modules/playwright');
       try{ return canView(p)&&egPlanOfPage(p); }catch(e){ return true; }
     }));
     for(const p of pages){
-      const r=await pg.evaluate(pp=>{try{go(pp);}catch(e){return 'THROW: '+e.message;}
+      const r=await pg.evaluate(pp=>{try{if(typeof pwMark==='function')pwMark();go(pp);}catch(e){return 'THROW: '+e.message;}
         var s=document.querySelector('section[data-page="'+pp+'"]');
         if(s&&s.hidden)return '開かなかった';
         return (s&&s.textContent.trim().length>20)?'':'空';},p);
