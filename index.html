@@ -571,7 +571,7 @@
 .hbe:hover .hbx{color:var(--tx1)}
 
 /* きょうのマス */
-.hday{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;align-content:start}
+.hday{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;align-content:start}
 .hdt{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px 8px 14px;
   display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer;
   font-family:inherit;transition:border-color .15s,transform .12s}
@@ -589,10 +589,14 @@
 .hsr:first-of-type{border-top:0}
 .hsr span{color:var(--tx3)}
 .hse{font-size:12.5px;color:var(--tx3);text-align:center;padding:6px 0}
+.hst{position:relative}
+.hbs{position:absolute;right:0;top:-4px;width:24px;height:24px;font-size:15px;border-radius:7px}
+.hsr.now b{color:#B4560C}
+.hsr .hbd{margin-left:6px}
 
 @media(max-width:900px){
   .hmain{grid-template-columns:1fr}
-  .hday{grid-template-columns:repeat(4,1fr)}
+  .hday{grid-template-columns:repeat(3,1fr)}
 }
 @media(max-width:560px){
   .hday{grid-template-columns:repeat(2,1fr)}
@@ -8045,7 +8049,16 @@ function renderHome(){
   absCopyWire();
   homeBoardWire();
   s.querySelectorAll('[data-hday]').forEach(function(b){b.onclick=function(){
-    goRec(b.getAttribute('data-hday'),b.getAttribute('data-rec'),b.getAttribute('data-tab2'));};});
+    goRec(b.getAttribute('data-hday'),b.getAttribute('data-rec'),b.getAttribute('data-tab2'));
+    /* 検温・午睡は同じ登園シートの中にあるので、開いたあとその場所まで送る */
+    var f=b.getAttribute('data-focus');
+    if(f)setTimeout(function(){
+      var ids=f.split(','),el=null;
+      for(var i=0;i<ids.length&&!el;i++)el=document.getElementById(ids[i]);
+      if(el&&el.scrollIntoView)el.scrollIntoView({block:'center',behavior:'smooth'});
+    },250);
+  };});
+  homeEventsWire();
   homeClockStart();
 }
 
@@ -8123,7 +8136,7 @@ function renderMenu(){
 var EN_DICT={
 /* ── 枠（サイドバー・上の帯）───────────── */
 'ホーム':'Home','メニュー':'Menu','ダッシュボード':'Dashboard',
-'保育記録':'Childcare Records','日常チェック':'Daily Check','生徒台帳':'Student Register',
+'日常チェック':'Daily Check','生徒台帳':'Student Register',
 '連絡・配信':'Messages','保護者DM':'Parent Messages','全体周知・お知らせ':'Announcements',
 'メールテンプレート':'Mail Templates','未来WA':'MiraiWA','写真販売':'Photo Sales',
 '月間スケジュール':'Monthly Schedule','カリキュラム':'Curriculum','AI保育計画':'AI Care Plan',
@@ -8152,6 +8165,13 @@ var EN_DICT={
 'きょう見ておくこと':'To check today','まだ記録していないもの':'Not yet recorded',
 '今月のやること':'This month’s tasks','まだ済んでいないもの':'Not yet done',
 '打刻':'Clock In/Out','登園（出席）':'Attendance','午睡チェック':'Nap Check',
+/* ── Remi さんの英語名（シート「EduGrow システム概要」①ホーム D列）── */
+'出席簿':'Attendance','連絡・メール配信':'Messages','検温記録':'Temperature',
+'保育記録':'Childcare Journal','連絡ボード':'Notices',
+'今月の行事':'Monthly Event','今月のBIRTHDAY':'Birthdays',
+'今月の行事は入っていません':'No events this month',
+'今月が誕生日の園児・職員はいません':'No birthdays this month',
+'職員':'Staff','きょう':'today','行事を足す':'Add an event',
 '健康チェック':'Health Check','保育日誌':'Daily Log','安全点検':'Safety Check',
 '保育日誌・業務日報':'Daily Log & Report','保護者対応の記録':'Parent Contact Records',
 'この内容で保護者に見せる':'Show to parents',
@@ -8348,14 +8368,15 @@ function homeBoardWire(){
 /* ── きょうのマス ───────────────────────
    先生が毎日押すものだけ。ここに無いものは「メニュー」から。 */
 var HOME_DAILY=[
-  {l:'登園（出席）', i:'check',    c:'#0B5F8F', bg:'#E3F1F9', p:'records', rec:'登園（出席）'},
-  {l:'午睡チェック', i:'clock',    c:'#3C3489', bg:'#EEEDFE', p:'records', rec:'登園（出席）'},
-  {l:'健康チェック', i:'activity', c:'#A32D2D', bg:'#FCEBEB', p:'records', rec:'登園（出席）'},
-  {l:'保育日誌',    i:'clipboard',c:'#27500A', bg:'#EAF3DE', p:'records', rec:'保育日誌・業務日報'},
-  {l:'打刻',       i:'clock',    c:'#854F0B', bg:'#FAEEDA', p:'timecard'},
-  {l:'保護者DM',    i:'mail',     c:'#C43478', bg:'#FDECF4', p:'dm'},
-  {l:'保育記録',    i:'edit',     c:'#123E6B', bg:'#E6F1FB', p:'carerec'},
-  {l:'カリキュラム', i:'book',    c:'#5B3E86', bg:'#F1EBFA', p:'curriculum'}
+  /* シート「EduGrow システム概要」①ホーム 4〜9行のとおり（Remi さん・2026-09-12 確認）。
+     英語名も同じ行の D 列から。 */
+  {l:'出席簿',        i:'check',    c:'#0B5F8F', bg:'#E3F1F9', p:'records', rec:'登園（出席）'},
+  {l:'連絡・メール配信', i:'send',    c:'#A32D2D', bg:'#FCEBEB', p:'broadcast'},
+  /* 検温は登園シートの中の「体温計」の帯。開いたあと、そこまで送る */
+  {l:'検温記録',      i:'activity', c:'#854F0B', bg:'#FAEEDA', p:'records', rec:'登園（出席）', focus:'thBarOn,thConn'},
+  {l:'午睡チェック',   i:'clock',    c:'#3C3489', bg:'#EEEDFE', p:'records', rec:'登園（出席）', focus:'napBox'},
+  {l:'健康チェック',   i:'shield',   c:'#27500A', bg:'#EAF3DE', p:'records', rec:'登園（出席）'},
+  {l:'保育記録',      i:'clipboard',c:'#123E6B', bg:'#E6F1FB', p:'carerec'}
 ];
 function homeDailyHTML(){
   var items=HOME_DAILY.filter(function(x){
@@ -8364,42 +8385,75 @@ function homeDailyHTML(){
   if(!items.length)return '';
   return '<div class="hday">'+items.map(function(x){
     return '<button class="hdt" data-hday="'+esc(x.p)+'"'
-      +(x.rec?' data-rec="'+esc(x.rec)+'"':'')+'>'
+      +(x.rec?' data-rec="'+esc(x.rec)+'"':'')
+      +(x.focus?' data-focus="'+esc(x.focus)+'"':'')+'>'
       +'<span class="hdi" style="background:'+x.bg+';color:'+x.c+'">'+ic(x.i)+'</span>'
       +'<span class="hdl">'+esc(x.l)+'</span></button>';
   }).join('')+'</div>';
 }
 
-/* ── 右下の2枚（きょうの予定・お誕生日）────── */
+/* ── 右下の2枚（今月の行事・今月のBIRTHDAY）──────
+   シート「EduGrow システム概要」①ホーム 11〜12行（Remi さん）。
+   行事は園が手で足す（カリキュラムの日課は「活動」であって行事ではないため）。
+   誕生日は園児と職員の両方を、今月ぶん出す。 */
+function homeEventsAll(){var a=stGet('homeEvents',[]);return (a&&a.length)?a:[];}
 function homeSideHTML(en){
-  var t=todayISO(), md=t.slice(5);
-  /* お誕生日。生年月日は連絡先が本体で、入っていない子は生徒台帳も見る */
-  var bd=(en||[]).filter(function(c){
+  var t=todayISO(), ym=t.slice(0,7), md=t.slice(5);
+  /* 今月の行事 */
+  var ev=homeEventsAll().filter(function(x){return x&&String(x.date||'').slice(0,7)===ym;})
+    .sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+  /* 今月のBIRTHDAY。園児は連絡先の生年月日が本体で、無い子は生徒台帳も見る。職員は職員管理の生年月日 */
+  var bd=[];
+  (en||[]).forEach(function(c){
     var d=c.dob||'';
     if(!d){ try{ d=((stGet('studentProfiles',{})||{})[c.id]||{}).dob||''; }catch(e){ d=''; } }
-    return d && String(d).slice(5)===md;
+    if(d&&String(d).slice(5,7)===ym.slice(5))bd.push({md:String(d).slice(5),name:childFullNameHon(c),sub:c.klass||'',kid:true});
   });
-  /* きょうの予定。クラスごとの日課（カリキュラム）から拾う */
-  var sc=[];
   try{
-    (CLASSES||[]).forEach(function(k){
-      var o=(typeof curSchedGet==='function')?curSchedGet(k,t):null;
-      if(o&&(o.am||o.pm))sc.push({k:k,am:o.am||'',pm:o.pm||''});
+    (DB.staff||[]).forEach(function(st){
+      var d=st.dob||''; if(st.leaveDate&&st.leaveDate<=t)return;
+      if(d&&String(d).slice(5,7)===ym.slice(5))bd.push({md:String(d).slice(5),name:st.name||'',sub:'職員',kid:false});
     });
   }catch(e){}
+  bd.sort(function(a,b){return a.md<b.md?-1:a.md>b.md?1:0;});
+  var mdJ=function(x){return (+x.slice(0,2))+'/'+(+x.slice(3,5));};
   return '<div class="hside">'
-    +'<div class="hsc"><div class="hst">きょうの予定</div>'
-    +(sc.length
-      ? sc.map(function(x){return '<div class="hsr"><b>'+esc(x.k)+'</b>'
-          +'<span>'+esc([x.am,x.pm].filter(Boolean).join('／'))+'</span></div>';}).join('')
-      : '<div class="hse">予定は入っていません</div>')
+    +'<div class="hsc"><div class="hst">今月の行事'
+    +'<button class="hbb hbs" id="hevAdd" title="行事を足す">＋</button></div>'
+    +(ev.length
+      ? ev.map(function(x){return '<div class="hsr'+(x.date===t?' now':'')+'"><b>'+esc(mdJ(x.date.slice(5)))+'　'+esc(x.name)+'</b>'
+          +'<button class="hbd" data-hevdel="'+esc(x.id)+'" title="消す">×</button></div>';}).join('')
+      : '<div class="hse">今月の行事は入っていません</div>')
     +'</div>'
-    +'<div class="hsc"><div class="hst">お誕生日</div>'
+    +'<div class="hsc"><div class="hst">今月のBIRTHDAY</div>'
     +(bd.length
-      ? bd.map(function(c){return '<div class="hsr"><b>'+esc(childFullNameHon(c))+'</b>'
-          +'<span>'+esc(c.klass||'')+'</span></div>';}).join('')
-      : '<div class="hse">きょうが誕生日のお友だちはいません</div>')
+      ? bd.map(function(x){return '<div class="hsr'+(x.md===md?' now':'')+'"><b>'+esc(mdJ(x.md))+'　'+esc(x.name)+'</b>'
+          +'<span>'+esc(x.sub)+(x.md===md?'　🎂きょう':'')+'</span></div>';}).join('')
+      : '<div class="hse">今月が誕生日の園児・職員はいません</div>')
     +'</div></div>';
+}
+function homeEventsWire(){
+  var b=document.getElementById('hevAdd');
+  if(b)b.onclick=function(){
+    var d=prompt('行事の日付を入れてください（例：'+todayISO()+'）',todayISO());
+    if(d===null)return;
+    d=String(d).replace(/\//g,'-').replace(/^\s+|\s+$/g,'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){alert('日付は 2026-09-20 の形で入れてください。');return;}
+    var nm=prompt('行事の名前（例：運動会）','');
+    if(nm===null)return;
+    nm=String(nm).replace(/^\s+|\s+$/g,''); if(!nm)return;
+    var a=homeEventsAll(); a.push({id:'ev'+Date.now(),date:d,name:nm.slice(0,60)});
+    /* 古い月のものは落とす（先月より前） */
+    var keep=todayISO().slice(0,7);
+    stSet('homeEvents',a.filter(function(x){return String(x.date||'').slice(0,7)>=keep||x.date>=todayISO();}).slice(-200));
+    renderHome();
+  };
+  document.querySelectorAll('[data-hevdel]').forEach(function(x){x.onclick=function(){
+    if(!confirm('この行事を消します。よろしいですか。'))return;
+    var id=x.getAttribute('data-hevdel');
+    stSet('homeEvents',homeEventsAll().filter(function(y){return y.id!==id;}));
+    renderHome();
+  };});
 }
 
 
