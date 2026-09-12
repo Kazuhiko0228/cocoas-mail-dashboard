@@ -649,6 +649,8 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       <section data-page="photosale" hidden></section>
       <section data-page="menu" hidden></section>
       <section data-page="kiosk" hidden></section>
+      <section data-page="annual" hidden></section>
+      <section data-page="revenue" hidden></section>
       <section data-page="feed" hidden></section>
       <section data-page="enroll" hidden></section>
       <section data-page="billing" hidden></section>
@@ -3769,7 +3771,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','きょうのボード'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],feed:['保育記録','きょうの様子'],wastore:['配信','未来WA'],photosale:['配信','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','月間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+var TITLES={home:['ホーム','きょうのボード'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],feed:['保育記録','きょうの様子'],wastore:['配信','未来WA'],photosale:['配信','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','月間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -3894,6 +3896,11 @@ try{
 }catch(e){}
 
 function go(page){
+  /* PW付きの画面（シート17〜19行）。役職とは別に、開くたびに本人のパスワードを確かめる */
+  if(typeof pwPages==='function'&&pwPages()[page]&&!pwOk()&&typeof currentStaff==='function'&&currentStaff()){
+    pwAsk(function(ok){ if(ok){pwMark();go(page);} });
+    return;
+  }
   /* 生徒情報（enroll）は請求書発行（billing）に入れた。
      覚えている行き先や、古い呼び出しが enroll のままでも止まらないよう、入口で読み替える。 */
   if(page==='enroll')page='billing';
@@ -3958,7 +3965,7 @@ function go(page){
       if(wsec)wsec.hidden=false;
       renderWaOpen();
     })() :
-  ({home:renderHome,menu:renderMenu,kiosk:renderKiosk,feed:renderFeed,photosale:renderPhotoSale,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,menu:renderMenu,kiosk:renderKiosk,feed:renderFeed,annual:renderAnnual,revenue:renderRevenue,photosale:renderPhotoSale,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -4550,54 +4557,29 @@ function isBoss(){
 
    マークは Remi さんが作成中。決まったら i: を差し替える。 */
 var EG_NAV=[
- {cat:'よく使う',items:[
-   /* ★ダッシュボードが、サイドバーにもホームのマスにも出ていなかった。
-      画面はあり、権限でも開けるのに、たどり着く道が1本も無かった
-      （Remiさんがスプレッドシート「プラン／アカウントアクセス一覧」48行に
-        「なくなってる」と書き込まれていた・2026-09-05 に確認）。
-      古い定義（HOME_GROUPS）には入っていたが、そちらは使われていない。
-      マークは Remi さん作成中なので、決まるまで組み込みの図形にしておく。 */
+ /* シート「EduGrow システム概要」（2026-09-12・Remi さん）の並びと英語名（D列）に合わせた。
+    ①ホーム ②カリキュラム ③生徒情報 ④職員情報 ⑤請求・経費管理 ⑧スクール情報。
+    シートに無い 未来WA／監査対応／新規顧客管理 は契約している機能なので消さず、
+    それぞれ近い組に置いた。
+    pw:true … 開くたびに本人のパスワードをたずねる（シートの「PW付き・マネージャーのみ閲覧可」） */
+ {cat:'ホーム',items:[
    {k:'dash',   l:'ダッシュボード', i:'grid', si:'grid', c:'#3C3489', bg:'#EEEDFE', p:'dashboard'},
-   {k:'kiroku', l:'保育記録',   i:'ic:65',si:'clipboard', c:'#0B5F8F', bg:'#E3F1F9', sub:[
+   {k:'kiroku', l:'出席簿・日常チェック', i:'ic:65',si:'clipboard', c:'#0B5F8F', bg:'#E3F1F9', sub:[
      {p:'records',  l:'日常チェック'},
-     /* 先生用。生徒台帳は触ってほしくないので、見るだけの画面を分けた（依頼F7） */
-     /* ★生徒情報一覧は生徒台帳の中のタブに畳んだ（2026-09-05）。
-        入口を2つ出すと、同じ園児の情報が2か所にあるように見える。 */
-     {p:'roster',   l:'生徒台帳'},
-     /* brightwheel 調査からの提案2・3（2026-09-12 安田さんのご指示） */
      {p:'feed',     l:'きょうの様子'},
      {p:'kiosk',    l:'登降園（保護者用）'}]},
-   /* メールテンプレートは、ここ（連絡・配信）に置く。
-      前は「新規顧客管理」の中にあり、プロのプランの園長だけのものになっていた。
-      配信の文面を園が自分で作る形にしたので、
-      コネクトの園でも、先生でも開けないと文面が作れず行き止まりになる。
-      この組にはプランの指定も boss も付いていないので、置くだけで全プラン・全役職に出る。 */
-   {k:'renraku', l:'連絡・配信', i:'ic:63',si:'send', c:'#A32D2D', bg:'#FCEBEB', sub:[
+   {k:'renraku', l:'連絡・メール配信', i:'ic:63',si:'send', c:'#A32D2D', bg:'#FCEBEB', sub:[
      {p:'dm',        l:'保護者DM'},
      {p:'broadcast', l:'全体周知・お知らせ'},
      {p:'templates', l:'メールテンプレート'}]},
-   /* 出品も売上も未来WA の画面に1本化したので、入口は1つでよい。
-      行き先は wastore（未来WA を開く案内）にする。
-      creator は section を持たないため egHasPage で外れる。ここの行き先には使えない。 */
    {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', p:'wastore'},
-   /* 写真販売。入口はここ1つだけにする（2026-09-07 安田さんのご指示）。
-      イベントを作る・写真をあずける・売れ行きを見る、はすべてこの中で完結する。 */
    {k:'photo',   l:'写真販売',   i:'photo', si:'photo', c:'#B4560C', bg:'#FBEFE3', p:'photosale'}
  ]},
- {cat:'カリキュラム・スケジュール',items:[
+ {cat:'カリキュラム',items:[
+   {k:'annual',     l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'annual'},
+   {k:'curriculum', l:'月間カリキュラム', i:'ic:59',si:'book', c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
    {k:'tasks',      l:'月間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
-   {k:'curriculum', l:'カリキュラム', i:'ic:59',si:'book',      c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
-   /* AI保育計画は Standard から（2026-08-17 決定）。
-      料金表シート6行C/D列・EduGrow システム概要15〜20行に合わせている。 */
    {k:'aiplan',     l:'AI保育計画',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'standard'},
-   /* rec は、その画面のどの記録を開くか。
-      ホームのマスの中は、身体測定・事故・ヒヤリハットの記録・児童票（成長の記録） を1つずつ出す。
-      どれも同じ「保育記録」の画面だが、先生は書きたい記録の名前でさがすため。
-      サイドバーは「保育記録」の1行だけにする（3行あると別々の画面だと思われるため）。
-      どちらから入っても、画面の中の上のタブで行き来できる。
-        navHide  … サイドバーには出さない（ホームのマスの中だけに出す）
-        homeHide … ホームのマスの中には出さない（サイドバーだけに出す）
-      避難訓練は別の画面。ホームのマスの中には残し、サイドバーからは外す。 */
    {k:'katsudo',    l:'活動記録',        i:'ic:58',si:'activity', c:'#854F0B', bg:'#FAEEDA', sub:[
      {p:'carerec', l:'保育記録',          rec:'身体測定',           homeHide:true},
      {p:'carerec', l:'身体測定',          rec:'身体測定',           navHide:true},
@@ -4612,32 +4594,23 @@ var EG_NAV=[
         記録の保存先は これまでどおり hoiku_kenshu のまま。 */
      {p:'kenshu', l:'保育研修', navHide:true}]}
  ]},
- {cat:'顧客情報・料金管理',boss:true,items:[
-   {k:'contacts', l:'連絡先',   i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts'},
-   /* 生徒情報は請求書発行の中に入れた。サイドバーには出さない。 */
-   {k:'billing',  l:'請求書発行', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'}
+ {cat:'生徒情報',items:[
+   {k:'roster',   l:'生徒情報一覧・連絡先', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'roster'},
+   {k:'contacts', l:'連絡先（保護者）', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts', boss:true},
+   {k:'enroll',   l:'生徒台帳（契約情報）', i:'ic:51',si:'idcard', c:'#27500A', bg:'#EAF3DE', p:'billing', boss:true, pw:true}
  ]},
- {cat:'職員情報・運営関連',boss:true,items:[
-   {k:'staffg',  l:'職員管理', i:'ic:70',si:'staff', c:'#0B5F8F', bg:'#E3F1F9', sub:[
-     {p:'staff', l:'職員管理'},
-     {p:'shift', l:'シフト表'},
-     {p:'timecard', l:'打刻（タイムカード）'},
-     /* 「職員研修（防火・消火訓練）」と「保育研修」は、どちらも同じ bouka の画面を
-        タブ違いで開いていただけなので、1行にまとめた。中のタブで行き来する。
-        開いたときは、これまでどおり「防火管理台帳」から。 */
-     {p:'bouka', l:'研修・訓練', tab:'daichou'}]},
-   /* 書類格納は「設定・その他」へ移した。この組は園長・管理者だけ（boss:true）なので、
-      ここに置いたままだと、先生には書類格納の入口が出ない。
-      スクールガイドを書類格納の中にまとめたので、先生にも入口が要る。 */
-   {k:'expense', l:'経費管理', i:'ic:44',si:'report', c:'#854F0B', bg:'#FAEEDA', p:'expense'}
+ {cat:'職員情報',boss:true,items:[
+   {k:'staffg',  l:'職員情報', i:'ic:70',si:'staff', c:'#0B5F8F', bg:'#E3F1F9', p:'staff', pw:true},
+   {k:'kenshug', l:'職員研修', i:'ic:44',si:'book', c:'#854F0B', bg:'#FAEEDA', pw:true, sub:[
+     {p:'bouka',  l:'防火・消火訓練', tab:'daichou'},
+     {p:'kenshu', l:'保育研修'}]},
+   {k:'shift',   l:'シフト表', i:'ic:70',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'shift'},
+   {k:'tc',      l:'打刻（タイムカード）', i:'ic:70',si:'clock', c:'#5B6875', bg:'#F1EFE8', p:'timecard'}
  ]},
- /* システム概要シート（対象プラン＝Proのみ）と料金表（Pro＝standard＋営業顧客管理）に合わせる。
-    standard にしていたため、1つ下のプランの園にも見えてしまっていた。 */
- {cat:'新規顧客管理',boss:true,plan:'pro',items:[
-   {k:'leads',   l:'顧客リスト',     i:'ic:49',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
-   {k:'trial',   l:'体験結果報告',   i:'ic:39',si:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
-   {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose'},
-   {k:'sales',   l:'営業分析',       i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', plan:'pro', p:'sales'}
+ {cat:'請求・経費管理',boss:true,items:[
+   {k:'billing',  l:'請求書作成・管理', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'},
+   {k:'expense',  l:'スクール経費精算', i:'ic:44',si:'report', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
+   {k:'revenue',  l:'売上チャート', i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'revenue'}
  ]},
  {cat:'監査対応・書類作成',boss:true,plan:'standard',items:[
    {k:'audit',  l:'監査対応',   i:'ic:68',si:'audit', c:'#A32D2D', bg:'#FCEBEB', p:'audit'},
@@ -4645,16 +4618,16 @@ var EG_NAV=[
      {p:'docgen', l:'運営に必要な書類'},
      {p:'reqnav', l:'市町村指定の書類'}]}
  ]},
- {cat:'設定・その他',items:[
-   /* 書類格納。先生も開けるように、園長・管理者だけの組からここへ移した
-      （この組そのものには boss が付いていない）。
-      中で「保護者へのガイダンス資料」を選ぶと、スクールガイドの画面へ行く。 */
+ {cat:'新規顧客管理',boss:true,plan:'pro',items:[
+   {k:'leads',   l:'顧客リスト',     i:'ic:49',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
+   {k:'trial',   l:'体験結果報告',   i:'ic:39',si:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
+   {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose'},
+   {k:'sales',   l:'営業分析',       i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', plan:'pro', p:'sales'}
+ ]},
+ {cat:'スクール情報',items:[
+   {k:'facility', l:'スクール情報（園の基本情報）', i:'ic:42',si:'home', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
+   {k:'guide',    l:'ガイダンス資料', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide'},
    {k:'docs',     l:'書類格納',      i:'ic:43',si:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'},
-   /* スクールガイドは、書類格納の「ガイダンス資料をひらく」から行くので、
-      サイドバーにもホームのマスにも出さない（navHide・homeHide）。入口を二重にしないため。
-      ここから丸ごと消さないのは、プランの判定（egPlanOfPage）がこの表を見ているから。 */
-   {k:'guide',    l:'スクールガイド', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide', navHide:true, homeHide:true},
-   {k:'facility', l:'施設管理',      i:'ic:42',si:'home', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
    {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true}
  ]}
 ];
@@ -8190,6 +8163,15 @@ var EN_DICT={
 'お子さま':'Child','なに':'What','ひとこと':'Note','保護者へ届ける':'Send to family','きょう届けたもの':'Sent today',
 '食事':'Meal','午睡':'Nap','排泄':'Toilet','気分':'Mood','できごと':'Moment','けが・体調':'Injury / health',
 'ひとことを入れてください':'Please write a note','保護者へ届けました':'Sent to family',
+/* ── シート「EduGrow システム概要」D列の英語名（2026-09-12）── */
+'運営に必要な書類':'Operations Forms','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
+'カリキュラム':'Curriculum','生徒情報':'Student Information','職員情報':'Staff Directory','請求・経費管理':'Billing & Expenses','スクール情報':'School Information',
+'年間スケジュール':'Annual Schedule','月間カリキュラム':'Monthly Plans','活動記録':'Activity Records',
+'生徒情報一覧・連絡先':'Student List & Contacts','生徒台帳（契約情報）':'Enrollment & Contracts','連絡先（保護者）':'Contacts',
+'防火・消火訓練':'Fire Drills','請求書作成・管理':'Invoices','スクール経費精算':'Expenses','売上チャート':'Revenue',
+'スクール情報（園の基本情報）':'School Profile','ガイダンス資料':'Resources','賃金台帳':'Wage Ledger','経費精算表':'Expense Report','金種表':'Cash Count',
+'紙に出す（PDF）':'Print (PDF)','紙に出す':'Print','写真・ストアを読み込む':'Load photo & store sales','売上':'Sales','合計':'Total','12か月の合計':'12-month total',
+'労働日数':'Days worked','労働時間':'Hours','時間外':'Overtime','基本賃金':'Base pay','諸手当':'Allowances','控除':'Deductions','支給額':'Net pay','氏名':'Name',
 'AIで1日のまとめを作る':'Write today’s summary with AI','📝 1日のまとめ（届ける前に読んで直せます）':'📝 Daily summary (review and edit before sending)',
 '日本語':'Japanese','このまとめを保護者へ届ける':'Send this summary to family','まとめ':'Summary',
 'AIがまとめています…（10秒ほど）':'AI is writing… (about 10 seconds)','まとめを保護者へ届けました':'Summary sent to family',
@@ -8544,6 +8526,148 @@ function renderFeed(){
     if(!ja){$('#fdMsg').textContent='日本語のまとめが空です';return;}
     feedAdd(day,FEED.kid,{t:tcNow(),kind:FEED_SUM,text:ja.slice(0,600),en:en.slice(0,800),by:(currentStaff()||{}).name||''});
     FEED.ai=null; renderFeed(); if(typeof aiToast==='function')aiToast('まとめを保護者へ届けました');
+  };
+}
+
+
+/* ══ 開く前にパスワードをもう一度たずねる（PW付き）══════
+   シート「EduGrow システム概要」17〜19行の「PW付き・マネージャーのみ閲覧可」。
+   役職で絞るのとは別に、開くたびに本人のパスワードを確かめる。
+   共用のタブレットで、席を立ったすきに契約情報・職員情報を見られないため。
+   確かめたら30分は聞き直さない。 */
+var PW_MIN=30;
+function pwPages(){
+  var m={};
+  EG_NAV.forEach(function(g){g.items.forEach(function(x){
+    if(!x.pw)return;
+    if(x.p)m[x.p]=1;
+    (x.sub||[]).forEach(function(y){if(y.p)m[y.p]=1;});
+  });});
+  return m;
+}
+function pwOk(){
+  try{ var t=+sessionStorage.getItem('cocoas_pwok')||0; return (Date.now()-t)<PW_MIN*60*1000; }catch(e){ return false; }
+}
+function pwMark(){ try{ sessionStorage.setItem('cocoas_pwok',String(Date.now())); }catch(e){} }
+function pwAsk(done){
+  var st=(typeof currentStaff==='function')?currentStaff():null;
+  if(!st){done(true);return;}
+  var pw=prompt('この画面は、開くたびにパスワードの確認が要ります。\n'+(st.name||'')+' さんのパスワードを入れてください。','');
+  if(pw===null){done(false);return;}
+  var su=(typeof serverUser==='function')?serverUser():null;
+  if(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&su&&su.loginId){
+    API.call('POST','/auth/login',{tenant:(API.tenant()||{}).code||'',loginId:su.loginId,password:pw})
+      .then(function(){done(true);}).catch(function(){alert('パスワードが違います。');done(false);});
+  }else if(typeof staffLoginBy==='function'){
+    staffLoginBy(st.loginId,pw,function(ok){ if(!ok)alert('パスワードが違います。'); done(!!ok); });
+  }else done(true);
+}
+
+/* ══ 年間スケジュール（②カリキュラム 13行）═══════════
+   4月から3月までの12か月に、今月の行事（homeEvents）を並べる。紙にも出せる。 */
+function annualFY(){var d=new Date(),y=d.getFullYear();return (d.getMonth()+1)>=4?y:y-1;}
+function annualHTML(fy,forPrint){
+  var ev=(typeof homeEventsAll==='function')?homeEventsAll():[];
+  var months=[],i;
+  for(i=0;i<12;i++){var m=(i+3)%12+1,y=m>=4?fy:fy+1;months.push({y:y,m:m,key:y+'-'+('0'+m).slice(-2)});}
+  return '<div style="display:grid;grid-template-columns:repeat('+(forPrint?3:2)+',1fr);gap:10px;">'
+    +months.map(function(mo){
+      var l=ev.filter(function(e){return String(e.date||'').slice(0,7)===mo.key;})
+        .sort(function(a,b){return a.date<b.date?-1:1;});
+      return '<div style="border:1px solid #ddd;border-radius:10px;padding:10px 12px;'+(forPrint?'break-inside:avoid;':'')+'">'
+        +'<div style="font-weight:800;font-size:13.5px;margin-bottom:6px;">'+mo.y+'年 '+mo.m+'月</div>'
+        +(l.length?l.map(function(e){return '<div style="font-size:12.5px;line-height:1.8;">'+(+e.date.slice(8))+'日　'+esc(e.name)+'</div>';}).join('')
+                  :'<div class="muted" style="font-size:12px;">—</div>')
+        +'</div>';
+    }).join('')+'</div>';
+}
+function renderAnnual(){
+  var s=$('section[data-page="annual"]'),fy=annualFY();
+  s.innerHTML='<div class="card">'+recHead('年間スケジュール（'+fy+'年度）',
+      '<button class="btn btn-sm" id="anPrint">'+ic('printer')+'紙に出す（PDF）</button>')
+    +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
+    +'ホームの「今月の行事」に入れた行事が、年度の順に並びます。行事を足す・消すのはホームからです。</div>'
+    +annualHTML(fy,false)+'</div>';
+  $('#anPrint').onclick=function(){ printDoc('年間スケジュール（'+fy+'年度）',annualHTML(fy,true)); };
+}
+
+/* ══ 売上チャート（⑤請求・経費管理 22行）═══════════
+   保育料（請求書）・写真販売・未来WAストアの月ごとの売上。
+   外部の描画ライブラリは入れない決まりなので、棒は CSS の幅で描く。 */
+var REV={photo:null,store:null,busy:false};
+function revMonths(){var out=[],d=new Date();for(var i=11;i>=0;i--){var x=new Date(d.getFullYear(),d.getMonth()-i,1);out.push(x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2));}return out;}
+function revTuition(mk){
+  var iv=(stGet('invoices',{})||{})[mk]||{},sum=0;
+  Object.keys(iv).forEach(function(cid){var r=iv[cid]||{};
+    if(r.status==='送付済'||r.status==='入金済')sum+=(+r.total||(typeof invTotal==='function'?invTotal(r):0)||0);});
+  return sum;
+}
+function renderRevenue(){
+  var s=$('section[data-page="revenue"]'),ms=revMonths();
+  var rows=ms.map(function(mk){return {mk:mk,t:revTuition(mk),p:(REV.photo||{})[mk]||0,w:(REV.store||{})[mk]||0};});
+  var mx=Math.max(1,Math.max.apply(null,rows.map(function(r){return r.t+r.p+r.w;})));
+  var online=!!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token());
+  var total=rows.reduce(function(a,r){return a+r.t+r.p+r.w;},0);
+  var bar=function(v,col){var w=Math.round(v/mx*100);return v?'<span style="display:inline-block;height:14px;width:'+w+'%;background:'+col+';border-radius:3px;"></span>':'';};
+  s.innerHTML='<div class="card">'+recHead('売上チャート（直近12か月）',
+      (online?'<button class="btn btn-sm" id="rvLoad">'+ic('cast')+'写真・ストアを読み込む</button>':''))
+    +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
+    +'<span style="display:inline-block;width:10px;height:10px;background:#0B5F8F;border-radius:2px;"></span> 保育料（送付済・入金済の請求）　'
+    +'<span style="display:inline-block;width:10px;height:10px;background:#B4560C;border-radius:2px;"></span> 写真販売　'
+    +'<span style="display:inline-block;width:10px;height:10px;background:#C43478;border-radius:2px;"></span> 未来WAストア'
+    +(online?'':'<br>写真販売とストアの売上は、園コードでログインしているときに読み込めます。')+'</div>'
+    +'<div class="scrollx"><table><thead><tr><th>月</th><th style="width:50%;">売上</th><th style="text-align:right;">保育料</th><th style="text-align:right;">写真</th><th style="text-align:right;">ストア</th><th style="text-align:right;">合計</th></tr></thead><tbody>'
+    +rows.map(function(r){return '<tr><td>'+esc(r.mk.replace('-','/'))+'</td>'
+      +'<td><div style="display:flex;gap:2px;align-items:center;">'+bar(r.t,'#0B5F8F')+bar(r.p,'#B4560C')+bar(r.w,'#C43478')+'</div></td>'
+      +'<td style="text-align:right;font-variant-numeric:tabular-nums;">'+yen(r.t)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums;">'+yen(r.p)+'</td>'
+      +'<td style="text-align:right;font-variant-numeric:tabular-nums;">'+yen(r.w)+'</td><td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;">'+yen(r.t+r.p+r.w)+'</td></tr>';}).join('')
+    +'<tr><th>12か月の合計</th><th></th><th style="text-align:right;">'+yen(rows.reduce(function(a,r){return a+r.t;},0))+'</th><th style="text-align:right;">'+yen(rows.reduce(function(a,r){return a+r.p;},0))+'</th>'
+    +'<th style="text-align:right;">'+yen(rows.reduce(function(a,r){return a+r.w;},0))+'</th><th style="text-align:right;">'+yen(total)+'</th></tr>'
+    +'</tbody></table></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.75;">保育料は「送付済」「入金済」の請求書の合計です（未発行・発行済は数えません）。'
+    +'写真販売は撮影日の月、ストアは注文日の月で数えています。</div></div>';
+  var b=$('#rvLoad'); if(b)b.onclick=function(){
+    if(REV.busy)return; REV.busy=true; b.textContent='読み込んでいます…';
+    var ph={},st={};
+    API.call('GET','/school/photos/events').then(function(j){
+      (j.events||[]).forEach(function(e){var k=String(e.shot_on||e.open_from||'').slice(0,7);if(k)ph[k]=(ph[k]||0)+(+e.sold_yen||0);});
+      return API.call('GET','/parent-state?key=wa_orders');
+    }).then(function(j){
+      (j.items||j.rows||[]).forEach(function(row){(Array.isArray(row.value)?row.value:[]).forEach(function(o){
+        var k=String(o.at||'').slice(0,7).replace('/','-');if(k)st[k]=(st[k]||0)+(+o.amount||0);});});
+    }).catch(function(){}).then(function(){REV.photo=ph;REV.store=st;REV.busy=false;renderRevenue();});
+  };
+}
+
+/* ══ 賃金台帳（⑤請求・経費管理 21行「賃金台帳の作成」）═══════
+   労働基準法108条の帳簿。打刻（出勤簿）から労働日数・労働時間・時間外を出し、
+   労働条件通知書に入れた基本賃金・諸手当を写す。控除と支給額は園が入れる下書き。 */
+function wageOf(sid){ try{ return (dgStore().roudou||{})[sid]||{}; }catch(e){ return {}; } }
+function wageNum(t){ var m=String(t||'').replace(/,/g,'').match(/(\d{4,7})/); return m?+m[1]:0; }
+function expWage(mk){
+  var body=$('#exBody'),days=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate();
+  var staff=(DB.staff||[]).filter(function(st){return !(st.leaveDate&&st.leaveDate<mk+'-01');});
+  var rows=staff.map(function(st){
+    var n=0,min=0,over=0,d;
+    for(d=1;d<=days;d++){var v=tcGet(mk,st.id,d);if(v.in&&v.out){n++;min+=tcMinutes(v);over+=tcOverMin(v);}}
+    var w=wageOf(st.id),base=wageNum(w.pay);
+    return {st:st,days:n,min:min,over:over,base:base,payTxt:w.pay||'',allow:w.allow||''};
+  });
+  var table='<div class="scrollx"><table><thead><tr><th>氏名</th><th>労働日数</th><th>労働時間</th><th>時間外</th><th style="text-align:right;">基本賃金</th><th>諸手当</th><th style="text-align:right;">控除</th><th style="text-align:right;">支給額</th></tr></thead><tbody>'
+    +rows.map(function(r){return '<tr><td style="white-space:nowrap;">'+esc(r.st.name||'')+'</td><td>'+r.days+'日</td><td>'+tcHM(r.min)+'</td><td>'+tcHM(r.over)+'</td>'
+      +'<td style="text-align:right;">'+(r.base?yen(r.base):'<span class="muted">—</span>')+'<div class="row-sub">'+esc(r.payTxt)+'</div></td>'
+      +'<td class="row-sub">'+esc(r.allow||'—')+'</td><td style="text-align:right;"><span style="display:inline-block;min-width:60px;border-bottom:1px solid #999;">&nbsp;</span></td>'
+      +'<td style="text-align:right;">'+(r.base?yen(r.base):'<span style="display:inline-block;min-width:60px;border-bottom:1px solid #999;">&nbsp;</span>')+'</td></tr>';}).join('')
+    +'</tbody></table></div>';
+  body.innerHTML='<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">'
+    +'<h3 style="margin:0;">'+ic('yen')+'賃金台帳（'+esc(mk.replace('-','/'))+'）</h3><span style="flex:1;"></span>'
+    +'<button class="btn btn-sm" id="wgPrint">'+ic('printer')+'紙に出す</button></div>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:10px;line-height:1.8;">労働日数・労働時間・時間外は「打刻」から自動で出しています（出勤と退勤の両方がある日だけ）。'
+    +'基本賃金と諸手当は「職員の書類 → 労働条件通知書」から写しています。<b>控除と支給額は園で入れてください。</b>下書きです。</div>'
+    +table+'</div>';
+  $('#wgPrint').onclick=function(){
+    printDoc('賃金台帳（'+mk.replace('-','/')+'）',
+      '<div style="font-size:11px;color:#555;margin-bottom:8px;">賃金計算期間：'+esc(mk.replace('-','/'))+'1日〜'+days+'日　／　労働基準法第108条の帳簿（下書き）</div>'+table);
   };
 }
 
@@ -13092,6 +13216,8 @@ function edTouen(){
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
+        /* 登降園キオスクで入った時刻（シート4行「登園時間」） */
+        +(r.come?'<div class="row-sub" style="font-size:10.5px;white-space:nowrap;">'+esc(r.come)+(r.leave?'〜'+esc(r.leave):'')+'</div>':'')
         /* 保護者からの連絡で入った印と、先生の入力と食い違っている印 */
         +(r.attSrc==='保護者'?'<span class="tag" title="保護者からの連絡で入りました。押せば直せます。" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:5px;font-size:10.5px;">保護者</span>':'')
         +(r.attDiff?'<span class="tag" title="保護者からは「'+esc(r.attDiff)+'」と連絡が届いています" style="background:#FCEBEB;border-color:#E8C9C9;color:#A32D2D;margin-left:5px;font-size:10.5px;">連絡は'+esc(r.attDiff)+'</span>':'')
@@ -16663,7 +16789,7 @@ var ACCESS_PAGES=[
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'kenshu',label:'保育研修'},{p:'bouka',label:'研修・訓練'},{p:'shift',label:'シフト表'},{p:'timecard',label:'打刻（タイムカード）'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},
-  {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（保護者用キオスク）'},{p:'feed',label:'きょうの様子'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
+  {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（保護者用キオスク）'},{p:'annual',label:'年間スケジュール'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'きょうの様子'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'月間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
@@ -16692,13 +16818,13 @@ var DEFAULT_PERMS={
      renderDocsHub でカードごと作らない（押せてしまわないようにする）。 */
   /* kidsview は生徒台帳（roster）の中のタブに畳んだ（2026-09-05）。
      ここを roster に置きかえないと、先生が園児の一覧をまったく開けなくなる。 */
-  '一般':['home','menu','kiosk','feed','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
+  '一般':['home','menu','kiosk','feed','annual','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
          'curriculum','roster','tasks','wastore','photosale','aiplan','docs','guide'],
   /* 主任・リーダーは、見える画面は先生と同じ。ちがうのは中の3つだけ（isChief で分けている） */
-  '主任':['home','menu','kiosk','feed','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
+  '主任':['home','menu','kiosk','feed','annual','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
          'curriculum','roster','tasks','wastore','photosale','aiplan','docs','guide']
 };
-var PERMS_VERSION=18;
+var PERMS_VERSION=19;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
    平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
@@ -19151,14 +19277,14 @@ function cashReasonTotal(d){return (d.reasons||[]).reduce(function(a,r){return a
 
 function renderExpense(){
   var mk=expMonthCur(),s=$('section[data-page="expense"]');
-  var tabs=[['list','経費精算表'],['cash','金種表']];
+  var tabs=[['list','経費精算表'],['cash','金種表'],['wage','賃金台帳']];
   var head='<div class="card" style="margin-bottom:14px;">'+recHead('経費管理（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月）',
       '<input type="month" id="exMonth" value="'+esc(mk)+'" style="width:160px;">')
     +'<div class="chips" style="margin:0;">'+tabs.map(function(t){return '<span class="chip'+(t[0]===expTab?' on':'')+'" data-extab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
   s.innerHTML=head+'<div id="exBody"></div>';
   $('#exMonth').onchange=function(e){expMonth=e.target.value;renderExpense();};
   s.querySelectorAll('[data-extab]').forEach(function(b){b.onclick=function(){expTab=b.getAttribute('data-extab');renderExpense();};});
-  if(expTab==='list')expList(mk);else expCash(mk);
+  if(expTab==='list')expList(mk);else if(expTab==='wage')expWage(mk);else expCash(mk);
 }
 /* 紙に出したとき「ここに書く」と分かるよう、空欄は下線で見せる（全角スペースだと線が出ない） */
 function expSignHTML(by,ap){
@@ -19871,7 +19997,16 @@ function renderFacility(){
     else inp='<input data-fac="'+esc(f.k)+'" type="'+(f.type||'text')+'" value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'+(f.ph?' placeholder="'+esc(f.ph)+'"':'')+'>';
     return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'"><label style="font-size:11.5px;">'+esc(f.label)+'</label>'+inp+'</div>';
   }
-  s.innerHTML=FAC_INFO.map(function(g){
+  /* シート23行「スクール名、住所、職員と生徒の人数、運営概要」 */
+  var en=enrolled(),stf=(DB.staff||[]).filter(function(x){return !(x.leaveDate&&x.leaveDate<=todayISO());});
+  var cls={};en.forEach(function(c){var k=c.klass||'未設定';cls[k]=(cls[k]||0)+1;});
+  var head='<div class="card" style="margin-bottom:14px;"><h3>'+ic('home')+'スクール情報</h3>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">'
+    +[['在園児',en.length+'名']].concat(Object.keys(cls).map(function(k){return [k,cls[k]+'名'];}))
+      .concat([['職員',stf.length+'名']],d.info.capacity?[['定員',d.info.capacity+'名']]:[],d.info.openHours?[['開園',d.info.openHours]]:[])
+      .map(function(x){return '<span style="display:inline-block;padding:5px 11px;border-radius:999px;background:#F1EFE8;font-size:12.5px;"><span class="muted">'+esc(x[0])+'</span> <b>'+esc(x[1])+'</b></span>';}).join('')
+    +'</div><div class="muted" style="font-size:11.5px;margin-top:8px;">人数は「生徒情報」と「職員情報」から自動で数えています（退園・退職ずみは除く）。</div></div>';
+  s.innerHTML=head+FAC_INFO.map(function(g){
       return '<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+esc(g.g)+'</h3><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'+g.f.map(field).join('')+'</div></div>';
     }).join('')
     +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('alert')+'提携医療機関</h3><button class="btn btn-sm" id="facDocAdd">'+ic('plus')+'追加</button><button class="btn btn-sm" id="facDocPrint">'+ic('printer')+'壁掲示用に出力</button></div>'
