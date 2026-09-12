@@ -59,6 +59,12 @@
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
   .topbar{background:var(--card);border-bottom:1px solid var(--line);padding:14px 26px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:20;flex-wrap:wrap;}
   .topbar h1{font-size:18px;font-weight:600;margin:0;}
+  /* ことばの切り替え（日本語 ⇄ EN）。国際スクールの外国人の先生むけ */
+  .langtg{display:inline-flex;border:1px solid var(--line);border-radius:99px;overflow:hidden;
+    background:var(--card);cursor:pointer;padding:0;font-family:inherit;}
+  .langtg span{font-size:11.5px;font-weight:700;padding:5px 11px;color:var(--tx3);line-height:1.5;}
+  .langtg span.on{background:var(--teal,#0B5F8F);color:#fff;}
+  .langtg:hover{border-color:var(--teal,#0B5F8F);}
   .topbar .crumb{font-size:12px;color:var(--tx3);}
   .spacer{flex:1;}
   /* 差出人の1行。保護者にメールが届くときの差出人を出す。
@@ -621,6 +627,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       <button id="navToggle" title="メニューの開け閉め" aria-label="メニューの開け閉め"><span></span><span></span><span></span></button>
       <div><div class="crumb" id="crumb">ホーム</div><h1 id="pageTitle">ダッシュボード</h1></div>
       <div class="spacer"></div>
+      <span id="langBox"></span>
       <button class="btn btn-primary" data-go="compose">{ic:plus}新規メール</button>
     </div>
     <div class="content">
@@ -3918,6 +3925,14 @@ function go(page){
   try{renderHelpButton(page);}catch(e){}
   /* 説明文の行分けは、画面の中身を入れ替えたあとに行う */
   setTimeout(function(){try{tidyNotes(document.querySelector('section[data-page="'+page+'"]'));}catch(e){}},0);
+  /* 描き終わったあとに、画面の文字を英語へ差し替える（日本語のときは何もしない）。
+     1か所ずつ翻訳を書き足さずに済み、辞書に無いことばは日本語のまま出る。 */
+  /* ことばの切り替えボタン。画面を描くたびに出し直す（状態が変わるため） */
+  try{
+    var lb=document.getElementById('langBox');
+    if(lb){ lb.innerHTML=langToggleHTML(); langToggleWire(); }
+  }catch(e){}
+  setTimeout(function(){try{langApply(document.body);}catch(e){}},0);
   /* noopener は付けない。
      ログインの控えは、共用のタブレットを考えてタブの中（sessionStorage）だけに置いている。
      noopener を付けると新しいタブにそれが引き継がれず、
@@ -8099,6 +8114,161 @@ function renderMenu(){
   };});
   s.querySelectorAll('[data-tile]').forEach(function(b){b.onclick=function(){
     goRec(b.getAttribute('data-tile'),b.getAttribute('data-rec'),b.getAttribute('data-tab2'));};});
+}
+
+/* 英語の辞書。鍵は日本語そのもの。
+   ★ここに無いことばは、日本語のまま出ます（壊れません）。
+   先生が毎日つかう画面から順に埋めています。
+   園長・管理者だけが使う画面（監査・請求・営業）は、まだ入れていません。 */
+var EN_DICT={
+/* ── 枠（サイドバー・上の帯）───────────── */
+'ホーム':'Home','メニュー':'Menu','ダッシュボード':'Dashboard',
+'保育記録':'Childcare Records','日常チェック':'Daily Check','生徒台帳':'Student Register',
+'連絡・配信':'Messages','保護者DM':'Parent Messages','全体周知・お知らせ':'Announcements',
+'メールテンプレート':'Mail Templates','未来WA':'MiraiWA','写真販売':'Photo Sales',
+'月間スケジュール':'Monthly Schedule','カリキュラム':'Curriculum','AI保育計画':'AI Care Plan',
+'活動記録':'Activity Records','連絡先':'Contacts','請求書発行':'Invoicing',
+'職員管理':'Staff','シフト表':'Shift Table','打刻（タイムカード）':'Time Clock',
+'研修・訓練':'Training & Drills','経費管理':'Expenses','顧客リスト':'Leads',
+'体験結果報告':'Trial Reports','個別メール':'Individual Mail','営業分析':'Sales Analysis',
+'監査対応':'Audit','書類作成':'Document Creation','市町村指定の書類':'Municipal Forms',
+'書類格納':'Document Storage','スクールガイド':'School Guide','施設管理':'Facility',
+'設定':'Settings','避難訓練':'Evacuation Drill','保育研修':'Training Records',
+'身体測定':'Physical Measurement','事故・ヒヤリハットの記録':'Incident Records',
+'児童票（成長の記録）':'Growth Records','よく使う':'Frequently Used',
+'カリキュラム・スケジュール':'Curriculum & Schedule','顧客情報・料金管理':'Customers & Billing',
+'職員情報・運営関連':'Staff & Operations','新規顧客管理':'New Customers',
+'監査対応・書類作成':'Audit & Documents','設定・その他':'Settings & Other',
+'画面をロック':'Lock Screen','パスワード変更':'Change Password','ログアウト':'Log Out',
+'管理者としてログイン中':'Signed in as Administrator','新規メール':'New Mail',
+'メニューの開け閉め':'Open / close menu','表示中のプラン':'Current plan',
+
+/* ── ホーム（きょうのボード）──────────── */
+'きょうのボード':'Today’s Board','連絡ボード':'Message Board',
+'ここを押して、今日の申し送りを書けます':'Tap here to write today’s handover',
+'共有':'Shared','きょうの予定':'Today’s Schedule','お誕生日':'Birthdays',
+'予定は入っていません':'No schedule entered',
+'きょうが誕生日のお友だちはいません':'No birthdays today',
+'きょう見ておくこと':'To check today','まだ記録していないもの':'Not yet recorded',
+'今月のやること':'This month’s tasks','まだ済んでいないもの':'Not yet done',
+'打刻':'Clock In/Out','登園（出席）':'Attendance','午睡チェック':'Nap Check',
+'健康チェック':'Health Check','保育日誌':'Daily Log','安全点検':'Safety Check',
+'保育日誌・業務日報':'Daily Log & Report','保護者対応の記録':'Parent Contact Records',
+'この内容で保護者に見せる':'Show to parents',
+
+/* ── 日常チェック ───────────────────── */
+'天気':'Weather','室温':'Room temp.','湿度':'Humidity','出欠':'Attendance',
+'体温':'Temperature','園児':'Child','クラス':'Class','日付':'Date',
+'晴':'Sunny','曇':'Cloudy','雨':'Rain','雪':'Snow',
+'この記録を確定する':'Finalize this record','確定ずみ':'Finalized',
+'修正を許可':'Allow correction','直し終わった':'Finished correcting',
+'名簿シートを出力':'Print roster sheet','記入用紙':'Blank form',
+'症状を記録':'Record symptoms','症状なし':'No symptoms',
+'全員に症状なし を記録':'Record: no symptoms for all',
+'健康チェックを出力':'Print health check','午睡だけ出力':'Print nap check only',
+'担当':'In charge','メモ':'Memo','期間をまとめて出力':'Print date range',
+'開始日':'Start date','終了日':'End date','まとめて印刷':'Print all',
+'まとめてデータ保存':'Export all','更新':'Refresh',
+'入力は自動保存されます。まだ確定していません。書き終わったら確定してください。':
+  'Entries save automatically. Not finalized yet — please finalize when you are done.',
+'給食（自動）':'Lunch (auto)','延長保育（自動）':'Extended care (auto)',
+'給食':'Lunch','延長保育':'Extended care',
+
+/* ── よく出るボタン・ことば ──────────── */
+'保存する':'Save','保存':'Save','キャンセル':'Cancel','閉じる':'Close','削除':'Delete',
+'追加':'Add','編集':'Edit','印刷':'Print','出力':'Export','送信':'Send','送る':'Send',
+'ひらく':'Open','もどる':'Back','‹ もどる':'‹ Back','検索':'Search','絞り込む':'Filter',
+'はい':'Yes','いいえ':'No','あり':'Yes','なし':'None','未設定':'Not set',
+'在園児':'Enrolled','名':'','休園中':'On leave','退園':'Withdrawn',
+'今日':'Today','今月':'This month','年':'','月':'','日':'',
+'読み込んでいます…':'Loading…','まだありません':'Nothing yet',
+'この画面は、いまのアカウントでは開けません。園の管理者にご確認ください。':
+  'This screen is not available for your account. Please ask your school administrator.'
+};
+
+/* ══ ことばの切り替え（日本語 ⇄ English）════════
+   COCOAS KIDS は国際スクールで、日本語を読まない先生がいます。
+   その先生が毎日つかう画面を英語で出せるようにします。
+
+   ★いちばん大事な決めごと：**画面に出す文字だけを差し替えます。
+     保存する値には一切ふれません。**
+     記録の種類（'登園（出席）'）・役職（'一般'）・状態（'送付済'）は、
+     画面に出る文字であると同時に、保存される値でもあります。
+     ここを翻訳すると、記録が別物として保存され、監査の紙も出なくなります。
+     （役職の roleLabel() と同じ考え方です）
+
+   やり方は「描いたあとに、文字の節だけを差し替える」形にしました。
+   995個の関数を書き直さずに済み、
+   辞書に無いことばは日本語のまま出るので、途中でも壊れません。 */
+var LANG_KEY='edugrow_lang';
+function langNow(){
+  try{ return localStorage.getItem(LANG_KEY)==='en'?'en':'ja'; }catch(e){ return 'ja'; }
+}
+function langSet(v){
+  try{ localStorage.setItem(LANG_KEY,v==='en'?'en':'ja'); }catch(e){}
+  /* 画面ぜんぶを描き直す。サイドバーと上の帯も作り直す */
+  try{ if(typeof buildNav==='function')buildNav(); }catch(e){}
+  try{ go(page); }catch(e){}
+  try{ langApply(document.body); }catch(e){}
+}
+
+/* 差し替えてはいけない場所。
+   ・入力欄の中身は利用者が書いたもの
+   ・script/style は中身がコード
+   ・data-nolang を付けた枝は、園児の名前など差し替えたくないもの */
+var LANG_SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,INPUT:1,NOSCRIPT:1};
+
+function langApply(root){
+  if(langNow()!=='en')return;
+  if(!root||!window.document||!document.createTreeWalker)return;
+  var dict=EN_DICT;
+  try{
+    var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false);
+    var n,hits=[];
+    while((n=w.nextNode())){
+      var p=n.parentNode;
+      if(!p||LANG_SKIP[p.nodeName])continue;
+      if(p.closest&&p.closest('[data-nolang]'))continue;
+      var raw=n.nodeValue;
+      var key=raw.replace(/^\s+|\s+$/g,'');
+      if(!key||!dict[key])continue;
+      hits.push([n,raw,key]);
+    }
+    /* 歩きながら書き換えると、木をたどる位置がずれる。いったん集めてから差し替える */
+    hits.forEach(function(h){
+      var n=h[0],raw=h[1],key=h[2];
+      var p=n.parentNode;
+      /* ★選ぶ欄（option）は、value が無いと画面の文字がそのまま保存値になる。
+         先に value に日本語を入れてから文字を差し替える。
+         これをしないと、英語で選んだ記録が別物として保存される。 */
+      if(p.nodeName==='OPTION'&&!p.hasAttribute('value')){
+        p.setAttribute('value',p.textContent);
+      }
+      n.nodeValue=raw.replace(key,dict[key]);
+    });
+    /* 入力欄の案内文とふきだし */
+    var els=root.querySelectorAll?root.querySelectorAll('[placeholder],[title]'):[];
+    [].forEach.call(els,function(e){
+      ['placeholder','title'].forEach(function(a){
+        var v=e.getAttribute(a); if(!v)return;
+        var k=v.replace(/^\s+|\s+$/g,'');
+        if(dict[k])e.setAttribute(a,dict[k]);
+      });
+    });
+  }catch(e){}
+}
+
+/* 上の帯に出す切り替えボタン */
+function langToggleHTML(){
+  var en=langNow()==='en';
+  return '<button id="langTg" class="langtg" data-nolang="1" '
+    +'title="'+(en?'日本語に切り替える':'Switch to English')+'">'
+    +'<span class="'+(en?'':'on')+'">日本語</span>'
+    +'<span class="'+(en?'on':'')+'">EN</span></button>';
+}
+function langToggleWire(){
+  var b=document.getElementById('langTg');
+  if(b)b.onclick=function(){ langSet(langNow()==='en'?'ja':'en'); };
 }
 
 /* ══ ホームの部品（きょうの仕事）══════════════
