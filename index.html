@@ -2294,7 +2294,8 @@ function recCareList(){
    recType・古いリンク・年間やること からも同じ画面へ着けるようにする。 */
 var REC_OLD_NAME={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録','健康チェック':'登園（出席）','業務日報・保育日誌':'保育日誌・業務日報'};
 var RKEY={'登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','保育日誌・業務日報':'rec_日報','保護者対応の記録':'rec_kujo'};
-function attendedToday(id){var sh=stGet('rec_登園シート',{})[todayISO()];return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
+/* 保護者が未来WAで押した登園も、登園シートの画面と同じ補い方で数える（帳簿は書き換えない） */
+function attendedToday(id){var sh=touenDayView(todayISO(),stGet('rec_登園シート',{})[todayISO()]);return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
 /* 手順は園によって違うので、初期値は空にしてある。
    以前はある園の運用そのものが入っており、
@@ -2561,7 +2562,8 @@ function drillData(){
 function drillAttendees(r){
   var cls=(r.record.classes&&r.record.classes.length)?r.record.classes:['Pre','Kinder'];
   if(!r.record.date)return [];
-  var sh=stGet('rec_登園シート',{})[r.record.date];
+  /* 確定前の日は、保護者が未来WAで押した登園も画面と同じ補い方で数える（帳簿は書き換えない） */
+  var sh=touenDayView(r.record.date,stGet('rec_登園シート',{})[r.record.date]);
   if(!sh||!sh.rows)return [];
   /* ★出席（●）だけを数えていた。ダッシュボード・配置基準・健康チェックは
      どれも ●早遅 を「その日いた子」として数えるのに、避難訓練だけ違い、
@@ -4442,7 +4444,10 @@ function lockYesNo(v){
 var LOCK_LABELS={att:'出欠',temp:'体温',opts:'オプション',h:'身長',w:'体重',from:'時刻',by:'担当',
   memo:'メモ',note:'備考',by:'記録者',other:'そのほか',action:'対応',
   symptoms:'症状',cat:'種類',opt:'内容',parentNote:'保護者からの連絡',
-  charge:'担当',result:'結果',lab:'検査機関',date:'日づけ'};
+  charge:'担当',result:'結果',lab:'検査機関',date:'日づけ',
+  come:'登園時刻',leave:'降園時刻',comeSrc:'登園時刻の出どころ',leaveSrc:'降園時刻の出どころ',
+  attSrc:'出欠の出どころ',attCi:'未来WAの登園から入れた出欠',attDiff:'連絡とのちがい',fromParent:'保護者からの連絡の種類',
+  ciOff:'先生が外した未来WAの登園・降園'};
 var LOCK_LAB_OVERRIDE=null;
 function lockLab(k){
   if(LOCK_LAB_OVERRIDE&&LOCK_LAB_OVERRIDE[k])return LOCK_LAB_OVERRIDE[k];
@@ -4803,9 +4808,11 @@ var EG_NAV=[
     pw:true … 開くたびに本人のパスワードをたずねる（シートの「PW付き・マネージャーのみ閲覧可」） */
  {cat:'ホーム',items:[
    {k:'dash',   l:'ダッシュボード', i:'grid', si:'grid', c:'#3C3489', bg:'#EEEDFE', p:'dashboard'},
+   /* 「登降園（保護者用）」のキオスクは入口から外した（2026-09-14 安田さん・Remiさんのご決定）。
+      登園・降園は保護者が未来WAで押す。PINコードは使わない。押したものは登園シートの空欄に出る。
+      画面そのもの（TITLES・描き分け・権限の名前）は、古い道筋が迷子にならないように残してある。 */
    {k:'kiroku', l:'出席簿・日常チェック', i:'ic:65',si:'clipboard', c:'#0B5F8F', bg:'#E3F1F9', sub:[
-     {p:'records',  l:'日常チェック'},
-     {p:'kiosk',    l:'登降園（保護者用）'}]},
+     {p:'records',  l:'日常チェック'}]},
    {k:'renraku', l:'連絡・メール配信', i:'ic:63',si:'send', c:'#A32D2D', bg:'#FCEBEB', sub:[
      {p:'dm',        l:'保護者DM'},
      {p:'broadcast', l:'全体周知・お知らせ'},
@@ -8158,13 +8165,18 @@ function homeTodayRows(absN,unread){
       });
     }
   }catch(e){}
+  /* 保護者が未来WAで押した、きょうの登園・降園。登園シートの空欄に出ている */
+  try{
+    var _ci=touenCheckinCount(t);
+    if(_ci.come||_ci.leave)rows.push({p:'records',rec:'登園（出席）',l:'保護者の登園・降園',d:'登園 '+_ci.come+'人・降園 '+_ci.leave+'人',n:_ci.come+'人'});
+  }catch(e){}
   /* 保護者の画面から届いた欠席・遅刻。くわしくはこの下の一覧に出る */
   if(absN)rows.push({l:'保護者からの欠席・遅刻',d:'くわしくはこの下の一覧に出ます',n:absN+'件',attn:true});
   /* 保護者DMのまだ読んでいないもの */
   if(unread)rows.push({p:'dm',l:'保護者からの連絡',d:'まだ読んでいないもの',n:unread+'件',attn:true});
   return rows.map(function(r){
     var jump=r.p&&canOpen(r.p),tag=jump?'button':'div';
-    return '<'+tag+' class="row"'+(jump?' type="button" data-tile="'+esc(r.p)+'"'+(r.cls?' data-cls="'+esc(r.cls)+'"':''):'')+'>'
+    return '<'+tag+' class="row"'+(jump?' type="button" data-tile="'+esc(r.p)+'"'+(r.cls?' data-cls="'+esc(r.cls)+'"':'')+(r.rec?' data-rec="'+esc(r.rec)+'"':''):'')+'>'
       +'<span class="tx">'+esc(r.l)+(r.d?'<small>'+esc(r.d)+'</small>':'')+'</span>'
       +'<span class="n'+(r.attn?' attn':'')+'">'+esc(r.n)+'</span>'
       +'</'+tag+'>';
@@ -8239,6 +8251,15 @@ function renderHome(){
       if(!confirm(fmt(date)+' の登園シートに「'+kind+'」を書き写します。よろしいですか。'))return;
       d.rows[cid]=d.rows[cid]||{};
       d.rows[cid].att=mark;
+      /* 先生の操作として書き写したので、保護者の印を外す。残すと、登園シートを描くときに
+         保護者の登園から入れ直す処理が、書き写した「休」を●に戻してしまう */
+      delete d.rows[cid].attSrc; delete d.rows[cid].attCi;
+      /* 休を書き写したら、保護者が押した時刻は外す（紙に「休 08:31（保護者）」と刷られないように）。
+         先生が入れた時刻（出どころの印が無いもの）は残す */
+      if(mark==='休'){
+        if(d.rows[cid].comeSrc==='保護者'){ delete d.rows[cid].come; delete d.rows[cid].comeSrc; }
+        if(d.rows[cid].leaveSrc==='保護者'){ delete d.rows[cid].leave; delete d.rows[cid].leaveSrc; }
+      }
       if(typeof isLocked==='function'&&isLocked(d)&&typeof lockNote==='function'){
         lockNote(d,'園児ごとの記録（'+lockKidName(cid)+'／出欠）',before||'（空）',mark);
       }
@@ -8275,6 +8296,11 @@ function renderHome(){
      きょうの活動から月間カリキュラムへ、保護者からの連絡から DM へ移れなかった。
      きょうの活動は、その行のクラス・今月を開いてから移る（配属クラスのカリキュラムが開く）。 */
   s.querySelectorAll('.htoday [data-tile]').forEach(function(b){b.onclick=function(){
+    /* ★「保護者の登園・降園」を押すと、前に開いていた記録と日付（安全点検の 9/11 など）に飛んでいた。
+       行は records の画面だけを指していて、記録の種類（recType）と日付（recDate）は前の値が残っていたため。
+       記録の種類を持っている行は、その記録のきょうを開く。 */
+    var rc=b.getAttribute('data-rec');
+    if(rc){ recDate=todayISO(); goRec(b.getAttribute('data-tile'),rc); return; }
     var k=b.getAttribute('data-cls');
     if(k&&(CLASSES||[]).indexOf(k)>-1){ curClass=k; if(typeof CUR!=='undefined'&&CUR)CUR.month=todayISO().slice(0,7); }
     go(b.getAttribute('data-tile'));
@@ -8405,6 +8431,20 @@ var EN_DICT={
 'お子さま':'Child','なに':'What','ひとこと':'Note','保護者へ届ける':'Send to family','きょう届けたもの':'Sent today',
 '食事':'Meal','午睡':'Nap','排泄':'Toilet','気分':'Mood','できごと':'Moment','けが・体調':'Injury / health',
 'ひとことを入れてください':'Please write a note','保護者へ届けました':'Sent to family',
+/* ── 登園・降園は未来WAで押す（2026-09-14）── */
+'保護者の登園・降園':'Drop-off / pick-up from parents','登園 {0}人・降園 {1}人':'Drop-off {0} / Pick-up {1}',
+'保護者が未来WAで押した時刻です。先生が確定すると、この時刻で残ります。':'Time tapped by the parent in MiraiWA. It is kept when a teacher confirms the record.',
+'確定したあとに、保護者が未来WAで押した時刻です。確定した記録には入っていません。':'Tapped by the parent in MiraiWA after the record was confirmed. Not included in the confirmed record.',
+'未来WA：登園 {0}:{1}':'MiraiWA: drop-off {0}:{1}','未来WA：降園 {0}:{1}':'MiraiWA: pick-up {0}:{1}',
+'未来WA：登園 {0}:{1}・降園 {2}:{3}':'MiraiWA: drop-off {0}:{1} / pick-up {2}:{3}',
+'保護者が未来WAで「登園」「降園」を押すと、登園シートの空欄に出ます（出欠の●と時刻に「保護者」の札が付きます）。先生が入れた欄は変わりません。確定すると、その値で残ります。':'When a parent taps “Drop-off” or “Pick-up” in MiraiWA, it appears in the empty cells of the attendance sheet (● and the time, tagged “Parent”). Anything a teacher entered is not changed. Confirming the record saves those values.',
+'保護者が未来WAで登園・降園を押すと、登園シートの空欄に出ます。先生が入れた欄は変わりません。':'When a parent taps drop-off or pick-up in MiraiWA, it appears in the empty cells of the attendance sheet. Anything a teacher entered is not changed.',
+'取り込む':'Add to record',
+'外した保護者の時刻を、この記録に取り込みます。':'Adds the parent’s removed time to this record.',
+'先生が外した、保護者が未来WAで押した時刻です。記録には入っていません。':'Time tapped by the parent in MiraiWA that a teacher removed. Not included in the record.',
+'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'Drop-off tapped by the parent in MiraiWA. If it was a mistake, tap once to remove it.',
+'確定のあとに保護者が未来WAで押した時刻を、この記録に入れます。直した跡に残ります。':'Adds the time the parent tapped in MiraiWA after confirmation to this record. The change is kept in the edit history.',
+'出欠が「休」になっているので、保護者が未来WAで押した時刻は記録に入れていません。来ていたときは、出欠を押して直してください。':'Attendance is marked “Absent”, so the time the parent tapped in MiraiWA is not in the record. If the child came, tap attendance to change it.',
 /* ── シート「EduGrow システム概要」D列の英語名（2026-09-12）── */
 '運営に必要な書類':'Operations Forms','本日のタスク':'Today’s tasks','すべての組を見る':'Show all groups','連絡先（在園・退園）':'Contacts (enrolled / withdrawn)','予定・退園':'Schedule / Withdrawal','＝ 未入力':'= Not set','自分のパスワードを変える':'Change my password','手入力のまま ¥{0}':'Manual amount ¥{0}','変える':'Change','金額は請求書作成・管理':'Fees are in Invoices','生徒情報一覧・連絡先で直す':'Edit in Student List & Contacts','未入力書類':'Missing entries','きょうの活動':'Today’s activities','オプション機能':'Optional features','配属クラス':'Assigned class','きょうのタスクはありません':'No tasks for today','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
 'カリキュラム':'Curriculum','生徒情報':'Student Information','職員情報':'Staff Directory','請求・経費管理':'Billing & Expenses','スクール情報':'School Information',
@@ -14819,6 +14859,9 @@ function langToggleWire(){
 
 
 /* ══ 登降園キオスク（保護者用）══════════════
+   ※2026-09-14 安田さん・Remiさんのご決定で、サイドバーの入口から外した。
+     登園・降園は保護者が未来WAで押し、登園シートの空欄に出る（touenCheckinFill）。
+     この画面は、権限の名前や古い道筋から来ても迷子にならないように残してある。
    brightwheel 調査からの提案2（2026-09-12 安田さんのご指示）。
    玄関のタブレットで、保護者がお子さまの暗証番号（4けた）を入れ、
    「登園」「降園」を押す。降園のときは「どなたが迎えに来たか」を
@@ -15031,7 +15074,9 @@ function renderFeed(){
   var ai=$('#fdAI'); if(ai)ai.onclick=function(){
     if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())){$('#fdMsg').textContent='AIは、園コードでログインしているときに使えます（Standard 以上）。';return;}
     var l=((d.rows||{})[FEED.kid]||[]).filter(function(e){return e.kind!==FEED_SUM;});
-    var att=(((stGet('rec_登園シート',{})||{})[day]||{}).rows||{})[FEED.kid]||{};
+    /* 登園・降園の時刻は、先生が確定する前は保護者の控え（未来WA）にしか無いので、それも見る */
+    var _tday=((stGet('rec_登園シート',{})||{})[day])||null;
+    var att=touenCheckinFill(day,FEED.kid,Object.assign({},((_tday||{}).rows||{})[FEED.kid]||{}),_tday);
     if(!l.length&&!att.come){$('#fdMsg').textContent='まだ記録がありません。1つ以上書いてから作ってください。';return;}
     var facts=[
       att.come?'登園 '+att.come:'', att.leave?'降園 '+att.leave:'', att.temp?'体温 '+att.temp+'℃':'',
@@ -16298,7 +16343,9 @@ function renderDash(){
   // 一般スタッフには営業系の数値（問い合わせ・体験・入退園）は表示しない
   /* 新規顧客管理をオプションで外している園にも出さない（Remi さん 2026-09-13） */
   var salesOff=(typeof optOn==='function'&&!optOn('sales'));
-  var touenToday=stGet('rec_登園シート',{})[todayISO()];
+  /* ★保護者が未来WAで押した登園が数えられず、先生が保存するまで「本日の出席」が少なく出ていた。
+     登園シートの画面・配置の帯と同じ補い方をした姿で数える（保存はしない） */
+  var touenToday=touenDayView(todayISO(),stGet('rec_登園シート',{})[todayISO()]);
   var presentToday=touenToday&&touenToday.rows?en.filter(function(c){var r=touenToday.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;}).length:0;
   var absentToday=touenToday&&touenToday.rows?en.filter(function(c){var r=touenToday.rows[c.id];return r&&r.att==='休';}).length:0;
   var topCards=(isIppan||salesOff)
@@ -19902,6 +19949,9 @@ function edTouen(){
     /* すでに記録がある子・保護者から連絡が来た子は、休園でも必ず出す
        （その日に来ていたのに消えてしまうのを防ぐ） */
     if(r&&(r.parentNote||r.att||r.temp))return true;
+    /* 保護者が未来WAで登園・降園を押した子も出す（予定の曜日でなくても、来ているため）。
+       確定ずみの日は、修正を許可しているあいだだけ出す（「取り込む」を押せるように） */
+    if(lockCanEdit(d)&&touenCheckinOf(recDate,c.id))return true;
     if(c.paused)return false;              /* 休園中は出さない */
     return !c.days||c.days.indexOf(wd)>-1;
   });
@@ -19911,12 +19961,39 @@ function edTouen(){
     /* 保護者からの欠席・遅刻。空の欄にだけ入れ、先生が入れたものは触らない。
        違っているときは印だけ立てて、下の帯で知らせる。 */
     var _pa=absFromParent(recDate,c.id);
+    /* 保護者が未来WAで押した登園・降園は、ここ（帳簿に入る行）には入れない。表示は viewOf で写しに補う。
+       ★ここで帳簿の行に●と時刻を直接入れていたので、先生が室温や別の子の体温を1つ保存しただけで、
+         表の全員分の保護者の値が帳簿に残った。そのあと保護者が取り消しても押し直しても帳簿は変わらず、
+         本日の出席・避難訓練の参加者など帳簿を読むところでは、来ていない子が出席のままだった。
+       → 帳簿へは、先生が確定を押したとき（_ciCommit）か「取り込む」を押したときだけ入れる。
+         ここでは、帳簿に残っている保護者の値のうち、取り消されたもの・休の日の時刻を外すだけにする
+         （cleanOnly。外したあとの空欄に、下の欠席・遅刻の連絡の印が入る）。 */
+    touenCheckinFill(recDate,c.id,r,d,false,true);
     r.fromParent=_pa?_pa.kind:'';
     if(_pa){
-      if(!r.att){r.att=_pa.mark;r.attSrc='保護者';}
+      /* 空欄に連絡の印を入れたときは、前の食い違いの札を残さない
+         （登園が取り消されて●が外れたあと、「休」に「連絡は欠席」の札が付いたままになる） */
+      if(!r.att){r.att=_pa.mark;r.attSrc='保護者';r.attDiff='';}
       else if(r.att!==_pa.mark){r.attDiff=_pa.kind;}
       else {r.attDiff='';}
-    }var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ov=attendOldVal(r.opts,op);if(ov!==undefined){r.opts[op]=!!ov;return;}var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
+    }
+    var _do=dayOptsOf(c)[wd]||{};opts.forEach(function(op){if(op in r.opts)return;var ov=attendOldVal(r.opts,op);if(ov!==undefined){r.opts[op]=!!ov;return;}var ak=autoAttendKey(op);r.opts[op]=ak?!!_do[ak]:false;});return r;}
+  /* 画面に出す姿。帳簿の行（rowOf）の写しに、保護者が未来WAで押した登園・降園を補う。
+     写しなので、描いても保存しても帳簿には入らない */
+  function viewOf(c){return touenCheckinFill(recDate,c.id,Object.assign({},rowOf(c)),d);}
+  /* 確定を押したときに、画面に出ていた保護者の登園・降園を帳簿へ入れる。
+     表に出ていない組の子も、同じ日の1件の記録なので入れる（確定のあとは補わないため、入れないと消える）。 */
+  function _ciCommit(){
+    kids.forEach(function(c){rowOf(c);});
+    var k;
+    for(k in d.rows){ if(Object.prototype.hasOwnProperty.call(d.rows,k)&&d.rows[k])touenCheckinFill(recDate,k,d.rows[k],d); }
+    touenCheckinIds(recDate).forEach(function(id){
+      if(d.rows[id])return;
+      if(!(DB.contacts||[]).filter(function(x){return String(x.id)===String(id);})[0])return;
+      var nr=touenCheckinFill(recDate,id,{att:'',temp:'',opts:{}},d);
+      if(nr.att||nr.come||nr.leave)d.rows[id]=nr;
+    });
+  }
   var autoOpts=opts.filter(function(op){return isAutoAttendOpt(op);});
   /* 天気は「晴」「曇」「雨」から選ぶ。
      これまでに入れた文言（「晴れ」など）がある日は、その文言も選択肢に残して消さない */
@@ -19941,12 +20018,13 @@ function edTouen(){
       +'<div class="muted" style="font-size:11px;margin-top:3px;">朝の時点の天気を入れてください</div></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
     '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
-    kids.map(function(c){var r=rowOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
-      '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
-        /* 登降園キオスクで入った時刻（シート4行「登園時間」） */
-        +(r.come?'<div class="row-sub" style="font-size:10.5px;white-space:nowrap;">'+esc(r.come)+(r.leave?'〜'+esc(r.leave):'')+'</div>':'')
+    kids.map(function(c){var r=viewOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
+      '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席')+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
+        /* 登園・降園の時刻（シート4行「登園時間」）。保護者が未来WAで押したものには「保護者」の札 */
+        +touenTimeHtml(r)
+        +touenCiLateHtml(recDate,c.id,r,d)
         /* 保護者からの連絡で入った印と、先生の入力と食い違っている印 */
-        +(r.attSrc==='保護者'?'<span class="tag" title="保護者からの連絡で入りました。押せば直せます。" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:5px;font-size:10.5px;">保護者</span>':'')
+        +(r.attSrc==='保護者'?'<span class="tag" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'保護者からの連絡で入りました。押せば直せます。')+'" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:5px;font-size:10.5px;">保護者</span>':'')
         +(r.attDiff?'<span class="tag" title="保護者からは「'+esc(r.attDiff)+'」と連絡が届いています" style="background:#FCEBEB;border-color:#E8C9C9;color:#A32D2D;margin-left:5px;font-size:10.5px;">連絡は'+esc(r.attDiff)+'</span>':'')
         +'</td>'+
       '<td><input data-tt="'+esc(c.id)+'" type="number" inputmode="decimal" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
@@ -19987,12 +20065,56 @@ function edTouen(){
   };
   document.querySelectorAll('[data-ta]').forEach(function(b){b.onclick=function(){
     var c=kids.filter(function(k){return k.id===+b.getAttribute('data-ta');})[0];
-    var r=rowOf(c);var order=['','●','早','遅','休'];
-    r.att=order[(order.indexOf(r.att)+1)%order.length];save();edTouen();
+    var r=rowOf(c),v=viewOf(c);var order=['','●','早','遅','休'];
+    if(v.attCi){
+      /* 保護者が未来WAで押した登園の●は、1回押すと外れる（兄弟の押し間違いなど）。
+         ★先生が押すと「早」に回るだけで保護者の時刻は残り、「休」の次の空欄にすると
+           描き直しで保護者の●に戻っていた。先生の手で外す方法が無かった。
+         → 外した時刻を ciOff に残し、同じ時刻はもう補わない。保護者が押し直して時刻が変われば、また出る。
+           帳簿に残っていた保護者の値も一緒に外す。 */
+      var ci0=touenCheckinOf(recDate,c.id)||{};
+      r.ciOff=(ci0.come||'')+'|'+(ci0.leave||'');
+      if(r.attCi){ r.att=''; delete r.attSrc; delete r.attCi; delete r.attDiff; }
+      if(r.comeSrc==='保護者'){ delete r.come; delete r.comeSrc; }
+      if(r.leaveSrc==='保護者'){ delete r.leave; delete r.leaveSrc; }
+    }else{
+      r.att=order[(order.indexOf(r.att)+1)%order.length];
+      /* 押したあとは先生が入れた出欠。保護者の印を残すと、描き直すたびに控えから入れ直す処理が
+         先生の選んだ「休」を保護者の●に戻してしまう */
+      delete r.attSrc; delete r.attCi;
+    }
+    /* 保存する前に、描くときと同じ片付けをしておく（休にしたら、帳簿に残っていた保護者の時刻を外す） */
+    r=rowOf(c);
+    save();edTouen();
     /* 登園（●）にしたときだけ、まだ体温が入っていなければ検温をはじめる */
     if(r.att==='●'&&!r.temp){ try{thFlowStart(c);}catch(e){console.error('[検温]',e.message);} }
   };});
   try{thermoBarWire();}catch(e){}
+  /* 確定のあとに保護者が押した時刻を、許可が出ているあいだに記録へ入れる（touenCiLateHtml） */
+  document.querySelectorAll('[data-tcil]').forEach(function(b){b.onclick=function(){
+    if(!lockCanEdit(d)){alert('この記録は確定ずみです。直すには園長・管理者の許可が要ります。');return;}
+    var id=b.getAttribute('data-tcil');
+    var c=kids.filter(function(k){return String(k.id)===id;})[0];
+    var ci=c?touenCheckinOf(recDate,c.id):null;
+    if(!c||!ci)return;
+    var r=rowOf(c),put=[];
+    if(r.att===absMarkOf('欠席')&&!(!isLocked(d)&&r.ciOff&&r.attSrc==='保護者'))return;
+    if(!isLocked(d)){
+      /* 確定前の日：先生が外した保護者の登園・降園を、帳簿へ取り込む（外した印も消す） */
+      delete r.ciOff;
+      touenCheckinFill(recDate,c.id,r,d);
+      save();edTouen();
+      return;
+    }
+    if(ci.come&&!r.come){r.come=ci.come;r.comeSrc='保護者';put.push('登園 '+ci.come);}
+    if(ci.leave&&!r.leave){r.leave=ci.leave;r.leaveSrc='保護者';put.push('降園 '+ci.leave);}
+    if(!put.length)return;
+    /* 出欠が空のまま時刻だけ入ると、紙が「— 08:31」になる。来ていた印も入れる */
+    if(!r.att){r.att='●';r.attSrc='保護者';}
+    /* 何を・なぜ直したかを跡の先頭に書く。値の変わり目は save() が見比べて積む */
+    lockNote(d,'園児ごとの記録（'+childFullName(c)+'）：確定のあとに保護者が未来WAで押した時刻（'+put.join('・')+'）を記録に入れた','','',true);
+    save();edTouen();
+  };});
   document.querySelectorAll('[data-tt]').forEach(function(inp){inp.onchange=function(){var c=kids.filter(function(k){return k.id===+inp.getAttribute('data-tt');})[0];rowOf(c).temp=inp.value;save();};});
   document.querySelectorAll('[data-to]').forEach(function(b){b.onclick=function(){var c=kids.filter(function(k){return k.id===+b.getAttribute('data-to');})[0];var op=opts[+b.getAttribute('data-oi')];var r=rowOf(c);r.opts[op]=!r.opts[op];save();b.style.cssText=r.opts[op]?'background:#E6F1FB;border-color:#378ADD;color:#123E6B;font-weight:600;':'';b.textContent=r.opts[op]?'●':'—';};});
   $('#tsPrint').onclick=function(){
@@ -20044,11 +20166,28 @@ function edTouen(){
     }
   }
   lockBarWire($('#recBody'),d,saveBoth,edTouen);
+  /* 確定を押したときだけ、画面に出ている保護者の登園・降園を帳簿へ入れてから確定する。
+     入れたあとに見比べの控えをとり直す（とり直さないと、確定と同時に「直したところ」に積まれる）。
+     やめたとき・中身が無くて確定しなかったときは、入れる前の行に戻す。 */
+  var _lkDo=$('#recBody').querySelector('[data-lkdo]');
+  if(_lkDo&&_lkDo.onclick){
+    var _lkGo=_lkDo.onclick;
+    _lkDo.onclick=function(ev){
+      var bak=JSON.stringify(d.rows||{}),snap=_tsSnap;
+      if(!d.rows)d.rows={};
+      _ciCommit();
+      _tsSnap=lockSnap(d,TOUEN_F);
+      _lkGo.call(this,ev);
+      if(!isLocked(d)){ d.rows=JSON.parse(bak); _tsSnap=snap; }
+    };
+  }
   lockDisable($('#recBody'),d);
 
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
   attachRecPaperCard(d);
   try{tidyNotes(document.querySelector('#recBody'));}catch(e){}
+  /* 保護者があとから押した登園・降園を取りに行く（1分に1回まで） */
+  try{touenCheckinRefresh();}catch(e){}
 }
 function edSafety(){
   var K='rec_安全点検',data=stGet(K,{}),d=data[recDate]||{items:{},memo:'',by:''};
@@ -20969,7 +21108,7 @@ function nippoHas(d){ return !!(d&&(d.actual||d.diary||d.absent||d.early||d.note
    その日の登園シートに鍵がある子＋その日の記録に鍵がある子。
    どちらも無い日だけ、代わりに在園児を出す（そのことは紙にも書く）。 */
 function dayKids(dk,ids){
-  var touen=stGet('rec_登園シート',{})[dk],out=[],seen={},k;
+  var touen=touenDayView(dk,stGet('rec_登園シート',{})[dk]),out=[],seen={},k;
   var rows=(touen&&touen.rows)||{};
   (DB.contacts||[]).forEach(function(c){
     var key=String(c.id);
@@ -21035,7 +21174,8 @@ function touenDayBody(dk,d,kids){
        この紙に列として入れる。体温のとなり＝画面と同じ並びにする。 */
     '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th><th style="width:150px;">健康チェック</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){
-      var r=d.rows[c.id]||{opts:{}};
+      /* 保護者が未来WAで押した登園・降園を、空の欄にだけ添える（画面と同じ。記録は書き換えない） */
+      var r=touenCheckinFill(dk,c.id,Object.assign({opts:{}},d.rows[c.id]||{}),d);
       /* ★生年月日が生徒台帳にしか無い子は、歳児の欄にクラス名が刷られていた
          （同じ日の帯は「2歳児」と出すので食い違う）。台帳も見る。 */
       var _dob=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
@@ -21043,7 +21183,7 @@ function touenDayBody(dk,d,kids){
       var al=_dob?ageClassOf({dob:_dob,klass:c.klass},dk):'—',ac=ageColor(al);
       var _hc=healthCellText(_hd,c.id);
       /* 印刷でも歳児の色が出るよう print-color-adjust を指定 */
-      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(_dob?bfDob(_dob):'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+'</td><td>'+esc(r.temp||'')+'</td>'
+      return '<tr><td>'+esc(c.__gone?('番号'+c.id+'（連絡先にない園児）'):childFullName(c))+'</td><td>'+esc(_dob?bfDob(_dob):'')+'</td><td style="background:'+ac.bg+';color:'+ac.fg+';font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+al+'</td><td>'+esc(r.att||'')+touenTimePaper(r)+'</td><td>'+esc(r.temp||'')+'</td>'
         +'<td style="font-size:9px;line-height:1.5;">'+esc(_hc)+'</td>'
         +opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
@@ -21401,7 +21541,7 @@ function renderDrill(){
 function drillExpectHtml(p,forPrint){
   var cls=(p.classes&&p.classes.length)?p.classes:CLASSES.slice();
   if(!p.planDate)return forPrint?'':'<span class="muted">実施予定日を入力すると、その日の出席から自動で反映されます。</span>';
-  var sh=stGet('rec_登園シート',{})[p.planDate];
+  var sh=touenDayView(p.planDate,stGet('rec_登園シート',{})[p.planDate]);
   var kids=enrolled().filter(function(c){return cls.indexOf(c.klass)>-1;});
   if(!sh||!sh.rows){
     var wd=WD[new Date(+p.planDate.slice(0,4),+p.planDate.slice(5,7)-1,+p.planDate.slice(8,10)).getDay()];
@@ -21639,7 +21779,12 @@ function kidDob(c){
   return '';
 }
 function haichiKids(date){
-  var d=stGet('rec_登園シート',{})[date],by={},total=0,unknown=0,gone=0;
+  /* ★表に●が出ている保護者の登園が、同じ画面の配置の帯の「登園◯名」に数えられなかった。
+     表の●は描くときに保護者の控えから補った値で、ここは保存ずみの rows しか数えていなかった。
+     朝のあいだに保護者が押した子は、先生が何かを保存するまで人数に入らず、
+     足りない配置が足りているように見えた（打刻がそろっている日は緑で「足りています」）。
+     → 確定前の日は、画面・紙と同じ補い方をした姿（touenDayView）で数える。保存はしない。 */
+  var d=touenDayView(date,stGet('rec_登園シート',{})[date]),by={},total=0,unknown=0,gone=0;
   if(!d||!d.rows)return {by:by,total:0,unknown:0,gone:0,missCls:[]};
   /* ★在園の子だけで数えると、退園・卒園したあとに過去の日を開いたとき
      その子が数から消え、足りていなかった日が足りていたことになる。
@@ -21673,6 +21818,9 @@ function haichiKids(date){
       if(!Object.prototype.hasOwnProperty.call(d.rows,k))continue;
       r2=d.rows[k]||{};
       if(!r2.att)continue;
+      /* 保護者が押しただけで、まだ誰も保存していない子では「そのクラスは入った」と見なさない。
+         押していない保護者の子が、いないものとして断定されないように */
+      if(d.__saved&&!d.__saved[k])continue;
       c2=(DB.contacts||[]).filter(function(x){return String(x.id)===String(k);})[0];
       if(c2&&c2.klass)seenCls[c2.klass]=1;
     }
@@ -23088,7 +23236,9 @@ var API={
    ここで取りに行って、園の画面で読める形にする。 */
 /* 注文・イベントの申込は、未来WA の画面がサーバから直に読む。
    この画面では使わないので取りに行かない（使わない控えを端末に残さない）。 */
-var PSTATE={keys:['absence_log','dm_out'],busy:false,at:null,
+/* 登園・降園（checkin_log）も取りに行く。保護者が未来WAで押したものが、ここに貯まる
+   （2026-09-14 安田さん・Remiさんのご決定：登降園は未来WAで押す）。 */
+var PSTATE={keys:['absence_log','dm_out','checkin_log'],busy:false,at:null,
   pull:function(){
     if(!API.online()||PSTATE.busy)return Promise.resolve();
     PSTATE.busy=true;
@@ -23116,7 +23266,7 @@ var PSTATE={keys:['absence_log','dm_out'],busy:false,at:null,
      同じ端末の保護者画面が書いたものをそのまま読む。
      つないでいないのに何も出ないと、デモで話が止まってしまう。 */
   local:function(k,d){return API.online()?d:stGet(k,d);},
-  /* 一覧で返ってくるもの（欠席の連絡・注文・イベント申込） */
+  /* 一覧で返ってくるもの（欠席の連絡・登園と降園・注文・イベント申込） */
   list:function(k){
     var v=stGet('pstate_'+k,[]);
     if(!Array.isArray(v)||!v.length)v=PSTATE.local(k,[]);
@@ -23826,6 +23976,243 @@ function absFromParent(date,cid){
     var last=a[a.length-1];
     return {mark:absMarkOf(last.kind),kind:last.kind,at:last.at||''};
   }catch(e){ return null; }
+}
+/* ══ 保護者が未来WAで押した登園・降園を、登園シートの空欄に出す ══════════
+   （2026-09-14 安田さん・Remiさんのご決定：登園・降園は未来WAで押す。PINコードは使わない）
+   ・保護者の控え（checkin_log）は、園の帳簿（rec_登園シート）とは別の場所に貯まっている。
+     保護者の操作で確定した記録が変わると監査の紙が嘘になるので、ここでは読むだけにする。
+   ・先生がまだ何も入れていない欄にだけ出す。先生が入れたものは上書きしない。
+   ・保存はしない。先生が確定したとき（または「取り込む」を押したとき）に、その値で帳簿に残る。
+     欠席の連絡（absFromParent）と同じ扱い。
+   ・取り消した（undo）ものは使わない。同じ日に何度も押されたら、最後の登園と最後の降園を使う。
+   ・確定ずみの日には混ぜない。確定のあとに押されたものは、画面にだけ一言出す（touenCiLateHtml）。 */
+var TOUEN_CI={t:null,memo:null};
+/* 保護者の端末の時刻は「8:31」の形。先生の画面（tcNow）は「08:31」なので、そろえる */
+function touenCiTime(t){
+  var m=/^(\d{1,2}):(\d{2})$/.exec(String(t||'').replace(/^\s+|\s+$/g,''));
+  if(!m||+m[1]>23||+m[2]>59)return '';
+  return (m[1].length<2?'0'+m[1]:m[1])+':'+m[2];
+}
+/* その日の分を、お子さまごとに {come, leave, by} にまとめる */
+function touenCheckinMap(date){
+  var list=PSTATE.list('checkin_log'),m={},ord=[];
+  list.forEach(function(x,i){
+    if(!x||x.undo||x.date!==date)return;
+    if(x.kind!=='登園'&&x.kind!=='降園')return;
+    var t=touenCiTime(x.at);if(!t)return;
+    ord.push({x:x,i:i,t:t});
+  });
+  /* 押した順に並べる。サーバが付けた時刻（srvAt）があればそれで、無ければ控えの並びのまま。
+     端末の時計はずれていることがあるので、at では並べない。 */
+  ord.sort(function(a,b){
+    var sa=String(a.x.srvAt||''),sb=String(b.x.srvAt||'');
+    if(sa&&sb&&sa!==sb)return sa<sb?-1:1;
+    return a.i-b.i;
+  });
+  ord.forEach(function(o){
+    var k=String(o.x.childId),e=m[k]||(m[k]={come:'',leave:'',by:''});
+    if(o.x.kind==='登園')e.come=o.t;else e.leave=o.t;
+    if(o.x.by)e.by=String(o.x.by).slice(0,60);
+  });
+  return m;
+}
+function touenCheckinOf(date,cid){
+  try{
+    /* 1枚の表で園児の数だけ呼ばれる。控えが変わっていなければ、まとめ直さない */
+    var raw=(localStorage.getItem('cocoas_pstate_checkin_log')||'')+'\n'+(API.online()?'':(localStorage.getItem('cocoas_checkin_log')||''));
+    var mm=TOUEN_CI&&TOUEN_CI.memo;
+    if(!mm||mm.raw!==raw||mm.date!==date){
+      mm={raw:raw,date:date,map:touenCheckinMap(date)};
+      if(TOUEN_CI)TOUEN_CI.memo=mm;
+    }
+    return mm.map[String(cid)]||null;
+  }catch(e){ return null; }
+}
+/* 登園シートの1行（r）の空欄に、保護者の登園・降園を入れる。d はその日の登園シート。
+   noAtt のときは、空の出欠に●を入れない（遅刻・早退の連絡の印を先に入れたい日。edTouen の rowOf）。
+   ★一度保存されると、保護者の取り消しも押し直しも届かず、先生も時刻を消せなかった。
+     描くときに補った●と時刻は d.rows にそのまま入るので、先生がどこか1か所を直すと
+     表の全員分がその値で帳簿に残る。そのあとで保護者が取り消しても、ここは
+     「空欄にだけ入れる」作りだったので、残った●と時刻を片付けなかった。
+     兄弟の押し間違いを取り消しても、来ていない子に●と登園時刻が付いたまま確定され、
+     押し直し（8:31 を取り消して 9:05）も、帳簿は 8:31 のままだった。
+     先生が出欠を「休」にしても時刻が消えず、紙に「休 08:31（保護者）」と刷られていた。
+     → 確定する前の日は、保護者から来た欄（comeSrc／leaveSrc が保護者のもの、
+       控えから入れた●＝attCi の印があるもの）を、描くたびに控えから入れ直す。
+       控えから無くなったら消し、時刻が変わっていたら差し替える。
+       出欠が「休」のときは、保護者の時刻を入れない（入っていたら外す）。
+       先生が入れた欄（印が無いもの）には触らない。
+       attCi は、欠席の連絡の印（休・遅・早）や旧キオスクの attSrc と見分けるための印。 */
+/* cleanOnly のときは、外すだけで入れない（帳簿に入る行に使う。edTouen の rowOf）。
+   先生が外した印（ciOff＝外したときの「登園|降園」の時刻）と同じ時刻は補わない。 */
+function touenCheckinFill(date,cid,r,d,noAtt,cleanOnly){
+  if(!r)return r;
+  if(isLocked(d))return r;
+  var ci=touenCheckinOf(date,cid)||{come:'',leave:'',by:''};
+  var _off=String(r.ciOff||'').split('|');
+  ci={come:(ci.come&&ci.come!==_off[0])?ci.come:'',leave:(ci.leave&&ci.leave!==(_off[1]||''))?ci.leave:'',by:ci.by||''};
+  var has=!!(ci.come||ci.leave);
+  /* 控えをまだ一度も取りに行っていない端末では、無いことを「取り消された」と読まない。
+     読み違えると、ほかの端末で残した保護者の時刻を、この端末が消してしまう */
+  var sync=touenCiLoaded();
+  /* 控えから入れた●。先生が押して変えたときは、押した側で印を外している */
+  if(r.attCi){
+    if(r.att!=='●'){ delete r.attCi; }
+    else if(!has&&sync){ r.att=''; delete r.attSrc; delete r.attCi; delete r.attDiff; }
+  }
+  /* ★保存されたあとに押された登園は、休のまま時刻だけ付き、配置から抜けていた。
+     欠席の連絡で入った「休」がまだ保存されていない端末では「●＋連絡は欠席」と出るのに、
+     誰かが一度保存した端末では「休 09:30」になり、休＝連絡のしるしなので
+     「連絡は欠席」の札も出なかった。保存したかどうかで、来ている子が
+     配置・本日の出席・健康チェックから外れ、紙には「休 09:30（保護者）」と刷られていた。
+     → 保護者の連絡で入った休（attSrc が保護者）は、登園が押されていれば●にする
+       （attSrc は保護者のまま。取り消されたら上で外れて、連絡の休に戻る）。
+       先生が自分で入れた休（attSrc が無いもの）には触らない。 */
+  if(!cleanOnly&&ci.come&&r.att===absMarkOf('欠席')&&r.attSrc==='保護者'&&!r.attCi){
+    r.att='●'; r.attCi=true; r.attDiff='欠席';
+  }
+  var off=(r.att===absMarkOf('欠席'));
+  if(r.comeSrc==='保護者'){
+    if(off||(!ci.come&&sync)){ delete r.come; delete r.comeSrc; }
+    else if(ci.come&&!cleanOnly)r.come=ci.come;
+  }else if(!cleanOnly&&!off&&ci.come&&!r.come){ r.come=ci.come; r.comeSrc='保護者'; }
+  if(r.leaveSrc==='保護者'){
+    if(off||(!ci.leave&&sync)){ delete r.leave; delete r.leaveSrc; }
+    else if(ci.leave&&!cleanOnly)r.leave=ci.leave;
+  }else if(!cleanOnly&&!off&&ci.leave&&!r.leave){ r.leave=ci.leave; r.leaveSrc='保護者'; }
+  if(!cleanOnly&&!noAtt&&!r.att&&has){ r.att='●'; r.attSrc='保護者'; r.attCi=true; }
+  return r;
+}
+/* この端末が保護者の控えを持っているか。つないでいないとき（見本）は、この端末の中の控えを使う */
+function touenCiLoaded(){
+  try{ return !API.online()||localStorage.getItem('cocoas_pstate_checkin_log')!==null; }catch(e){ return true; }
+}
+/* その日に登園・降園が押されているお子さまの番号 */
+function touenCheckinIds(date){
+  var out=[],m={},k;
+  try{
+    touenCheckinOf(date,'');
+    if(TOUEN_CI&&TOUEN_CI.memo&&TOUEN_CI.memo.date===date)m=TOUEN_CI.memo.map||{};
+  }catch(e){}
+  for(k in m){
+    if(Object.prototype.hasOwnProperty.call(m,k)&&m[k]&&(m[k].come||m[k].leave))out.push(k);
+  }
+  return out;
+}
+/* 配置の帯・本日の出席で数えるための、その日の登園シートの姿。
+   確定前の日は、画面と紙と同じように保護者の登園・降園を補う。保存はしないので帳簿は変わらない。
+   rows に無くても登園・降園が押されている子は足す（連絡先にいる子だけ。名前の無い行を増やさない）。
+   __saved は、もともと帳簿に行があった子（「そのクラスはもう入っているか」の判断に使う）。 */
+function touenDayView(date,d){
+  if(isLocked(d))return d;
+  var ids=touenCheckinIds(date);
+  if(!d&&!ids.length)return d;
+  var rows=(d&&d.rows)||{},out={},saved={},v={},k;
+  for(k in rows){
+    if(!Object.prototype.hasOwnProperty.call(rows,k))continue;
+    out[k]=touenCheckinFill(date,k,Object.assign({},rows[k]||{}),d);
+    saved[k]=1;
+  }
+  ids.forEach(function(id){
+    if(out[id])return;
+    var c=(DB.contacts||[]).filter(function(x){return String(x.id)===String(id);})[0];
+    if(!c)return;
+    out[id]=touenCheckinFill(date,id,{att:''},d);
+  });
+  if(d){ for(k in d){ if(Object.prototype.hasOwnProperty.call(d,k))v[k]=d[k]; } }
+  v.rows=out; v.__saved=saved;
+  return v;
+}
+/* 出欠の下の時刻の行。保護者が押したものには小さな札を付ける。
+   降園だけ押された日も出す（登園の時刻があるときしか見ていないと、降園が見えない）。 */
+function touenTimeHtml(r){
+  if(!r||(!r.come&&!r.leave))return '';
+  var fromP=(r.comeSrc==='保護者'||r.leaveSrc==='保護者');
+  return '<div class="row-sub" style="font-size:10.5px;white-space:nowrap;">'
+    +esc(r.come||'—')+(r.leave?'〜'+esc(r.leave):'')
+    +(fromP?'<span class="tag" title="保護者が未来WAで押した時刻です。先生が確定すると、この時刻で残ります。" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:4px;font-size:9.5px;padding:0 5px;">保護者</span>':'')
+    +'</div>';
+}
+/* 記録に入っていない、保護者が未来WAで押した時刻。記録には混ぜず、画面にだけ一言出す。
+   ・確定ずみの日に、確定のあとで押されたもの
+   ・先生が出欠を「休」にした日に押されたもの（休のまま時刻を刷ると、紙のつじつまが合わない）
+   ・先生が出欠を1回押して外した日（ciOff）。押し間違いでなかったときは「取り込む」で戻せる
+   r は画面に出す姿（edTouen の viewOf）。
+   ★確定のあとに押された降園は、園長が「修正を許可」しても記録に入れる方法が無かった。
+     補う処理（touenCheckinFill）は確定ずみの日には止めてあり、この画面には時刻の入力欄も無い。
+     「直すには許可が要ります」と案内しているのに、許可しても直せず、
+     延長保育のお迎えが確定のあとになる日は、降園時刻が帳簿にも紙にも入らなかった。
+     → 許可が出ているあいだだけ「取り込む」を出す。押したときだけ入れて、直した跡に残す。
+       自動では混ぜない（確定した記録が、保護者の操作で黙って変わらないように）。 */
+function touenCiLateHtml(date,cid,r,d){
+  var locked=isLocked(d),rest=!!(r&&r.att===absMarkOf('欠席')),offed=!!(r&&r.ciOff);
+  if(!locked&&!rest&&!offed)return '';
+  /* 欠席の連絡の「休」に押された登園を先生が外した日は、休が連絡から入り直すので、
+     出欠を押しても●に戻せない。取り込むボタンだけが戻し道になる */
+  var back=!locked&&offed&&rest&&r.attSrc==='保護者';
+  var ci=touenCheckinOf(date,cid);
+  if(!ci)return '';
+  var t=[];
+  if(ci.come&&!(r&&r.come))t.push('登園 '+ci.come);
+  if(ci.leave&&!(r&&r.leave))t.push('降園 '+ci.leave);
+  if(!t.length)return '';
+  var tip=locked?'確定したあとに、保護者が未来WAで押した時刻です。確定した記録には入っていません。'
+    :(rest?'出欠が「休」になっているので、保護者が未来WAで押した時刻は記録に入れていません。来ていたときは、出欠を押して直してください。'
+      :'先生が外した、保護者が未来WAで押した時刻です。記録には入っていません。');
+  var btn=((!rest||back)&&lockCanEdit(d))
+    ?'<button class="btn btn-sm" type="button" data-tcil="'+esc(cid)+'" title="'+(locked?'確定のあとに保護者が未来WAで押した時刻を、この記録に入れます。直した跡に残ります。':'外した保護者の時刻を、この記録に取り込みます。')+'" style="font-size:10px;padding:1px 7px;margin-left:5px;">取り込む</button>'
+    :'';
+  return '<div class="row-sub" data-noexport="1" title="'+tip+'" style="font-size:10px;white-space:nowrap;color:#854F0B;">未来WA：'+esc(t.join('・'))+btn+'</div>';
+}
+/* 紙の出欠の欄に、時刻を小さく添える */
+function touenTimePaper(r){
+  if(!r||(!r.come&&!r.leave))return '';
+  var fromP=(r.comeSrc==='保護者'||r.leaveSrc==='保護者');
+  return '<div style="font-size:8px;line-height:1.3;white-space:nowrap;">'+esc(r.come||'—')+(r.leave?'〜'+esc(r.leave):'')+(fromP?'（保護者）':'')+'</div>';
+}
+/* きょう登園・降園を押されたお子さまの数（ホームの本日のタスク） */
+function touenCheckinCount(date){
+  var n={come:0,leave:0},ids={};
+  PSTATE.list('checkin_log').forEach(function(x){ if(x&&x.date===date&&!x.undo)ids[String(x.childId)]=1; });
+  Object.keys(ids).forEach(function(id){
+    var ci=touenCheckinOf(date,id);
+    if(ci&&ci.come)n.come++;
+    if(ci&&ci.leave)n.leave++;
+  });
+  return n;
+}
+/* 登園シートを開いているあいだ、保護者が押した登園・降園を取りに行く。
+   保護者から届いたものは、ログインした最初の1回しか取りに行っていない。
+   朝のあいだ開きっぱなしにしていると、あとから押された登園が出てこないので、
+   1分に1回まで取りに行き、変わっていたときだけ描き直す。
+   入力中・窓が開いているとき・検温の途中は描き直さない（打ちかけが消えるため）。 */
+function touenCheckinRefresh(){
+  if(TOUEN_CI&&!TOUEN_CI.t)TOUEN_CI.t=setInterval(touenCheckinRefresh,60000);
+  try{
+    if(!API.online()||PSTATE.busy||document.hidden)return;
+    var dt=document.getElementById('tsDate');
+    if(!dt)return;
+    var sec=dt.closest?dt.closest('section'):null;
+    if(sec&&sec.hidden)return;
+    if(PSTATE.at&&(Date.now()-PSTATE.at.getTime())<55000)return;
+    var before=localStorage.getItem('cocoas_pstate_checkin_log')||'';
+    PSTATE.pull().then(function(){
+      var after=localStorage.getItem('cocoas_pstate_checkin_log')||'';
+      if(after===before)return;
+      var ae=document.activeElement;
+      if(ae&&(/^(INPUT|TEXTAREA|SELECT)$/.test(ae.nodeName)||ae.isContentEditable))return;
+      if(document.querySelector('.modal-bg'))return;
+      if(typeof THF!=='undefined'&&THF.open)return;
+      /* ★thRedraw は出欠のボタンが1つも無いと何もしないので、開いた時点で園児が0人の表
+         （土曜保育・振替の日など）には、あとから押された登園がいつまでも出なかった。
+         登園シートを開いていることを確かめて、直接描き直す。 */
+      if(typeof recType!=='undefined'&&recType!=='登園（出席）')return;
+      if(!document.getElementById('tsDate'))return;
+      var y=window.scrollY||0;
+      edTouen();
+      setTimeout(function(){window.scrollTo(0,y);},0);
+    }).catch(function(){});
+  }catch(e){}
 }
 function showStaffLogin(){
   var ov=document.getElementById('staffLogin');if(!ov){ov=el('div',{id:'staffLogin'});document.body.appendChild(ov);}
@@ -24574,7 +24961,8 @@ var SP_GROUPS=[
     {k:'telHome',label:'自宅の電話'}
   ]},
   /* お迎えできる方（brightwheel の authorized pickup にあたる・2026-09-12）。
-     登降園キオスクで「どなたが迎えに来たか」を選ぶ元になる。
+     引き渡しのときに「どなたが迎えに来たか」を確かめる元になる
+     （登降園キオスクは 2026-09-14 に入口から外した。登降園は未来WAで押す）。
      引き渡し事故を防ぐため、ここに無い方には渡さないのが園の決まり。 */
   {g:'お迎えできる方',f:[
     {k:'pickup1',label:'お迎え①（お名前・続柄・電話）',ph:'例：山田 花子（母）090-0000-0000'},
@@ -28133,7 +28521,8 @@ var HELP_MORE={
   '「活動内容を編集」で足した活動は、月間のねらい・担当にも、Week1〜4の入力欄にも、そのまま増えます。']},
  records:{tips:[
   '安全点検は、場所ごとに「良／要対応」を押します。要対応があれば、下のメモに対応を書いてください。月末に月間表として出力できます。',
-  '健康チェックは、その日出席した園児が並びます。症状のある子は「症状を記録」で記録し、それ以外は「症状なし」として記録に残ります。体温は「登園（出席）」の値がそのまま入ります。']},
+  '健康チェックは、その日出席した園児が並びます。症状のある子は「症状を記録」で記録し、それ以外は「症状なし」として記録に残ります。体温は「登園（出席）」の値がそのまま入ります。',
+  '保護者が未来WAで「登園」「降園」を押すと、登園シートの空欄に出ます（出欠の●と時刻に「保護者」の札が付きます）。先生が入れた欄は変わりません。確定すると、その値で残ります。']},
  carerec:{tips:[
   '身体測定は、クラスを選ぶとその園児が並びます。身長・体重を入れると、カウプ指数が自動で出ます。',
   '事故・ヒヤリハットの記録では、人の形の絵を押して、けがの場所を前・後ろで記録できます。',
@@ -28381,6 +28770,7 @@ var HELP_KB={
    '上のタブで「登園（出席）」を選び、日付とクラスを選びます。その曜日に来る予定の園児だけが出ます。',
    '出欠のボタンを押すたびに ●出席 → 早退 → 遅刻 → 休 と変わります。体温も入れてください。',
    '保護者から欠席の連絡が来ている子は、同じ行に内容が出ます。曜日に関わらず必ず表示されます。',
+   '保護者が未来WAで登園・降園を押すと、登園シートの空欄に出ます。先生が入れた欄は変わりません。',
    '「健康チェック」に移ると、出席の子だけが自動で並び、体温も入っています。37.5℃以上は赤く「発熱」と出ます。',
    '症状のある子だけ「症状を記録」を押します。ほかは「全員症状なしを記録」で一度に済みます。'],
   tips:['登園シートを先に入れてください。入れていないと健康チェックに体温が入りません。',

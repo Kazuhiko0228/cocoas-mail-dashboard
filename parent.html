@@ -764,7 +764,9 @@ var PLOCK={
     if(idle<PLOCK.MAXMS&&PLOCK.typing())return;
     PLOCK.lock();
   },
-  lock:function(){
+  /* why==='relogin' は、ログインの期限が切れて登園・降園が送れないときに、同じ窓でログインし直してもらう。
+     ロックの解除と同じ道（同じご家庭のログイン）を通るので、まだ送っていない控えが消えない。 */
+  lock:function(why){
     var c=sessionChild();
     if(PLOCK.locked||!c)return;
     PLOCK.locked=true;
@@ -772,13 +774,18 @@ var PLOCK={
     if(!ov){ov=document.createElement('div');ov.id='plock';document.body.appendChild(ov);}
     ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#0F6E56;display:flex;align-items:center;justify-content:center;padding:20px;';
     ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:360px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit;">'
-      +'<div style="font-size:18px;font-weight:700;margin-bottom:6px;">画面をロックしました</div>'
-      +'<div style="font-size:12.5px;color:#666;line-height:1.75;margin-bottom:14px;">しばらく操作がなかったため、鍵をかけました。<br>入力の途中の内容は消えていません。パスワードを入れると、続きからお使いいただけます。</div>'
+      +(why==='relogin'
+        ?'<div style="font-size:18px;font-weight:700;margin-bottom:6px;">もう一度ログインしてください</div>'
+          +'<div style="font-size:12.5px;color:#666;line-height:1.75;margin-bottom:14px;">ログインの有効期限が切れました。<br>パスワードを入れると、まだ園に届いていない登園・降園を送ります。</div>'
+        :'<div style="font-size:18px;font-weight:700;margin-bottom:6px;">画面をロックしました</div>'
+          +'<div style="font-size:12.5px;color:#666;line-height:1.75;margin-bottom:14px;">しばらく操作がなかったため、鍵をかけました。<br>入力の途中の内容は消えていません。パスワードを入れると、続きからお使いいただけます。</div>')
       +'<div id="plErr" style="color:#B00;font-size:12px;margin-bottom:8px;display:none;"></div>'
       +'<input id="plPw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" style="width:100%;border:1px solid #ddd;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px;box-sizing:border-box;font-family:inherit;">'
       +'<button id="plGo" style="width:100%;background:#0F6E56;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">ロックを解除する</button>'
       +'<div style="text-align:center;margin-top:12px;"><button id="plOut" style="background:none;border:none;color:#666;font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit;">ログアウトする</button></div>'
       +'</div>';
+    /* 英語にしているときは、窓の文字も英語にする（描き直しを通らないので、ここで差し替える） */
+    try{langApply(ov);}catch(e){}
     var go=document.getElementById('plGo'),pw=document.getElementById('plPw'),er=document.getElementById('plErr');
     go.onclick=function(){
       var v=pw.value;
@@ -791,7 +798,8 @@ var PLOCK={
       });
     };
     pw.addEventListener('keydown',function(e){if(e.key==='Enter')go.click();});
-    document.getElementById('plOut').onclick=function(){PLOCK.unlock();logout();};
+    /* ログアウトをやめたときに、鍵を外したままにしないよう、先に確かめてから外す */
+    document.getElementById('plOut').onclick=function(){if(!chkLogoutOk())return;PLOCK.unlock();logout(true);};
     try{pw.focus();}catch(e){}
   },
   unlock:function(){
@@ -958,7 +966,10 @@ function login(email,pw,cb){
   cb(false);
 }
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
-function logout(){
+function logout(asked){
+  /* 園にまだ届いていない登園・降園があるときは、消える前にお知らせする。
+     ボタンから呼ばれると asked にクリックの情報が入るので、true のときだけ確認ずみとみなす */
+  if(asked!==true&&!chkLogoutOk())return;
   try{WAPI.setToken('');}catch(e){}
   /* お支払いの一覧はご家庭のもの。共用のタブレットで次の方に見せない。 */
   try{WPAY.reset();WPAY.pending=null;}catch(e){}
@@ -983,7 +994,7 @@ function logout(){
   }catch(e){}
   render();}
 function resetDemo(){
-  ['parentAccounts','absence_log'].forEach(function(k){localStorage.removeItem('cocoas_'+k);});
+  ['parentAccounts','absence_log','checkin_log'].forEach(function(k){localStorage.removeItem('cocoas_'+k);});
   Object.keys(localStorage).filter(function(k){return k.indexOf('cocoas_posts_seen_')===0;}).forEach(function(k){localStorage.removeItem(k);});
   sessionStorage.removeItem('cocoas_psession');
   seedAll();
@@ -4374,6 +4385,33 @@ var EN_DICT={
 'ご購入前に確認をご希望の場合は info@bimjapan.jp へご連絡ください。':'To check before buying, please contact info@bimjapan.jp.',
 '休園希望月の前々月{0}日〜前々月末営業日までにご提出ください。年度内の休園は最大{1}か月です。休園月分の基本保育料・授業料の{2}％をいただき、お席を確保します。教育関連費は全額発生します。':'Please submit between day {0} and the last business day of the month two months before your leave begins. Leave can last up to {1} months per school year. For each month of leave, we charge {2}% of the base childcare fee/tuition to hold your child’s place. Education expenses are charged in full.',
 'ご案内の書き方を変えました（園の預かり先にも保存する旨を書き足しています）。緊急のご連絡の案内は、出欠・連絡の画面に移しました。未来WAの説明は、園からお届けするものを先に書く形にしました。':'We’ve reworded our notice (it now mentions that your information is also stored with the school’s storage provider). Emergency contact guidance has moved to the Attendance & Messages screen. The MiraiWA description now lists what the school sends you first.',
+'🚸 きょうの登園・降園':'🚸 Today’s drop-off & pick-up',
+'園に着いたら「登園」、お迎えのときに「降園」を押してください。':'Tap “Drop-off” when you arrive at school, and “Pick-up” when you collect your child.',
+'きょうは欠席の連絡ずみ':'Absence already reported for today',
+'欠席の連絡を出していますが、登園が押されています。登園された場合は、園にもひと言お伝えください。':'You reported an absence, but drop-off was tapped. If your child did attend, please let the school know.',
+'まだ押していません':'Not tapped yet',
+'押してから10分のあいだは取り消せます':'You can undo within 10 minutes',
+'押した時刻は、園の登園シートの空いている欄に出ます。記録にするのは園の先生です。':'The time you tap appears in the empty fields of the school’s attendance sheet. A teacher confirms the record.',
+'園とつながっていないため、この端末の中にだけ残ります。':'Not connected to a school, so this is saved on this device only.',
+'降園は記録ずみです':'Pick-up is already recorded',
+'登園は記録ずみです':'Drop-off is already recorded',
+'先に登園を押してください':'Please tap Drop-off first',
+'きょうは欠席の連絡を出しています。登園された場合は、園にもひと言お伝えください。':'You reported an absence for today. If your child did attend, please let the school know.',
+'登園を押しました':'Drop-off recorded',
+'降園を押しました':'Pick-up recorded',
+'10分を過ぎたため取り消せません。まちがいは園にお伝えください。':'More than 10 minutes have passed, so this can’t be undone. Please tell the school about the mistake.',
+'取り消しました':'Undone',
+'まだ園に届いていません（電波が戻ると送ります）':'Not delivered to the school yet (it will be sent when you have a signal again)',
+'まだ園に届いていません。ログインし直すと送ります。':'Not delivered to the school yet. Log in again to send it.',
+'ログインし直す':'Log in again',
+'ログインの有効期限が切れました。':'Your session has expired.',
+'パスワードを入れると、まだ園に届いていない登園・降園を送ります。':'Enter your password to send the drop-off/pick-up records that haven’t reached the school yet.',
+'きょうは降園を押しています。もう一度登園にしますか？':'Pick-up is already recorded today. Record drop-off again?',
+'登園にすると、園の登園シートの登園の時刻は、いまの時刻に変わります。':'If you do, the drop-off time on the school’s attendance sheet will change to now.',
+'もう一度登園にする':'Record drop-off again',
+'まだ園に届いていない登園・降園があります。ログアウトすると、この端末から消えます。よろしいですか？':'Some drop-off/pick-up records haven’t reached the school yet. Logging out will remove them from this device. Continue?',
+'園に着いたら、いちばん上の「🚸 きょうの登園・降園」で「登園」を、お迎えのときに「降園」を押します。':'When you arrive, tap “Drop-off” in “🚸 Today’s drop-off & pick-up” at the top; tap “Pick-up” when you collect your child.',
+'押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
 };
 
 
@@ -5658,7 +5696,8 @@ function wirePortal(c){
     /* homeHTML と newsHTML はどちらも「おたより・キャンペーン・SNS」を描画するため、
        並べると同じものが2度出る。スクールタブは newsHTML（全件）に一本化する。 */
     /* 依頼どおりの並び：出欠・連絡（履歴を内包）→ 園からの個人メッセージ → おたより・SNS */
-    sc.innerHTML=attHTML(c)+dayNotesHTML(c)+dmHTML(c)+photoHTML(c)+newsHTML(c);
+    /* 登園・降園は毎日2回押すものなので、いちばん上に置く（2026-09-14 のご判断） */
+    sc.innerHTML=checkinHTML(c)+attHTML(c)+dayNotesHTML(c)+dmHTML(c)+photoHTML(c)+newsHTML(c);
   }
   else if(tab==='play') sc.innerHTML=waPostOpen?feedPageHTML(waPostOpen,'play')
     :'<div id="feedZone">'+feedHTML('play')+'</div>';
@@ -5679,7 +5718,7 @@ function wirePortal(c){
   /* 健康に関する情報の同意画面を出しているあいだは、
      もとの画面のボタンは無くなっているので、その配線はしない */
   if(waHealthView) return;
-  if(tab==='school'){wireAtt(c);wireDM(c);wirePhoto(c);}
+  if(tab==='school'){wireCheckin(c);wireAtt(c);wireDM(c);wirePhoto(c);}
   if(tab==='play') waPostOpen?wirePostActs('play'):wireFeed('play');
   if(tab==='learn') waPostOpen?wirePostActs('learn'):wireFeed('learn');
   if(tab==='store') wireStore(c);
@@ -5863,6 +5902,307 @@ function homeHTML(c){
     +(latest.length?latest.map(function(p){return postRow(p,seen.indexOf(p.id)<0);}).join(''):bloomEmpty('まだおたよりはありません'))+'</div>'
     + snsHTML()
     +'<div class="card"><h2 class="sec sec-o">📅 おやすみの連絡</h2><div class="muted" style="margin-bottom:11px;">当日・事前のおやすみ／遅刻などを園に連絡できます。</div><button class="btn sec" data-tab2="att">出欠連絡をひらく</button></div>';
+}
+
+/* ---- 登園・降園（保護者が押す） ----
+   （2026-09-14 安田さん・Remiさんのご判断）登園・降園は、保護者が未来WAで押す。
+   PINコードは使わない。園のタブレットの「登降園（保護者用）」は入口から外した。
+
+   押したものは、保護者側の控え（checkin_log）にだけ残す。
+   園の登園シート（rec_登園シート）には直に書かない。欠席の連絡（absence_log）と同じ考え方で、
+   確定した記録が保護者の操作で変わると、監査でお出しする紙が嘘になるため。
+   園の登園シートでは、先生がまだ入れていない欄にだけ出て、先生が確定したときに記録になる。
+
+   取り消しは、消さずに undo の印を付ける。
+   消してしまうと、押してから取り消した跡が園から見えなくなるため。 */
+var CHK_UNDO_MIN=10;
+var chkTimer=null;
+function chkLog(){var v=stGet('checkin_log',[]);return Array.isArray(v)?v:[];}
+/* 時刻は「8:31」の形（押した端末の時刻）。園の登園シートの時刻と同じ書き方にそろえる */
+function chkNowHM(){var d=new Date();return d.getHours()+':'+pad(d.getMinutes());}
+function chkMin(hm){var m=String(hm||'').match(/^(\d{1,2}):(\d{2})$/);return m?(+m[1])*60+(+m[2]):-1;}
+/* そのお子さまの、きょう押したもの（取り消したものは除く）。押した順のまま。
+   childId は数値と文字列が混ざることがあるので、文字にそろえて比べる */
+function chkTodayOf(cid){
+  var t=todayISO();
+  return chkLog().filter(function(x){return x&&String(x.childId)===String(cid)&&x.date===t&&!x.undo;});
+}
+/* いまの状態。last がいちばん最後に押したもの。
+   降園のあとにもう一度登園したときは、その降園はもう「いま」の話ではないので出さない */
+function chkStateOf(cid){
+  var list=chkTodayOf(cid),inn=null,out=null,last=list.length?list[list.length-1]:null;
+  list.forEach(function(x){if(x.kind==='登園')inn=x;else if(x.kind==='降園')out=x;});
+  if(last&&last.kind==='登園')out=null;
+  return {inn:inn,out:out,last:last,inNow:!!(last&&last.kind==='登園')};
+}
+/* 押してから10分のあいだだけ取り消せる。日をまたいだものは取り消せない */
+function chkCanUndo(x){
+  if(!x||x.undo||x.date!==todayISO())return false;
+  var now=new Date(),d=(now.getHours()*60+now.getMinutes())-chkMin(x.at);
+  return chkMin(x.at)>=0&&d>=0&&d<=CHK_UNDO_MIN;
+}
+/* 園の控え（srv）を土台に、この端末にしか無い分（loc）を後ろに足す。
+   同じ1件かどうかは、お子さま・日付・種類・押した時刻で見る（園でも同じ鍵で見ているので、
+   足し合わせても二重にならない）。同じ鍵が何件もあるときは、数で数える。
+   足すのは、きょうかきのうの分だけ（園でも、それより前の新しい分は受け付けないため）。
+   取り消しの印は、どちらかに付いていれば付ける。changed は、園の控えから変わったかどうか。 */
+function chkMerge(srv,loc){
+  var base=Array.isArray(srv)?srv:[],out=[],pool={},changed=false,i;
+  var y=new Date();y.setDate(y.getDate()-1);
+  var t=todayISO(),yd=y.getFullYear()+'-'+pad(y.getMonth()+1)+'-'+pad(y.getDate());
+  function key(x){return [String(x.childId),x.date,x.kind,x.at].join('|');}
+  for(i=0;i<base.length;i++){
+    var s0=base[i];
+    if(!s0||typeof s0!=='object')continue;
+    var cp={},f;
+    for(f in s0)if(Object.prototype.hasOwnProperty.call(s0,f))cp[f]=s0[f];
+    out.push(cp);
+    (pool[key(cp)]=pool[key(cp)]||[]).push(cp);
+  }
+  (Array.isArray(loc)?loc:[]).forEach(function(x){
+    if(!x||typeof x!=='object')return;
+    var same=pool[key(x)];
+    if(same&&same.length){
+      var hit=same.shift();
+      if(x.undo&&!hit.undo){hit.undo=true;changed=true;}
+      return;
+    }
+    if(x.date!==t&&x.date!==yd)return;
+    var add={childId:x.childId,date:x.date,kind:x.kind,at:x.at};
+    if(x.by)add.by=x.by;
+    if(x.undo)add.undo=true;
+    out.push(add);changed=true;
+  });
+  if(out.length>200)out=out.slice(out.length-200);
+  return {log:out,changed:changed};
+}
+/* 園にまだ届いていない登園・降園があるかの印（押した・取り消したときに立て、園に届いたら下ろす）。
+   端末に残す。送る予約（WSYNC.q）はこの画面の中にしか無く、閉じると消えるため。
+   ★以前は「送れなかった」ことを画面の中だけで覚えていた。電波の無いまま開き直すと
+   「園の登園シートの空いている欄に出ます」に戻り、電波が戻っても送り直さず、園に届かなかった。
+   名前を wa_chk で始めるのは、園に送る一覧（WA_SEND）に入れず、読み込みでも書き換えさせないため。 */
+var CHK_UNSENT_KEY='cocoas_wa_chkUnsent',CHK_OWNER_KEY='cocoas_wa_chkOwner';
+/* 画面に戻ってきたときに、控えを読み直すまでの間（もう1台で押した分を拾うため） */
+var CHK_REPULL_MS=2*60*1000;
+/* 降園のあとに登園を押したときの「もう一度登園にしますか」を出しているお子さま */
+var chkAgain={};
+var chkChecking=false;
+function chkDirty(){try{return localStorage.getItem(CHK_UNSENT_KEY)||'';}catch(e){return '';}}
+function chkDirtySet(on){try{
+  if(on)localStorage.setItem(CHK_UNSENT_KEY,String(Date.now())+'-'+Math.floor(Math.random()*1000000));
+  else localStorage.removeItem(CHK_UNSENT_KEY);
+}catch(e){}}
+/* 控えの持ち主。接続先・園・メールアドレスで見る
+   （見本のご家庭や、よその園のたまたま同じ番号のお子さまと取り違えないため） */
+function chkOwnerOf(email){return [WAPI.base(),WAPI.tenant(),String(email||'').replace(/^\s+|\s+$/g,'').toLowerCase()].join('|');}
+/* 園にまだ届いていない控えがあるか。
+   押した直後の、送っている最中は出さない（届けばすぐ消えて、ちらつくだけのため）。
+   ★以前は「つながっていて、送れずに待っている」ときしか見ていなかった。
+   ログインの期限が切れて送れなかったとき（つながっていない扱いになる）や、開き直したときは、
+   届いていないのに「園の登園シートの空いている欄に出ます」と出ていた。 */
+function chkUnsent(){
+  if(!WAPI.enabled()||!chkDirty())return false;
+  if(WAPI.online()&&WSYNC.busy&&!WSYNC.fail)return false;
+  return true;
+}
+/* ログアウトすると、この端末の控えはすべて消える。まだ届いていない分があるときだけ確かめる */
+function chkLogoutOk(){
+  try{if(!chkUnsent())return true;}catch(e){return true;}
+  return confirm('まだ園に届いていない登園・降園があります。ログアウトすると、この端末から消えます。よろしいですか？');
+}
+/* 園から返ってきた控え（srv）に、この端末にしか無い分を足して保存する。足した分があれば、そのまま送る。
+   読み込み（WSYNC.pull）と、控えだけの読み直し（WSYNC.pullChk）の両方から使う。 */
+function chkApplySrv(srv){
+  var raw=window.__rawSet||localStorage.setItem.bind(localStorage);
+  var mg=chkMerge(srv,chkLog());
+  if(mg.changed||Array.isArray(srv))raw('cocoas_checkin_log',JSON.stringify(mg.log));
+  if(mg.changed){
+    chkDirtySet(true);
+    WSYNC.mark('checkin_log');clearTimeout(WSYNC.timer);WSYNC.push();
+  }
+  /* 端末の分がすべて園に届いていたら、印を下ろす（送った返事だけが途中で切れたときなど）。
+     送っている最中や、送る予約があるときは、あとから押した分があるかもしれないので下ろさない */
+  else if(!WSYNC.busy&&!WSYNC.q.checkin_log)chkDirtySet(false);
+  return mg;
+}
+function chkAbsentToday(k){
+  var t=todayISO();
+  return myAbsences(k).some(function(a){return a.date===t&&a.kind==='欠席';});
+}
+/* ごきょうだいを並べる。ボタンの番号から、そのご家庭のお子さまだけを引く
+   （画面の番号を書き換えられても、よそのお子さまの分は作らない） */
+function chkKids(c){var l=myChildren();return l.length?l:(c?[c]:[]);}
+function chkKid(c,id){return chkKids(c).filter(function(k){return String(k.id)===String(id);})[0]||null;}
+function checkinHTML(c){
+  var kids=chkKids(c),today=todayISO();
+  var h='<div class="card" id="chkCard"><h2 class="sec sec-g">🚸 きょうの登園・降園</h2>'
+    +'<div class="muted" style="margin-bottom:4px;"><b>'+esc(fmtDate(today))+'</b></div>'
+    +'<div class="muted" style="margin-bottom:12px;line-height:1.7;">園に着いたら「登園」、お迎えのときに「降園」を押してください。</div>';
+  kids.forEach(function(k,i){
+    var st=chkStateOf(k.id),abs=chkAbsentToday(k);
+    h+='<div style="'+(i?'border-top:1px solid var(--line);margin-top:14px;padding-top:14px;':'')+'">';
+    if(kids.length>1)h+='<div style="font-weight:800;font-size:14.5px;margin-bottom:6px;">'+esc(childFullName(k))+'</div>';
+    if(abs){
+      h+='<div class="info-urg" style="margin-bottom:8px;">きょうは欠席の連絡ずみ</div>';
+      /* 欠席の連絡を出したまま登園を押したときは、どちらが正しいか園が迷うので、ここで気づけるようにする */
+      if(st.inn)h+='<div class="info" style="margin-bottom:8px;">欠席の連絡を出していますが、登園が押されています。登園された場合は、園にもひと言お伝えください。</div>';
+    }
+    /* いまの状態。時刻は別の札にして、英語に切り替えても数字が崩れないようにする */
+    h+='<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline;font-size:15px;margin-bottom:10px;">';
+    if(!st.inn)h+='<span class="muted">まだ押していません</span>';
+    else{
+      h+='<span><span style="color:#2C5A12;font-weight:700;">登園</span> <b style="font-size:19px;">'+esc(st.inn.at)+'</b></span>';
+      if(st.out)h+='<span><span style="color:#0C447C;font-weight:700;">降園</span> <b style="font-size:19px;">'+esc(st.out.at)+'</b></span>';
+    }
+    h+='</div>';
+    /* 片手で押せるように大きく。確認の窓は出さない（押し間違いは「取り消す」で戻す）。
+       ただし降園のあとの登園だけは、下に小さく確かめを出す（chkPress に理由）。
+       登園の前の降園は、押せる見た目にしないが、押したら理由を出す（何も起きないと故障に見える） */
+    var big='min-height:64px;font-size:20px;font-weight:800;border-radius:16px;';
+    h+='<div class="grid2">'
+      +'<button class="btn" data-chk="登園" data-cid="'+esc(k.id)+'" aria-disabled="'+((st.inNow||st.out)?'true':'false')+'" style="'+big+'background:var(--g);'+((st.inNow||st.out)?'opacity:.5;':'')+'">登園</button>'
+      +'<button class="btn" data-chk="降園" data-cid="'+esc(k.id)+'" aria-disabled="'+(st.inNow?'false':'true')+'" style="'+big+'background:var(--b);'+(st.inNow?'':'opacity:.4;')+'">降園</button>'
+      +'</div>';
+    if(chkAgain[String(k.id)]&&st.out){
+      h+='<div class="info" style="margin-top:8px;">'
+        +'<div style="font-weight:700;">きょうは降園を押しています。もう一度登園にしますか？</div>'
+        +'<div style="font-size:12px;margin-top:2px;">登園にすると、園の登園シートの登園の時刻は、いまの時刻に変わります。</div>'
+        +'<div style="display:flex;gap:8px;margin-top:8px;">'
+        +'<button class="btn sec" data-chkagainno="'+esc(k.id)+'" style="flex:1;padding:9px;font-size:14px;">やめる</button>'
+        +'<button class="btn" data-chkagain="'+esc(k.id)+'" style="flex:1;padding:9px;font-size:14px;background:var(--g);">もう一度登園にする</button>'
+        +'</div></div>';
+    }
+    if(chkCanUndo(st.last)){
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">'
+        +'<span class="muted" style="font-size:12px;">押してから10分のあいだは取り消せます</span>'
+        +'<button class="btn sec" data-chkundo="'+esc(k.id)+'" style="width:auto;padding:8px 16px;font-size:14px;">取り消す</button></div>';
+    }
+    h+='</div>';
+  });
+  /* ★送れていなくても「園の登園シートの空いている欄に出ます」と出していた。
+     電波の無いところで押すと、保護者は届いたつもりになり、先生の登園シートは空のままだった。
+     送れずに送り直しを待っているあいだは、そう書く。 */
+  if(chkUnsent()){
+    h+='<div class="info-urg" style="font-size:12.5px;margin-top:12px;line-height:1.7;">';
+    /* つながっていない扱い＝ログインの期限切れ。電波が戻っても送れないので、ログインし直す道を出す */
+    if(WAPI.online())h+='まだ園に届いていません（電波が戻ると送ります）</div>';
+    else h+='まだ園に届いていません。ログインし直すと送ります。'
+      +'<button class="btn" data-chklogin="1" style="display:block;width:100%;margin-top:8px;padding:10px;font-size:14px;">ログインし直す</button></div>';
+  }
+  else h+='<div class="muted" style="font-size:12px;margin-top:12px;line-height:1.7;">'
+    +(WAPI.online()?'押した時刻は、園の登園シートの空いている欄に出ます。記録にするのは園の先生です。'
+      :'園とつながっていないため、この端末の中にだけ残ります。')+'</div>';
+  return h+'</div>';
+}
+/* sure … 確かめずみ（降園：園の控えを読み直した／登園：「もう一度登園にする」を押した） */
+function chkPress(c,k,kind,sure){
+  var st=chkStateOf(k.id);
+  delete chkAgain[String(k.id)];
+  if(kind==='降園'&&!st.inNow){
+    if(st.out){toast(langMsg('降園は記録ずみです'));chkRedraw(c);return;}
+    /* 同じアカウントのもう1台で押した登園が、この端末にまだ来ていないことがある。断る前に読み直す。
+       ★以前は開いたときにしか読み直さず、もう1台で押した登園が見えないまま
+       「先に登園を押してください」と断っていた。お迎えの人がそこで登園を押すと夕方の登園がもう1件でき、
+       園の登園シートの朝の時刻が置き換わっていた。
+       読み直せなかったとき、読み直しても登園が無いときだけ断る。 */
+    if(chkChecking)return;
+    if(!sure&&WAPI.online()){
+      chkChecking=true;
+      toast(langMsg('確かめています…'));
+      WSYNC.pullChk().then(function(){},function(){}).then(function(){
+        chkChecking=false;
+        if(chkStateOf(k.id).inNow)chkPress(c,k,'降園',true);
+        else{toast(langMsg('先に登園を押してください'));chkRedraw(c);}
+      });
+      return;
+    }
+    toast(langMsg('先に登園を押してください'));
+    chkRedraw(c);
+    return;
+  }
+  /* 続けて2回押してしまったときに、同じ登園を2つ作らない。
+     2つできると「取り消す」を押しても、もう1つが残って戻らないように見える */
+  if(kind==='登園'&&st.inNow){toast(langMsg('登園は記録ずみです'));return;}
+  /* きょう降園を押したあとの登園は、すぐには作らず、カードの中で「もう一度登園にしますか」と確かめる。
+     ★以前は最後が登園のときしかはじかず、降園のあとに隣の「登園」に指が触れると、
+     確認なしで新しい登園になった。園の登園シートでは「最後の登園・最後の降園」を出すので、
+     朝の登園の時刻が置き換わり、降園が登園より早い行になっていた。
+     お迎えのあとにもう一度登園する、というまれな場合もあるので、はじかずに確かめる形にした。
+     窓（confirm）にしないのは、ほかのボタンと同じく片手で押せる大きさにそろえるため。 */
+  if(kind==='登園'&&st.out&&!sure){
+    chkAgain[String(k.id)]=true;
+    chkRedraw(c);
+    return;
+  }
+  var e={childId:k.id,date:todayISO(),kind:kind,at:chkNowHM()};
+  var by=String(k.name||'').replace(/^\s+|\s+$/g,'').slice(0,60);
+  if(by)e.by=by;
+  var log=chkLog();
+  log.push(e);
+  /* 園側でも最新200件までしか預からないので、端末の中もそろえる */
+  if(log.length>200)log=log.slice(log.length-200);
+  stSet('checkin_log',log);
+  /* 園に届くまで「まだ届いていない」の印を端末に残す（園につないでいるときだけ） */
+  if(WAPI.enabled())chkDirtySet(true);
+  /* 待たずにその場で送る。
+     ★以前は保存の予約から1.5秒待ってから送っていたので、押してすぐ閉じると送られず、
+     開いたときの読み込みで上書きされて、押した登園が消えていた。 */
+  if(WAPI.online()){clearTimeout(WSYNC.timer);WSYNC.push();}
+  if(kind==='登園'&&chkAbsentToday(k))toast(langMsg('きょうは欠席の連絡を出しています。登園された場合は、園にもひと言お伝えください。'),4200);
+  else toast(langMsg(kind==='登園'?'登園を押しました':'降園を押しました'));
+  chkRedraw(c);
+}
+function chkUndo(c,k){
+  var t=todayISO(),log=chkLog(),i,hit=-1;
+  for(i=log.length-1;i>=0;i--){
+    var x=log[i];
+    if(x&&String(x.childId)===String(k.id)&&x.date===t&&!x.undo){hit=i;break;}
+  }
+  if(hit<0){chkRedraw(c);return;}
+  if(!chkCanUndo(log[hit])){toast(langMsg('10分を過ぎたため取り消せません。まちがいは園にお伝えください。'),3600);chkRedraw(c);return;}
+  log[hit].undo=true;
+  delete chkAgain[String(k.id)];
+  stSet('checkin_log',log);
+  if(WAPI.enabled())chkDirtySet(true);
+  /* 取り消しも、押したときと同じく待たずに送る */
+  if(WAPI.online()){clearTimeout(WSYNC.timer);WSYNC.push();}
+  toast(langMsg('取り消しました'));
+  chkRedraw(c);
+}
+/* カードだけを描き直す。画面ぜんぶを描き直すと、下の出欠の連絡に書きかけた文が消えるため */
+function chkRedraw(c){
+  var card=document.getElementById('chkCard');
+  if(!card)return;
+  var tmp=document.createElement('div');
+  tmp.innerHTML=checkinHTML(c);
+  var nw=tmp.firstChild;
+  card.parentNode.replaceChild(nw,card);
+  try{langApply(nw);}catch(e){}
+  wireCheckin(c);
+}
+function wireCheckin(c){
+  var card=document.getElementById('chkCard');
+  clearTimeout(chkTimer);
+  if(!card)return;
+  card.querySelectorAll('[data-chk]').forEach(function(b){b.onclick=function(){
+    var k=chkKid(c,b.getAttribute('data-cid'));
+    if(k)chkPress(c,k,b.getAttribute('data-chk'));
+  };});
+  card.querySelectorAll('[data-chkundo]').forEach(function(b){b.onclick=function(){
+    var k=chkKid(c,b.getAttribute('data-chkundo'));
+    if(k)chkUndo(c,k);
+  };});
+  card.querySelectorAll('[data-chkagain]').forEach(function(b){b.onclick=function(){
+    var k=chkKid(c,b.getAttribute('data-chkagain'));
+    if(k)chkPress(c,k,'登園',true);
+  };});
+  card.querySelectorAll('[data-chkagainno]').forEach(function(b){b.onclick=function(){
+    delete chkAgain[String(b.getAttribute('data-chkagainno'))];
+    chkRedraw(c);
+  };});
+  card.querySelectorAll('[data-chklogin]').forEach(function(b){b.onclick=function(){PLOCK.lock('relogin');};});
+  /* 10分を過ぎたら「取り消す」を引っ込める。開いたままの画面に残り続けないように */
+  if(card.querySelector('[data-chkundo]'))chkTimer=setTimeout(function(){chkRedraw(c);},30000);
 }
 
 /* ---- ATTENDANCE ---- */
@@ -6130,9 +6470,11 @@ document.addEventListener('click',function(e){
    ============================================================ */
 var WA_HELP={
  school:{t:'スクール',
-  kw:'欠席 休み 遅刻 早退 送迎 連絡 出欠 メッセージ 返信 既読 おたより お知らせ 連絡帳 やすみ 熱 発熱 病気 電話 先生 担任',
+  kw:'登園 降園 お迎え 着いた 取り消す 欠席 休み 遅刻 早退 送迎 連絡 出欠 メッセージ 返信 既読 おたより お知らせ 連絡帳 やすみ 熱 発熱 病気 電話 先生 担任',
   can:'園への連絡と、園からのお知らせを見るところです。',
-  steps:['「📅 出欠・連絡」で、日付を選びます。',
+  steps:['園に着いたら、いちばん上の「🚸 きょうの登園・降園」で「登園」を、お迎えのときに「降園」を押します。',
+   '押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。',
+   '「📅 出欠・連絡」で、日付を選びます。',
    '区分を「欠席」か「送迎時間変更」から選びます。欠席のときは、病欠か都合欠かも選べます。',
    '送迎時間変更を選ぶと、登園とお迎えの時刻を入れられます。',
    '伝えたいことを書いて「この内容を送信する」を押します。',
@@ -6512,9 +6854,10 @@ var WAPI={
    サーバ側でも同じ一覧で弾いているので、二重に守っている。 */
 /* wa_health_consent … 健康に関する情報の同意。
    規約では取得の記録を残す必要があるため、端末の中だけでなく園にも送る。 */
-var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_feed_comment|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen)$/;
+/* checkin_log … 登園・降園を押した控え。園の登園シートの空欄に出すため、園にも送る。 */
+var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_feed_comment|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|checkin_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen)$/;
 
-var WSYNC={q:{},timer:null,busy:false,msg:'',
+var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,chkP:null,
   mark:function(key){
     if(!WAPI.online())return;
     var k=String(key).replace(/^cocoas_/,'');
@@ -6527,33 +6870,83 @@ var WSYNC={q:{},timer:null,busy:false,msg:'',
     if(!WAPI.online()||WSYNC.busy)return Promise.resolve();
     var keys=Object.keys(WSYNC.q);
     if(!keys.length)return Promise.resolve();
+    var was=chkUnsent(),stamp=chkDirty(),hasChk=keys.indexOf('checkin_log')>=0;
     WSYNC.busy=true;WSYNC.q={};WSYNC.say('保存中…');
-    var data={};
+    clearTimeout(WSYNC.retry);
+    var data={},ok=false;
     keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){data[k]=null;}});
     return WAPI.call('PUT','/parent/state',{data:data})
-      .then(function(){WSYNC.say('保存しました',true);})
-      .catch(function(e){
-        /* 送れなかったぶんは、次の機会にもう一度送る */
-        keys.forEach(function(k){WSYNC.q[k]=true;});
-        WSYNC.say('未保存：'+e.message);
+      .then(function(){
+        ok=true;WSYNC.fail=false;WSYNC.say('保存しました',true);
+        /* 送っているあいだに押された分があれば（印が変わっている・予約がある）、まだ下ろさない */
+        if(hasChk&&!WSYNC.q.checkin_log&&chkDirty()===stamp)chkDirtySet(false);
       })
-      .then(function(){WSYNC.busy=false;});
+      .catch(function(e){
+        /* 送れなかったぶんは、しばらくしてもう一度送る。
+           ★以前は予約に戻すだけで、送り直す時計を掛けていなかった。
+           次に何かを保存するまで送られず、電波の無いところで押した登園は
+           そのまま園に届かなかった（そのあとロックを解除すると、控えごと消えていた）。 */
+        keys.forEach(function(k){WSYNC.q[k]=true;});
+        WSYNC.fail=true;
+        WSYNC.say('未保存：'+e.message);
+        WSYNC.retry=setTimeout(WSYNC.push,30000);
+      })
+      .then(function(){
+        WSYNC.busy=false;
+        /* 送っているあいだに保存されたものは、送信中なので断られて予約に残っている。
+           時計はもう消えているので、ここで続けて送る */
+        if(ok&&Object.keys(WSYNC.q).length){clearTimeout(WSYNC.timer);WSYNC.timer=setTimeout(WSYNC.push,300);}
+        /* 「まだ園に届いていません」の案内を、送れた／送れなかったに合わせて出し直す */
+        if(hasChk||was!==chkUnsent()){try{chkRedraw(sessionChild());}catch(e){}}
+      });
   },
   pull:function(){
     if(!WAPI.online())return Promise.resolve();
     WSYNC.say('読み込み中…');
     return WAPI.call('GET','/parent/state').then(function(j){
+      var raw=window.__rawSet||localStorage.setItem.bind(localStorage);
       Object.keys(j.data||{}).forEach(function(k){
         /* 接続先そのものをサーバ応答で書き換えられないようにする */
         if(/^wa_api/.test(k))return;
+        /* 届いていない印・控えの持ち主の印も、この端末のものなので書き換えさせない */
+        if(/^wa_chk/.test(k))return;
+        /* 登園・降園の控えは、下で足し合わせる */
+        if(k==='checkin_log')return;
         if(j.data[k]==null)return;
-        var raw=window.__rawSet||localStorage.setItem.bind(localStorage);
         raw('cocoas_'+k,JSON.stringify(j.data[k]));
       });
+      /* 登園・降園の控えは、園に届いている分を土台にして、この端末にしか無い分を足す。
+         ★以前は、ほかの鍵と同じく園の控えでまるごと上書きしていた。
+         開いてすぐ「登園」を押す（開いたときの読み込みが、押したあとに返ってくる）、
+         押してすぐ閉じる（送る前に閉じる）と、まだ送っていない1件が消え、園に届かなかった。
+         足した分があれば、そのまま送り直す。 */
+      chkApplySrv(j.data?j.data.checkin_log:null);
+      WSYNC.pulledAt=Date.now();
       if(j.childId!=null){try{sessionStorage.setItem('cocoas_psession',String(j.childId));}catch(e){}}
       WSYNC.say('最新の状態です',true);
       return j;
-    }).catch(function(e){WSYNC.say('読み込み失敗：'+e.message);throw e;});
+    }).catch(function(e){
+      WSYNC.say('読み込み失敗：'+e.message);
+      /* 開いたときに電波が無かったなど。届いていない登園・降園があれば、しばらくして読み直して送る */
+      if(chkDirty()&&WAPI.online()){clearTimeout(WSYNC.retry);WSYNC.retry=setTimeout(function(){WSYNC.flush();},30000);}
+      /* 期限切れで読めなかったときは、カードに「ログインし直す」を出す */
+      try{chkRedraw(sessionChild());}catch(x){}
+      throw e;
+    });
+  },
+  /* 登園・降園の控えだけを読み直す。ほかの鍵は書き換えない
+     （画面に戻ってきたとき・降園を断る前に使うので、書きかけのものを置き換えないように）。
+     続けて呼ばれたときは、読み込み中のものを使い回す。 */
+  pullChk:function(){
+    if(!WAPI.online())return Promise.reject(new Error('offline'));
+    if(WSYNC.chkP)return WSYNC.chkP;
+    WSYNC.chkP=WAPI.call('GET','/parent/state').then(function(j){
+      WSYNC.chkP=null;
+      chkApplySrv(j&&j.data?j.data.checkin_log:null);
+      WSYNC.pulledAt=Date.now();
+      return j;
+    },function(e){WSYNC.chkP=null;throw e;});
+    return WSYNC.chkP;
   },
   say:function(t,fade){
     WSYNC.msg=t;
@@ -6562,6 +6955,33 @@ var WSYNC={q:{},timer:null,busy:false,msg:'',
       if(fade)setTimeout(function(){if(el)el.style.opacity='.45';},1600);}
   }
 };
+/* 電波が戻ったとき・画面に戻ってきたとき・しまうときにも、送り残しを送る。
+   門の前で「押してすぐポケットにしまう」使い方でも、しまう前に送り切れるように。 */
+(function(){
+  if(window.__waSyncFlush)return; window.__waSyncFlush=true;
+  function flush(){
+    if(!WAPI.online())return;
+    var sent=Promise.resolve();
+    if(Object.keys(WSYNC.q).length){clearTimeout(WSYNC.timer);sent=WSYNC.push();}
+    /* 送る予約は開き直すと消えるが、「まだ届いていない」の印は端末に残っている。
+       そのときは、予約の分を送り終えてから控えを読み直して足し合わせ、足りない分を送る。
+       ★以前は予約が無いと何もせず（開き直すと、見た記録など別の鍵の予約しか無い）、
+       電波の無いまま開き直した登園は、電波が戻っても送られなかった。
+       印が無くても、画面に戻ってきて少したっていれば読み直す（もう1台で押した登園を拾うため）。 */
+    sent.then(function(){
+      if(!WAPI.online()||WSYNC.busy||WSYNC.chkP)return;
+      var dirty=!!chkDirty();
+      var stale=document.visibilityState!=='hidden'&&Date.now()-WSYNC.pulledAt>CHK_REPULL_MS;
+      if(!dirty&&!stale)return;
+      WSYNC.pullChk().then(function(){},function(){
+        if(chkDirty()&&WAPI.online()){clearTimeout(WSYNC.retry);WSYNC.retry=setTimeout(flush,30000);}
+      }).then(function(){try{chkRedraw(sessionChild());}catch(e){}});
+    });
+  }
+  WSYNC.flush=flush;
+  try{window.addEventListener('online',flush);}catch(e){}
+  try{document.addEventListener('visibilitychange',flush);}catch(e){}
+})();
 
 /* ══ ダウンロードでお渡しする教材 ══════════════
    ファイルは園のサーバでお預かりしている。
@@ -7077,6 +7497,25 @@ function waServerLogin(email,pw,cb){
   WAPI.call('POST','/parent/login',{tenant:WAPI.tenant(),email:String(email||'').trim().toLowerCase(),password:pw})
     .then(function(j){
       WAPI.setToken(j.token);
+      /* 同じご家庭がもう一度ログインしたとき（画面ロックの解除など）は、
+         登園・降園の控えだけを取っておき、読み込んだあとで足し合わせる。
+         ★以前は下の一掃で一緒に消していた。電波の無いところで押してしまい、
+         30分後のロックをパスワードで解除すると、まだ送っていない登園が消えていた。
+         別のご家庭のログインのときは、これまでどおり何も残さない。 */
+      var keepChk=null,keepDirty='';
+      try{
+        /* 同じご家庭かどうかは、いま開いているお子さまのメールアドレスで見る。
+           お子さまの番号だけで見ると、この端末で見本のご家庭（番号11など）を試したあと、
+           たまたま同じ番号の本物のご家庭でログインしたときに、見本の控えが園に送られてしまう */
+        var em=String(email||'').trim().toLowerCase(),me=sessionChild();
+        var same=!!em&&!!me&&!isGuest()&&String(me.email||'').trim().toLowerCase()===em;
+        /* ★お子さまの印（psession）はタブの中にしか無いので、タブを閉じてから開き直してログインすると、
+           上の見方では同じご家庭と分からず、まだ送っていない登園を消していた。
+           控えの持ち主の印（前にこの端末でログインした方）でも見る。 */
+        var owner='';try{owner=localStorage.getItem(CHK_OWNER_KEY)||'';}catch(x){}
+        if(!same&&!!em&&owner===chkOwnerOf(em))same=true;
+        if(same){keepChk=chkLog();if(!keepChk.length)keepChk=null;keepDirty=chkDirty();}
+      }catch(e){keepChk=null;keepDirty='';}
       /* 前にこの端末を使った方の内容を残さない。
          共用のタブレットで、別のご家庭のものが見えてしまわないようにするため。
          接続先の設定だけは残す。 */
@@ -7085,6 +7524,10 @@ function waServerLogin(email,pw,cb){
         Object.keys(localStorage).forEach(function(k){
           if(/^cocoas_/.test(k)&&!keep[k])localStorage.removeItem(k);
         });
+        /* 読み込み（WSYNC.pull）が、園の控えと足し合わせて送り直す */
+        if(keepChk)localStorage.setItem('cocoas_checkin_log',JSON.stringify(keepChk));
+        if(keepChk&&keepDirty)localStorage.setItem(CHK_UNSENT_KEY,keepDirty);
+        localStorage.setItem(CHK_OWNER_KEY,chkOwnerOf(email));
       }catch(e){}
       return WSYNC.pull().then(function(){
         /* 前にこの端末を使った方のぶんを残さない。
