@@ -429,6 +429,12 @@
   .hhero h2:empty{display:none;}
   .hhero p{font-size:13px;margin:0;color:rgba(255,255,255,.88);line-height:1.6;}
   .hhero .hstat{display:flex;gap:9px;flex-wrap:wrap;}
+  /* 帯の中の日付と時計（Remi さん 2026-09-13：ブルーの左に日付と時間を大きく） */
+  .hhero .hcd{font-size:26px;font-weight:800;letter-spacing:-.01em;line-height:1.15;color:#fff;}
+  .hhero .hcd small{font-size:14px;font-weight:700;margin:0 3px 0 1px;color:rgba(255,255,255,.85);}
+  .hhero .hcd .hcw{font-size:15px;font-weight:700;margin-left:10px;color:rgba(255,255,255,.9);}
+  .hhero .hct{font-size:46px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;display:flex;align-items:baseline;gap:6px;color:#fff;}
+  .hhero .hct small{font-size:16px;font-weight:700;color:rgba(255,255,255,.8);}
   /* 帯の右がわ「きょう見ておくこと」。
      帯の右がずっと空いていたので、いま手が空いていないものをここに出す。
      数は、この画面に入っている記録と保護者から届いた連絡から数える。飾りの数は置かない。 */
@@ -537,6 +543,9 @@
    朝いちばんに開いたときに、いま押すものだけが見えている形にする。
    左に「日付と時計＋連絡ボード」、右に「きょうのマス」を置く。 */
 .hmain{display:grid;grid-template-columns:1.05fr .95fr;gap:14px;align-items:start}
+.row-miss{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:6px;font:inherit;font-size:13px;color:inherit;cursor:default}
+button.row-miss{cursor:pointer}
+button.row-miss:hover{background:#FAF9F5}
 .hclock{background:#fff;border:1px solid var(--line);border-radius:16px;
   padding:22px 26px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
 .hclock .hcd{font-size:30px;font-weight:800;letter-spacing:-.01em;line-height:1.2}
@@ -651,6 +660,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       <section data-page="kiosk" hidden></section>
       <section data-page="annual" hidden></section>
       <section data-page="revenue" hidden></section>
+      <section data-page="missing" hidden></section>
       <section data-page="feed" hidden></section>
       <section data-page="enroll" hidden></section>
       <section data-page="billing" hidden></section>
@@ -3771,7 +3781,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['ホーム','きょうのボード'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],feed:['連絡・メール配信','デイリーレポート（きょうの様子）'],wastore:['配信','未来WA'],photosale:['配信','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','月間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
+var TITLES={home:['','ホーム'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],missing:['ホーム','未入力書類'],feed:['連絡・メール配信','デイリーレポート（きょうの様子）'],wastore:['配信','未来WA'],photosale:['配信','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メール送信'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['記録・書類','書類格納'],facility:['管理','施設管理'],contacts:['管理','連絡先管理'],roster:['管理','生徒台帳'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['管理','請求書発行'],templates:['管理','メールテンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','月間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -3786,7 +3796,7 @@ function egPlanOfPage(p){
         if(!hit&&it.sub){
           for(var k=0;k<it.sub.length;k++){ if(it.sub[k].p===p){hit=true;break;} }
         }
-        if(hit) return planAllows(g.plan)&&planAllows(it.plan);
+        if(hit) return planAllows(g.plan)&&planAllows(it.plan)&&(!g.opt||optOn(g.opt))&&(!it.opt||optOn(it.opt));
       }
     }
   }catch(e){}
@@ -3913,7 +3923,11 @@ function go(page){
     page='dashboard';
   }
   else if(!egPlanOfPage(page)){
-    alert('この機能は、ご契約のプランには含まれていません。');
+    /* オプションで外している組は、プランの話ではないので入れ方を案内する */
+    var _op=(typeof optOfPage==='function')?optOfPage(page):'';
+    if(_op){ var _ol=(EG_OPTS.filter(function(o){return o.k===_op;})[0]||{}).l||_op;
+      alert('「'+_ol+'」はオプション機能です。園長・管理者が 設定 → オプション機能 で入れると使えます。'); }
+    else alert('この機能は、ご契約のプランには含まれていません。');
     page='home';
   }
   /* 描き終わったあとに、まだ埋まっていない写真を埋める。
@@ -3965,7 +3979,7 @@ function go(page){
       if(wsec)wsec.hidden=false;
       renderWaOpen();
     })() :
-  ({home:renderHome,menu:renderMenu,kiosk:renderKiosk,feed:renderFeed,annual:renderAnnual,revenue:renderRevenue,photosale:renderPhotoSale,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
+  ({home:renderHome,menu:renderMenu,kiosk:renderKiosk,feed:renderFeed,annual:renderAnnual,revenue:renderRevenue,missing:renderMissing,photosale:renderPhotoSale,aiplan:renderAIPlan,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings})[page]();
 }
 
 
@@ -4142,6 +4156,132 @@ function planBarRender(){
     b.onclick=function(){setDemoPlan(b.getAttribute('data-plan'));};
   });
 }
+/* ══ オプション機能（園ごとに入れる・外す）══════════════
+   COCOAS に「保育管理システム」の素の形を見せるため、営業・監査・AI の組は
+   はじめは出さない（Remi さん 2026-09-13）。設定 → オプション機能 で園ごとに入れられる。
+   権限もコードも残す。消してしまうと、あとで足すときに作り直しになる。 */
+var EG_OPTS=[
+  {k:'sales', l:'新規顧客管理', d:'顧客リスト・体験結果報告・個別メール・営業分析。ダッシュボードの問い合わせ・体験・入退園の数もここに入ります'},
+  {k:'audit', l:'監査対応・書類作成', d:'監査対応、運営に必要な書類・市町村指定の書類の作成'},
+  {k:'aiplan',l:'AI保育計画', d:'月案・週案・日案の下書きをAIが作る'}
+];
+function optOn(k){ var o=(typeof SET!=='undefined'&&SET&&SET.opts&&typeof SET.opts==='object')?SET.opts:{}; return !!o[k]; }
+/* その画面が「オプションで外している組」にあるか（プランで外れているのとは別の案内を出すため） */
+function optOfPage(p){
+  var found='';
+  try{
+    EG_NAV.forEach(function(g){ g.items.forEach(function(it){
+      var hit=(it.p===p)||(it.sub||[]).some(function(y){return y.p===p;});
+      if(hit&&!found)found=(g.opt&&!optOn(g.opt))?g.opt:((it.opt&&!optOn(it.opt))?it.opt:'');
+    });});
+  }catch(e){}
+  return found;
+}
+
+/* 帯の日付。英語のときは英語の形で描く。
+   「月」「日」を別の文字にして辞書に通すと、曜日の Mon／Sun に化けるので、この枝は data-nolang にして丸ごと作る */
+function homeDateHTML(pT,wd){
+  if(typeof langNow==='function'&&langNow()==='en'){
+    var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],W={'日':'Sun','月':'Mon','火':'Tue','水':'Wed','木':'Thu','金':'Fri','土':'Sat'};
+    return '<b>'+(M[+pT[1]-1]||pT[1])+' '+(+pT[2])+', '+pT[0]+'</b><span class="hcw">'+(W[wd]||'')+'</span>';
+  }
+  return '<b>'+pT[0]+'<small>年</small>'+(+pT[1])+'<small>月</small>'+(+pT[2])+'<small>日</small></b><span class="hcw">'+esc(wd)+'曜日</span>';
+}
+
+/* ログインした先生の配属クラス（職員情報の欄）。無ければ空 */
+function homeMyClass(){
+  try{
+    var a=currentStaff(); if(!a)return '';
+    var st=(DB.staff||[]).filter(function(x){return String(x.id)===String(a.staffId);})[0];
+    return (st&&st.klass)||'';
+  }catch(e){ return ''; }
+}
+
+/* ══ 未入力書類（Remi さん 2026-09-13）═══════════════════
+   「まだ記録していないもの」をホームの帯から外し、組（カテゴリ）ごとの一覧にした。
+   サイドバーの各組の一番下「未入力書類」から開く。数はすべてこの画面に入っている記録から数える。
+   数えられなかった組は、その組を出さない（合っていない数を見せないため）。 */
+function missingDocs(){
+  var t=todayISO(), mk=t.slice(0,7), out=[];
+  function put(cat,items){ out.push({cat:cat,items:items}); }
+  /* ホーム：きょうの記録 */
+  try{
+    var h=[];
+    ['登園（出席）','安全点検','午睡チェック','健康チェック','保育日誌・業務日報'].forEach(function(tp){
+      var K=(typeof RKEY!=='undefined')?RKEY[tp]:null; if(!K)return;
+      if(!stGet(K,{})[t])h.push({l:tp,d:'きょうの分',p:(typeof recPageOf==='function'?recPageOf(tp):'records'),rec:tp});
+    });
+    put('ホーム',h);
+  }catch(e){}
+  /* カリキュラム：きょうの活動記録と、今月の月間カリキュラム */
+  try{
+    var c=[];
+    (CLASSES||[]).forEach(function(k){
+      var sc=curSchedGet(k,t), has=!!(sc.am||sc.pm||sc.amText||sc.pmText);
+      if(has&&typeof actRepGet==='function'&&!(actRepGet(k,t).done))c.push({l:'活動記録（'+k+'）',d:'きょうの活動の「記録」がまだです',p:'curriculum'});
+      var any=false, s=curSched()[k]||{};
+      for(var d in s){ if(d.slice(0,7)===mk){any=true;break;} }
+      if(!any)c.push({l:'月間カリキュラム（'+k+'）',d:mk.replace('-','/')+' の活動がまだ入っていません',p:'curriculum'});
+    });
+    put('カリキュラム',c);
+  }catch(e){}
+  /* 生徒情報：連絡先と生年月日 */
+  try{
+    var en=enrolled(), noTel=en.filter(function(x){return !(x.phone||'').trim();}).length,
+        noDob=en.filter(function(x){ var d=x.dob||''; if(!d){ try{ d=((stGet('studentProfiles',{})||{})[x.id]||{}).dob||''; }catch(e2){} } return !d; }).length, g=[];
+    if(noTel)g.push({l:'保護者の電話番号',d:noTel+'名の園児で空です',p:'contacts',n:noTel+'名'});
+    if(noDob)g.push({l:'生年月日',d:noDob+'名の園児で空です（誕生日・年齢に使います）',p:'roster',n:noDob+'名'});
+    put('生徒情報',g);
+  }catch(e){}
+  /* 職員情報：健康診断と労働条件通知書 */
+  try{
+    var sts=(DB.staff||[]).filter(function(x){return !(x.leaveDate&&x.leaveDate<=t);}), s2=[];
+    var yago=new Date(); yago.setFullYear(yago.getFullYear()-1); var y1=yago.toISOString().slice(0,10);
+    var oldK=sts.filter(function(x){return !x.kenshinDate||x.kenshinDate<y1;}).length;
+    if(oldK)s2.push({l:'職員の健康診断',d:oldK+'名が未記録か1年以上前です（年1回）',p:'staff',n:oldK+'名'});
+    var rd=(dgStore().roudou||{}), noR=sts.filter(function(x){return !rd[x.id];}).length;
+    if(noR)s2.push({l:'労働条件通知書',d:noR+'名ぶんが未作成です',p:'staff',n:noR+'名'});
+    put('職員情報',s2);
+  }catch(e){}
+  /* 請求・経費管理：今月の請求書と経費精算 */
+  try{
+    var b=[], iv=(stGet('invoices',{})||{})[mk]||{}, en2=enrolled();
+    var noInv=en2.filter(function(x){var r=iv[x.id]; return !r||!r.status||r.status==='未発行';}).length;
+    if(noInv)b.push({l:'今月の請求書',d:noInv+'名ぶんが未発行です',p:'billing',n:noInv+'名'});
+    if(!((expGet(mk).rows||[]).length))b.push({l:'今月の経費精算',d:mk.replace('-','/')+' の経費がまだ入っていません',p:'expense'});
+    put('請求・経費管理',b);
+  }catch(e){}
+  /* スクール情報：基本の欄 */
+  try{
+    var f=facGet().info||{}, miss=[];
+    if(!f.name)miss.push('施設名'); if(!f.address)miss.push('所在地'); if(!f.type)miss.push('施設種別'); if(!f.capacity)miss.push('定員');
+    put('スクール情報',miss.length?[{l:'スクール情報の基本の欄',d:miss.join('・')+' が空です',p:'facility',n:miss.length+'項目'}]:[]);
+  }catch(e){}
+  return out;
+}
+function renderMissing(){
+  var s=$('section[data-page="missing"]'), groups=missingDocs();
+  var total=groups.reduce(function(a,g){return a+g.items.length;},0);
+  s.innerHTML='<div class="card">'+recHead('未入力書類（'+fmt(todayISO())+'）',
+      '<span class="pill" style="background:'+(total?'#FCEBEB;color:#A32D2D':'#EAF3DE;color:#27500A')+';">'+(total?'あと '+total+' 件':'すべて入っています')+'</span>')
+    +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">きょうの時点で、まだ入っていない記録・書類を組ごとに出しています。押すとその画面がひらきます。</div>'
+    +groups.map(function(g){
+      return '<div style="margin-bottom:14px;"><div style="font-weight:800;font-size:13.5px;margin-bottom:6px;">'+esc(g.cat)+'</div>'
+        +(g.items.length?g.items.map(function(it){
+            var can=(typeof canView!=='function'||canView(it.p));
+            return '<'+(can?'button type="button"':'div')+' class="row-miss"'+(can?' data-mp="'+esc(it.p)+'"'+(it.rec?' data-mrec="'+esc(it.rec)+'"':''):'')+'>'
+              +'<span style="flex:1;">'+esc(it.l)+(it.d?'<div class="row-sub">'+esc(it.d)+'</div>':'')+'</span>'
+              +'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">'+esc(it.n||'未入力')+'</span></'+(can?'button':'div')+'>';
+          }).join('')
+          :'<div class="muted" style="font-size:12px;padding:4px 0 2px;">この組は、きょうの分がすべて入っています</div>')
+        +'</div>';
+    }).join('')+'</div>';
+  s.querySelectorAll('[data-mp]').forEach(function(b){b.onclick=function(){
+    var r=b.getAttribute('data-mrec');
+    if(r&&typeof goRec==='function')goRec(b.getAttribute('data-mp'),r); else go(b.getAttribute('data-mp'));
+  };});
+}
+
 function planAllows(need){
   if(!need)return true;
   return PLAN_RANK[myPlan()]>=PLAN_RANK[need];
@@ -4573,13 +4713,14 @@ var EG_NAV=[
      {p:'feed',      l:'デイリーレポート（きょうの様子）'},
      {p:'templates', l:'メールテンプレート'}]},
    {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', p:'wastore'},
-   {k:'photo',   l:'写真販売',   i:'photo', si:'photo', c:'#B4560C', bg:'#FBEFE3', p:'photosale'}
+   {k:'photo',   l:'写真販売',   i:'photo', si:'photo', c:'#B4560C', bg:'#FBEFE3', p:'photosale'},
+   {k:'miss_home', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
  ]},
  {cat:'カリキュラム',items:[
    {k:'annual',     l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'annual'},
    {k:'curriculum', l:'月間カリキュラム', i:'ic:59',si:'book', c:'#27500A', bg:'#EAF3DE', p:'curriculum'},
    {k:'tasks',      l:'月間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
-   {k:'aiplan',     l:'AI保育計画',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'standard'},
+   {k:'aiplan',     l:'AI保育計画',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'standard', opt:'aiplan'},
    {k:'katsudo',    l:'活動記録',        i:'ic:58',si:'activity', c:'#854F0B', bg:'#FAEEDA', sub:[
      {p:'carerec', l:'保育記録',          rec:'身体測定',           homeHide:true},
      {p:'carerec', l:'身体測定',          rec:'身体測定',           navHide:true},
@@ -4592,12 +4733,14 @@ var EG_NAV=[
         ★ただし左のタブは「保育記録」1行だけにする（30-2・2026-08-25 のご判断）。
         2行あると別々の画面だと思われるため。ホームの活動記録のマスからは開ける。
         記録の保存先は これまでどおり hoiku_kenshu のまま。 */
-     {p:'kenshu', l:'保育研修', navHide:true}]}
+     {p:'kenshu', l:'保育研修', navHide:true}]},
+   {k:'miss_cur', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
  ]},
  {cat:'生徒情報',items:[
    {k:'roster',   l:'生徒情報一覧・連絡先', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'roster'},
    {k:'contacts', l:'連絡先（保護者）', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts', boss:true},
-   {k:'enroll',   l:'生徒台帳（契約情報）', i:'ic:51',si:'idcard', c:'#27500A', bg:'#EAF3DE', p:'billing', boss:true, pw:true}
+   {k:'enroll',   l:'生徒台帳（契約情報）', i:'ic:51',si:'idcard', c:'#27500A', bg:'#EAF3DE', p:'billing', boss:true, pw:true},
+   {k:'miss_kids', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
  ]},
  {cat:'職員情報',boss:true,items:[
    {k:'staffg',  l:'職員情報', i:'ic:70',si:'staff', c:'#0B5F8F', bg:'#E3F1F9', p:'staff', pw:true},
@@ -4605,20 +4748,22 @@ var EG_NAV=[
      {p:'bouka',  l:'防火・消火訓練', tab:'daichou'},
      {p:'kenshu', l:'保育研修'}]},
    {k:'shift',   l:'シフト表', i:'ic:70',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'shift'},
-   {k:'tc',      l:'打刻（タイムカード）', i:'ic:70',si:'clock', c:'#5B6875', bg:'#F1EFE8', p:'timecard'}
+   {k:'tc',      l:'打刻（タイムカード）', i:'ic:70',si:'clock', c:'#5B6875', bg:'#F1EFE8', p:'timecard'},
+   {k:'miss_staff', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
  ]},
  {cat:'請求・経費管理',boss:true,items:[
    {k:'billing',  l:'請求書作成・管理', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'},
    {k:'expense',  l:'スクール経費精算', i:'ic:44',si:'report', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
-   {k:'revenue',  l:'売上チャート', i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'revenue'}
+   {k:'revenue',  l:'売上チャート', i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'revenue'},
+   {k:'miss_bill', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
  ]},
- {cat:'監査対応・書類作成',boss:true,plan:'standard',items:[
+ {cat:'監査対応・書類作成',boss:true,plan:'standard',opt:'audit',items:[
    {k:'audit',  l:'監査対応',   i:'ic:68',si:'audit', c:'#A32D2D', bg:'#FCEBEB', p:'audit'},
    {k:'docgen', l:'書類作成',   i:'ic:28',si:'fileplus', c:'#3C3489', bg:'#EEEDFE', sub:[
      {p:'docgen', l:'運営に必要な書類'},
      {p:'reqnav', l:'市町村指定の書類'}]}
  ]},
- {cat:'新規顧客管理',boss:true,plan:'pro',items:[
+ {cat:'新規顧客管理',boss:true,plan:'pro',opt:'sales',items:[
    {k:'leads',   l:'顧客リスト',     i:'ic:49',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
    {k:'trial',   l:'体験結果報告',   i:'ic:39',si:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
    {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose'},
@@ -4628,7 +4773,8 @@ var EG_NAV=[
    {k:'facility', l:'スクール情報（園の基本情報）', i:'ic:42',si:'home', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
    {k:'guide',    l:'ガイダンス資料', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide'},
    {k:'docs',     l:'書類格納',      i:'ic:43',si:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'},
-   {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true}
+   {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true},
+   {k:'miss_school', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
  ]}
 ];
 
@@ -4643,9 +4789,11 @@ function egNav(){
   EG_NAV.forEach(function(g){
     if(g.boss&&!isBoss())return;
     if(!planAllows(g.plan))return;
+    if(g.opt&&!optOn(g.opt))return;   /* オプションで外している組 */
     var items=g.items.filter(function(x){
       if(x.boss&&!isBoss())return false;
       if(!planAllows(x.plan))return false;
+      if(x.opt&&!optOn(x.opt))return false;
       if(x.sub){
         x=Object.assign({},x,{sub:x.sub.filter(function(y){return egHasPage(y.p);})});
         return x.sub.length>0;
@@ -7893,28 +8041,26 @@ function homeTodayRows(absN,unread){
     try{ if(typeof canView==='function'&&!canView(p))return false; }catch(e){}
     return true;
   }
-  /* まだ入っていない、その日の記録。
-     数だけだと何が抜けているか分からないので、記録の名前もならべる。 */
+  /* 月間カリキュラムに入れた、きょうの活動（Remi さん 2026-09-13）。
+     クラスごとに違うので、ログインした先生の配属クラスのぶんを出す。配属が無ければ全クラス。
+     「まだ記録していないもの」は「未入力書類」の画面に移した。「今月のやること」はここから外した。 */
   try{
-    var keys=['rec_登園シート','rec_安全点検','rec_午睡チェック','rec_健康チェック','rec_日報'],miss=[];
-    keys.forEach(function(k){ if(!stGet(k,{})[t])miss.push(k.slice(4)); });
-    if(miss.length)rows.push({p:'records',l:'まだ記録していないもの',
-      d:miss.slice(0,3).join('・')+(miss.length>3?' ほか'+(miss.length-3)+'つ':''),
-      n:miss.length+'件',attn:true});
-    else rows.push({p:'records',l:'その日の記録',d:'5つとも入りました',n:'済'});
+    if(typeof curSchedGet==='function'){
+      var myK=homeMyClass(), cls=myK?[myK]:(CLASSES||[]);
+      cls.forEach(function(k){
+        var sc=curSchedGet(k,t), parts=[];
+        if(sc.am||sc.amText)parts.push('午前 '+(sc.am||'')+(sc.amText?'（'+sc.amText+'）':''));
+        if(sc.pm||sc.pmText)parts.push('午後 '+(sc.pm||'')+(sc.pmText?'（'+sc.pmText+'）':''));
+        if(sc.daycare)parts.push('1日託児');
+        if(parts.length)rows.push({p:'curriculum',l:'きょうの活動',d:k+'：'+parts.join('　')+(sc.teacher?'　担当 '+sc.teacher:''),n:'予定'});
+        else if(myK)rows.push({p:'curriculum',l:'きょうの活動',d:k+'：月間カリキュラムに入っていません',n:'—'});
+      });
+    }
   }catch(e){}
   /* 保護者の画面から届いた欠席・遅刻。くわしくはこの下の一覧に出る */
   if(absN)rows.push({l:'保護者からの欠席・遅刻',d:'くわしくはこの下の一覧に出ます',n:absN+'件',attn:true});
   /* 保護者DMのまだ読んでいないもの */
   if(unread)rows.push({p:'dm',l:'保護者からの連絡',d:'まだ読んでいないもの',n:unread+'件',attn:true});
-  /* 今月のやることのうち、まだ済んでいないもの */
-  try{
-    if(typeof tasksForMonth==='function'&&typeof taskStatus==='function'&&typeof ANNUAL_TASKS!=='undefined'){
-      var mk=t.slice(0,7),yet=0;
-      tasksForMonth(mk).forEach(function(x){ if(!taskStatus(x,mk))yet++; });
-      if(yet)rows.push({p:'tasks',l:'今月のやること',d:'まだ済んでいないもの',n:yet+'件'});
-    }
-  }catch(e){}
   return rows.map(function(r){
     var jump=r.p&&canOpen(r.p),tag=jump?'button':'div';
     return '<'+tag+' class="row"'+(jump?' type="button" data-tile="'+esc(r.p)+'"':'')+'>'
@@ -7932,37 +8078,23 @@ function renderHome(){
   var unread=0;try{unread=dmUnreadTotal();}catch(e){}
   var wd=WD[new Date().getDay()];
   var pT=todayISO().split('-');   /* きょうの日付。年・月・日をそのまま出すために分けておく */
-  /* クラスごとの在園児の人数。en を 1 回だけ回して数える。
-     クラスの名前は設定から取るので、園ごとに変えてもそのまま出る。 */
-  var clsList=CLASSES,clsHtml='';
-  if(clsList&&typeof clsList.forEach==='function'&&clsList.length){
-    var clsCnt={},clsNone=0;
-    clsList.forEach(function(k){clsCnt[k]=0;});
-    en.forEach(function(c){
-      var k=String((c&&c.klass)||'');
-      if(clsList.indexOf(k)>=0)clsCnt[k]++;else clsNone++;
-    });
-    clsHtml=clsList.map(function(k){return '<b>'+esc(k)+' '+clsCnt[k]+'名</b>';}).join('');
-    if(clsNone)clsHtml+='<b>クラス未設定 '+clsNone+'名</b>';
-  }
+  /* 在園児の人数はホームから外した（Remi さん 2026-09-13）。ダッシュボードとスクール情報にある */
   /* 保護者から届いた欠席・遅刻の連絡。きょう以降の分だけ、日付の近い順に出す。
      帯の右にも件数を出すので、帯を組み立てる前に数えておく。 */
   var abs=PSTATE.list('absence_log').filter(function(a){return a&&a.date&&a.date>=todayISO();})
     .sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
   /* 帯の右がわ。ずっと空いていたので、いま手が空いていないものをここに出す。 */
   var tdRows='';try{tdRows=homeTodayRows(abs.length,unread);}catch(e){}
-  /* ★日付は下の時計のカードに大きく出しているので、ここでは出さない。
-     2か所に同じ日付が並んでいた（2026-09-12）。
-     ここは「園の名前と、いま手が空いていないもの」だけにする。 */
-  var html='<div class="hhero"><div class="hhl"><div class="hh"><h2>'+esc(SET.school||'')+'</h2></div>'
-    +'<div class="hstat"><b>在園児 '+en.length+'名</b>'+clsHtml
-    /* 打刻は先生も毎日するので、役職に関わらずここから開けるようにする */
-    +'<button class="btn btn-sm" id="hmFeed" style="margin-left:auto;">'+ic('edit')+'きょうの様子を書く</button>'
-    +'<button class="btn btn-sm" id="hmTc">'+ic('clock')+'打刻</button>'
-    +'</div></div>'
-    +'<div class="htoday"><div class="ht">きょう見ておくこと</div>'
-    +(tdRows||'<div class="row"><span class="tx">数を出せませんでした<small>記録が読み取れないため、ここには出しません</small></span></div>')
-
+  /* 帯の左：日付と時間を大きく、その下に「きょうの様子を書く」。右：本日のタスク（Remi さん 2026-09-13）。
+     打刻はホームから外した（打刻の画面にある）。時計は homeClockStart が #hmClock を動かす。 */
+  var html='<div class="hhero"><div class="hhl">'
+    +'<div class="hh"><h2>'+esc(SET.school||'')+'</h2></div>'
+    +'<div class="hcd" data-nolang="1">'+homeDateHTML(pT,wd)+'</div>'
+    +'<div class="hct" id="hmClock">--:--<small>AM</small></div>'
+    +'<div class="hstat"><button class="btn btn-sm" id="hmFeed">'+ic('edit')+'きょうの様子を書く</button></div>'
+    +'</div>'
+    +'<div class="htoday"><div class="ht">本日のタスク</div>'
+    +(tdRows||'<div class="row"><span class="tx">きょうのタスクはありません</span></div>')
     +'</div></div>';
   if(abs.length){
     html+='<div class="card" style="border-left:4px solid #E2A03F;">'
@@ -8019,12 +8151,12 @@ function renderHome(){
      アプリの一覧は「メニュー」へ移した。
      はいチーズ！フォトのデイリーボードと同じ考え方で、
      朝いちばんに開いたときに、今すぐ押すものだけが見えている形。 */
+  /* 左：連絡ボード、その下に今月の行事・今月のBIRTHDAY。右：きょうのマス（Remi さん 2026-09-13）。時計は上の帯へ */
   html+='<div class="hmain">'
-    +'<div>'+homeClockHTML()+homeBoardHTML()+'</div>'
-    +'<div>'+homeDailyHTML()+homeSideHTML(en)+'</div>'
+    +'<div>'+homeBoardHTML()+homeSideHTML(en)+'</div>'
+    +'<div>'+homeDailyHTML()+'</div>'
     +'</div>';
   s.innerHTML=html;
-  var htc=$('#hmTc'); if(htc)htc.onclick=function(){go('timecard');};
   var hfd=$('#hmFeed'); if(hfd)hfd.onclick=function(){go('feed');};
   absCopyWire();
   homeBoardWire();
@@ -8164,7 +8296,7 @@ var EN_DICT={
 '食事':'Meal','午睡':'Nap','排泄':'Toilet','気分':'Mood','できごと':'Moment','けが・体調':'Injury / health',
 'ひとことを入れてください':'Please write a note','保護者へ届けました':'Sent to family',
 /* ── シート「EduGrow システム概要」D列の英語名（2026-09-12）── */
-'運営に必要な書類':'Operations Forms','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
+'運営に必要な書類':'Operations Forms','本日のタスク':'Today’s tasks','未入力書類':'Missing entries','きょうの活動':'Today’s activities','オプション機能':'Optional features','配属クラス':'Assigned class','きょうのタスクはありません':'No tasks for today','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
 'カリキュラム':'Curriculum','生徒情報':'Student Information','職員情報':'Staff Directory','請求・経費管理':'Billing & Expenses','スクール情報':'School Information',
 '年間スケジュール':'Annual Schedule','月間カリキュラム':'Monthly Plans','活動記録':'Activity Records',
 '生徒情報一覧・連絡先':'Student List & Contacts','生徒台帳（契約情報）':'Enrollment & Contracts','連絡先（保護者）':'Contacts',
@@ -11220,10 +11352,12 @@ function renderDash(){
     +'<div class="muted" style="margin-top:6px;font-size:11px;">クラスをタップで男女比</div></div>';
   var isIppan=(typeof currentRole==='function'&&currentRole()==='一般');
   // 一般スタッフには営業系の数値（問い合わせ・体験・入退園）は表示しない
+  /* 新規顧客管理をオプションで外している園にも出さない（Remi さん 2026-09-13） */
+  var salesOff=(typeof optOn==='function'&&!optOn('sales'));
   var touenToday=stGet('rec_登園シート',{})[todayISO()];
   var presentToday=touenToday&&touenToday.rows?en.filter(function(c){var r=touenToday.rows[c.id];return r&&['●','早','遅'].indexOf(r.att)>-1;}).length:0;
   var absentToday=touenToday&&touenToday.rows?en.filter(function(c){var r=touenToday.rows[c.id];return r&&r.att==='休';}).length:0;
-  var topCards=isIppan
+  var topCards=(isIppan||salesOff)
     ? enrollCard+bigCard('activity','#185FA5','#E6F1FB',presentToday,'本日の出席','おやすみ '+absentToday+' ・ 登園シートより','records')
     : enrollCard
       +bigCard('mail','#185FA5','#E6F1FB',inqMonth.length,'今月の問い合わせ数','HP '+iqM.HP+' ・ LINE '+iqM.LINE+' ・ 電話 '+iqM['電話']+' ・ その他 '+iqM['その他'],'contacts')
@@ -11331,7 +11465,7 @@ function renderDash(){
         (up.length?up.map(function(x){var lbl=x.du<=0?'本日':(x.du+'日後');return '<div class="task"><span class="tag">'+lbl+'</span><div style="flex:1"><div class="row-name">'+x.d.label+'</div><div class="row-sub">'+x.d.when+' ・ '+x.d.to+'</div></div><button class="btn btn-sm" data-task="'+esc(x.d.go.join('|'))+'">作成</button></div>';}).join(''):'<div class="empty">直近の定期配信はありません</div>')+
       '</div>'+
     '</div>'+
-    (isIppan?'':
+    ((isIppan||salesOff)?'':
     '<div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;margin-top:16px;">'+
       '<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;"><h3 style="margin:0;flex:1;">'+ic('users')+'リード内訳（ステータス）</h3><div class="chips" style="margin:0;">'+perToggle+'</div>'+perPicker+'</div>'+
         '<div class="muted" style="margin:0 0 12px;">'+perLabel+'：'+pleads.length+' 件'+(dashPeriod==='all'?'':'（問い合わせ日ベース）')+'</div>'+
@@ -12003,7 +12137,11 @@ function contactModal(id,forceKind){
       nc.feeAmount=feeUse(nc);
       /* 金額を一度確かめた印。これが付いた子は、契約を直すたびに月額を写し直す。 */
       nc.feeChecked=true;}
-    if(!nc.name||!nc.email){alert('保護者名とメールアドレスは必須です');return;}
+    /* 見学・体験（リード）は電話だけの問い合わせもあるので、メールは任意にする（Remi さん 修正依頼 35行）。
+       在園児はメールが保護者アカウントの鍵になるので必須のまま */
+    if(!nc.name){alert('保護者名は必須です');return;}
+    if(kind!=='lead'&&!nc.email){alert('在園児はメールアドレスが必須です（保護者アカウントの発行に使います）');return;}
+    if(kind==='lead'&&!nc.email&&!nc.phone){alert('メールアドレスか電話番号のどちらかを入れてください');return;}
     if(id){arr=arr.map(function(x){return x.id===id?nc:x;});}else{arr.push(nc);}
     DB.contacts=arr;
     /* 性別を生徒台帳へ。空にしたときは、入っていたものを消す。 */
@@ -13276,6 +13414,10 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre,'例：pre2026')+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder,'例：kinder2026')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal,'例：5,500')+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt,'例：6,600')+f('s_dcL','預かり保育 給食費',SET.daycareLunch,'例：550')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl,'例：https://（申込フォーム）')+f('s_survey','アンケートURL',SET.surveyUrl,'例：https://（アンケート）')+'</div></div>'+
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('grid')+'オプション機能</h3>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:8px;line-height:1.8;">はじめは保育管理の基本だけを出しています。使う組にチェックを入れて保存すると、サイドバーとメニューに出ます。</div>'
+    +EG_OPTS.map(function(o){return '<label style="display:flex;gap:9px;align-items:flex-start;padding:6px 0;cursor:pointer;"><input type="checkbox" data-opt="'+esc(o.k)+'"'+(optOn(o.k)?' checked':'')+' style="width:auto;margin-top:3px;"><span><b>'+esc(o.l)+'</b><div class="muted" style="font-size:11.5px;">'+esc(o.d)+'</div></span></label>';}).join('')
+    +'</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('users')+'保育士の配置</h3>'+
       '<div class="muted" style="margin-bottom:10px;">子ども何人につき保育士1人か。国が決めている数を入れてありますが、'
       +'3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。'
@@ -13324,6 +13466,7 @@ function renderSettings(){
   if(hc)hc.onclick=function(){if(confirm('使い方サポートの記録を消しますか。')){stSet('help_log',[]);stSet('help_esc',[]);renderSettings();}};
   $('#s_save').onclick=function(){
     SET.sender=$('#s_sender').value;SET.bcc=$('#s_bcc').value;SET.school=$('#s_school').value;SET.manager=$('#s_manager').value;
+    var _op={};document.querySelectorAll('[data-opt]').forEach(function(c){_op[c.getAttribute('data-opt')]=!!c.checked;});SET.opts=_op;
     SET.tel=$('#s_tel').value;SET.address=$('#s_address').value;SET.access=$('#s_access').value;
     SET.bankName=$('#s_bankName').value;SET.bankBranch=$('#s_bankBranch').value;SET.bankType=$('#s_bankType').value;SET.bankNo=$('#s_bankNo').value;SET.bankHolder=$('#s_bankHolder').value;
     SET.photoUrl=$('#s_photoUrl').value;SET.photoCodePre=$('#s_photoPre').value;SET.photoCodeKinder=$('#s_photoKinder').value;
@@ -13347,6 +13490,7 @@ function renderSettings(){
     var ns=parseInt(($('#s_napStep')||{}).value,10);
     if(ns>0)stSet('napStep',ns);
     DB.settings=SET;
+    if(typeof buildNav==='function')buildNav();   /* オプションの出し入れをサイドバーに反映 */
     /* サイドバーの園名と送信元を、その場で新しくする */
     try{applyBrand();}catch(e){}
     /* 「園の基本情報が未設定です」の知らせを新しくするため、設定の画面を作り直す。
@@ -13711,7 +13855,7 @@ function staffModal(id){
     '<div class="grid" style="grid-template-columns:1fr 2fr;"><div class="field"><label>郵便番号</label><input id="st_zip" value="'+(x.zip||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>住所</label><input id="st_addr" value="'+(x.address||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>本人 電話番号</label><input id="st_tel" value="'+(x.tel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>緊急連絡先 氏名</label><input id="st_emgName" value="'+(x.emgName||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>続柄</label><input id="st_emgRel" value="'+(x.emgRel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="例：配偶者"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>緊急連絡先 電話番号</label><input id="st_emgTel" value="'+(x.emgTel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>入社日<span id="st_tenLab" class="muted"></span></label><input type="date" id="st_join" value="'+esc((x.joinDate||''))+'"></div><div class="field"><label>退職日（在職中は空欄）</label><input type="date" id="st_leave" value="'+esc((x.leaveDate||''))+'"></div></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+esc((x.kenshinDate||''))+'"></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+esc((x.kenshinDate||''))+'"></div><div class="field"><label>配属クラス</label><select id="st_klass">'+[''].concat(CLASSES||[]).map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.klass||'')?' selected':'')+'>'+(o||'（未設定）')+'</option>';}).join('')+'</select></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
     '<div class="field"><label>備考</label><input id="st_note" value="'+(x.note||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'+
     (id?'<div class="field"><label>身分証・証明書の保管</label><div id="st_docs"></div>'
       +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">'
@@ -13766,7 +13910,7 @@ function staffModal(id){
   $('#st_cancel').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#st_save').onclick=function(){
-    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,qual:$('#st_qual').value.trim(),qualNo:(x.qualNo||''),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value,
+    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,klass:$('#st_klass').value,qual:$('#st_qual').value.trim(),qualNo:(x.qualNo||''),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value,
       dob:$('#st_dob').value,sex:$('#st_sex').value,spouse:$('#st_spouse').value,zip:$('#st_zip').value.trim(),address:$('#st_addr').value.trim(),tel:$('#st_tel').value.trim(),
       emgName:$('#st_emgName').value.trim(),emgRel:$('#st_emgRel').value.trim(),emgTel:$('#st_emgTel').value.trim(),leaveDate:$('#st_leave').value,note:$('#st_note').value.trim(),
       chouri:!!($('#st_chouri')&&$('#st_chouri').checked)};
@@ -18369,7 +18513,7 @@ var ACCESS_PAGES=[
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'kenshu',label:'保育研修'},{p:'bouka',label:'研修・訓練'},{p:'shift',label:'シフト表'},{p:'timecard',label:'打刻（タイムカード）'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'書類格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先'},{p:'roster',label:'生徒台帳'},
-  {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（保護者用キオスク）'},{p:'annual',label:'年間スケジュール'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'きょうの様子'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
+  {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（保護者用キオスク）'},{p:'annual',label:'年間スケジュール'},{p:'missing',label:'未入力書類'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'きょうの様子'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'月間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
@@ -18398,13 +18542,13 @@ var DEFAULT_PERMS={
      renderDocsHub でカードごと作らない（押せてしまわないようにする）。 */
   /* kidsview は生徒台帳（roster）の中のタブに畳んだ（2026-09-05）。
      ここを roster に置きかえないと、先生が園児の一覧をまったく開けなくなる。 */
-  '一般':['home','menu','kiosk','feed','annual','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
+  '一般':['home','menu','kiosk','feed','annual','missing','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
          'curriculum','roster','tasks','wastore','photosale','aiplan','docs','guide'],
   /* 主任・リーダーは、見える画面は先生と同じ。ちがうのは中の3つだけ（isChief で分けている） */
-  '主任':['home','menu','kiosk','feed','annual','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
+  '主任':['home','menu','kiosk','feed','annual','missing','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
          'curriculum','roster','tasks','wastore','photosale','aiplan','docs','guide']
 };
-var PERMS_VERSION=19;
+var PERMS_VERSION=20;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
    平文はどこにも保存しません。実際の園児情報を入れる前に、必ず変更してください。 */
