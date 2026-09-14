@@ -256,7 +256,7 @@ function wireLogin(){
 
 /* ── 全体の骨組み ───────────────────── */
 function shell(inner){
-  var tabs=[['home','ホーム'],['apply','申込'],['tenants','園の一覧'],['bill','請求'],['docs','書類'],['me','設定']];
+  var tabs=[['home','ホーム'],['apply','申込'],['tenants','園の一覧'],['bill','請求'],['pay','決済'],['docs','書類'],['me','設定']];
   return '<div class="top"><div><div class="lg">運営管理</div>'
     +'<div class="sub">未来WA ／ EduGrow</div></div>'
     +'<div class="sp"></div><button id="out">ログアウト</button></div>'
@@ -368,6 +368,164 @@ function billState(st){
   return '<span class="pill" style="background:'+m[1]+';color:'+m[2]+';">'+esc(m[0])+'</span>';
 }
 
+/* ── 決済（保護者のカード払い）──────────────
+   未来WAストア・写真販売で保護者がカードで払ったものの台帳（wa_payments）。
+   園→BJ の月額（上の「請求」）とは元栓が別で、鍵2つ（STRIPE_SECRET_KEY・STRIPE_WEBHOOK_SECRET）が
+   入った瞬間に本番になる。鍵が無いあいだは「練習」で、金額の計算と記録だけをし、請求は起きない。
+   金額・分けまえはすべてサーバが台帳に焼き込んだものをそのまま出す。ここでは計算しない。 */
+var payMonth=billMonth, payQ='', payStatus='';
+
+function payStatusCard(){
+  var p=DATA.pstat;
+  if(!p)return '<div class="card"><div class="note bad">お支払いの状態を読み込めませんでした。'
+    +(DATA.pstatErr?esc(DATA.pstatErr):'サーバがまだこの口を持っていないかもしれません。')+'</div></div>';
+  var on=!!p.charging;
+  var h='<div class="card" style="border-color:'+(on?'#E0B4B4':'#C7DFA6')+';background:'+(on?'#FBEBEB':'#EEF5E6')+';">'
+    +'<div style="font-weight:800;font-size:14px;color:'+(on?'#9C3535':'#2F6B33')+';">'
+    +(on?'⚠ 保護者のカード払いは実際に決済します（'+esc(p.mode||'')+'）'
+        :'保護者のカード払いはいまは練習用です（実際の請求はありません）')+'</div>'
+    +'<div style="font-size:12.5px;color:var(--mute);margin-top:8px;line-height:1.9;">'
+    /* 鍵の値は出さない（サーバも返さない）。設定ずみ・未設定だけ */
+    +'鍵 STRIPE_SECRET_KEY：'+(p.keyReady?'設定ずみ（'+esc(p.mode||'')+'）':'未設定')
+    +'　／　通知の合言葉 STRIPE_WEBHOOK_SECRET：'+(p.webhookReady?'設定ずみ':'未設定')
+    +'<br>非常停止 STORE_PAY_DRY_RUN：'+(p.dryRun?'はい（鍵は残したまま止めています）':'いいえ')
+    +'<br>'+(on
+      ? '保護者が「購入する」を押すと、決済代行会社（Stripe）のお支払いページに移り、カードに請求されます。'
+      : '保護者が「購入する」を押しても、金額を記録して「購入済み」にするだけです。カードには請求されません。')
+    +'</div>';
+  /* 通知（Webhook）の受け取り実績。鍵を入れたのに Stripe 側で checkout.* の通知を登録していないと、
+     払われたのに永久に「支払待ち」で止まる。ここで気づけるようにする。 */
+  var seen=p.checkoutEventSeen, last=p.lastCheckoutEventAt;
+  h+='<div style="font-size:12.5px;margin-top:9px;line-height:1.9;color:'+(on&&!seen?'#9C3535':'var(--mute)')+';">'
+    +'購入完了の通知（checkout.*）：'
+    +(seen?'受け取った実績あり'+(last?'（最終 '+esc(fmtAt(last))+'）':'')
+          :'まだ一度も受け取っていません'
+            +(on?'。Stripe の管理画面の Webhook に checkout.session.completed などの5種類が登録されているか確かめてください':''))
+    +'</div>';
+  if(p.pendingStale>0){
+    h+='<div class="note bad" style="margin:9px 0 0;">5分以上「支払待ち」のままのものが <b>'+p.pendingStale+'件</b> あります。'
+      +'下の一覧で状態を「支払待ち」に絞り、「再確認」を押してください（Stripe に聞き直して確定します）。</div>';
+  }
+  if(p.checks&&p.checks.length){
+    h+='<div class="lines" style="margin-top:10px;">'+p.checks.map(function(c){
+      if(typeof c==='string')return '<div><span class="l">'+esc(c)+'</span></div>';
+      var lb=c.label||c.name||c.key||c.id||'', nt=c.note||c.detail||c.why||'';
+      var ok=(c.ok===true)?'OK':(c.ok===false?'要対応':'—');
+      return '<div><span class="l">'+esc(lb)+(nt?'<div style="font-size:11.5px;color:var(--mute);">'+esc(nt)+'</div>':'')+'</span>'
+        +'<span class="y" style="color:'+(c.ok===false?'#9C3535':(c.ok===true?'#2F6B33':'var(--mute)'))+';">'+ok+'</span></div>';
+    }).join('')+'</div>';
+  }
+  if(p.handledTypes&&p.handledTypes.length){
+    h+='<div style="font-size:11px;color:var(--mute);margin-top:9px;line-height:1.7;">受け取る通知の種類：'
+      +p.handledTypes.map(function(t){return esc(t);}).join('、')+'</div>';
+  }
+  return h+'</div>';
+}
+
+/* ISO の日時を日本時間の「YYYY-MM-DD HH:MM」に。表の中で読みやすくするためだけ。 */
+function fmtAt(iso){
+  if(!iso)return '—';
+  var t=Date.parse(iso); if(isNaN(t))return String(iso).slice(0,16);
+  return new Date(t+9*3600*1000).toISOString().slice(0,16).replace('T',' ');
+}
+function payKind(k){
+  var m={store:['ストア','#E6F1FB','#123E6B'],photo:['写真','#EEEDFE','#3C3489']}[k]||[k,'#EEF1F3','#4E5C66'];
+  return '<span class="pill" style="background:'+m[1]+';color:'+m[2]+';">'+esc(m[0])+'</span>';
+}
+/* 状態の札。保存値（日本語）をそのまま出す。要確認は赤、支払待ちは黄。 */
+function payState(st){
+  var m={'支払済':['#E9F2E7','#2F6B33'],'一部返金':['#E6F1FB','#123E6B'],'返金':['#EEF1F3','#4E5C66'],
+         '支払待ち':['#FBF1DE','#96600A'],'要確認':['#FBEBEB','#9C3535'],
+         '期限切れ':['#EEF1F3','#4E5C66'],'取消':['#EEF1F3','#4E5C66'],'練習':['#EEF1F3','#4E5C66']}[st]||['#EEF1F3','#4E5C66'];
+  return '<span class="pill" style="background:'+m[0]+';color:'+m[1]+';">'+esc(st||'—')+'</span>';
+}
+function payLines(x){
+  return (x.lines||[]).map(function(l){
+    if(l.photoId!=null||l.seq!=null)return '写真 No.'+esc(l.seq!=null?l.seq:l.photoId)+'　'+yen(l.yen);
+    return esc(l.name||('商品 '+l.pid))+((+l.qty||1)>1?' ×'+(+l.qty):'')+'　'+yen(l.yen);
+  }).join('　／　');
+}
+
+function payHTML(){
+  var d=DATA.pay||{}, rows=d.payments||[];
+  var STS=['','支払待ち','支払済','要確認','一部返金','返金','期限切れ','取消'];
+  var h=payStatusCard()
+    +'<div class="card"><h2>保護者のカード払い</h2>'
+    +'<div class="lead">未来WAストア・写真販売で保護者がお支払いになったものの台帳です。保育料はここには載りません。</div>'
+    +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;">'
+    +'<label style="display:block;"><span style="font-size:11.5px;color:var(--mute);display:block;margin-bottom:4px;">対象の月</span>'
+    +'<input type="month" id="pm" value="'+esc(payMonth)+'"></label>'
+    +'<label style="display:block;"><span style="font-size:11.5px;color:var(--mute);display:block;margin-bottom:4px;">状態</span>'
+    +'<select id="pst">'+STS.map(function(x){return '<option value="'+esc(x)+'"'+(x===payStatus?' selected':'')+'>'+(x||'すべて')+'</option>';}).join('')+'</select></label>'
+    +'<label style="display:block;flex:1;min-width:220px;"><span style="font-size:11.5px;color:var(--mute);display:block;margin-bottom:4px;">検索（保護者のメール／cs_／pi_／支払番号）</span>'
+    +'<input id="pq" value="'+esc(payQ)+'" placeholder="例：parent@example.com"></label>'
+    +'<button id="pGo" class="btn sm">読み直す</button>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mute);margin-top:10px;line-height:1.9;">'
+    +'「払ったのに届かない」というお問い合わせは、保護者のメールで検索し、状態が「支払待ち」「要確認」なら「再確認」を押してください。'
+    +'それでも直らないときは、Stripe の管理画面で同じメールを検索します。</div></div>';
+
+  h+='<div class="tiles">'
+    +tile('合計の決済額',yen(d['合計の決済額']),'','本番で支払済のもの（返金を引いた額）')
+    +tile('合計の還元額',yen(d['合計の還元額']),'','園への還元（台帳に焼き込んだ額）')
+    +tile('合計の手数料',yen(d['合計の手数料']),'','運営の取り分')
+    +tile('合計の返金額',yen(d['合計の返金額']),'','')
+    +tile('お試しの件数',(d['お試しの件数']||0),'件','練習・テストの記録。売上には入れていません')
+    +'</div>';
+
+  h+='<div class="card"><h2>'+esc(d.month||payMonth)+' の一覧'
+    +'<span style="float:right;font-weight:400;font-size:12.5px;color:var(--mute);">'+(d['件数']||rows.length||0)+'件</span></h2>'
+    +(rows.length
+      ? '<div class="tw"><table><thead><tr>'
+        +'<th>園</th><th>種類</th><th>園児番号</th><th class="r">金額</th><th class="r">還元</th><th class="r">手数料</th>'
+        +'<th>状態</th><th>お支払い日時</th><th>領収書</th><th></th></tr></thead><tbody>'
+        +rows.map(function(x){
+          var real=(x.mode==='本番'||x.mode==='テスト');
+          var rest=Math.max(0,(+x.amount_yen||0)-(+x.refunded_yen||0));
+          var canRefund=real&&rest>0&&(x.status==='支払済'||x.status==='一部返金'||x.status==='要確認');
+          var canRecheck=real&&(x.status==='支払待ち'||x.status==='要確認'||x.status==='期限切れ'||x.status==='取消'
+                                ||(x.status==='支払済'&&!x.receipt_url));
+          return '<tr style="cursor:default;">'
+            +'<td><b>'+esc(x.tenant_name||('園 '+x.tenant_id))+'</b>'
+              +'<div style="font-size:11px;color:var(--mute);">'+esc(x.tenant_code||'')+'　#'+esc(x.id)+'</div></td>'
+            +'<td>'+payKind(x.kind)+(x.mode&&x.mode!=='本番'?'<div style="font-size:10.5px;color:var(--mute);">'+esc(x.mode)+'</div>':'')+'</td>'
+            +'<td class="num">'+esc(x.child_ref)+'</td>'
+            +'<td class="r num"><b>'+yen(x.amount_yen)+'</b>'
+              +((+x.refunded_yen)>0?'<div style="font-size:11px;color:#9C3535;">返金 '+yen(x.refunded_yen)+'</div>':'')+'</td>'
+            +'<td class="r num">'+yen(x.back_yen)+'<div style="font-size:10.5px;color:var(--mute);">'+esc(x.back_percent==null?'':x.back_percent+'%')+(x.rate_src?'・'+esc(x.rate_src):'')+'</div></td>'
+            +'<td class="r num">'+yen(x.fee_yen)+'<div style="font-size:10.5px;color:var(--mute);">'+esc(x.fee_percent==null?'':x.fee_percent+'%')+'</div></td>'
+            +'<td>'+payState(x.status)+'</td>'
+            +'<td class="num" style="font-size:11.5px;white-space:nowrap;">'+esc(fmtAt(x.paid_at||x.created_at))
+              +(x.paid_at?'':'<div style="font-size:10.5px;color:var(--mute);">作成日時</div>')+'</td>'
+            +'<td>'+(x.receipt_url?'<a href="'+esc(x.receipt_url)+'" target="_blank" rel="noopener">領収書</a>':'—')+'</td>'
+            +'<td class="r" style="white-space:nowrap;">'
+              +(canRecheck?'<button data-prc="'+esc(x.id)+'" class="btn sec sm">再確認</button> ':'')
+              +(canRefund?'<button data-prf="'+esc(x.id)+'" data-rest="'+rest+'" class="btn sm warn">返金</button>':'')
+              +'</td>'
+            +'</tr>'
+            +'<tr style="cursor:default;"><td colspan="10" style="padding-top:0;border-top:0;">'
+            +'<div style="font-size:11.5px;color:var(--mute);line-height:1.8;">'+payLines(x)
+            +(x.stripe_session||x.stripe_payment_intent
+              ?'<br><span class="num">'+esc(x.stripe_session||'')+(x.stripe_payment_intent?'　'+esc(x.stripe_payment_intent):'')+'</span>':'')
+            +(x.note?'<br><span style="color:'+(x.status==='要確認'?'#9C3535':'var(--mute)')+';">'+esc(x.note)+'</span>':'')
+            +'</div></td></tr>';
+        }).join('')+'</tbody></table></div>'
+      : '<div class="empty">この条件のお支払いはありません</div>')
+    +'</div>';
+
+  /* 通知（Webhook）の受信履歴。サーバがこの口を持っているときだけ出す（無ければ何も出さない）。 */
+  if(DATA.pevents&&DATA.pevents.length){
+    h+='<div class="card"><h3>通知の受信履歴（新しい順）</h3>'
+      +'<div class="tw"><table style="min-width:520px;"><thead><tr><th>受け取った日時</th><th>種類</th><th>対象</th><th>処理</th></tr></thead><tbody>'
+      +DATA.pevents.map(function(ev){
+        return '<tr style="cursor:default;"><td class="num" style="white-space:nowrap;">'+esc(fmtAt(ev.received_at||ev.created_at||ev.at))+'</td>'
+          +'<td>'+esc(ev.type||'')+'</td><td class="num" style="font-size:11.5px;">'+esc(ev.object_id||'')+'</td>'
+          +'<td style="font-size:11.5px;">'+(ev.handled_at?'済　':'<span style="color:#96600A;">未処理　</span>')+esc(ev.note||'')+'</td></tr>';
+      }).join('')+'</tbody></table></div></div>';
+  }
+  return h;
+}
+
 /* ── ホーム ─────────────────────────── */
 function homeHTML(){
   var k=DATA.kpi;
@@ -387,8 +545,14 @@ function homeHTML(){
             +' <b class="num" style="font-size:15px;">'+st[s]+'</b></span>';}).join('')+'</div>'
       : '<div class="empty">まだ園がありません</div>')
     +'</div>'
+    /* ★「Stripe とはまだつないでいない」と固定で書いていた。鍵を入れて本番になっても
+       この文が残ると、実際に決済しているのに「つないでいない」と読めてしまう。
+       園→BJ の月額（bstat）と保護者のカード払い（pstat）のどちらかが本番なら文を変える。 */
     +'<div class="note">売上は、いま登録されている契約と在籍数から計算した見込みです。'
-    +'Stripe とはまだつないでいないため、実際の入金とは別です。</div>';
+    +(((DATA.bstat&&DATA.bstat.charging)||(DATA.pstat&&DATA.pstat.charging))
+      ? '実際の入金額は Stripe の管理画面でご確認ください。保護者のカード払いの明細は「決済」タブにあります。'
+      : '園の月額も保護者のカード払いも、まだ Stripe とはつないでいないため（練習用）、実際の入金とは別です。')
+    +'</div>';
 }
 function tile(k,v,u,n){
   return '<div class="tile"><div class="k">'+esc(k)+'</div>'
@@ -597,12 +761,17 @@ function tenantHTML(){
     /* ★金額がまだ決まっていない3つ。0 のあいだは、いままでと同じ請求になる。 */
     +'<div class="grid3">'
     +'<div class="f"><label>初期費用（税別・契約時に1回）</label><input id="c_init" class="num" inputmode="numeric" placeholder="0＝いただかない" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
-    +'<div class="f"><label>ストアの運営手数料（％）</label><input id="c_sfee" class="num" inputmode="numeric" placeholder="0＝取らない" value="'+esc(c.store_fee_percent==null?'':c.store_fee_percent)+'"></div>'
-    +'<div class="f"><label>ストアの園への還元（％）</label><input id="c_sback" class="num" inputmode="numeric" placeholder="0＝還元しない" value="'+esc(c.store_back_percent==null?'':c.store_back_percent)+'"></div>'
+    +'<div class="f"><label>ストアの運営手数料（％）</label><input id="c_sfee" class="num" inputmode="numeric" placeholder="0＝仮の率" value="'+esc(c.store_fee_percent==null?'':c.store_fee_percent)+'"></div>'
+    +'<div class="f"><label>ストアの園への還元（％）</label><input id="c_sback" class="num" inputmode="numeric" placeholder="0＝園の設定（既定20%）" value="'+esc(c.store_back_percent==null?'':c.store_back_percent)+'"></div>'
     +'</div>'
     +'<div class="note">初期費用とストアの率は、まだ決まっていないので 0 のままにしてあります。'
     +'0 のあいだは、いままでと同じ請求です。決まったらここに入れてください。'
-    +'手数料と還元を足して100%を超えると、出品者の取り分がなくなるので保存できません。</div>'
+    +'手数料と還元を足して100%を超えると、出品者の取り分がなくなるので保存できません。<br>'
+    /* 保護者のカード払いの台帳（wa_payments）は、作った時点の率を焼き込む。
+       契約の率が 0 のあいだに何の率で記録されるかを、運営が見て分かるようにしておく。 */
+    +'ストアの率が 0 のあいだは、保護者のカード払いの台帳には、運営の既定の手数料率（仮の率）と、'
+    +'園が未来WAの画面で決めた還元率（既定 20%）で記録します。ここに入れた値が優先されます。'
+    +'すでに記録した分の率は、あとから変えても動きません。</div>'
     +'<div class="grid3">'
     +'<div class="f"><label>キャンペーン（か月）</label><input id="c_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
     +'<div class="f"><label>キャンペーンの割引率</label><input id="c_cr" class="num" value="'+esc(c.campaign_rate)+'"></div>'
@@ -905,7 +1074,12 @@ function showDoc(j){
 
 /* ── 読み込みと描画 ─────────────────── */
 function load(){
-  if(view==='home')  return API.call('GET','/admin/kpi').then(function(j){DATA.kpi=j;});
+  if(view==='home')  return Promise.all([
+      API.call('GET','/admin/kpi').then(function(j){DATA.kpi=j;}),
+      /* ホームの注記を決めるためだけ。読めなくてもホームは出す */
+      API.call('GET','/admin/billing/status').then(function(j){DATA.bstat=j;}).catch(function(){}),
+      API.call('GET','/admin/pay/status').then(function(j){DATA.pstat=j;}).catch(function(){})
+    ]);
   if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
   if(view==='one')   return API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;});
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
@@ -915,6 +1089,20 @@ function load(){
       API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(billMonth))
         .then(function(j){DATA.binv=j;})
     ]);
+  if(view==='pay'){
+    var qs='?month='+encodeURIComponent(payMonth)
+      +(payQ?'&q='+encodeURIComponent(payQ):'')
+      +(payStatus?'&status='+encodeURIComponent(payStatus):'');
+    return Promise.all([
+      /* 状態が読めなくても一覧は出す（読めない理由はカードに出す） */
+      API.call('GET','/admin/pay/status').then(function(j){DATA.pstat=j;DATA.pstatErr='';})
+        .catch(function(e){DATA.pstat=null;DATA.pstatErr=e.message;}),
+      API.call('GET','/admin/payments'+qs).then(function(j){DATA.pay=j;}),
+      /* 通知の受信履歴。この口が無いサーバでは黙って出さない */
+      API.call('GET','/admin/billing/events?limit=30').then(function(j){DATA.pevents=(j&&j.events)||null;})
+        .catch(function(){DATA.pevents=null;})
+    ]);
+  }
   return Promise.resolve();
 }
 
@@ -931,7 +1119,7 @@ function load(){
 function render(){
   var r=$('root');
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
-  var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,docs:docsHTML,me:meHTML}[view];
+  var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,me:meHTML}[view];
   r.innerHTML=shell(inner());
   wire();
   load().then(function(){
@@ -980,6 +1168,42 @@ function wire(){
     API.call('POST','/admin/billing/invoices/'+b.getAttribute('data-bx')+'/cancel',{})
       .then(function(){ render(); })
       .catch(function(e){ alert(e.message); });
+  };});
+
+  /* 決済（保護者のカード払い）のタブ */
+  var pm=$('pm');
+  if(pm)pm.onchange=function(){ payMonth=pm.value; render(); };
+  var payReload=function(){
+    payQ=$('pq')?$('pq').value.trim():''; payStatus=$('pst')?$('pst').value:'';
+    render();
+  };
+  if($('pGo'))$('pGo').onclick=payReload;
+  if($('pq'))$('pq').addEventListener('keydown',function(ev){ if(ev.key==='Enter')payReload(); });
+  /* 再確認：Stripe に Session を聞き直して、支払済／期限切れ／領収書の取り直しをサーバが行う。
+     保護者が戻ってこず Webhook も届かなかった「払ったのに届かない」をここで畳む。 */
+  document.querySelectorAll('[data-prc]').forEach(function(b){b.onclick=function(){
+    b.disabled=true; b.textContent='確認中…';
+    API.call('POST','/admin/payments/'+b.getAttribute('data-prc')+'/recheck',{})
+      .then(function(){ render(); })
+      .catch(function(e){ alert(e.message); b.disabled=false; b.textContent='再確認'; });
+  };});
+  /* 返金：金額は残りの全額を既定にし、理由を必ず入れる（台帳に「誰が・なぜ」を残すため）。
+     Stripe から保護者のカードへ戻る操作なので、必ず一度たずねる。 */
+  document.querySelectorAll('[data-prf]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-prf'), rest=parseInt(b.getAttribute('data-rest'),10)||0;
+    var a=prompt('返金する金額（円）を入れてください。\n残りの全額は '+yen(rest)+' です。',String(rest));
+    if(a===null)return;
+    var amt=parseInt(String(a).replace(/[^0-9]/g,''),10);
+    if(!amt||amt<=0||amt>rest){alert('返金額は 1〜'+rest+' 円のあいだで入れてください。');return;}
+    var reason=prompt('返金の理由を入れてください（300字まで。台帳に残ります）','');
+    if(reason===null)return;
+    reason=String(reason).trim();
+    if(!reason){alert('返金の理由を入れてください。');return;}
+    if(!confirm(yen(amt)+' を返金します。\n\nStripe から保護者のカードへ戻り、取り消せません。\nよろしいですか？'))return;
+    b.disabled=true; b.textContent='返金中…';
+    API.call('POST','/admin/payments/'+id+'/refund',{amountYen:amt,reason:reason})
+      .then(function(){ render(); })
+      .catch(function(e){ alert(e.message); b.disabled=false; b.textContent='返金'; });
   };});
 
   document.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){

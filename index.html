@@ -148,6 +148,14 @@
   .nav-label .caret{margin-left:auto;font-size:9px;opacity:.6;transition:transform .16s;}
   .nav-label.closed .caret{transform:rotate(-90deg);}
   .nav-label .cnt{font-size:10px;opacity:.55;font-variant-numeric:tabular-nums;}
+  /* ★組の名前が小さく薄い灰色で、たたんだときにどこに何があるか読みにくかった（2026-09-14 安田さん）。
+     太字・白に近い色・少し大きく。組と組のあいだに細い線を入れて区切りを見せる */
+  #nav .nav-label{font-size:12.5px;font-weight:700;letter-spacing:.02em;text-transform:none;color:#EAF4F8;
+    padding:11px 12px 9px;margin-top:6px;border-top:1px solid rgba(255,255,255,.08);border-radius:0;}
+  #nav .nav-label:first-of-type{border-top:0;}
+  #nav .nav-label:hover{background:rgba(255,255,255,.06);border-radius:8px;}
+  #nav .nav-label .cnt{font-size:10.5px;font-weight:600;opacity:1;color:#0A3A52;background:#9FD0E6;border-radius:99px;padding:0 7px;line-height:17px;}
+  #nav .nav-label .caret{font-size:10px;opacity:.8;}
   .nav-grp{overflow:hidden;transition:max-height .18s ease;}
   .nav-grp.closed{max-height:0 !important;}
   /* マスの中の機能。名前を押したときだけ、中の行を出す */
@@ -352,6 +360,8 @@
   .napcell.v仰{background:#EAF3DE;color:#27500A;}
   .napcell.v横{background:#E6F1FB;color:#123E6B;}
   .napcell.v伏{background:#FCEBEB;color:#A32D2D;font-weight:600;}
+  /* 確定ずみで押せないときに、押せるマスと同じ見た目だった。押せないと分かるようにする */
+  .napcell:disabled{background:#F1EFE8;color:#A9A296;cursor:not-allowed;border-style:dashed;}
   .shiftcell{min-width:40px;height:32px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;padding:0;}
   .shiftcell.s早{background:#FAEEDA;color:#854F0B;}
   .shiftcell.s日{background:#EAF3DE;color:#27500A;}
@@ -2385,6 +2395,11 @@ function classRename(oldName,newName){
   var cs=DB.contacts,ch=false;
   (cs||[]).forEach(function(c){ if(c&&c.klass===oldName){c.klass=newName;ch=true;} });
   if(ch)DB.contacts=cs;
+  /* 職員の配属クラス。★付け替えていなかったので、名前を変えた園で配属が消えていた
+     （職員情報を開くと「（未設定）」になり、ほかの欄を直して保存すると空で上書きされた）。 */
+  var sf=DB.staff,sch=false;
+  (sf||[]).forEach(function(x){ if(x&&x.klass===oldName){x.klass=newName;sch=true;} });
+  if(sch)DB.staff=sf;
   /* 日案・日別スケジュール・週の内容・月間のねらい・活動の種類 */
   /* ★移す先にすでに鍵があると、旧名の記録を黙って捨てていた。
      移せたときだけ消す（移せなかったものは、そのまま残して知らせる）。 */
@@ -3806,7 +3821,7 @@ function egPlanOfPage(p){
         if(!hit&&it.sub){
           for(var k=0;k<it.sub.length;k++){ if(it.sub[k].p===p){hit=true;break;} }
         }
-        if(hit) return planAllows(g.plan)&&planAllows(it.plan)&&(!g.opt||optOn(g.opt))&&(!it.opt||optOn(it.opt));
+        if(hit) return planAllows(g.plan)&&planAllows(it.plan)&&(it.optFree||((!g.opt||optOn(g.opt))&&(!it.opt||optOn(it.opt))));
       }
     }
   }catch(e){}
@@ -4179,18 +4194,25 @@ function planBarRender(){
    はじめは出さない（Remi さん 2026-09-13）。設定 → オプション機能 で園ごとに入れられる。
    権限もコードも残す。消してしまうと、あとで足すときに作り直しになる。 */
 var EG_OPTS=[
-  {k:'sales', l:'新規顧客管理', d:'顧客リスト・体験結果報告・個別メール・営業分析。ダッシュボードの問い合わせ・体験・入退園の数もここに入ります'},
-  {k:'audit', l:'監査対応・書類作成', d:'監査対応、運営に必要な書類・市町村指定の書類の作成'},
-  {k:'aiplan',l:'AI保育計画', d:'月案・週案・日案の下書きをAIが作る'}
+  /* need は、その組を使うのに要るプラン（EG_NAV の plan と合わせる）。設定の画面で、入れても使えないものを選べなくするため */
+  {k:'sales', l:'新規顧客管理', need:'pro', d:'顧客リスト・体験結果報告・個別メール・営業分析。ダッシュボードの問い合わせ・体験・入退園の数もここに入ります'},
+  {k:'audit', l:'監査対応・書類作成', need:'standard', d:'監査対応、運営に必要な書類・市町村指定の書類の作成'},
+  {k:'aiplan',l:'AI保育計画', need:'standard', d:'月案・週案・日案の下書きをAIが作る'}
 ];
-function optOn(k){ var o=(typeof SET!=='undefined'&&SET&&SET.opts&&typeof SET.opts==='object')?SET.opts:{}; return !!o[k]; }
+/* ★2026-09-14 安田さん：網羅チェックのため、オプションは一旦なくして全部出す。
+   設定に保存された値（SET.opts）は見ない。仕組み（EG_OPTS／opt の印）は、あとでオプションに戻すときのために残す。
+   戻すときは「その項目ごと見えなくする」（サイドバー・メニュー・ダッシュボードのボタンからも消す。押して案内を出す形にしない） */
+var EG_OPTS_ON=false;
+function optOn(k){ if(!EG_OPTS_ON)return true; var o=(typeof SET!=='undefined'&&SET&&SET.opts&&typeof SET.opts==='object')?SET.opts:{}; return !!o[k]; }
 /* その画面が「オプションで外している組」にあるか（プランで外れているのとは別の案内を出すため） */
 function optOfPage(p){
   var found='';
   try{
     EG_NAV.forEach(function(g){ g.items.forEach(function(it){
       var hit=(it.p===p)||(it.sub||[]).some(function(y){return y.p===p;});
-      if(hit&&!found)found=(g.opt&&!optOn(g.opt))?g.opt:((it.opt&&!optOn(it.opt))?it.opt:'');
+      /* ★プランを見ずにオプション名を返していたので、プランに含まれない組でも「設定で入れると使えます」と案内し、
+         入れても次は「プランに含まれていません」で止まっていた。プランが通るときだけオプションの話にする。 */
+      if(hit&&!found&&!it.optFree&&planAllows(g.plan)&&planAllows(it.plan))found=(g.opt&&!optOn(g.opt))?g.opt:((it.opt&&!optOn(it.opt))?it.opt:'');
     });});
   }catch(e){}
   return found;
@@ -4210,8 +4232,12 @@ function homeDateHTML(pT,wd){
 function homeMyClass(){
   try{
     var a=currentStaff(); if(!a)return '';
-    var st=(DB.staff||[]).filter(function(x){return String(x.id)===String(a.staffId);})[0];
-    return (st&&st.klass)||'';
+    /* ★staffId だけで探していたが、サーバでログインしたアカウントには staffId が入らない。
+       本番の園では配属クラスがいつも効かず、全クラスの行が並んでいた。acctOfStaff と同じく氏名でも照らす。 */
+    var st=(DB.staff||[]).filter(function(x){return (a.staffId!=null&&String(x.id)===String(a.staffId))||(a.staffId==null&&x.name&&x.name===a.name);})[0];
+    /* クラス一覧に無い名前（消したクラス）が残っていたら、全クラスに戻す */
+    if(!st||!st.klass||(CLASSES||[]).indexOf(st.klass)<0)return '';
+    return st.klass;
   }catch(e){ return ''; }
 }
 
@@ -4221,13 +4247,20 @@ function homeMyClass(){
    数えられなかった組は、その組を出さない（合っていない数を見せないため）。 */
 function missingDocs(){
   var t=todayISO(), mk=t.slice(0,7), out=[];
+  /* ★役職を見ずに6つの組を全部出していたので、先生・主任の未入力書類にも、サイドバーに出ていない
+     職員情報と請求・経費管理の行が並び、押せないまま「あと N 件」に足されていた。
+     先生の端末には書類作成の中身（労働条件通知書）が届かないので、数えても「全員が未作成」と合わない数になる。
+     サイドバー（EG_NAV の boss）と同じく、園長・管理者だけに出す。 */
+  var boss=(typeof isBoss!=='function')||isBoss();
   function put(cat,items){ out.push({cat:cat,items:items}); }
   /* ホーム：きょうの記録 */
   try{
     var h=[];
     ['登園（出席）','安全点検','午睡チェック','健康チェック','保育日誌・業務日報'].forEach(function(tp){
       var K=(typeof RKEY!=='undefined')?RKEY[tp]:null; if(!K)return;
-      if(!stGet(K,{})[t])h.push({l:tp,d:'きょうの分',p:(typeof recPageOf==='function'?recPageOf(tp):'records'),rec:tp});
+      /* ★入れ物があるだけで入力済みにしていたので、記録者を選んだだけの日報や、クラスを切り替えただけの登園シートが
+         未入力書類から消え、ダッシュボードの「本日の記録」（未）と食い違っていた。監査の一覧・紙と同じ数え方にする。 */
+      if(!recDoneToday(K,t))h.push({l:tp,d:'きょうの分',p:(typeof recPageOf==='function'?recPageOf(tp):'records'),rec:tp});
     });
     put('ホーム',h);
   }catch(e){}
@@ -4236,10 +4269,17 @@ function missingDocs(){
     var c=[];
     (CLASSES||[]).forEach(function(k){
       var sc=curSchedGet(k,t), has=!!(sc.am||sc.pm||sc.amText||sc.pmText);
-      if(has&&typeof actRepGet==='function'&&!(actRepGet(k,t).done))c.push({l:'活動記録（'+k+'）',d:'きょうの活動の「記録」がまだです',p:'curriculum'});
+      if(has&&typeof actRepGet==='function'&&!(actRepGet(k,t).done))c.push({l:'活動記録（'+k+'）',d:'きょうの活動の「記録」がまだです',p:'curriculum',cls:k});
       var any=false, s=curSched()[k]||{};
-      for(var d in s){ if(d.slice(0,7)===mk){any=true;break;} }
-      if(!any)c.push({l:'月間カリキュラム（'+k+'）',d:mk.replace('-','/')+' の活動がまだ入っていません',p:'curriculum'});
+      /* ★日付の鍵があるかどうかだけで見ていたので、担当だけ入れた日や、選んだ活動を空に戻した日があると
+         その月が入力済みになり、監査の一覧（今月分なし）と食い違っていた。
+         監査と月間スケジュールの自動の済と同じく、活動（午前・午後）が入っている日だけを数える。 */
+      for(var d in s){
+        if(!Object.prototype.hasOwnProperty.call(s,d))continue;
+        var r=s[d]||{};
+        if(String(d).slice(0,7)===mk&&(r.am||r.pm||r.amText||r.pmText)){any=true;break;}
+      }
+      if(!any)c.push({l:'月間カリキュラム（'+k+'）',d:mk.replace('-','/')+' の活動がまだ入っていません',p:'curriculum',cls:k});
     });
     put('カリキュラム',c);
   }catch(e){}
@@ -4252,23 +4292,40 @@ function missingDocs(){
     put('生徒情報',g);
   }catch(e){}
   /* 職員情報：健康診断と労働条件通知書 */
-  try{
-    var sts=(DB.staff||[]).filter(function(x){return !(x.leaveDate&&x.leaveDate<=t);}), s2=[];
-    var yago=new Date(); yago.setFullYear(yago.getFullYear()-1); var y1=yago.toISOString().slice(0,10);
-    var oldK=sts.filter(function(x){return !x.kenshinDate||x.kenshinDate<y1;}).length;
-    if(oldK)s2.push({l:'職員の健康診断',d:oldK+'名が未記録か1年以上前です（年1回）',p:'staff',n:oldK+'名'});
-    var rd=(dgStore().roudou||{}), noR=sts.filter(function(x){return !rd[x.id];}).length;
-    if(noR)s2.push({l:'労働条件通知書',d:noR+'名ぶんが未作成です',p:'staff',n:noR+'名'});
-    put('職員情報',s2);
-  }catch(e){}
+  if(boss){
+    try{
+      var sts=(DB.staff||[]).filter(function(x){return !(x.leaveDate&&x.leaveDate<=t);}), s2=[];
+      var yago=new Date(); yago.setFullYear(yago.getFullYear()-1); var y1=yago.toISOString().slice(0,10);
+      var oldK=sts.filter(function(x){return !x.kenshinDate||x.kenshinDate<y1;}).length;
+      if(oldK)s2.push({l:'職員の健康診断',d:oldK+'名が未記録か1年以上前です（年1回）',p:'staff',n:oldK+'名'});
+      /* ★書類作成の入れ物（roudou）に行があるかだけで数え、行き先は職員管理にしていた。
+         書類作成はオプション（はじめは外れている）なので、入れていない園では作る場所が無く、
+         職員管理で控えを取り込んでも数に入らないので、「N名ぶんが未作成です」がいつまでも消えなかった。
+         作った（中身が1つでも入っている）か、職員管理で「労働条件通知書」の控えを取り込んでいれば済みにする。
+         行き先は、書類作成が開ける園ではその画面の労働条件通知書、開けない園では職員管理にする。 */
+      var rd=(dgStore().roudou||{}), dgOk=(typeof egPlanOfPage!=='function')||egPlanOfPage('docgen');
+      var noR=sts.filter(function(x){
+        var r=rd[x.id];
+        var made=!!(r&&typeof r==='object'&&Object.keys(r).some(function(k){return r[k];}));
+        var up=(typeof staffDocsOf==='function')&&staffDocsOf(x.id).some(function(dc){return dc&&dc.kind==='労働条件通知書';});
+        return !made&&!up;
+      }).length;
+      if(noR)s2.push({l:'労働条件通知書',
+        d:dgOk?noR+'名ぶんが未作成です':noR+'名ぶんの控えがまだありません（職員管理の「身分証・証明書の保管」から取り込めます）',
+        p:dgOk?'docgen':'staff',dg:dgOk?'労働条件通知書':'',n:noR+'名'});
+      put('職員情報',s2);
+    }catch(e){}
+  }
   /* 請求・経費管理：今月の請求書と経費精算 */
-  try{
-    var b=[], iv=(stGet('invoices',{})||{})[mk]||{}, en2=enrolled();
-    var noInv=en2.filter(function(x){var r=iv[x.id]; return !r||!r.status||r.status==='未発行';}).length;
-    if(noInv)b.push({l:'今月の請求書',d:noInv+'名ぶんが未発行です',p:'billing',n:noInv+'名'});
-    if(!((expGet(mk).rows||[]).length))b.push({l:'今月の経費精算',d:mk.replace('-','/')+' の経費がまだ入っていません',p:'expense'});
-    put('請求・経費管理',b);
-  }catch(e){}
+  if(boss){
+    try{
+      var b=[], iv=(stGet('invoices',{})||{})[mk]||{}, en2=enrolled();
+      var noInv=en2.filter(function(x){var r=iv[x.id]; return !r||!r.status||r.status==='未発行';}).length;
+      if(noInv)b.push({l:'今月の請求書',d:noInv+'名ぶんが未発行です',p:'billing',n:noInv+'名'});
+      if(!((expGet(mk).rows||[]).length))b.push({l:'今月の経費精算',d:mk.replace('-','/')+' の経費がまだ入っていません',p:'expense'});
+      put('請求・経費管理',b);
+    }catch(e){}
+  }
   /* スクール情報：基本の欄 */
   try{
     var f=facGet().info||{}, miss=[];
@@ -4290,8 +4347,9 @@ function renderMissing(){
     +groups.map(function(g){
       return '<div style="margin-bottom:14px;"><div style="font-weight:800;font-size:13.5px;margin-bottom:6px;">'+esc(g.cat)+'</div>'
         +(g.items.length?g.items.map(function(it){
-            var can=(typeof canView!=='function'||canView(it.p));
-            return '<'+(can?'button type="button"':'div')+' class="row-miss"'+(can?' data-mp="'+esc(it.p)+'"'+(it.rec?' data-mrec="'+esc(it.rec)+'"':''):'')+'>'
+            var can=(typeof canView!=='function'||canView(it.p))&&(typeof egPlanOfPage!=='function'||egPlanOfPage(it.p));
+            return '<'+(can?'button type="button"':'div')+' class="row-miss"'+(can?' data-mp="'+esc(it.p)+'"'+(it.rec?' data-mrec="'+esc(it.rec)+'"':'')
+              +(it.dg?' data-mdg="'+esc(it.dg)+'"':'')+(it.cls?' data-mcls="'+esc(it.cls)+'"':''):'')+'>'
               +'<span style="flex:1;">'+esc(it.l)+(it.d?'<div class="row-sub">'+esc(it.d)+'</div>':'')+'</span>'
               +'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">'+esc(it.n||'未入力')+'</span></'+(can?'button':'div')+'>';
           }).join('')
@@ -4300,7 +4358,13 @@ function renderMissing(){
     }).join('')+'</div>';
   var ma=document.getElementById('missAll'); if(ma)ma.onclick=function(){ MISS_CAT=''; go('missing'); };
   s.querySelectorAll('[data-mp]').forEach(function(b){b.onclick=function(){
-    var r=b.getAttribute('data-mrec');
+    var r=b.getAttribute('data-mrec'), k=b.getAttribute('data-mcls'), dg=b.getAttribute('data-mdg');
+    /* ★記録の種類だけを変えて開いていたので、前に別の日（きのうの日報など）を見ていると
+       「きょうの分」を押してもその日の表が開き、そのまま入れるとその日の記録に入っていた。
+       カリキュラムも、最後に見たクラス・月のまま開いていた。ホームの本日のタスクと同じく、きょう・そのクラス・今月に合わせる。 */
+    if(r)recDate=todayISO();
+    if(k&&(CLASSES||[]).indexOf(k)>-1){ curClass=k; if(typeof CUR!=='undefined'&&CUR)CUR.month=todayISO().slice(0,7); }
+    if(dg)dgType=dg;
     if(r&&typeof goRec==='function')goRec(b.getAttribute('data-mp'),r); else go(b.getAttribute('data-mp'));
   };});
 }
@@ -4789,7 +4853,10 @@ var EG_NAV=[
  {cat:'新規顧客管理',boss:true,plan:'pro',opt:'sales',items:[
    {k:'leads',   l:'顧客リスト',     i:'ic:49',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
    {k:'trial',   l:'体験結果報告',   i:'ic:39',si:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
-   {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose'},
+   /* ★compose は請求書の送付・振込のお願い・経費精算の「経理へメール」・テンプレートの「この文面で使う」でも使う。
+      営業オプションで止めていたので、オプションを入れていない園では請求書が送れなくなっていた。
+      optFree で、組のオプションが外れていても画面は開ける（サイドバーには組ごと出ない）。 */
+   {k:'mailg',   l:'個別メール',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose', optFree:true},
    {k:'sales',   l:'営業分析',       i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', plan:'pro', p:'sales'}
  ]},
  {cat:'スクール情報',items:[
@@ -6636,7 +6703,9 @@ function aiActAdopt(idx,edit){
     +'・月間カリキュラムの活動欄にも同じボタンが出ます\n'
     +'・AI保育計画 → AI記録管理 にも下書きとして残ります'
     +(edit?'\n\n入れたあとで直してお使いください。':''));
-  if(typeof go==='function')go('aiplan');
+  /* ★AI保育計画を開けない園（オプション・プランで外している）でも go していたので、
+     案内のあとホームへ飛ばされ、いま作業していたカリキュラムから外されていた。開けないときはその場に残る。 */
+  if(typeof go==='function'&&egPlanOfPage('aiplan'))go('aiplan');
 }
 /* §12 却下。理由をふまえて作り直す。 */
 function aiActReject(idx){
@@ -8027,8 +8096,9 @@ function recDoneToday(key,date){
 function homeBadge(page){
   try{
     if(page==='records'){
+      /* 未入力書類と同じく、入れ物の有無ではなく中身で数える */
       var n=0;['rec_登園シート','rec_安全点検','rec_午睡チェック','rec_健康チェック','rec_日報'].forEach(function(k){
-        if(!stGet(k,{})[todayISO()])n++;});
+        if(!recDoneToday(k))n++;});
       return n?{n:n,s:'未入力',attn:true}:{n:0,s:'本日ぶん済',ok:true};
     }
     if(page==='dm'){var u=(typeof dmUnreadTotal==='function')?dmUnreadTotal():0;
@@ -8075,8 +8145,8 @@ function homeTodayRows(absN,unread){
         if(sc.am||sc.amText)parts.push('午前 '+(sc.am||'')+(sc.amText?'（'+sc.amText+'）':''));
         if(sc.pm||sc.pmText)parts.push('午後 '+(sc.pm||'')+(sc.pmText?'（'+sc.pmText+'）':''));
         if(sc.daycare)parts.push('1日託児');
-        if(parts.length)rows.push({p:'curriculum',l:'きょうの活動',d:k+'：'+parts.join('　')+(sc.teacher?'　担当 '+sc.teacher:''),n:'予定'});
-        else if(myK)rows.push({p:'curriculum',l:'きょうの活動',d:k+'：月間カリキュラムに入っていません',n:'—'});
+        if(parts.length)rows.push({p:'curriculum',cls:k,l:'きょうの活動',d:k+'：'+parts.join('　')+(sc.teacher?'　担当 '+sc.teacher:''),n:'予定'});
+        else if(myK)rows.push({p:'curriculum',cls:k,l:'きょうの活動',d:k+'：月間カリキュラムに入っていません',n:'—'});
       });
     }
   }catch(e){}
@@ -8086,7 +8156,7 @@ function homeTodayRows(absN,unread){
   if(unread)rows.push({p:'dm',l:'保護者からの連絡',d:'まだ読んでいないもの',n:unread+'件',attn:true});
   return rows.map(function(r){
     var jump=r.p&&canOpen(r.p),tag=jump?'button':'div';
-    return '<'+tag+' class="row"'+(jump?' type="button" data-tile="'+esc(r.p)+'"':'')+'>'
+    return '<'+tag+' class="row"'+(jump?' type="button" data-tile="'+esc(r.p)+'"'+(r.cls?' data-cls="'+esc(r.cls)+'"':''):'')+'>'
       +'<span class="tx">'+esc(r.l)+(r.d?'<small>'+esc(r.d)+'</small>':'')+'</span>'
       +'<span class="n'+(r.attn?' attn':'')+'">'+esc(r.n)+'</span>'
       +'</'+tag+'>';
@@ -8193,6 +8263,14 @@ function renderHome(){
       if(el&&el.scrollIntoView)el.scrollIntoView({block:'center',behavior:'smooth'});
     },250);
   };});
+  /* ★帯の行は button で描いていたのに、押したときの処理を付けていなかった（付けていたのはメニューだけ）。
+     きょうの活動から月間カリキュラムへ、保護者からの連絡から DM へ移れなかった。
+     きょうの活動は、その行のクラス・今月を開いてから移る（配属クラスのカリキュラムが開く）。 */
+  s.querySelectorAll('.htoday [data-tile]').forEach(function(b){b.onclick=function(){
+    var k=b.getAttribute('data-cls');
+    if(k&&(CLASSES||[]).indexOf(k)>-1){ curClass=k; if(typeof CUR!=='undefined'&&CUR)CUR.month=todayISO().slice(0,7); }
+    go(b.getAttribute('data-tile'));
+  };});
   homeEventsWire();
   homeClockStart();
 }
@@ -8233,8 +8311,8 @@ function renderMenu(){
           +(b.n?'<span class="tb'+(b.ok?' ok':'')+'">'+b.n+'</span>':'')
           +'<span class="ti" style="background:'+x.bg+';color:'+x.c+'">'+egIcon(x.i)+'</span>'
           +'<span class="tl">'+esc(x.l)+'</span>'
-          +(x.sub?'<span class="ts">'+egSubHome(x).length+'つの機能</span>'
-                 :(b.s?'<span class="ts">'+esc(b.s)+'</span>':''))
+          /* マスの下の灰色の小さい字（「2つの機能」や件数の説明）は出さない（2026-09-14 Remi さん：必要ない）。
+             数の札（tb）は残す */
           +'</button>';}).join('')
       +'</div>'
       +items.filter(function(x){return x.sub&&egOpen===x.k;}).map(function(x){
@@ -9794,7 +9872,7 @@ var EN_DICT={
 '給食・延長保育の回数は、連絡先の通園曜日から出ます。この表では選べません。':'Lunch and extended care counts are based on the attendance days in Contacts. They cannot be selected in this table.',
 '給食・ランチ会社、清掃／ごみ収集、消防設備点検などの取引先を登録できます。':'Register vendors such as lunch/catering companies, cleaning/waste collection, and fire equipment inspection.',
 '本日登園した児童のみに配信（日常記録「登園（出席）」の出席●から自動抽出）':'Send only to children who attended today (automatically extracted from the ● (present) marks in Daily Records "Attendance")',
-'今月の売上と園への還元、注文の明細を見ます。「受け取りました」もここです。':'View this month\'s sales, the school\'s share, and order details. "Received" is also here.',
+'今月の売上と園への還元、注文の明細を見ます。「受け取りました」もここです。カードでお支払いいただいた注文は、園の確認を待たずにダウンロードできます。':'View this month\'s sales, the school\'s share, and order details. "Received" is also here. Orders paid by card can be downloaded without waiting for the school\'s confirmation.',
 '種別を選ぶと、その施設が行政に提出・整備すべき書類の一覧に切り替わります。':'Select a type to switch to the list of documents that facility must submit to the authorities or keep on file.',
 'チェックした役割にだけ、そのテンプレートが表示されます。（管理者は常に全件）':'The template is shown only to the checked roles. (Administrators always see all)',
 '機器点検と総合点検を年間の予定にそって行い、報告は消防署が示す期限までに出す':'Carry out equipment and comprehensive inspections according to the annual schedule, and submit reports by the deadline set by the fire department',
@@ -9919,6 +9997,13 @@ var EN_DICT={
 '子ども何人につき保育士1人か。国が決めている数を入れてありますが、3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。園の自治体にご確認のうえ、必要なら直してください。':'How many children per childcare worker. The nationally set numbers are pre-filled, but for 3-year-olds and 4–5-year-olds the previous ratios (20 and 30) are still permitted for the time being, and practice varies by local government. Check with your local government and adjust if needed.',
 'この用紙は市区町村や消防署ごとに決まった形があるため、こちらでは作っていません。まず「施設管理」に、所管の市区町村と担当課を登録してください。そのうえで、所管の市区町村の保育担当課、または管轄の消防署のホームページで配られている用紙をお使いください。':'This form is not generated here because each municipality and fire department has its own format. First, register your municipality and the responsible division in "Facility Management". Then use the form provided on the website of your municipality\'s childcare division or your local fire department.',
 '防火管理台帳は、監査でそろえておく書類のひとつです。毎月1回、確かめたことと行ったことを書き残しているかを見られます。消火器・救急箱・AED・自動火災報知設備・防火扉・避難グッズを目で確かめ、その月のうちに済ませます。資格を持つ方による法定点検と、その結果を消防署へ出すことは、これとは別に必要です。':'The Fire Safety Management Ledger is one of the documents to have ready for inspection. Inspectors check that what was checked and done is recorded once a month. Visually check fire extinguishers, first-aid kits, AEDs, automatic fire alarms, fire doors, and evacuation supplies, and complete this within the month. Statutory inspections by a licensed person and submitting the results to the fire department are required separately.',
+/* ── 保護者のカード払い（写真販売・売上チャート）──────── */
+'お試し：保護者のお求めに実際の請求はありません':'Trial: parents are not actually charged',
+'保護者はクレジットカードでお支払いします':'Parents pay by credit card',
+'お支払いの状態を確かめています…':'Checking payment status…',
+'お支払いの状態を確かめられませんでした':'Could not confirm payment status',
+'ストアはお支払い日の月で数えています':'Store sales are counted in the month of payment',
+'売上の読み込みは管理者・マネージャーのみです':'Only administrators and managers can load sales',
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -10032,9 +10117,39 @@ function langApplyMixed(root,dict){
   els.forEach(function(el){
     if(el.closest&&el.closest('[data-nolang]'))return;
     var k=langMixedKey(el); if(!k)return;
-    if(dict[k]){ el.textContent=dict[k]; }
+    var t=langLookup(k,true); if(t){ el.textContent=t; }
   });
 }
+/* 辞書の引き方。①そのまま ②数字を {0},{1}… に置き換えた型（件数や日付が変わる文）③形で分かるもの（langRx）。
+   ②は「3名が未記録です」も「12名が未記録です」も、辞書の「{0}名が未記録です」1つで訳せるようにするため。
+   noRx のときは③を使わない（文を丸ごと引くときに、名前の「様」などを誤って変えないため） */
+function langLookup(k,noRx){
+  if(!k)return '';
+  var d=EN_DICT;
+  if(d[k])return d[k];
+  if(/\d/.test(k)){
+    var nums=[],i=0;
+    var t=k.replace(/\d+(?:[.,]\d+)*/g,function(m){nums.push(m);return '{'+(i++)+'}';});
+    if(d[t])return d[t].replace(/\{(\d+)\}/g,function(_,j){return nums[+j]!=null?nums[+j]:'';});
+  }
+  return noRx?'':(langRx(k)||'');
+}
+/* アラート・確認・入力の窓も英語にする。画面の外に出るので、langApply では届かない */
+function langMsg(m){
+  if(typeof m!=='string'||langNow()!=='en')return m;
+  var whole=langLookup(m.replace(/^\s+|\s+$/g,''),true); if(whole)return whole;
+  return m.split('\n').map(function(line){
+    var t=line.replace(/^\s+|\s+$/g,''); var x=t?langLookup(t,true):'';
+    return x?line.replace(t,x):line;
+  }).join('\n');
+}
+(function(){
+  if(window.__langDlg)return; window.__langDlg=1;
+  var A=window.alert,C=window.confirm,P=window.prompt;
+  window.alert=function(m){ return A.call(window,langMsg(m)); };
+  window.confirm=function(m){ return C.call(window,langMsg(m)); };
+  window.prompt=function(m,d){ return P.call(window,langMsg(m),d); };
+})();
 function langApply(root){
   if(langNow()!=='en')return;
   if(!root||!window.document||!document.createTreeWalker)return;
@@ -10054,7 +10169,7 @@ function langApply(root){
       var raw=n.nodeValue;
       var key=raw.replace(/^\s+|\s+$/g,'');
       if(!key)continue;
-      var en=dict[key]||langRx(key);
+      var en=langLookup(key);
       if(!en)continue;
       hits.push([n,raw,key,en]);
     }
@@ -10076,7 +10191,7 @@ function langApply(root){
       ['placeholder','title'].forEach(function(a){
         var v=e.getAttribute(a); if(!v)return;
         var k=v.replace(/^\s+|\s+$/g,'');
-        if(dict[k])e.setAttribute(a,dict[k]);
+        var t2=langLookup(k); if(t2)e.setAttribute(a,t2);
       });
     });
   }catch(e){}
@@ -10395,7 +10510,69 @@ function renderAnnual(){
 /* ══ 売上チャート（⑤請求・経費管理 22行）═══════════
    保育料（請求書）・写真販売・未来WAストアの月ごとの売上。
    外部の描画ライブラリは入れない決まりなので、棒は CSS の幅で描く。 */
-var REV={photo:null,store:null,busy:false};
+/* photo / store は月ごとの売上（本番で支払済のものだけ）。
+   trial は「お試し（練習・テスト）」の合計。売上には足さず、脚注に出すだけ。
+   paid は台帳の合計（還元・手数料・返金）。サーバが返したときだけ出す。
+   err は読み込めなかった理由（管理者・マネージャー以外は 403 が返る）。 */
+var REV={photo:null,store:null,busy:false,trial:0,paid:null,err:''};
+/* サーバの「お試しの合計」を数字に直す。いまは数字1つで来るが、
+   ストア・写真に分けた入れ物（{store, photo}）で来ても、足して1つの額にする。 */
+function revTrialOf(v){
+  if(v==null)return null;
+  if(typeof v==='object'){ var t=0; Object.keys(v).forEach(function(k){ var x=+v[k]; if(!isNaN(x))t+=x; }); return t; }
+  var n=+v; return isNaN(n)?0:n;
+}
+/* ISO の日時を日本時間の「YYYY-MM」に直す。サーバの月の判定（日本時間）と同じ切り方にするため。 */
+function revMonthOf(iso){
+  if(!iso)return '';
+  var t=Date.parse(iso); if(isNaN(t))return String(iso).slice(0,7);
+  return new Date(t+9*3600*1000).toISOString().slice(0,7);
+}
+/* GET /school/payments/summary の答えを月ごとの表に直す。
+   形は「months の配列（month / store / photo / back / fee）」を第一に見るが、
+   月を鍵にした入れ物で来ても読めるようにしておく。読めない形なら null を返し、明細から数え直す。 */
+function revParseSummary(j){
+  if(!j||typeof j!=='object')return null;
+  var out={store:{},photo:{},back:0,fee:0,refund:0,trial:0,ok:false};
+  var num=function(v){ v=+v; return isNaN(v)?0:v; };
+  var pick=function(o,keys){ for(var i=0;i<keys.length;i++){ if(o[keys[i]]!=null)return o[keys[i]]; } return null; };
+  var put=function(mk,o){
+    if(!mk||!o)return;
+    mk=String(mk).slice(0,7).replace('/','-');
+    if(typeof o==='number'){ out.store[mk]=(out.store[mk]||0)+o; out.ok=true; return; }
+    var st=pick(o,['store','storeYen','store_yen','ストア']), ph=pick(o,['photo','photoYen','photo_yen','写真']);
+    if(st!=null){ out.store[mk]=(out.store[mk]||0)+num(st); out.ok=true; }
+    if(ph!=null){ out.photo[mk]=(out.photo[mk]||0)+num(ph); out.ok=true; }
+    out.back+=num(pick(o,['back','backYen','back_yen','還元'])); out.fee+=num(pick(o,['fee','feeYen','fee_yen','手数料']));
+    out.refund+=num(pick(o,['refund','refundYen','refunded_yen','返金']));
+  };
+  var m=pick(j,['months','summary','rows']);
+  if(Array.isArray(m)){ m.forEach(function(r){ if(r)put(pick(r,['month','mk','ym','月']),r); }); }
+  else if(m&&typeof m==='object'){ Object.keys(m).forEach(function(k){ put(k,m[k]); }); }
+  else if(j.store&&typeof j.store==='object'){ Object.keys(j.store).forEach(function(k){ put(k,{store:j.store[k]}); }); }
+  var tr=revTrialOf(pick(j,['お試しの合計','trial','trialYen','trial_yen'])); if(tr!=null)out.trial=tr;
+  var bk=pick(j,['還元の合計','back','backYen']); if(bk!=null&&typeof bk!=='object')out.back=num(bk);
+  var fe=pick(j,['手数料の合計','fee','feeYen']); if(fe!=null&&typeof fe!=='object')out.fee=num(fe);
+  var rf=pick(j,['返金の合計','refund','refundYen']); if(rf!=null&&typeof rf!=='object')out.refund=num(rf);
+  return out.ok?out:null;
+}
+/* まとめが無い（古いサーバ）ときの備え。GET /school/payments（直近12か月）の明細から、
+   本番で支払済のストア注文だけを「お支払い日の月」で数える。練習・テストは trial へ。
+   ★お金の計算はサーバに寄せる決まりなので、ここは summary が読めなかったときだけ通る。 */
+function revFromList(j){
+  var out={store:{},photo:{},back:0,fee:0,refund:0,trial:0,ok:true};
+  var PAID={'支払済':1,'一部返金':1,'返金':1,'練習':1};
+  (j&&j.payments||[]).forEach(function(p){
+    if(!p||!PAID[p.status])return;
+    var net=(+p.amountYen||0)-(+p.refundedYen||0);
+    if(p.mode==='本番'){
+      if(p.kind==='store'){ var mk=revMonthOf(p.paidAt||p.createdAt); if(mk)out.store[mk]=(out.store[mk]||0)+net; }
+      out.back+=(+p.backYen||0); out.fee+=(+p.feeYen||0); out.refund+=(+p.refundedYen||0);
+    }else out.trial+=net;
+  });
+  var tr=revTrialOf(j&&j['お試しの合計']); if(tr!=null)out.trial=tr;
+  return out;
+}
 function revMonths(){var out=[],d=new Date();for(var i=11;i>=0;i--){var x=new Date(d.getFullYear(),d.getMonth()-i,1);out.push(x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2));}return out;}
 function revTuition(mk){
   var iv=(stGet('invoices',{})||{})[mk]||{},sum=0;
@@ -10426,17 +10603,47 @@ function renderRevenue(){
     +'<th style="text-align:right;">'+yen(rows.reduce(function(a,r){return a+r.w;},0))+'</th><th style="text-align:right;">'+yen(total)+'</th></tr>'
     +'</tbody></table></div>'
     +'<div class="muted" style="font-size:11.5px;margin-top:9px;line-height:1.75;">保育料は「送付済」「入金済」の請求書の合計です（未発行・発行済は数えません）。'
-    +'写真販売は撮影日の月、ストアは注文日の月で数えています。</div></div>';
+    +'写真販売は撮影日の月、<span>ストアはお支払い日の月で数えています</span>。'
+    /* お試し（練習・テスト）で成立した注文は、お金が動いていないので売上に足さない。
+       ただし「園の画面で見えている注文と数が合わない」と思われないよう、脚注で額を示す。 */
+    +(REV.trial>0?'<br>お試し（練習）の注文 '+yen(REV.trial)+' は売上に数えていません。':'')
+    +(REV.paid&&(REV.paid.back||REV.paid.fee||REV.paid.refund)
+      ?'<br>カード払いの内訳（直近12か月）：園への還元 '+yen(REV.paid.back)+'　／　運営の手数料 '+yen(REV.paid.fee)+'　／　返金 '+yen(REV.paid.refund)
+      :'')
+    +(REV.err?'<br><span style="color:var(--danger,#A3302F);">'+esc(REV.err)+'</span>':'')
+    +'</div></div>';
   var b=$('#rvLoad'); if(b)b.onclick=function(){
     if(REV.busy)return; REV.busy=true; b.textContent='読み込んでいます…';
-    var ph={},st={};
+    var ph={},trialPhoto=0,pay=null,err='';
     API.call('GET','/school/photos/events').then(function(j){
-      (j.events||[]).forEach(function(e){var k=String(e.shot_on||e.open_from||'').slice(0,7);if(k)ph[k]=(ph[k]||0)+(+e.sold_yen||0);});
-      return API.call('GET','/parent-state?key=wa_orders');
-    }).then(function(j){
-      (j.items||j.rows||[]).forEach(function(row){(Array.isArray(row.value)?row.value:[]).forEach(function(o){
-        var k=String(o.at||'').slice(0,7).replace('/','-');if(k)st[k]=(st[k]||0)+(+o.amount||0);});});
-    }).catch(function(){}).then(function(){REV.photo=ph;REV.store=st;REV.busy=false;renderRevenue();});
+      (j.events||[]).forEach(function(e){
+        var k=String(e.shot_on||e.open_from||'').slice(0,7); if(!k)return;
+        /* 本番で支払済の分（sold_real_yen）が返ってくればそれを売上にし、残りはお試しへ。
+           返ってこない古いサーバでは、これまでどおり sold_yen をそのまま使う。 */
+        var real=(e.sold_real_yen!=null)?(+e.sold_real_yen||0):(+e.sold_yen||0);
+        ph[k]=(ph[k]||0)+real;
+        if(e.sold_real_yen!=null)trialPhoto+=Math.max(0,(+e.sold_yen||0)-real);
+      });
+    }).catch(function(){}).then(function(){
+      /* ★ストアの売上は、保護者が書ける wa_orders ではなく、お金の台帳（wa_payments）から数える。
+         まとめ（summary）はサーバが日本時間・本番・支払済で切ってくれる。ここでは足し算しない。 */
+      return API.call('GET','/school/payments/summary').then(function(j){
+        pay=revParseSummary(j);
+        if(!pay)return API.call('GET','/school/payments').then(function(j2){ pay=revFromList(j2); });
+      }).catch(function(e){
+        /* まとめの口が無い（古いサーバ）なら明細から。403（管理者・マネージャー以外）はそのまま伝える */
+        return API.call('GET','/school/payments').then(function(j2){ pay=revFromList(j2); })
+          .catch(function(e2){ err=(e2&&e2.message)||(e&&e.message)||'売上の読み込みは管理者・マネージャーのみです'; });
+      });
+    }).then(function(){
+      REV.photo=ph; REV.store=(pay&&pay.store)||{}; REV.paid=pay; REV.err=err;
+      /* ★台帳の「お試しの合計」に、写真の差額（sold_yen − sold_real_yen）を足していた。
+         台帳のお試しはストアも写真も区別なく合計しているので、練習の写真購入が2回入り、
+         脚注の額が写真販売の画面の枚数と合わなくなっていた。
+         台帳が読めたときはその額をそのまま使い、写真の差額は台帳が読めなかったときだけの代わりにする。 */
+      REV.trial=pay?(pay.trial||0):trialPhoto;
+      REV.busy=false; renderRevenue();
+    });
   };
 }
 
@@ -10464,7 +10671,13 @@ function expWage(mk){
     +'<h3 style="margin:0;">'+ic('yen')+'賃金台帳（'+esc(mk.replace('-','/'))+'）</h3><span style="flex:1;"></span>'
     +'<button class="btn btn-sm" id="wgPrint">'+ic('printer')+'紙に出す</button></div>'
     +'<div class="muted" style="font-size:12px;margin-bottom:10px;line-height:1.8;">労働日数・労働時間・時間外は「打刻」から自動で出しています（出勤と退勤の両方がある日だけ）。'
-    +'基本賃金と諸手当は「職員の書類 → 労働条件通知書」から写しています。<b>控除と支給額は園で入れてください。</b>下書きです。</div>'
+    /* ★「職員の書類 → 労働条件通知書」から写すと書いていたが、写しているのは書類作成の労働条件通知書で、
+       書類作成はオプション（はじめは外れている）。入れていない園では入れる場所が無く、基本賃金がいつも空欄だった。
+       開けない園には、どこを入れれば入力できるかを出す。 */
+    +((typeof egPlanOfPage!=='function'||egPlanOfPage('docgen'))
+      ?'基本賃金と諸手当は「書類作成 → 労働条件通知書」から写しています。'
+      :'基本賃金・諸手当は 書類作成 → 労働条件通知書 から写します。設定 → オプション機能 の「監査対応・書類作成」を入れると入力できます。')
+    +'<b>控除と支給額は園で入れてください。</b>下書きです。</div>'
     +table+'</div>';
   $('#wgPrint').onclick=function(){
     printDoc('賃金台帳（'+mk.replace('-','/')+'）',
@@ -10672,7 +10885,7 @@ var WA_CAN=[
   ['商品を出す','写真・値段・毎月おとどけ・ねらいを決めて出します。'],
   ['保護者に見せる並び','園のおすすめを、保護者のストアのいちばん上に並べます。'],
   ['園で使っている外部の教材','市販のものを、運営が発行したリンクで知らせます。'],
-  ['売れたもの','今月の売上と園への還元、注文の明細を見ます。「受け取りました」もここです。'],
+  ['売れたもの','今月の売上と園への還元、注文の明細を見ます。「受け取りました」もここです。カードでお支払いいただいた注文は、園の確認を待たずにダウンロードできます。'],
   ['イベントの申込の名簿','どなたが申し込まれたかを見ます（管理者・マネージャーのみ）。'],
   ['ダウンロード教材の預かり','保護者にお渡しするファイルを預けます。']
 ];
@@ -10885,7 +11098,9 @@ function waParentDraw(list){
    ★縮めるのも透かしを入れるのも、この画面（ブラウザ）でやってから送る。
      送る量が1/10ほどになり、サーバに画像の道具を持たせずに済む。
      写真は園の端末から出たあと、園のサーバにだけ入る。 */
-var PS={ev:null, list:null, photos:null, sales:null, busy:false, msg:''};
+var PS={ev:null, list:null, photos:null, sales:null, busy:false, msg:'', pay:null};
+/* 保護者のお支払いの状態（練習／テスト／本番）。サーバにしか無いので端末には覚えさせない。
+   null＝まだ聞いていない、false＝聞いている途中、それ以外＝GET /school/pay/status の答え。 */
 var PS_SELL_EDGE=3000;    /* 販売用の長辺。L判・2L判の印刷に十分 */
 var PS_PREV_EDGE=1000;    /* 見本の長辺 */
 
@@ -10963,13 +11178,39 @@ function psStatusPill(st){
   return '<span class="pill" style="background:'+c+';font-size:10.5px;">'+esc(st)+'</span>';
 }
 
+/* 保護者のお支払いの状態を、サーバに毎回聞く。
+   鍵が入っていないあいだサーバは「練習」と答え、保護者が写真を求めても実際の請求は起きない。
+   その状態を園にも正直に見せる（紙のお知らせにも「カード払い」と書かないため）。 */
+function psPayNoteHTML(){
+  var p=PS.pay;
+  if(!p)return '<span class="muted" style="font-size:12px;">お支払いの状態を確かめています…</span>';
+  if(p.mode==='本番')return '<span class="pill" style="background:#EAF3DE;color:#27500A;">保護者はクレジットカードでお支払いします</span>';
+  /* ★「本番でなければお試し」と決めていたので、状態が読めなかっただけ（通信の失敗・古いサーバ）でも
+     「実際の請求はありません」と出ていた。本番の園でこれが出ると、園が保護者に「請求はない」と誤って伝える。
+     お試しの札は、サーバが練習・テストと答えたときだけ。読めなかったときは別の札で正直に言う。 */
+  if(p.mode==='練習'||p.mode==='テスト')return '<span class="pill" style="background:#FBF0E6;color:#A8701A;">お試し：保護者のお求めに実際の請求はありません</span>';
+  return '<span class="pill" style="background:#F1F1F1;color:#5A5A5A;">お支払いの状態を確かめられませんでした</span>';
+}
+function psPayLoad(){
+  /* 前に読めなかった（mode が不明）ときは、一覧を開き直したらもう一度サーバに聞く */
+  if(PS.pay!==null&&!(PS.pay&&PS.pay.mode==='不明'))return;
+  PS.pay=false;
+  API.call('GET','/school/pay/status').then(function(j){ PS.pay=j||{}; })
+    .catch(function(){ PS.pay={mode:'不明'}; })
+    .then(function(){
+      /* 一覧を開いたまま待っていたときだけ、札の中身を差し替える（画面全体は描き直さない） */
+      var n=$('#psPayNote'); if(n){ n.innerHTML=psPayNoteHTML(); try{ langApply(n); }catch(e){} }
+    });
+}
 function psDrawList(s){
   var boss=(typeof isBoss==='function')?isBoss():true;
   var h='<div class="card"><h3>'+ic('photo')+'写真販売</h3>'
     +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
     +'行事の写真を保護者にお渡しします。<b>お渡しするのは写真データだけ</b>で、'
     +'現像や配送はいたしません。<br>'
-    +'保護者には<b>認証キー</b>をお配りします。キーを入れた方だけが、そのイベントの写真を見られます。</div>';
+    +'保護者には<b>認証キー</b>をお配りします。キーを入れた方だけが、そのイベントの写真を見られます。</div>'
+    +'<div id="psPayNote" style="margin:-4px 0 12px;">'+psPayNoteHTML()+'</div>';
+  psPayLoad();
 
   if(boss){
     h+='<div class="grid" style="grid-template-columns:1.6fr 1fr 1fr 1fr;gap:10px;">'
@@ -10998,6 +11239,10 @@ function psDrawList(s){
             +(e.shot_on?esc(String(e.shot_on).slice(0,10))+' 撮影　':'')
             +'写真 '+e.photo_count+'枚　／　認証キー '+esc(e.access_key)
             +'<br>キーを登録 '+e.key_count+'家庭　／　売れた '+e.sold_count+'枚　'+psYen(e.sold_yen)
+            /* お試し（練習）で求められた枚数は売上ではない。本番の枚数（sold_real_count）が
+               返ってきたときだけ、差を「うち お試し」として添える。返ってこない古いサーバでは何も足さない。 */
+            +(e.sold_real_count!=null&&(+e.sold_count-(+e.sold_real_count))>0
+              ?'<span class="muted">（うち お試し '+(+e.sold_count-(+e.sold_real_count))+'枚）</span>':'')
             +'</div></span>'
             +'<button class="btn btn-sm" data-psopen="'+esc(e.id)+'">ひらく</button></div>';
         }).join('')+'</div>'
@@ -11256,6 +11501,8 @@ function psSheet(e){
     +'2. 「スクール」タブの<b>写真</b>から、上の<b>認証キー</b>を入れます<br>'
     +'3. その行事の写真が並びます。お選びいただいた写真だけをお求めいただけます<br><br>'
     +'・お渡しするのは<b>写真データ</b>です。プリントはご家庭でお願いします<br>'
+    /* 本番（鍵あり）のときだけ書く。練習のあいだは請求が起きないので、紙に「カード払い」とは書かない。 */
+    +(PS.pay&&PS.pay.mode==='本番'?'・お支払いはクレジットカード（オンライン）です<br>':'')
     +'・お求めいただいた写真は、期間が過ぎたあともダウンロードできます<br>'
     +'・キーをお持ちでない方には、写真は表示されません'
     +'</div></div>';
@@ -11493,8 +11740,10 @@ function renderDash(){
   }
   var s=$('section[data-page="dashboard"]');
   s.innerHTML=
-    '<div class="grid dash-top'+(isIppan?' two':'')+'" style="margin-bottom:16px;">'+topCards+'</div>'+
-    (isIppan?'':(function(){var A=auditSummary();
+    '<div class="grid dash-top'+((isIppan||salesOff)?' two':'')+'" style="margin-bottom:16px;">'+topCards+'</div>'+
+    /* ★監査対応をオプション（またはプラン）で外していても監査準備カードが出て、「監査対応へ」を押すと
+       オプションの案内のあとホームに飛ばされていた。開けないときはカードごと出さない。 */
+    ((isIppan||!egPlanOfPage('audit'))?'':(function(){var A=auditSummary();
       function chip(txt,bg,fg){return '<span class="tag" style="background:'+bg+';color:'+fg+';">'+txt+'</span>';}
       var line2=[];
       line2.push(chip('準備 '+A.done+'/'+A.total+' 済','#EAF3DE','#27500A'));
@@ -11523,7 +11772,8 @@ function renderDash(){
     '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:13.5px;font-weight:600;">'+ic('activity').replace('<svg','<svg style="width:16px;height:16px;vertical-align:-3px;color:#0B5F8F;"')+' 本日の記録</span>'+
       [['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']].map(function(t){var dn=recDoneToday(t[1]);return '<span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FCEBEB;color:#A32D2D;')+'">'+t[0]+' '+(dn?'✓ 済':'未')+'</span>';}).join('')+
       '<span class="spacer"></span><button class="btn btn-sm" data-task="records">記録する</button></div>'+
-    '<div class="grid dash-2col">'+
+    /* 新規顧客管理を外している園はフォロータスクのカードを出さないので、今週の配信予定だけの1列にする */
+    '<div class="grid'+((!isIppan&&salesOff)?'':' dash-2col')+'">'+
       (isIppan
         ?(function(){
           /* 保護者からの個別連絡（未読）を先に出し、その場で返信へ進めるようにする */
@@ -11547,9 +11797,11 @@ function renderDash(){
           +'<div class="card"><h3>'+ic('clock')+'本日のタスク</h3>';})()+
           myTasks.map(function(t){return '<div class="task"><span class="tdot" style="background:'+(t.done?'#c8ccc6':t.color)+'"></span><div style="flex:1"><div class="row-name">'+t.label+(t.done?' <span class="pill" style="background:#EAF3DE;color:#27500A;">済</span>':'')+'</div><div class="row-sub">'+t.sub+'</div></div><button class="btn btn-sm'+(t.done?'':' btn-primary')+'" data-task="'+esc(t.go.join('|'))+'">'+t.btn+'</button></div>';}).join('')+
         '</div>'
-        :'<div class="card"><h3>'+ic('clock')+'フォロータスク</h3>'+
+        /* ★新規顧客管理を外していてもフォロータスク（体験・説明会のリードの保護者名とお子さま名）が並び、
+           「メール作成」はオプションの案内で止まっていた。外している間はカードごと出さない。 */
+        :(salesOff?'':'<div class="card"><h3>'+ic('clock')+'フォロータスク</h3>'+
         (tasks.length?tasks.map(function(t){return '<div class="task"><span class="tdot" style="background:'+t.color+'"></span><div style="flex:1;min-width:0;"><div class="row-name">'+esc(t.c.name||'')+' 様 <span class="row-sub">／ '+esc(t.c.child||'')+'</span> <span class="pill" style="background:#F1F0EC;color:var(--tx2);">'+esc(t.type)+'</span></div><div class="row-sub">'+esc(t.sub||'')+'</div></div><div style="display:flex;gap:6px;white-space:nowrap;"><button class="btn btn-sm btn-primary" data-task="'+esc(t.go.join('|'))+'">'+ic('send')+'メール作成</button><button class="btn btn-sm btn-ghost" data-dashlead="'+esc(t.c.id)+'">'+ic('edit')+'</button></div></div>';}).join(''):'<div class="empty">フォロータスクはありません</div>')+
-      '</div>')+
+      '</div>'))+
       '<div class="card"><h3>'+ic('cal')+'今週の配信予定</h3>'+
         (up.length?up.map(function(x){var lbl=x.du<=0?'本日':(x.du+'日後');return '<div class="task"><span class="tag">'+lbl+'</span><div style="flex:1"><div class="row-name">'+x.d.label+'</div><div class="row-sub">'+x.d.when+' ・ '+x.d.to+'</div></div><button class="btn btn-sm" data-task="'+esc(x.d.go.join('|'))+'">作成</button></div>';}).join(''):'<div class="empty">直近の定期配信はありません</div>')+
       '</div>'+
@@ -12726,18 +12978,37 @@ function renderBroadcast(){
    29個あって壁のように並ぶので、組（宛先のこと／日付と活動／お金のこと／
    園のこと／リンク・コード）で分け、ふだんは畳んでおく。
    開けたまま別の窓を開いても開いたままにしたいので、開け閉めは端末に覚えさせる。 */
+/* 「設定」と付いた差し込みの中身は、設定のどの値か。
+   ひな形を書きながら中身も直せるようにする（2026-09-14 安田さん：設定の画面まで行かずに直したい） */
+var TOKEN_SET={'〔学校名〕':'school','〔担当者〕':'manager','〔送信元〕':'sender','〔電話〕':'tel','〔所在地〕':'address','〔アクセス〕':'access',
+  '〔フォームURL〕':'daycareFormUrl','〔アンケートURL〕':'surveyUrl','〔写真URL〕':'photoUrl','〔写真コードPre〕':'photoCodePre','〔写真コードKinder〕':'photoCodeKinder',
+  '〔預かり保育 通常料金〕':'daycareFeeNormal','〔預かり保育 延長料金〕':'daycareFeeExt','〔給食費〕':'daycareLunch',
+  '〔銀行〕':'bankName','〔支店〕':'bankBranch','〔種類〕':'bankType','〔口座番号〕':'bankNo','〔口座名義〕':'bankHolder'};
+/* 設定を直してよいのは、設定の画面を開ける人（園長・管理者）だけ。先生にはいまの中身だけを見せる */
+function tokenSetCan(){ try{ return (typeof isBoss!=='function'||isBoss())&&(typeof canView!=='function'||canView('settings')); }catch(e){ return false; } }
 function tokenHelpLabel(op){return op?'〔 〕を閉じる':'〔 〕を入れる（'+TOKEN_HELP.length+'）';}
 function tokenHelpHtml(forIds){
   var op=!!stGet('tokenHelpOpen',false),gs=[];
   TOKEN_HELP.forEach(function(x){var g=x.g||'そのほか';if(gs.indexOf(g)<0)gs.push(g);});
   var body=gs.map(function(g){
     var chips=TOKEN_HELP.filter(function(x){return (x.g||'そのほか')===g;}).map(function(x){
-      return '<button type="button" data-tok="'+esc(x.t)+'" title="'+esc(x.d)+'" '
-        +'style="border:1px solid #e2e6e0;background:#fff;border-radius:9px;padding:5px 9px;'
-        +'margin:0 6px 6px 0;font-size:12px;line-height:1.5;cursor:pointer;text-align:left;">'
+      var k=TOKEN_SET[x.t];
+      var btn='<button type="button" data-tok="'+esc(x.t)+'" title="'+esc(x.d)+'" '
+        +'style="border:'+(k?'0':'1px solid #e2e6e0')+';background:#fff;border-radius:9px;padding:5px 9px;'
+        +(k?'':'margin:0 6px 6px 0;')+'font-size:12px;line-height:1.5;cursor:pointer;text-align:left;">'
         +'<b>'+esc(x.t)+'</b><span style="color:var(--tx3);margin-left:5px;">'+esc(x.d)+'</span>'
-        +(x.set?'<span style="color:#854F0B;margin-left:5px;font-size:10.5px;">設定</span>':'')
-        +'</button>';}).join('');
+        +(x.set&&!k?'<span style="color:#854F0B;margin-left:5px;font-size:10.5px;">設定</span>':'')
+        +'</button>';
+      if(!k)return btn;
+      /* 設定から入るものは、差し込みと「いまの中身」「変える」を1つの枠にまとめる（折り返しで離れないように） */
+      var v=String((SET&&SET[k])||'');
+      return '<span style="display:inline-flex;align-items:center;flex-wrap:wrap;border:1px solid #e2e6e0;border-radius:9px;background:#fff;margin:0 6px 6px 0;padding-right:6px;">'
+        +btn
+        +(v?'<span data-nolang="1" style="color:#27500A;font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(v)+'">＝ '+esc(v)+'</span>'
+           :'<span style="color:#A32D2D;font-size:11.5px;">＝ 未入力</span>')
+        +(tokenSetCan()?'<button type="button" class="btn btn-sm btn-ghost" data-tokset="'+esc(x.t)+'" style="padding:1px 7px;font-size:11px;margin-left:4px;">変える</button>':'')
+        +'</span>';
+    }).join('');
     return '<div style="margin-bottom:9px;">'
       +'<div style="font-size:11px;font-weight:700;color:var(--tx3);margin-bottom:4px;">'+esc(g)+'</div>'
       +'<div style="display:flex;flex-wrap:wrap;">'+chips+'</div></div>';
@@ -12747,7 +13018,7 @@ function tokenHelpHtml(forIds){
     +'<div data-tokbody="1" style="margin-top:9px;'+(op?'':'display:none;')+'">'
       +'<div class="muted" style="font-size:12px;margin-bottom:8px;">押すと、いま書いている欄のカーソルの位置に入ります。'
       +'送るときに、その方の情報や設定の内容へ入れ替わります。'
-      +'「設定」と付いたものは、設定 → 学校情報 などから入ります。</div>'
+      +'「＝」のあとが、いま入る中身です。'+(tokenSetCan()?'「変える」で、ここから直せます（設定の画面にも同じ値が入ります）。':'直すときは園長・管理者に伝えてください。')+'</div>'
     +body+'</div></div>';
 }
 /* 最後に触っていた欄。件名にも本文にも入れたいので、どちらへ入れるかはこれで決める */
@@ -12781,6 +13052,22 @@ function wireTokenHelp(root){
       b.textContent=tokenHelpLabel(op);
       stSet('tokenHelpOpen',op);
     };
+    w.querySelectorAll('[data-tokset]').forEach(function(c){
+      c.onmousedown=function(e){e.preventDefault();};
+      c.onclick=function(){
+        if(!tokenSetCan())return;
+        var t=c.getAttribute('data-tokset'),k=TOKEN_SET[t]; if(!k)return;
+        var nv=prompt(t+' に入る中身を入れてください（設定の画面にも同じ値が入ります）',String(SET[k]||''));
+        if(nv===null)return;
+        SET[k]=String(nv).replace(/^\s+|\s+$/g,''); DB.settings=SET;
+        /* 開いている一覧だけ描き直す。プレビューも新しい中身で作り直す */
+        var fid=w.getAttribute('data-tokfor');
+        var tmp=document.createElement('div'); tmp.innerHTML=tokenHelpHtml(fid);
+        var nw=tmp.firstChild; w.parentNode.replaceChild(nw,w); wireTokenHelp(nw.parentNode);
+        fields.forEach(function(f){ try{f.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){} });
+        toastAI('設定を直しました：'+t);
+      };
+    });
     w.querySelectorAll('[data-tok]').forEach(function(c){
       /* 押した拍子に欄からカーソルが外れると、どこへ入れるか分からなくなる */
       c.onmousedown=function(e){e.preventDefault();};
@@ -13201,7 +13488,8 @@ function renderCurriculum(){
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">'
     +'<div style="font-size:13px;font-weight:600;flex:1;">月間の活動内容（'+curClass+'・月に1回登録）</div>'
     /* §4 活動づくりの入口。書類の活動欄のそばに置く。 */
-    +'<button class="btn btn-sm" id="curActBtn">'+ic('spark')+'AIと活動を考える</button></div>'
+    /* ★AI保育計画をオプションで外していてもボタンが出て、採用すると案内のあとホームへ飛ばされていた */
+    +(egPlanOfPage('aiplan')?'<button class="btn btn-sm" id="curActBtn">'+ic('spark')+'AIと活動を考える</button>':'')+'</div>'
     /* §13 採用した活動を、この月の活動内容へ入れる。どの行に入れるかは先生が選ぶ。 */
     +((function(){
       var pd=(typeof aiActPendOf==='function')?aiActPendOf(curClass):null;
@@ -13503,10 +13791,12 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre,'例：pre2026')+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder,'例：kinder2026')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal,'例：5,500')+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt,'例：6,600')+f('s_dcL','預かり保育 給食費',SET.daycareLunch,'例：550')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl,'例：https://（申込フォーム）')+f('s_survey','アンケートURL',SET.surveyUrl,'例：https://（アンケート）')+'</div></div>'+
-    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('grid')+'オプション機能</h3>'
+    (!EG_OPTS_ON?'':'<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('grid')+'オプション機能</h3>'
     +'<div class="muted" style="font-size:12px;margin-bottom:8px;line-height:1.8;">はじめは保育管理の基本だけを出しています。使う組にチェックを入れて保存すると、サイドバーとメニューに出ます。</div>'
-    +EG_OPTS.map(function(o){return '<label style="display:flex;gap:9px;align-items:flex-start;padding:6px 0;cursor:pointer;"><input type="checkbox" data-opt="'+esc(o.k)+'"'+(optOn(o.k)?' checked':'')+' style="width:auto;margin-top:3px;"><span><b>'+esc(o.l)+'</b><div class="muted" style="font-size:11.5px;">'+esc(o.d)+'</div></span></label>';}).join('')
-    +'</div>'+
+    /* ★プランを見ずに3つとも選べたので、プランに含まれない組にチェックを入れて保存しても開けなかった。
+       通らないものは選べなくし、理由を書く（保存するときは、いまの値のまま残る）。 */
+    +EG_OPTS.map(function(o){var ok=planAllows(o.need);return '<label style="display:flex;gap:9px;align-items:flex-start;padding:6px 0;cursor:'+(ok?'pointer':'default')+';'+(ok?'':'opacity:.6;')+'"><input type="checkbox" data-opt="'+esc(o.k)+'"'+(optOn(o.k)?' checked':'')+(ok?'':' disabled')+' style="width:auto;margin-top:3px;"><span><b>'+esc(o.l)+'</b><div class="muted" style="font-size:11.5px;">'+esc(o.d)+'</div>'+(ok?'':'<div class="muted" style="font-size:11.5px;color:#A32D2D;">ご契約のプランには含まれていません</div>')+'</span></label>';}).join('')
+    +'</div>')+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('users')+'保育士の配置</h3>'+
       '<div class="muted" style="margin-bottom:10px;">子ども何人につき保育士1人か。国が決めている数を入れてありますが、'
       +'3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。'
@@ -13555,7 +13845,7 @@ function renderSettings(){
   if(hc)hc.onclick=function(){if(confirm('使い方サポートの記録を消しますか。')){stSet('help_log',[]);stSet('help_esc',[]);renderSettings();}};
   $('#s_save').onclick=function(){
     SET.sender=$('#s_sender').value;SET.bcc=$('#s_bcc').value;SET.school=$('#s_school').value;SET.manager=$('#s_manager').value;
-    var _op={};document.querySelectorAll('[data-opt]').forEach(function(c){_op[c.getAttribute('data-opt')]=!!c.checked;});SET.opts=_op;
+    if(EG_OPTS_ON){var _op={};document.querySelectorAll('[data-opt]').forEach(function(c){_op[c.getAttribute('data-opt')]=!!c.checked;});SET.opts=_op;}
     SET.tel=$('#s_tel').value;SET.address=$('#s_address').value;SET.access=$('#s_access').value;
     SET.bankName=$('#s_bankName').value;SET.bankBranch=$('#s_bankBranch').value;SET.bankType=$('#s_bankType').value;SET.bankNo=$('#s_bankNo').value;SET.bankHolder=$('#s_bankHolder').value;
     SET.photoUrl=$('#s_photoUrl').value;SET.photoCodePre=$('#s_photoPre').value;SET.photoCodeKinder=$('#s_photoKinder').value;
@@ -13944,7 +14234,7 @@ function staffModal(id){
     '<div class="grid" style="grid-template-columns:1fr 2fr;"><div class="field"><label>郵便番号</label><input id="st_zip" value="'+(x.zip||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>住所</label><input id="st_addr" value="'+(x.address||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>本人 電話番号</label><input id="st_tel" value="'+(x.tel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>緊急連絡先 氏名</label><input id="st_emgName" value="'+(x.emgName||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>続柄</label><input id="st_emgRel" value="'+(x.emgRel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="例：配偶者"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;"><div class="field"><label>緊急連絡先 電話番号</label><input id="st_emgTel" value="'+(x.emgTel||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div><div class="field"><label>入社日<span id="st_tenLab" class="muted"></span></label><input type="date" id="st_join" value="'+esc((x.joinDate||''))+'"></div><div class="field"><label>退職日（在職中は空欄）</label><input type="date" id="st_leave" value="'+esc((x.leaveDate||''))+'"></div></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+esc((x.kenshinDate||''))+'"></div><div class="field"><label>配属クラス</label><select id="st_klass">'+[''].concat(CLASSES||[]).map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.klass||'')?' selected':'')+'>'+(o||'（未設定）')+'</option>';}).join('')+'</select></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>直近の健康診断日</label><input type="date" id="st_ken" value="'+esc((x.kenshinDate||''))+'"></div><div class="field"><label>配属クラス</label><select id="st_klass">'+[''].concat(CLASSES||[]).concat(x.klass&&(CLASSES||[]).indexOf(x.klass)<0?[x.klass]:[]).map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.klass||'')?' selected':'')+'>'+(o||'（未設定）')+'</option>';}).join('')+'</select></div><div class="field"><label>基本シフト（固定一括反映用）</label><select id="st_base">'+['','早','日','遅'].map(function(o){return '<option value="'+esc(o)+'"'+(o===(x.baseShift||'')?' selected':'')+'>'+(o||'—')+'</option>';}).join('')+'</select></div></div>'+
     '<div class="field"><label>備考</label><input id="st_note" value="'+(x.note||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'+
     (id?'<div class="field"><label>身分証・証明書の保管</label><div id="st_docs"></div>'
       +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">'
@@ -15275,7 +15565,8 @@ function napBlock(klass){
     if(hit>-1){ if(name)d.charge[hit].by=name; else d.charge.splice(hit,1); }
     else if(name)d.charge.push({from:t,by:name});
   }
-  var html='<div class="card" style="margin-top:14px;">'
+  /* id はホームの「午睡チェック」のマスから、この枠まで送るため（focus:'napBox'。無くて送れていなかった） */
+  var html='<div class="card" id="napBox" style="margin-top:14px;">'
     +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
       +'<h3 style="margin:0;flex:1;">'+ic('clock')+'午睡チェック</h3>'
       +'<button class="btn btn-sm" id="npPrint">'+ic('printer')+'午睡だけ出力</button></div>'
@@ -18637,6 +18928,10 @@ var DEFAULT_PERMS={
   '主任':['home','menu','kiosk','feed','annual','missing','dashboard','dm','broadcast','templates','records','carerec','drill','kenshu','timecard',
          'curriculum','roster','tasks','wastore','photosale','aiplan','docs','guide']
 };
+/* ★19→20 に上げたとき、園が権限管理で手直しした設定がすべて既定に戻った。
+   戻った既定はそのままサーバに送られ、その園の全端末に配られた（開きっぱなしの古いタブとは往復した）。
+   19 に戻すと、20 を読んだ端末でもう一度既定に戻るので、20 のまま据え置く。
+   この番号はもう上げない。増えた画面は PERMS_ADDED で足す。 */
 var PERMS_VERSION=20;
 /* テスト用アカウントの初期パスワードは、ハッシュの形で用意しています。
    （admin / shiraga / staff の各アカウントは、パスワードがログインIDと同じ文字列です）
@@ -18666,7 +18961,8 @@ function staffAccounts(){
 /* あとから増えた画面を、園が権限管理で決めた設定を消さずに足すための逃げ道。
    版の番号（PERMS_VERSION）を上げると、園が手で直した設定がぜんぶ既定に戻ってしまうため、
    増えた画面だけを一度だけ差し込む。差し込み済みの印は permsAdded に残す。 */
-var PERMS_ADDED={kenshu:['一般','マネージャー'],timecard:['一般','マネージャー']};
+/* 未入力書類（missing）は 2026-09-13 に増えた画面。版を上げずにここから足す（手直しを残した端末にも一度だけ入る）。 */
+var PERMS_ADDED={kenshu:['一般','マネージャー'],timecard:['一般','マネージャー'],missing:['一般','主任','マネージャー']};
 function permsMigrateAdd(p){
   var done=stGet('permsAdded',{}),ch=false;
   Object.keys(PERMS_ADDED).forEach(function(pg){
@@ -18789,7 +19085,10 @@ function applyPerms(){
     a.style.display=(canView(p)&&egPlanOfPage(p))?'':'none';
   });
   var kids=[].slice.call(nav.children);
-  kids.forEach(function(node,i){if(node.classList&&node.classList.contains('nav-label')){var anyVis=false;for(var j=i+1;j<kids.length;j++){if(kids[j].classList&&kids[j].classList.contains('nav-label'))break;if(kids[j].tagName==='A'&&kids[j].style.display!=='none')anyVis=true;}node.style.display=anyVis?'':'none';}});
+  kids.forEach(function(node,i){if(node.classList&&node.classList.contains('nav-label')){var anyVis=false;for(var j=i+1;j<kids.length;j++){if(kids[j].classList&&kids[j].classList.contains('nav-label'))break;if(kids[j].tagName==='A'&&kids[j].style.display!=='none')anyVis=true;
+    /* ★組をたたむ仕組み（navGroups）で、行は nav-grp の箱の中に入った。直下の a だけを見ていたので
+       見える行が無いと判断され、組の名前がすべて消えていた。箱の中の a も数える */
+    if(!anyVis&&kids[j].querySelectorAll){var inner=kids[j].querySelectorAll('a');for(var q=0;q<inner.length;q++){if(inner[q].style.display!=='none'){anyVis=true;break;}}}}node.style.display=anyVis?'':'none';}});
   var dmb=document.getElementById('navDM');
   if(dmb&&typeof dmUnreadTotal==='function'){var un=dmUnreadTotal();dmb.textContent=un||'';dmb.style.display=un?'':'none';}
   var foot=document.querySelector('.side-foot');
@@ -18798,13 +19097,10 @@ function applyPerms(){
     foot.innerHTML='<div style="color:#fff;font-weight:600;font-size:12.5px;">'+esc(s.name)+'</div><div style="color:#9fc7b8;font-size:11px;margin-bottom:6px;">'+s.role+'としてログイン中</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
       +'<button id="slLock" style="'+btn+'">画面をロック</button>'
-      +'<button id="slPwc" style="'+btn+'">パスワード変更</button>'
       +'<button id="slLogout" style="'+btn+'">ログアウト</button></div>';
     var lo=document.getElementById('slLogout');if(lo)lo.onclick=staffLogout;
     var lk=document.getElementById('slLock');if(lk)lk.onclick=function(){IDLE.last=0;IDLE.lock();};
-    var pc=document.getElementById('slPwc');if(pc)pc.onclick=function(){
-      if(typeof API!=='undefined'&&API.online())passwordChangeModal(false);else localPasswordModal();
-    };
+    /* パスワード変更はサイドバーから外した（2026-09-14 安田さん）。設定 → 職員アカウント の「自分のパスワードを変える」から */
   }
 }
 /* 職員名簿とログインアカウントの紐付け（staffId で対応、無ければ氏名で判定） */
@@ -19085,7 +19381,7 @@ function renderAccessSettings(s){
     html+='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('staff')+'職員アカウント</h3><div class="muted" style="margin-bottom:10px;">職員ごとにログインIDと役割を発行します。役割で閲覧できる画面が決まります。</div>'
       +'<table><thead><tr><th>ログインID</th><th>氏名</th><th>役割</th><th>パスワード</th><th></th></tr></thead><tbody>'
       +accs.map(function(a){return '<tr><td><input data-sa="'+a.id+'|loginId" value="'+esc(a.loginId)+'" style="width:110px;"></td><td><input data-sa="'+a.id+'|name" value="'+esc(a.name)+'" style="width:150px;"></td><td><select data-sa="'+a.id+'|role">'+STAFF_ROLES.map(function(r){return '<option value="'+r+'"'+(r===a.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('')+'</select></td><td><input data-sa="'+a.id+'|pw" type="password" value="" placeholder="変更時のみ" autocomplete="new-password" style="width:100px;"></td><td><button class="btn btn-sm btn-ghost" data-sadel="'+esc(a.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')
-      +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
+      +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saMyPw">'+ic('shield')+'自分のパスワードを変える</button><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
     var perms=rolePerms();
     html+='<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('shield')+'権限管理（役割ごとの閲覧範囲）</h3><div class="muted" style="margin-bottom:10px;">チェックした画面だけ、その役割の職員に表示されます。管理者は常に全画面。（例：一般スタッフは監査・請求書・設定を非表示に）</div>'
       +'<table><thead><tr><th style="min-width:150px;">画面</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+roleLabel(r)+'</span></th>';}).join('')+'</tr></thead><tbody>'
@@ -19110,6 +19406,7 @@ function renderAccessSettings(s){
   var gr=document.getElementById('setGoRoster');if(gr)gr.onclick=function(){go('roster');};
   if(role==='管理者'){
     /* 追加した時点ではパスワードなし＝ログインできません。表の欄で設定していただきます。 */
+    var smp=document.getElementById('saMyPw'); if(smp)smp.onclick=function(){ if(typeof API!=='undefined'&&API.online())passwordChangeModal(false);else localPasswordModal(); };
     document.getElementById('saAdd').onclick=function(){var a=staffAccounts();var nid=Math.max.apply(null,a.map(function(x){return x.id;}).concat([0]))+1;a.push({id:nid,loginId:'staff'+nid,name:'新規職員',role:'一般'});stSet('staffAccounts',a);renderSettings();};
     document.getElementById('saSave').onclick=function(){
       var a=staffAccounts(),pend=[],tooShort=false;
@@ -22301,6 +22598,9 @@ function renderTasks(){
   /* 題名だけの一覧。題名を押すと、その下に詳しい内容が開く */
   function item(t){
     var i=ANNUAL_TASKS.indexOf(t),ok=taskStatus(t,mk),auto=taskAutoDone(t,mk),g=taskPageOf(t.page),op=!!taskOpen[i];
+    /* ★オプションで外している画面（書類作成・提出書類ナビなど）にも「この画面を開く」が出ていて、
+       押すとオプションの案内が出たあとホームへ飛ばされていた。開けない画面へはボタンを作らない。 */
+    if(g&&typeof egPlanOfPage==='function'&&!egPlanOfPage(g[0]))g=null;
     var dd=taskDayOf(t,mk),opt='';
     for(var k=1;k<=last;k++)opt+='<option value="'+k+'"'+(dd===k?' selected':'')+'>'+k+'日</option>';
     return '<div class="tkitem">'
@@ -22378,7 +22678,7 @@ function renderTasks(){
   s.querySelectorAll('[data-tkday]').forEach(function(sel){sel.onchange=function(){
     taskDaySet(mk,ANNUAL_TASKS[+sel.getAttribute('data-tkday')].name,sel.value?+sel.value:0);renderTasks();};});
   s.querySelectorAll('[data-tkgo]').forEach(function(b){b.onclick=function(){
-    var g=taskPageOf(b.getAttribute('data-tkgo'));if(!g)return;if(g[1])recType=g[1];go(g[0]);};});
+    var g=taskPageOf(b.getAttribute('data-tkgo'));if(!g)return;if(typeof egPlanOfPage==='function'&&!egPlanOfPage(g[0]))return;if(g[1])recType=g[1];go(g[0]);};});
   s.querySelectorAll('[data-tkedit]').forEach(function(b){b.onclick=function(){
     taskEdit=!taskEdit;taskOpen={};renderTasks();};});
   s.querySelectorAll('[data-tkdel]').forEach(function(b){b.onclick=function(){
@@ -24143,8 +24443,8 @@ function aiRender(r){
       +'そのまま使わず、中身をお確かめのうえでお使いください。'
       +'</span>');
     an.style.marginTop='8px'; ad.appendChild(an);
-    var ab=el('button',{'data-ainav':'docgen','data-aidg':'危機管理マニュアル'},'危機管理マニュアルを開く');
-    ad.appendChild(ab);
+    if(egPlanOfPage('docgen')){var ab=el('button',{'data-ainav':'docgen','data-aidg':'危機管理マニュアル'},'危機管理マニュアルを開く');
+    ad.appendChild(ab);}
     b.appendChild(ad);
   }
   if(r.scenario){
@@ -24155,7 +24455,9 @@ function aiRender(r){
     if(sc.call119)h+='<div class="ss" style="margin-top:6px;"><b>🚑 救急要請・受診の目安</b><br>'+aiEsc(sc.call119)+'</div>';
     if(sc.parentTalk)h+='<div class="ss" style="margin-top:6px;"><b>👪 保護者への伝え方</b><br>'+aiEsc(sc.parentTalk)+'</div>';
     var d=el('div',{class:'ai-sec'},h);d.style.borderLeft='4px solid '+uc;
-    if(secs.length){var bt=el('button',{'data-aiopen':secs[0].id},'危機管理マニュアルで開く →');d.appendChild(bt);}
+    /* ★オプションで書類作成を外していてもボタンが出ていて、押すと事故の手順パネルが閉じてホームへ飛ばされていた。
+       開けないときはボタンだけ出さない（手順の本文と「マニュアルに載っている」の注記はそのまま出す）。 */
+    if(secs.length&&egPlanOfPage('docgen')){var bt=el('button',{'data-aiopen':secs[0].id},'危機管理マニュアルで開く →');d.appendChild(bt);}
     /* この手順は決まったものだと分かるようにする。
        「AIが考えた文かもしれない」と思われると、確認済みの手順に従ってもらえなくなる。
        ただし、マニュアルに該当する節が無いときに「載っている」と書いてはいけない。
@@ -24172,9 +24474,10 @@ function aiRender(r){
     var rb=el('button',{'data-ainav':'records','data-airec':'事故・ヒヤリハットの記録'},'記録に残す');d.appendChild(rb);
     b.appendChild(d);
   }
-  if(r.manualSecs){r.manualSecs.forEach(function(s){var d=el('div',{class:'ai-sec'},'<div class="st">🛡 '+aiEsc(s.title)+'</div><div class="ss">'+aiEsc(s.snip)+'</div>');var bt=el('button',{'data-aiopen':s.id},'危機管理マニュアルで開く →');d.appendChild(bt);b.appendChild(d);});}
-  if(r.cards){r.cards.forEach(function(c){var d=el('div',{class:'ai-sec'},'<div class="st">'+aiEsc(c.title)+'</div><div class="ss">'+aiEsc(c.body)+'</div>');(c.buttons||[]).forEach(function(bn){var bt;if(bn.copy!=null){var idx=aiClip.push(bn.copy)-1;bt=el('button',{'data-aicopy':idx},bn.label);}else if(bn.nav){bt=el('button',{'data-ainav':bn.nav},bn.label);}else if(bn.ask){bt=el('button',{'data-aiask':bn.ask},bn.label);}if(bt)d.appendChild(bt);});b.appendChild(d);});}
-  if(r.nav&&r.nav.length){var dn=el('div',{class:'ai-sec'});r.nav.forEach(function(a){var bt=el('button',{'data-ainav':a.page},a.label);if(a.rec)bt.setAttribute('data-airec',a.rec);if(a.dg)bt.setAttribute('data-aidg',a.dg);dn.appendChild(bt);});b.appendChild(dn);}
+  if(r.manualSecs){r.manualSecs.forEach(function(s){var d=el('div',{class:'ai-sec'},'<div class="st">🛡 '+aiEsc(s.title)+'</div><div class="ss">'+aiEsc(s.snip)+'</div>');if(egPlanOfPage('docgen')){var bt=el('button',{'data-aiopen':s.id},'危機管理マニュアルで開く →');d.appendChild(bt);}b.appendChild(d);});}
+  if(r.cards){r.cards.forEach(function(c){var d=el('div',{class:'ai-sec'},'<div class="st">'+aiEsc(c.title)+'</div><div class="ss">'+aiEsc(c.body)+'</div>');(c.buttons||[]).forEach(function(bn){var bt;if(bn.copy!=null){var idx=aiClip.push(bn.copy)-1;bt=el('button',{'data-aicopy':idx},bn.label);}else if(bn.nav){if(egPlanOfPage(bn.nav))bt=el('button',{'data-ainav':bn.nav},bn.label);}else if(bn.ask){bt=el('button',{'data-aiask':bn.ask},bn.label);}if(bt)d.appendChild(bt);});b.appendChild(d);});}
+  /* ★AIの答えに付く行き先（提出書類ナビ・監査対応など）も、オプションで外した画面を出したままだった。開けない画面は飛ばす。 */
+  if(r.nav&&r.nav.length){var dn=el('div',{class:'ai-sec'});r.nav.forEach(function(a){if(!egPlanOfPage(a.page))return;var bt=el('button',{'data-ainav':a.page},a.label);if(a.rec)bt.setAttribute('data-airec',a.rec);if(a.dg)bt.setAttribute('data-aidg',a.dg);dn.appendChild(bt);});if(dn.childNodes.length)b.appendChild(dn);}
   if(r.chips&&r.chips.length){var dc=el('div',{class:'ai-sec'},'<div class="ss" style="margin-bottom:2px;">続けて聞く：</div>');r.chips.forEach(function(c){var bt=el('button',{'data-aiask':c.q},c.label);bt.style.background='#fff';bt.style.color='var(--teal-d)';bt.style.border='1px solid var(--teal-l)';dc.appendChild(bt);});b.appendChild(dc);}
   b.scrollTop=b.scrollHeight;
   /* 使い方サポートのボタン */
@@ -24191,7 +24494,9 @@ function aiRender(r){
   b.querySelectorAll('[data-ainav]').forEach(function(btn){btn.onclick=function(){AI_OPEN=false;$('#aiPanel').classList.remove('open');var _r=btn.getAttribute('data-airec');if(_r)recType=_r;if(btn.getAttribute('data-aidg'))dgType=btn.getAttribute('data-aidg');var _p=btn.getAttribute('data-ainav');go(_r?recPageOf(_r):_p);};});
 }
 function toastAI(m){var t=document.getElementById('aiToast');if(!t){t=el('div',{id:'aiToast'});t.style.cssText='position:fixed;right:24px;bottom:96px;z-index:950;background:#222;color:#fff;padding:9px 15px;border-radius:10px;font-size:12.5px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:opacity .2s;';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(function(){t.style.opacity='0';},1800);}
-function aiOpenSection(id){AI_OPEN=false;$('#aiPanel').classList.remove('open');dgType='危機管理マニュアル';kikiSel=id;go('docgen');}
+/* ★オプションで書類作成を外していても開こうとし、先に手順パネルを閉じてから go するので、
+   案内のあとホームへ飛ばされ、読んでいた事故の手順が画面から消えていた。開けないときは何もせずに抜ける。 */
+function aiOpenSection(id){if(typeof egPlanOfPage==='function'&&!egPlanOfPage('docgen'))return;AI_OPEN=false;$('#aiPanel').classList.remove('open');dgType='危機管理マニュアル';kikiSel=id;go('docgen');}
 
 
 /* ---------- start ---------- */

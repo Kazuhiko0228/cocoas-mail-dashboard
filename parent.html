@@ -687,7 +687,8 @@ function childFullName(c){
   var full=((ln?ln+' ':'')+fn).trim();
   return full||(c.child?childName(c):(c.name||''));
 }
-function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2200);}
+/* ms は省略できる。長い案内（お支払いの確認中など）は2.2秒では読み終わらないので、呼ぶ側が長くする。 */
+function toast(msg,ms){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},ms||2200);}
 
 /* ---- seed sample data if empty (standalone で動くように・実データは入れない) ---- */
 function seedEnrolled(){return [
@@ -959,6 +960,8 @@ function login(email,pw,cb){
 function loginByChild(id){sessionStorage.setItem('cocoas_psession',id);}
 function logout(){
   try{WAPI.setToken('');}catch(e){}
+  /* お支払いの一覧はご家庭のもの。共用のタブレットで次の方に見せない。 */
+  try{WPAY.reset();WPAY.pending=null;}catch(e){}
   /* 共用のタブレットで次の方が入ったとき、その方にもご案内のお知らせが出るように戻す */
   noticeShown=false;
   sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');
@@ -2311,35 +2314,90 @@ function wireStore(c){
   document.querySelectorAll('[data-buy]').forEach(function(b){b.onclick=function(){
     if(b.disabled)return;                     /* 二重に注文が入らないようにする */
     var id=+b.getAttribute('data-buy'),p=waProducts().filter(function(x){return x.id===id;})[0];
-    if(p){b.disabled=true;b.textContent='お手続き中…';}
     if(!p)return;
-    var rate=waKickRate(),kb=c?Math.round(p.price*rate):0;
-    var a=waOrders();
-    /* 買ったあとの様子はマイページの「購入履歴・配送状況」で見てもらう */
-    /* addDaysISO は「今日から何日後か」だけを受け取る。以前は日付も渡していて、
-       到着予定日が出せていなかった。 */
-    var dl=waIsDownload(p);
-    var o={id:Date.now(),at:nowStr(),childId:c?c.id:null,pid:p.id,name:p.name,
-      amount:p.price,kickback:kb,by:p.by||'school',status:'paid'};
-    /* 園に品物が届くものだけ、着く予定の日を控える。
-       ダウンロードでお渡しするものは園に何も届かないので、ここに日付を入れると
-       マイページに「4日後ごろ園に届く予定です」と出てしまう。 */
-    if(!dl)o.eta=addDaysISO(4);
-    /* ダウンロードでお渡しするものだという印を、注文の側にも残す。
-       商品の一覧から引き直すこともできるが、園が商品を消すと分からなくなるため。 */
-    if(dl)o.dl=true;
-    /* 借りるものは、お返しの期限を控えておく（マイページに出す） */
-    if(p.rental){o.rental=true;o.due=addDaysISO(30);}
-    a.push(o);
-    stSet('wa_orders',a);
-    waTrack('購入',{cid:p.id,cat:p.cat||'',by:waSourceOf(p.by)});
-    toast(dl?'お申し込みありがとうございます。園が確認すると、マイページからダウンロードできます。'
-      :(p.rental?'お申し込みありがとうございます。お返しの期限はマイページで見られます。'
-                :'ご購入ありがとうございます。配送状況はマイページで見られます。'));
-    /* 押す前と同じ文言に戻す。ここが「購入する」で固定だったため、
-       借りるものを押すと文言が入れ替わってしまっていた。 */
-    setTimeout(function(){b.disabled=false;b.textContent=waBuyLabel(p);},1500);
+    b.disabled=true;b.textContent='お手続き中…';
+    /* 園とつながっていないときは、これまでどおり端末の中だけの注文（見本の動き） */
+    if(!WAPI.online()){waLocalOrder(p,c,b);return;}
+    /* つながっているときは、金額をサーバに決めてもらう。送るのは商品の番号。
+       名前・価格・種類（cat／rental／dl／by）も添えるが、サーバがそれを読むのは
+       「お試し」で見本の商品を台帳に控えるときだけで、本番の金額は必ず園の帳簿（wa_products）から引かれる。
+       ★以前は pid・name・price しか送っていなかった。見本のダウンロード教材（id 21）やレンタル（id 20）を
+         お試しで買うと、サーバは種類が分からず「園に届く品物」として注文を返し、マイページに
+         「◯日ごろ園に届く予定です」と出て、ダウンロードの印も返却期限も消えていた。
+         直前の一言（waBuyToast）は端末の商品を見て「園が確認するとダウンロードできます」と言うので食い違っていた。
+       dl は cat の綴りに頼らないための保険。サーバがまだ読まなくても害はない。 */
+    WPAY.start({kind:'store',pid:p.id,name:p.name,price:p.price,
+      cat:p.cat||'',rental:!!p.rental,dl:waIsDownload(p),by:p.by||'school'},function(j,err){
+      if(err){
+        /* お試しのあいだ、サーバに無い見本の商品は端末の中だけの注文に落とす（今までの見本の動き）。
+           本番でこれが出たら、園が商品を同期していない。文言をそのまま見せる。 */
+        if(err.code==='no_product'&&WPAY.loaded&&WPAY.mode==='練習'){waLocalOrder(p,c,b);return;}
+        /* サーバにこの口（/parent/checkout）そのものが無いときも、端末の中だけの注文に落とす。
+           ★API に checkout が無い日に画面だけ出ると、店の購入が全部「通信に失敗しました（404）」で止まった。
+             画面を API より先に push した・API を戻した、のどちらでも起きる。main に push した瞬間が本番なので
+             順番を守るのが第一で、ここはその日の逃げ道。checkout の無いサーバは実際の請求をしないので、
+             従来どおり端末の中で成立させて差し支えない。 */
+        if(err.code==='no_checkout'){waLocalOrder(p,c,b);return;}
+        toast(err.message);b.disabled=false;b.textContent=waBuyLabel(p);return;
+      }
+      /* お支払いページへ移る。ボタンは戻さない（ページが変わる） */
+      if(j&&j.url){b.textContent='お支払いページへ移動します…';return;}
+      /* ★テスト決済（mode='テスト'）の支払済が返ってきたとき（同じお手続きの番号で押し直した等）も
+           order が付いていて、それを購入履歴に足していた。お金の動いていない注文が園の控えに並ぶので足さない。 */
+      if(j&&WPAY.testPaid(j)){
+        toast(WPAY_TEST_MSG,5000);
+      }else if(j&&j.order&&j.mode!=='テスト'){
+        /* お試し：サーバが決めた金額・還元の入った注文を、そのまま購入履歴に足す。
+           端末で p.price*rate を計算しない（園の設定と食い違わせない）。 */
+        var a=waOrders();
+        if(!a.some(function(o){return o&&String(o.id)===String(j.order.id);}))a.push(j.order);
+        stSet('wa_orders',a);
+        waTrack('購入',{cid:p.id,cat:p.cat||'',by:waSourceOf(p.by)});
+        toast(waBuyToast(p));
+      }else{
+        toast(j&&j.status==='支払済'?'このお手続きはすでに完了しています。マイページでご確認ください。'
+                                   :'お手続きの結果を確かめられませんでした。マイページでご確認ください。');
+      }
+      setTimeout(function(){b.disabled=false;b.textContent=waBuyLabel(p);},1500);
+    });
   };});
+  /* お試しか本番かの札は、サーバに聞いて決める。まだなら聞く。 */
+  payEnsure(false);
+}
+/* 端末の中だけの注文。園とつながっていないとき（見本）と、
+   お試しのあいだにサーバに無い見本の商品を買ったときに使う。
+   つながっているときの金額と還元は、ここでは計算しない（サーバの台帳が決める）。 */
+function waLocalOrder(p,c,b){
+  var rate=waKickRate(),kb=c?Math.round(p.price*rate):0;
+  var a=waOrders();
+  /* 買ったあとの様子はマイページの「購入履歴・配送状況」で見てもらう */
+  /* addDaysISO は「今日から何日後か」だけを受け取る。以前は日付も渡していて、
+     到着予定日が出せていなかった。 */
+  var dl=waIsDownload(p);
+  var o={id:Date.now(),at:nowStr(),childId:c?c.id:null,pid:p.id,name:p.name,
+    amount:p.price,kickback:kb,by:p.by||'school',status:'paid'};
+  /* 園に品物が届くものだけ、着く予定の日を控える。
+     ダウンロードでお渡しするものは園に何も届かないので、ここに日付を入れると
+     マイページに「4日後ごろ園に届く予定です」と出てしまう。 */
+  if(!dl)o.eta=addDaysISO(4);
+  /* ダウンロードでお渡しするものだという印を、注文の側にも残す。
+     商品の一覧から引き直すこともできるが、園が商品を消すと分からなくなるため。 */
+  if(dl)o.dl=true;
+  /* 借りるものは、お返しの期限を控えておく（マイページに出す） */
+  if(p.rental){o.rental=true;o.due=addDaysISO(30);}
+  a.push(o);
+  stSet('wa_orders',a);
+  waTrack('購入',{cid:p.id,cat:p.cat||'',by:waSourceOf(p.by)});
+  toast(waBuyToast(p));
+  /* 押す前と同じ文言に戻す。ここが「購入する」で固定だったため、
+     借りるものを押すと文言が入れ替わってしまっていた。 */
+  setTimeout(function(){b.disabled=false;b.textContent=waBuyLabel(p);},1500);
+}
+/* 買えたあとの一言。お試しでも本番でも、この先の流れは同じ。 */
+function waBuyToast(p){
+  if(waIsDownload(p))return 'お申し込みありがとうございます。園が確認すると、マイページからダウンロードできます。';
+  if(p.rental)return 'お申し込みありがとうございます。お返しの期限はマイページで見られます。';
+  return 'ご購入ありがとうございます。配送状況はマイページで見られます。';
 }
 /* 出品者のアカウント名を押したら、その出品者のページへ */
 function wireSeller(){
@@ -2803,6 +2861,8 @@ function photoPageHTML(){
   var yen=parseInt((e.prices||{}).data,10)||0;
   var n=0; Object.keys(WPH.pick).forEach(function(k){ if(WPH.pick[k])n++; });
   var bought=ps.filter(function(p){return p.bought;}).length;
+  /* お支払いページへ移ったまま戻っていない写真。買うボタンの代わりに「続ける」「やめる」を出す。 */
+  var pend=WPAY.pendingPhotos(e.id);
 
   var h='<button class="pback" id="wphBack">‹ もどる</button>'
     +'<div class="card"><h2 class="sec sec-c" style="margin-top:0;">'+esc(e.name)+'</h2>'
@@ -2828,6 +2888,9 @@ function photoPageHTML(){
         +(p.bought
           ? '<span style="position:absolute;left:4px;top:4px;background:#2C6B43;color:#fff;'
             +'font-size:10px;padding:1px 6px;border-radius:99px;">お求めずみ</span>'
+          : pend.ids[String(p.id)]
+          ? '<span style="position:absolute;left:4px;top:4px;background:var(--o);color:#fff;'
+            +'font-size:10px;padding:1px 6px;border-radius:99px;">お支払い手続き中</span>'
           : '<label style="position:absolute;right:4px;top:4px;background:rgba(255,255,255,.92);'
             +'border-radius:6px;padding:2px 5px;cursor:pointer;">'
             +'<input type="checkbox" data-wphpick="'+esc(p.id)+'"'+(on?' checked':'')
@@ -2841,6 +2904,20 @@ function photoPageHTML(){
     }).join('')
     +'</div></div>';
 
+  /* お試し・テスト決済の札。本番では何も出ない。 */
+  h+=payNoteHTML();
+  /* お支払いページへ移ったまま戻っていないぶんがあるときは、新しく買わせず、続けるかやめるかを選んでもらう。
+     もう1件作ると、サーバが前の1件を取り消すので、保護者には「何が残っているか」が見えなくなる。 */
+  if(pend.pay){
+    h+='<div class="card" style="position:sticky;bottom:10px;z-index:5;border-left:3px solid var(--o);">'
+      +'<div style="font-weight:700;font-size:13.5px;">お支払い手続き中の写真が '+Object.keys(pend.ids).length+'枚あります</div>'
+      +'<div class="muted" style="font-size:12px;margin-top:4px;">'+wphYen(pend.pay.amountYen)+'（税込）　お支払いを済ませると、その場でダウンロードできます。</div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+      +(pend.pay.url?'<button class="btn" data-paygo="'+esc(pend.pay.id)+'" style="flex:1;">お支払いを続ける</button>':'')
+      +'<button class="btn ghost" data-paycancel="'+esc(pend.pay.id)+'" style="flex:0 0 auto;">やめる</button>'
+      +'</div></div>';
+    return h;
+  }
   /* 買うところ。下に貼りつけて、選びながら金額が見えるようにする。 */
   h+='<div class="card" style="position:sticky;bottom:10px;z-index:5;">'
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
@@ -2849,7 +2926,11 @@ function photoPageHTML(){
     +'<button class="btn" id="wphBuy"'+(n?'':' disabled style="opacity:.45;"')+'>この写真を購入する</button>'
     +'</div>'
     +'<div class="muted" id="wphBuyM" style="font-size:11.8px;margin-top:8px;line-height:1.75;">'
-    +'お求めいただくと、その場でダウンロードできるようになります。</div></div>';
+    /* カード払いのときは、お支払いが済んでからダウンロードできる。お試しはその場で。順番をそのまま書く。 */
+    +(WPAY.card()?'お支払いが完了すると、その場でダウンロードできるようになります。'
+                 :'お求めいただくと、その場でダウンロードできるようになります。')
+    +(WPAY.card()?'<br>お支払いはクレジットカードです。カード番号の入力は決済代行会社のページで行い、当社には届きません。':'')
+    +'</div></div>';
   return h;
 }
 
@@ -2896,16 +2977,41 @@ function wirePhoto(c){
     if(!ids.length)return;
     var yen=parseInt((WPH.ev.prices||{}).data,10)||0;
     if(!confirm(ids.length+'枚を購入します（'+wphYen(ids.length*yen)+'・税込）。\n\n'
-      +'お求めいただいた写真は、販売の期間が過ぎたあともダウンロードできます。'))return;
+      +'お求めいただいた写真は、販売の期間が過ぎたあともダウンロードできます。'
+      +(WPAY.card()?'\n\nこのあとお支払いページに移動します。':'')))return;
     var b=this; b.disabled=true; document.getElementById('wphBuyM').textContent='お手続きしています…';
-    WAPI.call('POST','/parent/photo-orders',{eventId:WPH.ev.id,photoIds:ids})
-      .then(function(j){
-        WPH.pick={}; WPH.photos=null;
-        toast(j.added+'枚をお求めいただきました');
-        wphLoad();
-      })
-      .catch(function(e){ b.disabled=false; document.getElementById('wphBuyM').textContent=e.message; });
+    /* 金額はここでは送らない。写真の番号だけ送り、サーバが行事の価格から出す。
+       ★以前は /parent/photo-orders に直接入れていた。カード払いが本番になると、その口は
+       「お支払いはカードで」と断るようになるので、ここからは必ず checkout を通す。 */
+    WPAY.start({kind:'photo',eventId:WPH.ev.id,photoIds:ids},function(j,err){
+      var m=document.getElementById('wphBuyM');
+      if(err&&err.code==='no_checkout'){
+        /* サーバにまだ checkout の口が無い日は、従来の口（/parent/photo-orders）でお求めいただく。
+           ★API に checkout が無い日に画面だけ出ると、写真の購入が全部「通信に失敗しました（404）」で止まった。
+             checkout の無いサーバは実際の請求をしない（お試し）ので、従来の口でその場で成立させて差し支えない。 */
+        WAPI.call('POST','/parent/photo-orders',{eventId:WPH.ev.id,photoIds:ids})
+          .then(function(j2){
+            WPH.pick={}; WPH.photos=null;
+            toast((j2&&j2.added!=null?j2.added:ids.length)+'枚をお求めいただきました');
+            wphLoad();
+          })
+          .catch(function(e2){
+            var m2=document.getElementById('wphBuyM');
+            b.disabled=false; if(m2)m2.textContent=e2.message;
+          });
+        return;
+      }
+      if(err){ b.disabled=false; if(m)m.textContent=err.message; return; }
+      if(j&&j.url){ if(m)m.textContent='お支払いページへ移動します…'; return; }
+      /* お試し：その場で成立している（今までと同じ動き） */
+      WPH.pick={}; WPH.photos=null;
+      toast((j&&j.added!=null?j.added:ids.length)+'枚をお求めいただきました');
+      wphLoad();
+    });
   };
+  /* 「お支払いを続ける」「やめる」と、お試しか本番かの札 */
+  wirePayActs();
+  payEnsure(!!WPH.open);
 }
 
 function wphLoad(){
@@ -2981,8 +3087,40 @@ function langRx(key){
   if((m=key.match(/^(\d+)歳$/)))return m[1]+' yrs';
   if((m=key.match(/^(.+?) ?様$/)))return m[1];
   if(/（[月火水木金土日]）/.test(key))return key.replace(/（([月火水木金土日])）/g,function(_,c){return '('+LANG_WD[c]+')';});
+  /* 末尾にお支払い番号が付いた案内。番号はそのたびに違うので、辞書は本文だけで引く */
+  if((m=key.match(/^(.+)（お支払い番号 #(\d{1,18})）$/))&&EN_DICT[m[1]])return EN_DICT[m[1]]+' (Payment no. #'+m[2]+')';
   return null;
 }
+/* 辞書の引き方。①そのまま ②数字を {0},{1}… に置き換えた型（件数や日付が変わる文）③形で分かるもの（langRx）。
+   ②は「3名が未記録です」も「12名が未記録です」も、辞書の「{0}名が未記録です」1つで訳せるようにするため。
+   noRx のときは③を使わない（文を丸ごと引くときに、名前の「様」などを誤って変えないため） */
+function langLookup(k,noRx){
+  if(!k)return '';
+  var d=EN_DICT;
+  if(d[k])return d[k];
+  if(/\d/.test(k)){
+    var nums=[],i=0;
+    var t=k.replace(/\d+(?:[.,]\d+)*/g,function(m){nums.push(m);return '{'+(i++)+'}';});
+    if(d[t])return d[t].replace(/\{(\d+)\}/g,function(_,j){return nums[+j]!=null?nums[+j]:'';});
+  }
+  return noRx?'':(langRx(k)||'');
+}
+/* アラート・確認・入力の窓も英語にする。画面の外に出るので、langApply では届かない */
+function langMsg(m){
+  if(typeof m!=='string'||langNow()!=='en')return m;
+  var whole=langLookup(m.replace(/^\s+|\s+$/g,''),true); if(whole)return whole;
+  return m.split('\n').map(function(line){
+    var t=line.replace(/^\s+|\s+$/g,''); var x=t?langLookup(t,true):'';
+    return x?line.replace(t,x):line;
+  }).join('\n');
+}
+(function(){
+  if(window.__langDlg)return; window.__langDlg=1;
+  var A=window.alert,C=window.confirm,P=window.prompt;
+  window.alert=function(m){ return A.call(window,langMsg(m)); };
+  window.confirm=function(m){ return C.call(window,langMsg(m)); };
+  window.prompt=function(m,d){ return P.call(window,langMsg(m),d); };
+})();
 function langApply(root){
   if(langNow()!=='en')return;
   if(!root||!document.createTreeWalker)return;
@@ -2994,7 +3132,7 @@ function langApply(root){
       if(p.closest&&p.closest('[data-nolang]'))continue;
       var raw=n.nodeValue,key=raw.replace(/^\s+|\s+$/g,'');
       if(!key)continue;
-      var en=dict[key]||langRx(key);
+      var en=langLookup(key);
       if(!en)continue;
       hits.push([n,raw,key,en]);
     }
@@ -3006,7 +3144,7 @@ function langApply(root){
     });
     var els=root.querySelectorAll?root.querySelectorAll('[placeholder],[title],[aria-label]'):[];
     [].forEach.call(els,function(e){['placeholder','title','aria-label'].forEach(function(a){
-      var v=e.getAttribute(a); if(!v)return; var k=v.replace(/^\s+|\s+$/g,''); if(dict[k])e.setAttribute(a,dict[k]);});});
+      var v=e.getAttribute(a); if(!v)return; var k=v.replace(/^\s+|\s+$/g,''); var t2=langLookup(k); if(t2)e.setAttribute(a,t2);});});
   }catch(e){}
 }
 function langToggleHTML(){
@@ -3430,6 +3568,46 @@ var EN_DICT={
 'あわせて、お子さまに合わせた教育・育児コンテンツ、ショップ（ご購入・レンタル）、イベント、コミュニティをご利用いただけます。園とつながっていない方も、この部分はお使いいただけます。':'You can also use educational and parenting content tailored to your child, the shop (purchases and rentals), events, and the community. These parts are available even if you are not connected to a school.',
 '身長・体重・カウプ指数を、アプリのマイページに出します。アレルギー・既往症などは法律上とくに配慮が必要な情報のため、規約とは分けてうかがっています。同意されなくても、ほかの機能はすべてお使いいただけます。':'Height, weight, and Kaup index are shown on My Page in the app. Because allergies, medical history, and similar data require special care under the law, we ask for this consent separately from the Terms. Even if you do not consent, all other features remain available.',
 '提携園にご通園のご家庭には、園からのおたより、園からの個人メッセージ、出欠・連絡、成長の記録、スクールガイド、イベントのお知らせが、提携園から共有されます。出欠・連絡は、この画面から園へお送りいただけます。':'Families whose child attends a partner school receive newsletters, personal messages from the school, attendance notices, growth records, the School Guide, and event notices, shared by the partner school. Attendance notices can be sent to the school from this screen.',
+/* カード払い（Stripe Checkout）。保存する値（台帳の状態）は日本語のまま、画面の文字だけ差し替える */
+'お試し：実際の請求はありません':'Trial: you will not be charged',
+'テスト決済：実際の請求はありません（テスト用カードのみ使えます）':'Test payment: you will not be charged (test cards only)',
+'お手続き中…':'Processing…',
+'お支払いページへ移動します…':'Taking you to the payment page…',
+'お支払いを確かめています…':'Confirming your payment…',
+'お支払いが完了しました':'Payment complete',
+'お手続きを中止しました。請求はありません。':'Payment cancelled. You have not been charged.',
+'お支払いの確認に時間がかかっています。しばらくしてからマイページをご覧ください。':'We are still confirming your payment. Please check My Page in a moment.',
+'お支払いは完了していません。マイページでご確認ください。':'Your payment has not been completed. Please check My Page.',
+'このお手続きはすでに完了しています。マイページでご確認ください。':'This payment has already been completed. Please check My Page.',
+'お手続きの結果を確かめられませんでした。マイページでご確認ください。':'We could not confirm the result. Please check My Page.',
+'お支払いページの期限が切れています。もう一度お求めください。':'The payment page has expired. Please start again.',
+'お手続き中のお支払い':'Payments in progress',
+'お支払い手続き中':'Payment in progress',
+'お支払いを続ける':'Continue payment',
+'やめる':'Cancel',
+'中止しています…':'Cancelling…',
+'領収書':'Receipt',
+'返金済み':'Refunded',
+'購入する':'Buy',
+'借りる':'Rent',
+'購入済み':'Purchased',
+'園に配送中':'On its way to school',
+'園の確認待ち':'Waiting for school confirmation',
+'ダウンロードできます':'Ready to download',
+'お受け取りできません':'Not available',
+'お支払方法':'Payment method',
+'お支払時期':'When payment is taken',
+'お支払いはクレジットカードです。カード番号の入力は決済代行会社のページで行い、当社には届きません。':'Payment is by credit card. Card details are entered on our payment provider\'s page and never reach us.',
+'お支払いが完了すると、その場でダウンロードできるようになります。':'Once your payment is complete, you can download right away.',
+'お求めいただくと、その場でダウンロードできるようになります。':'Once purchased, you can download right away.',
+/* テスト決済・要確認（2026-09-14） */
+'テスト決済のため、受け取りはできません（実際の請求はありません）':'This was a test payment, so there is nothing to receive (you have not been charged)',
+'お支払いを確認しています。受け取りの準備ができしだい、マイページに出ます。ご不明な点は園または運営までお問い合わせください':'We are confirming your payment. It will appear on My Page as soon as it is ready to receive. If you have any questions, please contact the school or our support team',
+'お支払いを確認しています。受け取りの準備ができしだい、ここに出ます。ご不明な点は園または運営までお問い合わせください':'We are confirming your payment. It will appear here as soon as it is ready to receive. If you have any questions, please contact the school or our support team',
+'確認中':'Confirming',
+'テスト決済':'Test payment',
+'お支払いの記録':'Payment records',
+'テスト決済が完了しました（実際の請求はありません）':'Test payment complete (you have not been charged)'
 };
 
 
@@ -3494,7 +3672,12 @@ function schoolInfoHTML(){
    保護者はもう園に聞かなくなってしまう。 */
 var ORDER_STATES={paid:['購入済み','var(--p)'],shipping:['園に配送中','var(--c)'],received:['園で受け取り済み','var(--g)'],
   /* ダウンロードでお渡しするもの。品物は動かないので「配送中」は出さない。 */
-  dlwait:['園の確認待ち','var(--c)'],dlready:['ダウンロードできます','var(--g)'],dlno:['お受け取りできません','var(--o)']};
+  dlwait:['園の確認待ち','var(--c)'],dlready:['ダウンロードできます','var(--g)'],dlno:['お受け取りできません','var(--o)'],
+  /* カードで払ったもので、サーバの答え（お渡しできるか）をまだ聞けていないあいだ。
+     カード払いは園の確認を待たないので「園の確認待ち」とは書けない。払ったことだけは確かなので「購入済み」。 */
+  dlprep:['購入済み','var(--p)'],
+  /* 全額返金されたもの。お金の記録はサーバの台帳にあり、ここは表示の鍵だけ。 */
+  refunded:['返金済み','var(--o)']};
 function waOrdKey(o){
   return String(o&&o.id||'')+'|'+String(o&&o.at||'')+'|'+String(o&&o.childId||'');
 }
@@ -3504,7 +3687,26 @@ function waRecvOf(o){
   if(!v||typeof v!=='object'||Array.isArray(v))return null;
   return v[waOrdKey(o)]||null;
 }
+/* カードで払った注文か（練習の注文は含めない）。
+   カード払いは、サーバが台帳だけでお渡しを決め、園の「受け取りました」を待たない。
+   練習の注文は今までどおり園の確認で渡すので、見分けないと文言がずれる。 */
+function waCardOrder(o){
+  if(!o||o.pay==null||o.pay==='')return false;
+  var p=WPAY.of(o.pay);
+  if(p)return p.mode!=='練習';
+  /* 台帳の一覧をまだ読んでいない（または古くて一覧に入っていない）とき。
+     台帳から写した控えは id と pay が同じ台帳の番号になっている（端末で作る注文は id が時刻で、pay が無い）。
+     控えには練習か本番かが書いていないので、いまのお支払いの状態で決める。
+     テスト決済で受け取りを作った控えには、サーバが印（mode:'テスト'）を付けている。 */
+  if(String(o.id)!==String(o.pay))return false;
+  if(o.mode==='テスト')return true;
+  return WPAY.loaded&&WPAY.mode!=='練習';
+}
 function orderState(o){
+  /* 返金された注文は、ほかのどの状態よりも先に決める。
+     注文の status は 'paid' / 'received' という英字の印で持っているので、
+     ここに足す 'refunded' だけは例外として英字にそろえる（保存する値は日本語、が本則）。 */
+  if(o&&o.status==='refunded')return 'refunded';
   /* ダウンロードでお渡しするものは、サーバが「いまお渡しできます」と答えたときだけ
      「ダウンロードできます」と出す。園が押した記録だけで決めてしまうと、
      ファイルがまだ登録されていないときや、期限・回数が終わったあとにも
@@ -3513,9 +3715,14 @@ function orderState(o){
     if(!WAPI.online())return 'dlno';
     if(WDL.has(o.pid))return 'dlready';
     /* 園が確認を押しているのに渡せないのは、ファイルがまだ無いか、
-       期限か回数が終わったとき。ここで「確認待ち」と書くと嘘になる。 */
-    if(WDL.loaded&&waRecvOf(o))return 'dlno';
-    return 'dlwait';
+       期限か回数が終わったとき。ここで「確認待ち」と書くと嘘になる。
+       ★カードで払った注文も同じ扱いにする。以前は園の受け取り記録があるときだけここを通していたが、
+         カード払いの注文には園の記録が付かないので、期限・回数が終わったあとも
+         ずっと「園の確認待ち」と出ていた（サーバは台帳だけで決めていて、園の確認を待っていない）。
+         払った直後で手元の答えが古いと分かっているあいだ（WDL.stale）は、まだ決めつけない。 */
+    var card=waCardOrder(o);
+    if(WDL.loaded&&(waRecvOf(o)||(card&&!WDL.stale)))return 'dlno';
+    return card?'dlprep':'dlwait';
   }
   if(o.status==='received'||waRecvOf(o))return 'received';
   var t=todayISO(),bought=String(o.at||'').slice(0,10);
@@ -3948,21 +4155,28 @@ function meHTML(c){
       +'<button class="btn sec" id="goLink" style="margin-top:11px;">園とつながる</button></div>';
   }
   h2+='<h2 class="sec sec-p">🧾 購入履歴・配送状況</h2>'
+    /* お試し・テスト決済の札と、お支払いページへ移ったまま戻っていないぶん（台帳にだけある） */
+    +payNoteHTML()+payPendingHTML()+payLedgerHTML()
     +(os.length?os.map(function(o){
       var st=orderState(o),lb=ORDER_STATES[st]||ORDER_STATES.paid;
+      /* カードで払った注文には支払い番号（pay）が付いている。台帳に領収書のページがあれば出す。 */
+      var pay=WPAY.of(o.pay),rcpt=(pay&&pay.receiptUrl&&/^https:\/\//.test(String(pay.receiptUrl)))?String(pay.receiptUrl):'';
       /* ダウンロード品はボタンが下に付くので、外側を縦の箱にして、
          もとの横並びはその中に入れる（表示は今までと変わらない）。 */
       return '<div class="card">'
       +'<div style="display:flex;gap:11px;align-items:center;">'
       +'<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:13.5px;">'+esc(o.name)+'</div>'
       +'<div class="muted">'+esc(o.at)
-        /* 予定は予定として書く。園が受け取りを押したら、その日を出す。 */
+        /* 予定は予定として書く。園が受け取りを押したら、その日を出す。返金されたものには予定を書かない。 */
         +(st==='received'&&waRecvOf(o)?' ・ '+esc(fmtDate?fmtDate(waRecvOf(o).at):waRecvOf(o).at)+' に園で受け取りました'
           :(st==='shipping'&&o.eta?' ・ '+esc(fmtDate?fmtDate(o.eta):o.eta)+' ごろ園に届く予定です':''))
         /* 借りたものは、いつまでにお返しするかをここに出す */
-        +(o.rental&&o.due?' ・ '+esc(fmtDate?fmtDate(o.due):o.due)+' までにお返しください':'')
+        +(o.rental&&o.due&&st!=='refunded'?' ・ '+esc(fmtDate?fmtDate(o.due):o.due)+' までにお返しください':'')
         /* ダウンロードでお渡しするものは、いまの様子をそのまま書く */
-        +(o.dl?' ・ '+waDlNote(o,st):'')+'</div></div>'
+        +(o.dl&&st!=='refunded'?' ・ '+waDlNote(o,st):'')
+        /* サーバがテスト決済の控えに付ける印。本物の購入と見分けられるようにする */
+        +(o.mode==='テスト'?' ・ テスト決済（実際の請求はありません）':'')
+        +(rcpt?' ・ <a href="'+esc(rcpt)+'" target="_blank" rel="noopener">領収書</a>':'')+'</div></div>'
       +'<div style="text-align:right;flex-shrink:0;">'
         +'<div class="chip" style="background:'+lb[1]+';color:#fff;border:none;padding:3px 10px;font-size:10.5px;">'+esc(lb[0])+'</div>'
         +'<div style="font-weight:800;font-size:13.5px;margin-top:5px;">'+yen(o.amount)+'</div></div></div>'
@@ -4056,6 +4270,9 @@ function wireMe(c){
      一度聞いたら聞き直さない（返事が来ないときに何度も呼ばないため）。 */
   if(WAPI.online()&&!WDL.tried&&!WDL.busy)WDL.load().then(function(){if(tab==='me')render();});
   if(WAPI.online()&&!WLINE.tried&&!WLINE.busy)WLINE.load().then(function(){if(tab==='me')render();});
+  /* お支払いの一覧（台帳）も同じ。「お手続き中」と領収書はここから出す。 */
+  payEnsure(true);
+  wirePayActs();
 }
 
 /* 商品の詳細ページ。ストアのタブ内で切り替える（戻るで一覧へ） */
@@ -4098,8 +4315,11 @@ function productPageHTML(p,c){
          預かりが無いものを申し込めるようにすると、待ってもファイルは来ない。 */
       : ((waIsDownload(p)&&!waDownloadReady(p))
         ? waDownloadNote(p)
-        : '<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
+        /* お試し・テスト決済の札はボタンの真上。カード払いのときは、その一言をボタンの下に。 */
+        : payNoteHTML()
+          +'<div style="margin:4px 0 10px;"><button class="btn" data-buy="'+esc(p.id)+'">'
           +waBuyLabel(p)+'</button></div>'
+          +payCardNoteHTML()
           +(waIsDownload(p)?waDownloadBuyNote():'')))
     +prodReviewHTML(p,rs,r,n)
     +prodLawHTML(p);
@@ -5513,8 +5733,11 @@ var WAPI={
     return fetch(WAPI.base()+path,{method:method,headers:h,
       body:body?JSON.stringify(body):undefined})
       .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
-        if(r.status===401){WAPI.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
-        if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
+        if(r.status===401){WAPI.setToken('');var e401=new Error('ログインの有効期限が切れました。もう一度ログインしてください。');e401.status=401;throw e401;}
+        /* サーバが添えた短い印（code）と番号（status）も残す。
+           お支払いでは「商品がサーバに無い」と「通信が切れた」を分けて扱う必要がある。
+           文言だけでは見分けられないので、ここで持たせる。 */
+        if(!r.ok){var err=new Error(j.error||('通信に失敗しました（'+r.status+'）'));err.code=j.code||'';err.status=r.status;err.body=j;throw err;}
         return j;});});
   }
 };
@@ -5586,6 +5809,8 @@ var WDL={
   /* 園がファイルを預けてある商品の番号。買えるかどうかは、これで決める。
      預かりが無い商品は、買っても渡せない。 */
   avail:{}, availLoaded:false,
+  /* 手元の答えが古いと分かっているあいだ（カードで払った直後）。reload が聞き直し終えたら倒す。 */
+  stale:false,
   /* その教材をいまお渡しできるか。渡せるときだけ中身（期限・残り回数）が返る。 */
   has:function(pid){ return WDL.map[String(pid)]||null; },
   /* その教材は、そもそも園が渡せる用意をしているか */
@@ -5604,6 +5829,15 @@ var WDL={
          買えるかどうかも分からないので、availLoaded は倒しておく。 */
       WDL.loaded=false;WDL.list=[];WDL.map={};WDL.avail={};WDL.availLoaded=false;WDL.err=e.message;
     }).then(function(){WDL.busy=false;WDL.tried=true;});
+  },
+  /* 払った直後に聞き直す。load は聞いている途中だと何もしないが、その途中の答えは
+     払う前に聞いたものかもしれない（起動時の load と、戻ってきたときの確認は並んで走る）。
+     そのため、途中なら終わるのを待ってから、あらためて聞く。 */
+  reload:function(){
+    WDL.stale=true;
+    if(WDL.busy){setTimeout(WDL.reload,400);return;}
+    WDL.tried=false;
+    WDL.load().then(function(){WDL.stale=false;render();});
   },
   /* お受け取り。ここだけがファイルを端末に持ってくる。
      返ってくるのは JSON ではないので、WAPI.call は使えない。 */
@@ -5658,8 +5892,332 @@ function waDlNote(o,st){
       +' ・ <span style="white-space:nowrap;">あと'+esc(d.left)+'回</span>';
   }
   if(st==='dlwait')return '園が確認すると、ここからダウンロードできます';
+  /* カードで払ったものは園の確認を待たないので、上の一言は出さない。
+     聞けなかったときは、確かめている最中のように書かない。 */
+  if(st==='dlprep')return WDL.err?'いまはお受け取りの様子を確かめられません。しばらくしてから開き直してください'
+                                 :'お受け取りできるか確かめています';
   if(!WAPI.online())return '園とつながっていないため、いまはお受け取りいただけません';
   return 'いまはお受け取りいただけません。園にお問い合わせください';
+}
+
+/* ══ カード払い（Stripe Checkout）══════════════
+   お金の状態はサーバの台帳にしか無い。端末には残さない（WDL と同じ理由）。
+   ここは stSet や WSYNC には通さない。
+   鍵が無いあいだサーバは「練習」と答え、画面は「お試し」と出す。
+   カード番号はこの画面では一度も扱わない。決済代行会社のお支払いページへ移って入れていただく。
+   金額も画面では決めない。送るのは商品の番号（写真は番号の一覧）だけで、金額はサーバが帳簿から引く。 */
+var WPAY_PAID={'支払済':1,'一部返金':1,'返金':1};   /* お金が動いた状態（台帳の保存値そのまま） */
+/* テスト用カードで払ったとき。お金は動いておらず、品物・写真はお渡ししない。 */
+var WPAY_TEST_MSG='テスト決済のため、受け取りはできません（実際の請求はありません）';
+var WPAY={
+  mode:'練習', loaded:false, tried:false, busy:false,
+  list:[], listLoaded:false, listTried:false, listBusy:false,
+  starting:false, pending:null,
+  /* 「お試し」かどうか。つながっていないときは無条件にお試し。 */
+  trial:function(){ return !WAPI.online()||WPAY.mode!=='本番'; },
+  /* 実際にカードのお支払いページへ移るか（テスト決済も含む）。
+     サーバに聞けていないあいだは false にして、カードの案内を先走って出さない。 */
+  card:function(){ return WAPI.online()&&WPAY.loaded&&WPAY.mode!=='練習'; },
+  /* 台帳の1件が「テスト決済で完了し、受け取り（写真・控え）が作られていないもの」か。
+     サーバは支払済の行に fulfilled（受け取りを作ったか）と、作らなかった理由 reason:'テスト' を付ける。
+     運営がテストでも受け取りを作る設定にしていれば fulfilled:true で来るので、そのときは普通に渡す。
+     fulfilled を返さない前のサーバでは、テスト決済は受け取りを作らない前提で、状態と mode で判定する。 */
+  testPaid:function(p){
+    if(!p||!WPAY_PAID[p.status])return false;
+    if(p.fulfilled===true)return false;
+    if(p.fulfilled===false)return p.reason==='テスト'||p.mode==='テスト';
+    return p.mode==='テスト';
+  },
+  /* 「要確認」のときの一言。カードには請求が済んでいるかもしれない（照合が合わず運営が確かめている）ので、
+     「完了していません」「請求はありません」とは言わない。問い合わせに使えるよう番号を添える。 */
+  holdMsg:function(p,here){
+    return 'お支払いを確認しています。受け取りの準備ができしだい、'+(here?'ここに出ます。':'マイページに出ます。')
+      +'ご不明な点は園または運営までお問い合わせください（お支払い番号 #'+String(p&&p.id)+'）';
+  },
+  /* 画面に出す一言。つながっていないときと練習のときは「お試し」。
+     つながっているのにまだ聞けていないあいだは、何も言わない（嘘を出さないため）。 */
+  note:function(){
+    if(!WAPI.online()||(WPAY.loaded&&WPAY.mode==='練習'))return 'お試し：実際の請求はありません';
+    if(WPAY.loaded&&WPAY.mode==='テスト')return 'テスト決済：実際の請求はありません（テスト用カードのみ使えます）';
+    return '';
+  },
+  /* ログイン・ログアウトで前のご家庭のぶんを消す。pending（戻り先の番号）はここでは触らない。 */
+  reset:function(){
+    WPAY.mode='練習';WPAY.loaded=false;WPAY.tried=false;
+    WPAY.list=[];WPAY.listLoaded=false;WPAY.listTried=false;
+  },
+  status:function(){
+    if(!WAPI.online()){WPAY.loaded=false;return Promise.resolve();}
+    if(WPAY.busy)return Promise.resolve();
+    WPAY.busy=true;
+    return WAPI.call('GET','/parent/pay/status').then(function(j){
+      WPAY.mode=(j&&j.mode)||'練習';WPAY.loaded=true;
+    }).catch(function(){
+      /* 聞けなかったときは「お試し」と決めつけない。何も出さず、次のログインで聞き直す。 */
+      WPAY.loaded=false;
+    }).then(function(){WPAY.busy=false;WPAY.tried=true;});
+  },
+  /* このご家庭のお支払いの一覧（台帳）。支払済のストア注文は購入履歴にも写す。 */
+  load:function(){
+    if(!WAPI.online()){WPAY.list=[];WPAY.listLoaded=false;return Promise.resolve();}
+    if(WPAY.listBusy)return Promise.resolve();
+    WPAY.listBusy=true;
+    return WAPI.call('GET','/parent/payments').then(function(j){
+      WPAY.list=(j&&j.payments)||[];
+      if(j&&j.mode){WPAY.mode=j.mode;WPAY.loaded=true;}
+      WPAY.listLoaded=true;
+      WPAY.absorb(WPAY.list);
+    }).catch(function(){
+      WPAY.listLoaded=false;
+    }).then(function(){WPAY.listBusy=false;WPAY.listTried=true;});
+  },
+  /* 支払済のストア注文を、購入履歴（wa_orders）に写す。
+     サーバも同じ控えを足すが、別の端末で買ったときや、端末が古い配列で上書きしたときのため、
+     ここでも足す。台帳が「返金」なら控えの状態も合わせる。
+     控えの形は端末で作る注文と同じなので、マイページはそのまま出せる。 */
+  absorb:function(ps){
+    var a=waOrders(),changed=false;
+    (ps||[]).forEach(function(p){
+      if(!p||p.kind!=='store'||!WPAY_PAID[p.status])return;
+      /* 以前の端末が写してしまった、受け取りの無いテスト決済の控えは、ここで取り除く。
+         控えの id と pay はどちらも台帳の番号なので、両方が合うものだけを消す（端末の注文は id が時刻で、pay も無い）。
+         サーバはこの控えを足し戻さないので、消えたままになる。 */
+      if(WPAY.testPaid(p)){
+        var b=a.filter(function(o){return !(o&&String(o.id)===String(p.id)&&String(o.pay)===String(p.id));});
+        if(b.length!==a.length){a=b;changed=true;}
+        return;
+      }
+      /* ★本番（mode='本番'）だけ写す。台帳の order はテスト決済でも付いてきて、ここで写していた。
+         サーバは「テストの注文を園の控えに出さない」と直してあるのに、端末が写し直して打ち消し、
+         4242 のカードで買った注文が園の「売れたもの」に本物と同じ顔で並んでいた。
+         園・運営の集計（creator.html・index.html）は wa_orders の印を見分けないので、印を付けて写すのではなく写さない。
+         練習の注文は、買ったその場で端末が足している（別の道）。
+         運営がテストでも受け取りを作る設定のときは、サーバが印（mode:'テスト'）付きの控えを自分で写す。 */
+      if(p.mode!=='本番'||!p.order)return;
+      var hit=a.filter(function(o){return o&&String(o.id)===String(p.order.id);})[0];
+      if(!hit){a.push(p.order);changed=true;return;}
+      if(p.status==='返金'&&hit.status!=='refunded'){hit.status='refunded';changed=true;}
+    });
+    if(changed)stSet('wa_orders',a);
+  },
+  /* 注文に付いた支払い番号（pay）から台帳の1件を引く。領収書と返金の表示に使う。 */
+  of:function(payId){
+    if(payId==null||payId==='')return null;
+    return WPAY.list.filter(function(p){return p&&String(p.id)===String(payId);})[0]||null;
+  },
+  /* いま「支払待ち」のもの。マイページの「お手続き中のお支払い」に出す。 */
+  pendings:function(){ return WPAY.list.filter(function(p){return p&&p.status==='支払待ち';}); },
+  /* その行事で支払待ちになっている写真の番号。買うボタンの代わりに「お支払いを続ける」を出すため。 */
+  pendingPhotos:function(eventId){
+    var m={},pay=null;
+    WPAY.pendings().forEach(function(p){
+      if(p.kind!=='photo'||String(p.refId)!==String(eventId))return;
+      pay=pay||p;
+      (p.lines||[]).forEach(function(l){ if(l&&l.photoId!=null)m[String(l.photoId)]=1; });
+    });
+    return {pay:pay,ids:m};
+  },
+  newKey:function(){ return 'k'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); },
+  /* お手続きの番号（key）。押すごとに新しく作り、通信が切れて押し直したときだけ同じ番号を送る。
+     同じ番号ならサーバは同じ支払いを返すので、二重に作られない。
+     ★ただし「別の商品」に前の番号を使い回すと、前の商品の支払いがそのまま返ってくる。
+     そのため、何を買おうとしたか（fp）も一緒に控えて、同じ内容のときだけ使い回す。 */
+  keyFor:function(body){
+    var fp=String(body.kind)+':'+(body.kind==='photo'
+      ?String(body.eventId)+':'+(body.photoIds||[]).map(String).sort().join(',')
+      :String(body.pid));
+    var st=null;
+    try{st=JSON.parse(sessionStorage.getItem('cocoas_wa_paykey')||'null');}catch(e){}
+    if(st&&st.fp===fp&&st.key)return st.key;
+    var k=WPAY.newKey();
+    try{sessionStorage.setItem('cocoas_wa_paykey',JSON.stringify({fp:fp,key:k}));}catch(e){}
+    return k;
+  },
+  keyDone:function(){ try{sessionStorage.removeItem('cocoas_wa_paykey');}catch(e){} },
+  /* お手続きの入口。done(応答, 失敗) のどちらかが必ず呼ばれる。
+     応答に url があれば、お支払いページへ移る（同じタブ。戻ってきたときにログインが残る）。
+     url が無ければ「お試し」で、その場で成立している（order か added が付く）。 */
+  start:function(body,done){
+    done=done||function(){};
+    if(WPAY.starting){done(null,new Error('お手続き中です。少しお待ちください。'));return;}
+    if(!WAPI.online()){done(null,new Error('園とつながっていないため、いまはお手続きできません'));return;}
+    WPAY.starting=true;
+    body.key=WPAY.keyFor(body);
+    /* 戻り先は、いま開いているこのページ。サーバが認めた場所にしか戻さない。 */
+    body.returnUrl=location.origin+location.pathname;
+    WAPI.call('POST','/parent/checkout',body).then(function(j){
+      WPAY.starting=false;WPAY.keyDone();
+      WPAY.listTried=false;                  /* 一覧は古くなった。次に開いたら聞き直す */
+      var url=(j&&j.url)?String(j.url):'';
+      /* お支払いページは https のものだけ開く。サーバ応答ひとつで別の場所へ連れて行かれないように。 */
+      if(url&&!/^https:\/\//.test(url)){done(null,new Error('お支払いページの場所が正しくありません'));return;}
+      done(j,null);
+      if(url)location.assign(url);
+    }).catch(function(e){
+      WPAY.starting=false;
+      /* サーバが「受け付けられない」と答えたときは番号を捨てる。
+         通信そのものが失敗したときは残し、次の押し直しで同じ番号を送る（二重に作らせない）。 */
+      if(e&&e.status)WPAY.keyDone();
+      /* 404 なのに印（code）が無い＝サーバにこの口（/parent/checkout）そのものが無い。
+         新しいサーバの 404 には必ず印が付く（no_product／not_found）ので、それと見分けられる。
+         ★API に checkout が無い日に画面だけ出ると全購入が止まった（画面を API より先に push した／API を戻した）。
+           呼び出し側はこの印を見て、従来の口（端末の中の注文・/parent/photo-orders）に落とす。 */
+      if(e&&e.status===404&&!e.code)e.code='no_checkout';
+      done(null,e);
+    });
+  },
+  /* 戻ってきたあとの確認。2秒おきに最大10回、支払待ちでなくなるまで聞く。
+     Webhook が遅れても、この GET でサーバが Stripe に確かめて確定する。 */
+  check:function(id,done,tries){
+    tries=tries||0;
+    WAPI.call('GET','/parent/payments/'+encodeURIComponent(String(id))).then(function(p){
+      if(p&&p.status==='支払待ち'&&tries<9){setTimeout(function(){WPAY.check(id,done,tries+1);},2000);return;}
+      done(p,null);
+    }).catch(function(e){done(null,e);});
+  },
+  /* お手続きをやめる。サーバが「もう完了している」と言えば支払済で返ってくる。 */
+  cancel:function(id,done){
+    done=done||function(){};
+    WAPI.call('GET','/parent/payments/'+encodeURIComponent(String(id))+'?cancel=1')
+      .then(function(p){done(p,null);}).catch(function(e){done(null,e);});
+  },
+  /* 支払いが確定したあとの画面。ストアはマイページ、写真はその行事を開き直す。 */
+  after:function(p){
+    /* テスト決済は受け取りを作らないので、写真の行事を開いても何も無い。マイページの記録に案内する。 */
+    if(WPAY.testPaid(p)){
+      toast(WPAY_TEST_MSG,5000);
+      tab='me';render();
+      return;
+    }
+    toast(p.mode==='テスト'?'テスト決済が完了しました（実際の請求はありません）':'お支払いが完了しました');
+    if(p.kind==='photo'){
+      tab='school';WPH.open=String(p.refId);WPH.photos=null;WPH.ev=null;WPH.pick={};
+      render();wphLoad();
+      return;
+    }
+    if(p.order)WPAY.absorb([p]);
+    /* ★ダウンロード教材は、払った時点でサーバがお渡しを始めている（園の確認を待たない）。
+       起動時に聞いた「お渡しできるもの」は払う前の答えのことが多いのに、ここで聞き直していなかった。
+       マイページを開いたときも「一度聞いたら聞き直さない」ので、払った直後に
+       「園の確認待ち」と出たまま、ページを開き直すまで直らなかった。 */
+    if(p.kind==='store'&&p.lines&&p.lines[0]&&p.lines[0].dl)WDL.reload();
+    tab='me';render();
+  },
+  /* お支払いページから戻ってきたぶんを片づける。ログインしているとき（トークンがあるとき）だけ動く。
+     ログインが切れて戻ってきたときは pending を残し、ログインしたあとにもう一度ここへ来る。 */
+  resume:function(){
+    var pd=WPAY.pending;
+    if(!pd||!WAPI.online())return;
+    WPAY.pending=null;
+    if(pd.kind==='cancel'){
+      WPAY.cancel(pd.id,function(p,e){
+        if(e){toast(e.message);}
+        else if(p&&WPAY_PAID[p.status]){WPAY.after(p);}   /* 中止を押したあとに完了していた */
+        else if(p&&p.status==='要確認'){tab='me';toast(WPAY.holdMsg(p),8000);}   /* 請求済みかもしれない */
+        else toast('お手続きを中止しました。請求はありません。');
+        WPAY.load().then(function(){render();});
+      });
+      return;
+    }
+    tab='me';render();
+    toast('お支払いを確かめています…');
+    WPAY.check(pd.id,function(p,e){
+      if(e){toast(e.message);return;}
+      if(WPAY_PAID[p.status])WPAY.after(p);
+      else if(p.status==='支払待ち')toast('お支払いの確認に時間がかかっています。しばらくしてからマイページをご覧ください。');
+      /* ★「要確認」（カードには請求済み・お渡しは保留）でも「お支払いは完了していません」と出していた。
+         請求明細には載るのにマイページにも痕跡が無く、保護者が二度払いするか、問い合わせる手がかりが無かった。 */
+      else if(p.status==='要確認')toast(WPAY.holdMsg(p),8000);
+      else toast('お支払いは完了していません。マイページでご確認ください。');
+      WPAY.load().then(function(){render();});
+    });
+  }
+};
+/* 「お試し」「テスト決済」の札。本番では何も出さない。 */
+function payNoteHTML(){
+  var n=WPAY.note(); if(!n)return '';
+  return '<div class="card" style="background:#FDF6EC;border-color:#F0DCBC;font-size:12.5px;line-height:1.8;" data-paynote>'+esc(n)+'</div>';
+}
+/* カードでお支払いいただくときの、ボタン下の一言。お試しのときは出さない。 */
+function payCardNoteHTML(){
+  if(!WPAY.card())return '';
+  return '<div class="muted" style="margin:0 2px 12px;font-size:12px;line-height:1.8;">'
+    +'お支払いはクレジットカードです。カード番号の入力は決済代行会社のページで行い、当社には届きません。</div>';
+}
+/* 台帳の1件を、ひとことで。商品名か、写真の枚数。園児名は台帳に無い。 */
+function payLineName(p){
+  var ls=(p&&p.lines)||[];
+  if(p&&p.kind==='photo')return 'お写真 '+ls.length+'枚';
+  return (ls[0]&&ls[0].name)||'お買い物';
+}
+/* 「お手続き中のお支払い」。台帳にだけあって wa_orders には無いので、購入履歴とは別に出す。
+   続けるか、やめるか、をここで選べる。 */
+function payPendingHTML(){
+  var ps=WPAY.pendings();
+  if(!ps.length)return '';
+  return '<div class="card" style="border-left:3px solid var(--o);">'
+    +'<div style="font-weight:800;font-size:13.5px;">お手続き中のお支払い</div>'
+    +ps.map(function(p){
+      return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;">'
+        +'<div style="flex:1;min-width:150px;"><div style="font-weight:600;font-size:13.5px;">'+esc(payLineName(p))+'</div>'
+        +'<div class="muted">'+yen(p.amountYen)+'　お支払い手続き中</div></div>'
+        +(p.url?'<button class="btn" data-paygo="'+esc(p.id)+'" style="flex:none;font-size:12.5px;">お支払いを続ける</button>':'')
+        +'<button class="btn ghost" data-paycancel="'+esc(p.id)+'" style="flex:none;font-size:12.5px;">やめる</button>'
+        +'</div>';
+    }).join('')+'</div>';
+}
+/* 「お支払いの記録」。購入履歴（wa_orders）には載せないが、保護者に見せておくべき台帳の行。
+   ・要確認：カードには請求が済んでいるかもしれない。痕跡が無いと二度払い・問い合わせの手がかりが無い
+   ・テスト決済：お金は動いておらず受け取りも無い。園の控えには出さないので、ここにだけ出す */
+function payLedgerHTML(){
+  var ps=WPAY.list.filter(function(p){return p&&(p.status==='要確認'||WPAY.testPaid(p));});
+  if(!ps.length)return '';
+  return '<div class="card" style="border-left:3px solid var(--o);">'
+    +'<div style="font-weight:800;font-size:13.5px;">お支払いの記録</div>'
+    +ps.map(function(p){
+      /* 台帳の日時は世界時（末尾 Z）。先頭10文字を切ると、日本の朝9時前のものが前の日になるので、端末の時計の日付に直す。 */
+      var hold=p.status==='要確認',d=new Date(p.paidAt||p.createdAt||''),
+          when=isNaN(d.getTime())?'':d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      return '<div style="display:flex;gap:10px;align-items:flex-start;margin-top:10px;">'
+        +'<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:13.5px;">'+esc(payLineName(p))+'</div>'
+        +'<div class="muted">'+(when?esc(fmtDate(when))+' ・ ':'')+yen(p.amountYen)+'</div>'
+        +'<div class="muted" style="margin-top:3px;line-height:1.7;">'+esc(hold?WPAY.holdMsg(p,true):WPAY_TEST_MSG)+'</div></div>'
+        +'<div class="chip" style="flex-shrink:0;background:'+(hold?'var(--o)':'#9AA0A6')+';color:#fff;border:none;padding:3px 10px;font-size:10.5px;">'
+          +(hold?'確認中':'テスト決済')+'</div>'
+        +'</div>';
+    }).join('')+'</div>';
+}
+/* 「お支払いを続ける」「やめる」の配線。マイページと写真の画面で同じものを使う。 */
+function wirePayActs(){
+  document.querySelectorAll('[data-paygo]').forEach(function(b){b.onclick=function(){
+    if(b.disabled)return;
+    var p=WPAY.of(b.getAttribute('data-paygo'));
+    if(!p||!p.url||!/^https:\/\//.test(String(p.url))){
+      toast('お支払いページの期限が切れています。もう一度お求めください。');
+      WPAY.listTried=false;WPAY.load().then(function(){render();});return;
+    }
+    b.disabled=true;b.textContent='お支払いページへ移動します…';
+    location.assign(String(p.url));
+  };});
+  document.querySelectorAll('[data-paycancel]').forEach(function(b){b.onclick=function(){
+    if(b.disabled)return;
+    if(!confirm('このお手続きをやめます。請求はありません。よろしいですか？'))return;
+    b.disabled=true;b.textContent='中止しています…';
+    WPAY.cancel(b.getAttribute('data-paycancel'),function(p,e){
+      if(e){toast(e.message);b.disabled=false;b.textContent='やめる';return;}
+      if(p&&WPAY_PAID[p.status]){WPAY.after(p);}   /* やめる前に完了していた */
+      else if(p&&p.status==='要確認')toast(WPAY.holdMsg(p),8000);   /* 請求済みかもしれない */
+      else toast('お手続きを中止しました。請求はありません。');
+      WPAY.load().then(function(){render();});
+    });
+  };});
+}
+/* お支払いの状態と一覧を、まだ聞いていなければ聞く。聞けたら描き直す。
+   一度聞いたら聞き直さない（返事が来ないときに何度も呼ばないため。WDL と同じ）。 */
+function payEnsure(withList){
+  if(!WAPI.online())return;
+  if(!WPAY.tried&&!WPAY.busy)WPAY.status().then(function(){render();});
+  if(withList&&!WPAY.listTried&&!WPAY.listBusy)WPAY.load().then(function(){render();});
 }
 
 /* ══ 園の公式LINEでお知らせを受け取る ═══════════
@@ -5767,8 +6325,11 @@ function waServerLogin(email,pw,cb){
            ダウンロードとLINEはサーバにしか無いので、ご家庭が変わったら聞き直す。 */
         WDL.tried=false;WDL.loaded=false;WDL.list=[];WDL.map={};
         WLINE.tried=false;WLINE.loaded=false;WLINE.linked=false;WLINE.code='';
-        return WDL.load().then(function(){return WLINE.load();});
-      }).then(function(){cb(true);});
+        /* お支払いの一覧も前のご家庭のものを残さない。戻り先の番号（pending）だけは残す。
+           お支払いページから戻ったときにログインが切れていると、ここを通ってから確かめるため。 */
+        WPAY.reset();
+        return WDL.load().then(function(){return WLINE.load();}).then(function(){return WPAY.status();});
+      }).then(function(){cb(true);WPAY.resume();});
     })
     .catch(function(e){cb(false,e.message);});
 }
@@ -5794,6 +6355,22 @@ function waServerLogin(email,pw,cb){
   }catch(e){}
 })();
 
+/* お支払いページ（Stripe）から戻ってきたとき。?pay=ok|cancel&id=<台帳の番号>
+   読んだら必ず URL から消す（再読み込みで二度「お支払いが完了しました」と出さないため）。
+   ここでは何も確定しない。確定はサーバの台帳（Webhook）がしている。
+   番号は台帳の番号だけ。書き換えられても、よそのご家庭のものはサーバが返さない。 */
+(function(){
+  try{
+    var q=new URLSearchParams(location.search);
+    var p=q.get('pay'),id=q.get('id');
+    if(p!==null){
+      if(id&&/^[0-9]{1,18}$/.test(id)&&(p==='ok'||p==='cancel'))WPAY.pending={kind:p,id:id};
+      q.delete('pay');q.delete('id');
+      history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():''));
+    }
+  }catch(e){}
+})();
+
 /* マイページに出す、接続の状態。つながっていないときは出さない。 */
 
 /* ══ 特定商取引法に基づく表示 ════════════════
@@ -5811,8 +6388,8 @@ function lawOperatorHTML(){
       +'当社自身が販売者として表示されている商品を除き、当社は売買契約の当事者ではありません。'],
     ['販売価格','各商品ページに表示します（消費税込み）。'],
     ['商品代金以外の必要料金','送料。金額は各商品ページに表示します。'],
-    ['お支払方法','【要確定】'],
-    ['お支払時期','【要確定】'],
+    ['お支払方法','クレジットカード（決済代行会社 Stripe のお支払いページでお手続きいただきます。カード番号は当社には届きません）'],
+    ['お支払時期','ご注文時（お支払い手続きの完了時）に決済されます。'],
     ['引渡時期','各商品ページに表示するお届け予定日によります。'],
     ['返品・交換','各商品ページの表示によります。'
       +'販売者の定めがない場合は、商品到着後8日以内にご連絡ください。'],
@@ -5944,6 +6521,9 @@ if(WAPI.online()){
   /* いまお渡しできる教材と、LINEの設定は、端末には残していない。
      開くたびにサーバへ聞き直す。 */
   WDL.load().then(function(){return WLINE.load();}).then(function(){render();});
+  /* お支払いが「お試し」か「本番」かも、サーバにしか無い。開くたびに聞く。
+     お支払いページから戻ってきたときは、聞いたあとで台帳を確かめる（WPAY.resume）。 */
+  WPAY.status().then(function(){render();WPAY.resume();});
 }
 </script>
 </body>

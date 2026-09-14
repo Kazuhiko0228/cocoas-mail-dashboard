@@ -139,7 +139,7 @@ npm test
 **★テストは `.env.test` の DATABASE_URL を使います。本番DBを指した状態で絶対に流さないでください。**
 テストは開始時にデータを消します。
 
-現在 **513件**。1件も落とさないでください。
+現在 **816件**（2026-09-14 に `npm test` の11束を足した数）。1件も落とさないでください（`npm test` の前に一度 `DATABASE_URL=postgres://localhost:5432/cocoas_test node src/migrate.js`）。
 
 ---
 

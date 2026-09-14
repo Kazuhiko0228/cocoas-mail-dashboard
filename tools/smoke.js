@@ -13,6 +13,8 @@ const {chromium}=require('/Users/slimshady/cw-scrape/node_modules/playwright');
 
     // 全画面
     /* 権限で開けない画面と、別名（enroll→billing）は除く */
+    /* オプション機能（既定オフ）の画面も開いて確かめる。外したままだと監査・営業・AI保育計画を一度も開かない */
+    await pg.evaluate(()=>{ try{ if(typeof EG_OPTS!=='undefined'){ SET.opts={}; EG_OPTS.forEach(function(o){ SET.opts[o.k]=true; }); if(typeof buildNav==='function')buildNav(); } }catch(e){} });
     const pages=await pg.evaluate(()=>Object.keys(TITLES).filter(function(p){
       if(p==='enroll')return false;                 /* billing の別名 */
       if(p==='kidsview')return false;               /* 生徒台帳のタブに畳んだ（2026-09-05） */

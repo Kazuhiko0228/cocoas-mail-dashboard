@@ -1506,10 +1506,19 @@ function soldHTML(){
   }
   var os=orders().filter(function(o){
     return soldTab==='all'||String(o.at||'').slice(0,7)===mk;});
-  var gmv=0,kb=0;
-  os.forEach(function(o){gmv+=(+o.amount||0);kb+=(+o.kickback||0);});
+  /* ★カード払いが入ってから、返金ずみ・練習（お試し）・テスト決済の控えも同じ一覧に届く。
+     これまでは全部を売上と還元に足していた。本物の売上だけを数え、ほかは件数だけ別に出す。
+     カードで払ったダウンロード教材は、園の確認を待たずに保護者が受け取れる（サーバが台帳で確かめる）。 */
+  function ordNotReal(o){ return o.status==='refunded'||o.mode==='練習'||o.mode==='テスト'; }
+  function ordCardDl(o){ return !!(o.pay&&o.dl&&!ordNotReal(o)); }
+  var gmv=0,kb=0,real=0,trial=0,refunded=0;
+  os.forEach(function(o){
+    if(o.status==='refunded'){refunded++;return;}
+    if(o.mode==='練習'||o.mode==='テスト'){trial++;return;}
+    real++; gmv+=(+o.amount||0); kb+=(+o.kickback||0);
+  });
   var rv=recvAll(),yet=0;
-  os.forEach(function(o){if(!rv[ordKey(o)])yet++;});
+  os.forEach(function(o){if(o.status!=='refunded'&&o.mode!=='テスト'&&!ordCardDl(o)&&!rv[ordKey(o)])yet++;});
   var span=(soldTab==='all')?'すべて':('今月（'+mk+'）');
 
   h+='<div class="chips">'
@@ -1523,9 +1532,12 @@ function soldHTML(){
     +'<div class="tiles">'
       +'<div class="tile"><b>'+yen(gmv)+'</b><span>売れた金額（'+esc(span)+'）</span></div>'
       +'<div class="tile"><b>'+yen(kb)+'</b><span>園への還元（'+Math.round(rate*100)+'%）</span></div>'
-      +'<div class="tile"><b>'+(os.length?yen(Math.round(kb/os.length)):'—')+'</b><span>1件あたりの還元</span></div>'
+      +'<div class="tile"><b>'+(real?yen(Math.round(kb/real)):'—')+'</b><span>1件あたりの還元</span></div>'
       +'<div class="tile"><b>'+num(yet)+'</b><span>まだ確認していない注文</span></div>'
     +'</div>'
+    +((trial||refunded)?'<div class="mini" style="margin:8px 0 0;line-height:1.9;">売上と還元には数えていないもの：'
+      +(trial?'お試し・テスト決済 '+num(trial)+'件（実際の請求はありません）':'')+(trial&&refunded?'　／　':'')
+      +(refunded?'返金ずみ '+num(refunded)+'件':'')+'</div>':'')
     +'<div class="card" style="margin-top:14px;"><div class="lbl">注文の明細（'+esc(span)+'）</div>'
     /* スマホでは、狭めるのではなく横にすべらせる。
        狭めると、園児のお名前が1文字ずつ縦に折れて読めなくなる。 */
@@ -1537,11 +1549,17 @@ function soldHTML(){
       return '<tr><td class="mini">'+esc(o.at||'')+'</td>'
         +'<td>'+esc(childLabel(o.childId))+'</td>'
         +'<td>'+esc(o.name||'')+'</td>'
-        +'<td style="text-align:right;">'+yen(o.amount)+'</td>'
-        +'<td style="text-align:right;color:var(--ok);font-weight:700;">'+yen(o.kickback)+'</td>'
+        +'<td style="text-align:right;">'+yen(o.amount)
+          +(o.status==='refunded'?'<div class="mini">返金ずみ</div>':(o.mode?'<div class="mini">'+esc(o.mode==='テスト'?'テスト決済':'お試し')+'</div>':(o.pay?'<div class="mini">カード払い</div>':'')))+'</td>'
+        +'<td style="text-align:right;color:var(--ok);font-weight:700;">'+(ordNotReal(o)?'<span class="mini">—</span>':yen(o.kickback))+'</td>'
         /* 押すと保護者の画面が「受け取り済み」に変わる。
            押すまでは「園に届く予定」のまま出る（届いていないのに届いたと出さないため）。 */
-        +'<td>'+(r
+        /* 練習（お試し）の注文は、お金が動いていないので従来どおり園の確認でお渡しする（download.js と同じ） */
+        +'<td>'+((o.status==='refunded'||o.mode==='テスト')
+          ? '<span class="mini">'+(o.status==='refunded'?'返金ずみのため不要':'テスト決済のため不要')+'</span>'
+          : ordCardDl(o)
+          ? '<span class="mini">カードでお支払いずみ。保護者はすぐ受け取れます</span>'
+          : r
           ? '<span class="mini">'+esc(fmtDate(r.at))+' 受取'+(r.by?'<br>'+esc(r.by):'')+'</span>'
             +' <button class="btn gh sm" data-unrecv="'+esc(k)+'">取り消す</button>'
           : '<button class="btn sm" data-recv="'+esc(k)+'" style="white-space:nowrap;">受け取りました</button>')
@@ -1551,7 +1569,7 @@ function soldHTML(){
     +'</tbody></table></div>'
     +'<div class="mini" style="margin-top:11px;line-height:1.9;">'
       +'「受け取りました」を押すと、保護者の画面が「受け取り済み」に変わります。<br>'
-      +'<b>ダウンロード教材は、これを押すまで保護者がファイルを受け取れません。</b>'
+      +'<b>ダウンロード教材は、カードで払われたものはすぐ受け取れます。それ以外は、これを押すまで保護者がファイルを受け取れません。</b>'
       +'品物は園に届きませんが、中身を確かめたら押してください。</div>'
     +'</div>'
 
