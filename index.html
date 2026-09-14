@@ -18566,6 +18566,43 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
       return j;
     }).catch(function(e){SYNC.setStatus('読み込み失敗：'+e.message);throw e;});
   },
+  /* ほかの端末（同じ園の先生）が書いたものを、開いているあいだ1分ごとに取りに行く（2026-09-14 安田さん）。
+     ・変わったところだけ（?since=）。全部は取らない
+     ・このタブが見えているときだけ。送り待ち（まだサーバへ送っていない書きかけ）があるときは取りに行かない
+     ・カリキュラムと設定は、開いている画面が手元の控えを持っているので、ここでは書き換えず「更新があります」を出す
+       （書き換えると、この画面の古い控えで次に上書きしてしまうため）
+     ・入力中・窓を開いているときは描き直さない（書いている途中の文字が消えるため） */
+  pollT:null,
+  pollStart:function(){
+    if(SYNC.pollT)return;
+    SYNC.pollT=setInterval(SYNC.pollTick,60000);
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden)SYNC.pollTick(); });
+  },
+  pollTick:function(){
+    if(!API.online()||document.hidden||!SYNC.lastPull)return;
+    if(SYNC.busy||SYNC.timer||Object.keys(SYNC.queue||{}).length)return;
+    API.call('GET','/state?since='+encodeURIComponent(SYNC.lastPull)).then(function(j){
+      var raw=window.__rawSet||localStorage.setItem.bind(localStorage),changed=0,cachedChanged=false;
+      Object.keys(j.data||{}).forEach(function(k){
+        if(/^(apiToken|apiBase|apiTenant|psession|staffSession|staffAccounts|parentAccounts)$/.test(k))return;
+        if(j.data[k]===null||j.data[k]===undefined)return;
+        var ov=null; try{ov=localStorage.getItem('cocoas_'+k);}catch(e){}
+        if(syncSameValue(ov,j.data[k]))return;
+        if(SYNC.CACHED_KEYS[k]){cachedChanged=true;return;}
+        raw('cocoas_'+k,JSON.stringify(j.data[k])); changed++;
+      });
+      if(!cachedChanged)SYNC.lastPull=j.serverTime||SYNC.lastPull;
+      if(cachedChanged)SYNC.setStatus('ほかの端末で更新があります（今すぐ同期で読み込めます）');
+      if(!changed)return;
+      var ae=document.activeElement,typing=ae&&(/^(INPUT|TEXTAREA|SELECT)$/.test(ae.nodeName)||ae.isContentEditable);
+      if(typing||document.querySelector('.modal-bg'))return;
+      var cur=document.querySelector('section[data-page]:not([hidden])'),cp=cur?cur.getAttribute('data-page'):'';
+      if(!cp)return;
+      var y=window.scrollY||0;
+      try{ go(cp); }catch(e){}
+      setTimeout(function(){ window.scrollTo(0,y); },0);
+    }).catch(function(){});
+  },
   setStatus:function(t,fade){
     SYNC.status=t;
     var el2=document.getElementById('syncStatus');
@@ -19341,6 +19378,7 @@ function staffBoot(){
         /* 2回目は、作り直しだけにして読み込み直さない */
         try{ if(typeof page!=='undefined'&&page)go(page); }catch(e){}
       }
+      try{ SYNC.pollStart(); }catch(e){}
       return PSTATE.pull();
     }).catch(function(){});
   }
