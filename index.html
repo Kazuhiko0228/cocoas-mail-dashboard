@@ -48,12 +48,22 @@
   .brand .name{font-size:15px;font-weight:600;color:#fff;line-height:1.2;}
   .brand .brandlogo{height:30px;width:auto;background:#fff;border-radius:8px;padding:5px 9px;display:block;}
   .brand .sub{font-size:11px;color:#9fc7b8;}
-  .nav{padding:12px 12px;flex:1;overflow:auto;}
+  .nav{padding:12px 12px;flex:1;overflow-x:hidden;overflow-y:auto;
+    /* ★スクロールバーが常に出る端末（Windows や「常に表示」の Mac）で、灰色の太いバーが
+       紺のサイドバーに白く浮き、文字の右端を削っていた（2026-09-14 ご指摘）。
+       細い半透明のバーにし、出ても出なくても幅が変わらないよう溝を先に取っておく */
+    scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent;scrollbar-gutter:stable;}
+  .nav::-webkit-scrollbar{width:6px;}
+  .nav::-webkit-scrollbar-track{background:transparent;}
+  .nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);border-radius:6px;}
+  .nav::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.36);}
   .nav-label{font-size:10.5px;letter-spacing:.08em;color:#7faa9b;padding:14px 12px 6px;text-transform:uppercase;}
   .nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:#cfe3da;text-decoration:none;font-size:13.5px;margin-bottom:2px;cursor:pointer;}
   .nav a:hover{background:rgba(255,255,255,.07);color:#fff;}
   .nav a.active{background:var(--teal-l);color:#fff;font-weight:500;}
   .nav a svg{width:18px;height:18px;flex-shrink:0;}
+  /* 英語は名前が長いので、2行に折り返したときも行間を詰めて左をそろえる */
+  .nav a{line-height:1.35;min-width:0;overflow-wrap:anywhere;}
   .nav .badge{margin-left:auto;background:#f0a23a;color:#3a2403;font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;}
   .side-foot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11.5px;color:#9fc7b8;}
   .main{flex:1;min-width:0;display:flex;flex-direction:column;}
@@ -3809,6 +3819,8 @@ function goRec(page,rec,tab){
   if(rec&&typeof recType!=='undefined')recType=rec;
   /* 防火・消火／保育研修のように、同じ画面の中でタブが分かれているもの */
   if(tab&&page==='bouka'&&typeof boukaTab!=='undefined')boukaTab=tab;
+  /* 未入力書類は各組の下にあるので、押した組のぶんだけ出す。組の指定が無い入口（URL など）は全部 */
+  if(page==='missing')MISS_CAT=tab||'';
   go(page);
 }
 
@@ -3946,7 +3958,13 @@ function go(page){
   navPush(page);
   document.querySelectorAll('section[data-page]').forEach(function(s){s.hidden=s.getAttribute('data-page')!==page;});
   var navOn=navActiveOf(page);
-  document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.getAttribute('data-go')===navOn);});
+  /* ★未入力書類は同じ画面への行が組ごとに6つあり、全部が同時に光っていた（2026-09-14 Remi さん）。
+     押した組の行だけを光らせる */
+  document.querySelectorAll('#nav a').forEach(function(a){
+    var on=a.getAttribute('data-go')===navOn;
+    if(on&&navOn==='missing')on=(a.getAttribute('data-tab2')||'')===(MISS_CAT||'');
+    a.classList.toggle('active',on);
+  });
   if(typeof navRevealActive==='function')navRevealActive();   /* 閉じた組の中なら開く */
   $('#crumb').textContent=TITLES[page][0];$('#pageTitle').textContent=TITLES[page][1];window.scrollTo(0,0);
   try{renderHelpButton(page);}catch(e){}
@@ -4004,7 +4022,7 @@ function buildNav(){
     g.items.forEach(function(x){
       /* navHide が付いているものは、ホームのマスにだけ出してサイドバーには出さない */
       if(x.navHide)return;
-      var pages=x.sub?x.sub:[{p:x.p,l:x.l}];
+      var pages=x.sub?x.sub:[{p:x.p,l:x.l,tab:x.tab}];
       /* 同じ画面へのリンクが重ならないようにする */
       /* 同じ画面でも、開く記録がちがえば別の行として出す。
          画面の名前だけで重なりを見ていたため、
@@ -4259,10 +4277,14 @@ function missingDocs(){
   }catch(e){}
   return out;
 }
+var MISS_CAT='';   /* 未入力書類で、いま見ている組（空なら全部） */
 function renderMissing(){
-  var s=$('section[data-page="missing"]'), groups=missingDocs();
+  var s=$('section[data-page="missing"]'), all=missingDocs();
+  var groups=MISS_CAT?all.filter(function(g){return g.cat===MISS_CAT;}):all;
+  if(MISS_CAT&&!groups.length)groups=all;
   var total=groups.reduce(function(a,g){return a+g.items.length;},0);
-  s.innerHTML='<div class="card">'+recHead('未入力書類（'+fmt(todayISO())+'）',
+  s.innerHTML='<div class="card">'+recHead((MISS_CAT?esc(MISS_CAT)+'の':'')+'未入力書類（'+fmt(todayISO())+'）',
+      (MISS_CAT?'<button class="btn btn-sm" id="missAll">すべての組を見る</button> ':'')+
       '<span class="pill" style="background:'+(total?'#FCEBEB;color:#A32D2D':'#EAF3DE;color:#27500A')+';">'+(total?'あと '+total+' 件':'すべて入っています')+'</span>')
     +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">きょうの時点で、まだ入っていない記録・書類を組ごとに出しています。押すとその画面がひらきます。</div>'
     +groups.map(function(g){
@@ -4276,6 +4298,7 @@ function renderMissing(){
           :'<div class="muted" style="font-size:12px;padding:4px 0 2px;">この組は、きょうの分がすべて入っています</div>')
         +'</div>';
     }).join('')+'</div>';
+  var ma=document.getElementById('missAll'); if(ma)ma.onclick=function(){ MISS_CAT=''; go('missing'); };
   s.querySelectorAll('[data-mp]').forEach(function(b){b.onclick=function(){
     var r=b.getAttribute('data-mrec');
     if(r&&typeof goRec==='function')goRec(b.getAttribute('data-mp'),r); else go(b.getAttribute('data-mp'));
@@ -4714,7 +4737,7 @@ var EG_NAV=[
      {p:'templates', l:'メールテンプレート'}]},
    {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', p:'wastore'},
    {k:'photo',   l:'写真販売',   i:'photo', si:'photo', c:'#B4560C', bg:'#FBEFE3', p:'photosale'},
-   {k:'miss_home', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   {k:'miss_home', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', tab:'ホーム', homeHide:true}
  ]},
  {cat:'カリキュラム',items:[
    {k:'annual',     l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'annual'},
@@ -4734,13 +4757,13 @@ var EG_NAV=[
         2行あると別々の画面だと思われるため。ホームの活動記録のマスからは開ける。
         記録の保存先は これまでどおり hoiku_kenshu のまま。 */
      {p:'kenshu', l:'保育研修', navHide:true}]},
-   {k:'miss_cur', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   {k:'miss_cur', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', tab:'カリキュラム', homeHide:true}
  ]},
  {cat:'生徒情報',items:[
    {k:'roster',   l:'生徒情報一覧・連絡先', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'roster'},
    {k:'contacts', l:'連絡先（保護者）', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'contacts', boss:true},
    {k:'enroll',   l:'生徒台帳（契約情報）', i:'ic:51',si:'idcard', c:'#27500A', bg:'#EAF3DE', p:'billing', boss:true, pw:true},
-   {k:'miss_kids', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   {k:'miss_kids', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', tab:'生徒情報', homeHide:true}
  ]},
  {cat:'職員情報',boss:true,items:[
    {k:'staffg',  l:'職員情報', i:'ic:70',si:'staff', c:'#0B5F8F', bg:'#E3F1F9', p:'staff', pw:true},
@@ -4749,13 +4772,13 @@ var EG_NAV=[
      {p:'kenshu', l:'保育研修'}]},
    {k:'shift',   l:'シフト表', i:'ic:70',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'shift'},
    {k:'tc',      l:'打刻（タイムカード）', i:'ic:70',si:'clock', c:'#5B6875', bg:'#F1EFE8', p:'timecard'},
-   {k:'miss_staff', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   {k:'miss_staff', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', tab:'職員情報', homeHide:true}
  ]},
  {cat:'請求・経費管理',boss:true,items:[
    {k:'billing',  l:'請求書作成・管理', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing'},
    {k:'expense',  l:'スクール経費精算', i:'ic:44',si:'report', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
    {k:'revenue',  l:'売上チャート', i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'revenue'},
-   {k:'miss_bill', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   {k:'miss_bill', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', tab:'請求・経費管理', homeHide:true}
  ]},
  {cat:'監査対応・書類作成',boss:true,plan:'standard',opt:'audit',items:[
    {k:'audit',  l:'監査対応',   i:'ic:68',si:'audit', c:'#A32D2D', bg:'#FCEBEB', p:'audit'},
@@ -4774,7 +4797,7 @@ var EG_NAV=[
    {k:'guide',    l:'ガイダンス資料', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide'},
    {k:'docs',     l:'書類格納',      i:'ic:43',si:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs'},
    {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true},
-   {k:'miss_school', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   {k:'miss_school', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', tab:'スクール情報', homeHide:true}
  ]}
 ];
 
@@ -8296,7 +8319,7 @@ var EN_DICT={
 '食事':'Meal','午睡':'Nap','排泄':'Toilet','気分':'Mood','できごと':'Moment','けが・体調':'Injury / health',
 'ひとことを入れてください':'Please write a note','保護者へ届けました':'Sent to family',
 /* ── シート「EduGrow システム概要」D列の英語名（2026-09-12）── */
-'運営に必要な書類':'Operations Forms','本日のタスク':'Today’s tasks','未入力書類':'Missing entries','きょうの活動':'Today’s activities','オプション機能':'Optional features','配属クラス':'Assigned class','きょうのタスクはありません':'No tasks for today','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
+'運営に必要な書類':'Operations Forms','本日のタスク':'Today’s tasks','すべての組を見る':'Show all groups','未入力書類':'Missing entries','きょうの活動':'Today’s activities','オプション機能':'Optional features','配属クラス':'Assigned class','きょうのタスクはありません':'No tasks for today','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
 'カリキュラム':'Curriculum','生徒情報':'Student Information','職員情報':'Staff Directory','請求・経費管理':'Billing & Expenses','スクール情報':'School Information',
 '年間スケジュール':'Annual Schedule','月間カリキュラム':'Monthly Plans','活動記録':'Activity Records',
 '生徒情報一覧・連絡先':'Student List & Contacts','生徒台帳（契約情報）':'Enrollment & Contracts','連絡先（保護者）':'Contacts',
@@ -9920,9 +9943,42 @@ function langSet(v){
   try{ localStorage.setItem(LANG_KEY,v==='en'?'en':'ja'); }catch(e){}
   /* 画面ぜんぶを描き直す。サイドバーと上の帯も作り直す */
   try{ if(typeof buildNav==='function')buildNav(); }catch(e){}
-  try{ go(page); }catch(e){}
+  /* ★ここは go(page) だったが、page という変数はどこにも無く、毎回エラーで何もせず抜けていた。
+     そのためサイドバー（buildNav）だけ言語が変わり、画面の中身は描き直されなかった
+     （英語→日本語に戻すと英語のまま残る。2026-09-14 安田さんのご指摘）。
+     いま見えている画面を調べて、それを描き直す。 */
+  try{
+    var cur=document.querySelector('section[data-page]:not([hidden])');
+    var cp=cur?cur.getAttribute('data-page'):'';
+    if(cp)go(cp);
+  }catch(e){}
   try{ langApply(document.body); }catch(e){}
 }
+
+/* 英語のときは、あとから差し込まれた部分（窓、画面の一部の描き直し、保存後の一覧など）も訳す。
+   これまでは go() で画面を開いたときだけ訳していたので、ボタンを押して描き直した所や
+   窓の中が日本語のまま出ていた。
+   文字の差し替えは characterData の変化で、ここで見ている childList には入らないので、
+   訳した結果で自分がまた呼ばれて回り続けることはない。 */
+var LANG_OBS=null,LANG_PEND=[];
+function langWatch(){
+  if(LANG_OBS||typeof MutationObserver==='undefined'||!document.body)return;
+  LANG_OBS=new MutationObserver(function(ms){
+    if(langNow()!=='en')return;
+    for(var i=0;i<ms.length;i++){
+      var a=ms[i].addedNodes;
+      for(var j=0;j<a.length;j++){ if(a[j].nodeType===1||a[j].nodeType===3)LANG_PEND.push(a[j].nodeType===1?a[j]:a[j].parentNode); }
+    }
+    if(LANG_PEND.length===1||(LANG_PEND.length&&!langWatch.t)){
+      langWatch.t=setTimeout(function(){
+        var list=LANG_PEND; LANG_PEND=[]; langWatch.t=null;
+        for(var k=0;k<list.length;k++){ try{ if(list[k]&&list[k].isConnected!==false)langApply(list[k]); }catch(e){} }
+      },0);
+    }
+  });
+  LANG_OBS.observe(document.body,{childList:true,subtree:true});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',langWatch);else setTimeout(langWatch,0);
 
 /* 差し替えてはいけない場所。
    ・入力欄の中身は利用者が書いたもの
@@ -9951,11 +10007,44 @@ function langRx(key){
   if(/（[月火水木金土日]）/.test(key))return key.replace(/（([月火水木金土日])）/g,function(_,c){return '('+LANG_WD[c]+')';});
   return null;
 }
+var LANG_INLINE={B:1,STRONG:1,EM:1,I:1,SMALL:1,U:1,BR:1,SPAN:1,A:1,CODE:1,MARK:1};
+/* 文字と飾りのタグだけでできていて、直下に日本語の文字がある要素か */
+function langMixedKey(el){
+  if(!el||el.nodeType!==1||LANG_SKIP[el.nodeName]||LANG_INLINE[el.nodeName]&&el.parentNode&&langMixedKey.inl(el.parentNode))return '';
+  var hasTag=false,hasText=false,c=el.firstChild;
+  for(;c;c=c.nextSibling){
+    if(c.nodeType===3){ if(/[\u3040-\u30ff\u4e00-\u9fff]/.test(c.nodeValue))hasText=true; }
+    else if(c.nodeType===1){
+      if(!LANG_INLINE[c.nodeName])return '';
+      /* 飾りの中にさらに要素（アイコンの svg など）があるものは対象外 */
+      if(c.nodeName!=='BR'&&c.querySelector&&c.querySelector('*:not(b):not(strong):not(small):not(br)'))return '';
+      if(c.hasAttribute&&(c.hasAttribute('data-nolang')||c.hasAttribute('id')))return '';
+      hasTag=true;
+    }
+  }
+  if(!hasTag||!hasText)return '';
+  return String(el.textContent||'').replace(/\s+/g,' ').replace(/^\s+|\s+$/g,'');
+}
+langMixedKey.inl=function(p){ return !!(p&&p.nodeType===1&&LANG_INLINE[p.nodeName]); };
+function langApplyMixed(root,dict){
+  if(!root||!root.querySelectorAll)return;
+  var els=[root].concat([].slice.call(root.querySelectorAll('div,p,li,label,td,th,h1,h2,h3,h4,span,small,button,a,b')));
+  els.forEach(function(el){
+    if(el.closest&&el.closest('[data-nolang]'))return;
+    var k=langMixedKey(el); if(!k)return;
+    if(dict[k]){ el.textContent=dict[k]; }
+  });
+}
 function langApply(root){
   if(langNow()!=='en')return;
   if(!root||!window.document||!document.createTreeWalker)return;
   var dict=EN_DICT;
   try{
+    /* ★文の途中に太字などが挟まっていると、文字の切れ目ごとに訳されて
+       「Frequently used itemsHomealso shows this.」のように語順も空白も崩れていた（2026-09-14 ご指摘）。
+       先に「文字と飾りのタグだけでできた要素」を丸ごと1文として辞書で引き、あればその要素を英文に置き換える。
+       飾りは落ちるが、文として読めることを優先する。 */
+    langApplyMixed(root,dict);
     var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false);
     var n,hits=[];
     while((n=w.nextNode())){
