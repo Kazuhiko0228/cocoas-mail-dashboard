@@ -18,6 +18,7 @@ const {chromium}=require('/Users/slimshady/cw-scrape/node_modules/playwright');
     const pages=await pg.evaluate(()=>Object.keys(TITLES).filter(function(p){
       if(p==='enroll')return false;                 /* billing の別名 */
       if(p==='kidsview')return false;               /* 生徒台帳のタブに畳んだ（2026-09-05） */
+      if(p==='kiosk')return false;                  /* 登降園キオスクはなくした。登園（出席）へ読み替える（2026-09-15） */
       if(p==='creator')return false;                /* 別ファイル（creator.html）を開くだけ。section を持たない */
       if(!document.querySelector('section[data-page="'+p+'"]'))return false;
       try{ return canView(p)&&egPlanOfPage(p); }catch(e){ return true; }

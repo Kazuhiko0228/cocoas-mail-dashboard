@@ -563,6 +563,16 @@
    朝いちばんに開いたときに、いま押すものだけが見えている形にする。
    左に「日付と時計＋連絡ボード」、右に「きょうのマス」を置く。 */
 .hmain{display:grid;grid-template-columns:1.05fr .95fr;gap:14px;align-items:start}
+.ks-list{display:flex;flex-direction:column;gap:12px}
+.ks-card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;background:#fff}
+.ks-top{display:grid;grid-template-columns:170px minmax(200px,2fr) minmax(130px,1fr) minmax(140px,1fr) 44px;gap:12px;align-items:end}
+.ks-body{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ks-f{display:flex;flex-direction:column;gap:5px;min-width:0;margin:0}
+.ks-f>span{font-size:11.5px;color:var(--tx3);font-weight:600}
+.ks-f input,.ks-f textarea{width:100%;box-sizing:border-box}
+.ks-f textarea{min-height:76px;resize:vertical}
+.ks-del{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;justify-self:end}
+@media(max-width:900px){.ks-top{grid-template-columns:1fr 1fr}.ks-top .ks-title{grid-column:1/-1}.ks-del{grid-column:2;grid-row:1}.ks-body{grid-template-columns:1fr}}
 .row-miss{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:6px;font:inherit;font-size:13px;color:inherit;cursor:default}
 button.row-miss{cursor:pointer}
 button.row-miss:hover{background:#FAF9F5}
@@ -925,7 +935,8 @@ var ICONS={
   users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
   doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/>',
   cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4.5a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 11h.1a2 2 0 0 1 0 4Z"/>',
+  /* ★以前の歯車は右側の歯の形が崩れた線で、18px では潰れて見えていた（2026-09-15 安田さん）。形の整った歯車に差し替え */
+  gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
   clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
@@ -3941,6 +3952,8 @@ function go(page){
      読み替えてから確かめる。見られない画面では、パスワードを聞いてから断る順番にならないよう、先に聞かない（2026-09-14） */
   if(page==='enroll')page='billing';
   if(page==='kidsview'){page='roster';rosterTab='care';}
+  /* 登降園キオスクはなくした（2026-09-15）。古い行き先から来たら登園（出席）を開く */
+  if(page==='kiosk'){page='records';if(typeof recType!=='undefined')recType='登園（出席）';}
   if(typeof pwPages==='function'&&pwPages()[page]&&!pwOk()&&typeof currentStaff==='function'&&currentStaff()&&(typeof canView!=='function'||canView(page))){
     pwAsk(function(ok){ if(ok){pwMark();go(page);} });
     return;
@@ -8446,7 +8459,7 @@ var EN_DICT={
 '確定のあとに保護者が未来WAで押した時刻を、この記録に入れます。直した跡に残ります。':'Adds the time the parent tapped in MiraiWA after confirmation to this record. The change is kept in the edit history.',
 '出欠が「休」になっているので、保護者が未来WAで押した時刻は記録に入れていません。来ていたときは、出欠を押して直してください。':'Attendance is marked “Absent”, so the time the parent tapped in MiraiWA is not in the record. If the child came, tap attendance to change it.',
 /* ── シート「EduGrow システム概要」D列の英語名（2026-09-12）── */
-'運営に必要な書類':'Operations Forms','本日のタスク':'Today’s tasks','すべての組を見る':'Show all groups','連絡先（在園・退園）':'Contacts (enrolled / withdrawn)','予定・退園':'Schedule / Withdrawal','＝ 未入力':'= Not set','自分のパスワードを変える':'Change my password','手入力のまま ¥{0}':'Manual amount ¥{0}','変える':'Change','金額は請求書作成・管理':'Fees are in Invoices','生徒情報一覧・連絡先で直す':'Edit in Student List & Contacts','未入力書類':'Missing entries','きょうの活動':'Today’s activities','オプション機能':'Optional features','配属クラス':'Assigned class','きょうのタスクはありません':'No tasks for today','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
+'運営に必要な書類':'Operations Forms','本日のタスク':'Today’s tasks','すべての組を見る':'Show all groups','感想・活かすこと':'Reflections & takeaways','研修でおこなったこと':'What the training covered','感じたこと、保育で活かすこと':'What you noticed and will use in care','連絡先（在園・退園）':'Contacts (enrolled / withdrawn)','予定・退園':'Schedule / Withdrawal','＝ 未入力':'= Not set','自分のパスワードを変える':'Change my password','手入力のまま ¥{0}':'Manual amount ¥{0}','変える':'Change','金額は請求書作成・管理':'Fees are in Invoices','生徒情報一覧・連絡先で直す':'Edit in Student List & Contacts','未入力書類':'Missing entries','きょうの活動':'Today’s activities','オプション機能':'Optional features','配属クラス':'Assigned class','きょうのタスクはありません':'No tasks for today','保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。同じ番号を2人に付けることはできません。':'Give each parent a 4-digit number. The number itself is not kept on this device (set a new one if forgotten). The same number cannot be given to two people.','件名':'Subject','日時':'Date & time','デイリーレポート（きょうの様子）':'Daily Report (Today’s Updates)','出席簿・日常チェック':'Attendance & Daily Check','職員研修':'Staff Training',
 'カリキュラム':'Curriculum','生徒情報':'Student Information','職員情報':'Staff Directory','請求・経費管理':'Billing & Expenses','スクール情報':'School Information',
 '年間スケジュール':'Annual Schedule','月間カリキュラム':'Monthly Plans','活動記録':'Activity Records',
 '生徒情報一覧・連絡先':'Student List & Contacts','生徒台帳（契約情報）':'Enrollment & Contracts','連絡先（保護者）':'Contacts',
@@ -14858,145 +14871,15 @@ function langToggleWire(){
 }
 
 
-/* ══ 登降園キオスク（保護者用）══════════════
-   ※2026-09-14 安田さん・Remiさんのご決定で、サイドバーの入口から外した。
-     登園・降園は保護者が未来WAで押し、登園シートの空欄に出る（touenCheckinFill）。
-     この画面は、権限の名前や古い道筋から来ても迷子にならないように残してある。
-   brightwheel 調査からの提案2（2026-09-12 安田さんのご指示）。
-   玄関のタブレットで、保護者がお子さまの暗証番号（4けた）を入れ、
-   「登園」「降園」を押す。降園のときは「どなたが迎えに来たか」を
-   生徒台帳の「お迎えできる方」から選ぶ。
-   ・先生の打刻（renderPunch）と同じ作り。番号は端末にハッシュだけ残す
-   ・書き込む先は登園シート（rec_登園シート）の、その子の行。
-     出欠が空なら「●」を入れ、come／leave に時刻、pickedBy にお迎えの方
-   ・確定ずみの日には書かない（先生と同じく園長の許可が要る）
-   ★QR コードは、外部ライブラリを入れない決まりのため今は出さない。
-     4けたの番号で同じことができる。 */
-var KIOSK={pin:'',who:null,msg:'',pick:null};
-function kidPinAll(){return stGet('kidPins',{});}
-function kidPinSetHash(cid,rec){var a=kidPinAll();if(rec)a[cid]=rec;else delete a[cid];stSet('kidPins',a);}
-function kidPinFind(pin,done){
-  done=done||function(){};
-  var a=kidPinAll(),ids=Object.keys(a),i=0,hit=[];
-  function next(){
-    if(i>=ids.length){ if(hit.length===1)done(hit[0]); else if(hit.length>1)done({dup:hit}); else done(null); return; }
-    var cid=ids[i++];
-    CRED.verify(pin,a[cid],function(ok){ if(ok)hit.push(cid); next(); });
-  }
-  if(!ids.length){done(null);return;}
-  next();
-}
-function kioskChild(cid){return (DB.contacts||[]).filter(function(x){return String(x.id)===String(cid);})[0]||null;}
-function kioskPickups(cid){
-  var p=(stGet('studentProfiles',{})||{})[cid]||{};
-  return [p.pickup1,p.pickup2,p.pickup3].filter(Boolean);
-}
-function renderKiosk(){
-  var s=$('section[data-page="kiosk"]');
-  var keys=['1','2','3','4','5','6','7','8','9','','0','←'];
-  var h='<div class="card" style="max-width:520px;margin:0 auto;">'
-    +recHead('登降園',
-      '<span class="muted">'+esc(fmt(todayISO()))+'　'+tcNow()+'</span>')
-    +'<div class="muted" style="margin-bottom:14px;">お子さまの暗証番号（4けた）を入れてください。</div>';
-  var c=KIOSK.who?kioskChild(KIOSK.who):null;
-  if(c){
-    var K='rec_登園シート',data=stGet(K,{}),d=data[todayISO()]||{},r=(d.rows||{})[c.id]||{};
-    h+='<div style="text-align:center;padding:8px 0 14px;">'
-      +'<div style="font-size:22px;font-weight:600;margin-bottom:4px;" data-nolang="1">'+esc(childFullNameHon(c))+'</div>'
-      +'<div class="muted" style="font-size:13px;">'
-        +(r.come?'登園 '+esc(r.come):'まだ登園していません')
-        +(r.leave?'　／　降園 '+esc(r.leave)+(r.pickedBy?'（'+esc(r.pickedBy)+'）':''):'')
-      +'</div></div>';
-    if(KIOSK.pick==='ask'){
-      var pk=kioskPickups(c.id);
-      h+='<div style="font-weight:700;margin-bottom:8px;">どなたがお迎えですか</div>'
-        +'<div style="display:grid;gap:8px;">'
-        +pk.map(function(x){return '<button class="btn" data-kpk="'+esc(x)+'" style="padding:14px;font-size:15px;" data-nolang="1">'+esc(x)+'</button>';}).join('')
-        +'<button class="btn" data-kpk="__other" style="padding:14px;">その他の方（先生を呼んでください）</button>'
-        +'</div>'
-        +(pk.length?'':'<div class="muted" style="margin-top:8px;font-size:12px;">お迎えできる方がまだ登録されていません。園長・管理者が生徒台帳で登録します。</div>');
-    }else{
-      h+='<div style="display:flex;gap:12px;">'
-        +'<button class="btn btn-primary" id="kIn" style="flex:1;padding:18px;font-size:16px;"'+(r.come?' disabled':'')+'>登園</button>'
-        +'<button class="btn" id="kOut" style="flex:1;padding:18px;font-size:16px;"'+(!r.come||r.leave?' disabled':'')+'>降園</button>'
-        +'</div>';
-    }
-    h+='<button class="btn btn-sm" id="kBack" style="margin-top:14px;width:100%;">やめる</button>';
-  }else{
-    h+='<div style="text-align:center;font-size:34px;letter-spacing:14px;height:48px;line-height:48px;font-family:monospace;">'
-      +esc(KIOSK.pin.replace(/./g,'●')+'____'.slice(KIOSK.pin.length))+'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;">'
-      +keys.map(function(k){ if(!k)return '<span></span>';
-        return '<button class="btn" data-kk="'+esc(k)+'" style="padding:20px;font-size:20px;">'+esc(k)+'</button>';}).join('')
-      +'</div>';
-  }
-  if(KIOSK.msg)h+='<div class="muted" style="margin-top:14px;text-align:center;">'+esc(KIOSK.msg)+'</div>';
-  h+='</div>';
-  if(isBoss())h+=kioskBossBox();
-  s.innerHTML=h;
-
-  s.querySelectorAll('[data-kk]').forEach(function(b){b.onclick=function(){
-    var k=b.getAttribute('data-kk'); KIOSK.msg='';
-    if(k==='←'){KIOSK.pin=KIOSK.pin.slice(0,-1);renderKiosk();return;}
-    if(KIOSK.pin.length>=4)return;
-    KIOSK.pin+=k;
-    if(KIOSK.pin.length<4){renderKiosk();return;}
-    var tried=KIOSK.pin; KIOSK.pin=''; KIOSK.msg='確かめています…'; renderKiosk();
-    kidPinFind(tried,function(cid){
-      if(cid&&cid.dup){KIOSK.msg='この番号は複数のお子さまに登録されています。園にお知らせください。';}
-      else if(cid){KIOSK.who=cid;KIOSK.msg='';}
-      else{KIOSK.msg='この番号のお子さまが見つかりません。園にご確認ください。';}
-      renderKiosk();
-    });
-  };});
-  function write(fn){
-    var K='rec_登園シート',data=stGet(K,{}),day=todayISO();
-    var d=data[day]||{klass:(c.klass||CLASSES[0]||''),weather:'',temp:'',hum:'',rows:{},memo:'',by:''};
-    if(!d.rows)d.rows={};
-    if(typeof lockCanEdit==='function'&&!lockCanEdit(d)){KIOSK.msg='きょうの登園シートは確定ずみです。先生を呼んでください。';renderKiosk();return false;}
-    var r=d.rows[c.id]||{}; fn(r); d.rows[c.id]=r; data[day]=d; stSet(K,data); return true;
-  }
-  var kin=$('#kIn'); if(kin)kin.onclick=function(){
-    if(!write(function(r){ if(!r.att)r.att='●'; r.come=tcNow(); r.attSrc=r.attSrc||'保護者'; }))return;
-    KIOSK.msg=childFullNameHon(c)+'　'+tcNow()+' 登園で記録しました。'; KIOSK.who=null; KIOSK.pick=null; renderKiosk();
-  };
-  var kout=$('#kOut'); if(kout)kout.onclick=function(){ KIOSK.pick='ask'; renderKiosk(); };
-  s.querySelectorAll('[data-kpk]').forEach(function(b){b.onclick=function(){
-    var who=b.getAttribute('data-kpk');
-    if(who==='__other'){ KIOSK.msg='お迎えできる方に登録のない方です。先生が確かめてからお渡しします。'; KIOSK.pick=null; renderKiosk(); return; }
-    if(!write(function(r){ r.leave=tcNow(); r.pickedBy=who; }))return;
-    KIOSK.msg=childFullNameHon(c)+'　'+tcNow()+' 降園（お迎え：'+who+'）で記録しました。'; KIOSK.who=null; KIOSK.pick=null; renderKiosk();
-  };});
-  var kb=$('#kBack'); if(kb)kb.onclick=function(){KIOSK.who=null;KIOSK.pick=null;KIOSK.msg='';renderKiosk();};
-  kioskBossWire();
-}
-/* 園長・管理者だけに出す：お子さまごとの暗証番号を決める */
-function kioskBossBox(){
-  var a=kidPinAll(),kids=enrolled();
-  return '<div class="card" style="max-width:520px;margin:16px auto 0;">'
-    +'<h3 style="margin:0 0 6px;">'+ic('users')+'お子さまの暗証番号</h3>'
-    +'<div class="muted" style="font-size:12px;margin-bottom:10px;line-height:1.8;">'
-    +'保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。'
-    +'同じ番号を2人に付けることはできません。</div>'
-    +'<div class="lines">'+kids.map(function(c){
-      return '<div><span class="l" data-nolang="1">'+esc(childFullNameHon(c))+'<span class="muted" style="margin-left:6px;">'+esc(c.klass||'')+'</span></span>'
-        +'<span class="y"><span class="muted" style="font-size:11.5px;margin-right:8px;">'+(a[c.id]?'決めてある':'まだ')+'</span>'
-        +'<button class="btn btn-sm" data-kpin="'+esc(c.id)+'">'+(a[c.id]?'変える':'決める')+'</button></span></div>';
-    }).join('')+'</div></div>';
-}
-function kioskBossWire(){
-  document.querySelectorAll('[data-kpin]').forEach(function(b){b.onclick=function(){
-    var cid=b.getAttribute('data-kpin'),c=kioskChild(cid);
-    var v=prompt((c?childFullNameHon(c):'')+' の暗証番号（数字4けた）を入れてください。\n空のまま OK で番号を消します。','');
-    if(v===null)return; v=String(v).trim();
-    if(v===''){kidPinSetHash(cid,null);renderKiosk();return;}
-    if(!/^\d{4}$/.test(v)){alert('数字4けたで入れてください。');return;}
-    kidPinFind(v,function(hit){
-      if(hit&&(hit.dup||String(hit)!==String(cid))){alert('この番号は別のお子さまが使っています。別の番号にしてください。');return;}
-      pinMake(v,function(rec){ if(!rec){alert('この端末では番号を作れませんでした。');return;} kidPinSetHash(cid,rec); renderKiosk(); });
-    });
-  };});
-}
+/* ══ 登降園キオスク（保護者用）── なくした ══════════════
+   ★2026-09-12 に作った「玄関のタブレットで保護者が4けたの暗証番号を入れて登園・降園を押す」画面は、
+     2026-09-14 安田さん・Remiさんのご決定で、保護者が未来WAで PIN なしに押す形（touenCheckinFill）に置き換えた。
+     2026-09-15「PINはいらないので、機能としてあったら消して」のご指示で、暗証番号の登録・照合も含めて消した。
+   画面の名前（kiosk）は、権限の表や覚えている行き先から来ても白い画面で止まらないよう TITLES などに残し、
+   go() の入口で登園（出席）へ読み替える。この関数はそこへ送るだけ。 */
+function renderKiosk(){ goRec('records','登園（出席）'); }
+/* 使わなくなったお子さまの暗証番号（ハッシュ）を、この端末から消しておく */
+try{ if(localStorage.getItem('cocoas_kidPins')!==null)localStorage.removeItem('cocoas_kidPins'); }catch(e){}
 
 /* ══ きょうの様子（保護者へ届ける1行の記録）════════
    brightwheel 調査からの提案3（2026-09-12 安田さんのご指示）。
@@ -23704,7 +23587,7 @@ var ACCESS_PAGES=[
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'kenshu',label:'保育研修'},{p:'bouka',label:'研修・訓練'},{p:'shift',label:'シフト表'},{p:'timecard',label:'打刻（タイムカード）'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'監査書類の格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先（在園・退園）'},{p:'roster',label:'生徒情報一覧・連絡先'},
-  {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（保護者用キオスク）'},{p:'annual',label:'年間スケジュール'},{p:'missing',label:'未入力書類'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'きょうの様子'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
+  {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（なくしました・未来WAで保護者が押します）'},{p:'annual',label:'年間スケジュール'},{p:'missing',label:'未入力書類'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'きょうの様子'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'メールテンプレート'},
   {p:'curriculum',label:'カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'月間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
   /* あとから足した画面。ここに書いていないと、権限管理の表に出てこないため、
@@ -27060,25 +26943,26 @@ function renderKenshu(){
   var body='<div class="card">'+recHead('研修の一覧',
       '<button class="btn btn-sm" id="ksAdd">'+ic('plus')+'研修を追加</button>'
       +'<button class="btn btn-sm btn-primary" id="ksPrint">'+ic('printer')+'記録を出力</button>')
-    +'<div class="muted" style="margin-bottom:10px;">記入した内容は、その場で保存されます。</div>'
-    +'<div class="tablewrap scrollx"><table style="min-width:980px;"><thead><tr>'
-    +'<th style="width:120px;">実施日</th><th style="width:130px;">研修名</th>'
-    +'<th style="width:100px;">講師・主催</th><th style="width:110px;">参加した職員</th>'
-    +'<th>内容</th><th>感想</th><th style="width:110px;">備考</th><th style="width:44px;"></th>'
-    +'</tr></thead><tbody>'
-    +(kd.rows.length?kd.rows.map(function(r,i){
-      return '<tr>'
-        +'<td style="vertical-align:top;"><input type="date" data-ks="'+i+'|date" value="'+esc(r.date||'')+'"></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|title" placeholder="例：食物アレルギー対応">\n'+esc(r.title||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|teacher" placeholder="例：園長">\n'+esc(r.teacher||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|members" placeholder="例：全職員">\n'+esc(r.members||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|content" placeholder="研修でおこなった内容">\n'+esc(r.content||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|impression" placeholder="感じたこと、活かせること">\n'+esc(r.impression||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;"><textarea class="autogrow" rows="2" data-ks="'+i+'|note">\n'+esc(r.note||'')+'</textarea></td>'
-        +'<td style="vertical-align:top;text-align:right;"><button class="btn btn-sm btn-ghost" data-ksdel="'+i+'" title="この行を消す">'+ic('trash')+'</button></td></tr>';
-      }).join('')
-      :'<tr><td colspan="8" class="empty">まだ記録がありません。「研修を追加」から書きはじめてください。</td></tr>')
-    +'</tbody></table></div></div>';
+    /* ★1行に7つの欄を並べていたので、欄が細く、案内の文字が2行に折れ、ゴミ箱だけが浮いていた（2026-09-15 安田さん「体裁を整えたい」）。
+       1件を1枚のカードにし、上の段に「いつ・何を・誰が」、下の段に「内容・感想」を広く取る */
+    +(kd.rows.length?'<div class="ks-list">'+kd.rows.map(function(r,i){
+      return '<div class="ks-card">'
+        +'<div class="ks-top">'
+          +'<label class="ks-f ks-date"><span>実施日</span><input type="date" data-ks="'+i+'|date" value="'+esc(r.date||'')+'"></label>'
+          +'<label class="ks-f ks-title"><span>研修名</span><input type="text" data-ks="'+i+'|title" value="'+esc(r.title||'')+'" placeholder="例：食物アレルギー対応"></label>'
+          +'<label class="ks-f"><span>講師・主催</span><input type="text" data-ks="'+i+'|teacher" value="'+esc(r.teacher||'')+'" placeholder="例：園長"></label>'
+          +'<label class="ks-f"><span>参加した職員</span><input type="text" data-ks="'+i+'|members" value="'+esc(r.members||'')+'" placeholder="例：全職員"></label>'
+          +'<button class="btn btn-sm btn-ghost ks-del" data-ksdel="'+i+'" title="この研修の記録を消す" aria-label="この研修の記録を消す">'+ic('trash')+'</button>'
+        +'</div>'
+        +'<div class="ks-body">'
+          +'<label class="ks-f"><span>内容</span><textarea class="autogrow" rows="3" data-ks="'+i+'|content" placeholder="研修でおこなったこと">\n'+esc(r.content||'')+'</textarea></label>'
+          +'<label class="ks-f"><span>感想・活かすこと</span><textarea class="autogrow" rows="3" data-ks="'+i+'|impression" placeholder="感じたこと、保育で活かすこと">\n'+esc(r.impression||'')+'</textarea></label>'
+        +'</div>'
+        +'<label class="ks-f ks-note"><span>備考</span><input type="text" data-ks="'+i+'|note" value="'+esc(r.note||'')+'"></label>'
+        +'</div>';
+      }).join('')+'</div>'
+      :'<div class="empty" style="padding:26px 0;">まだ記録がありません。「研修を追加」から書きはじめてください。</div>')
+    +'</div>';
   s.innerHTML=head+body;
   $('#ksYear').onchange=function(e){kenshuYear=+e.target.value;renderKenshu();};
   var ksave=function(){kenshuSet(fy,kd);};
@@ -27086,7 +26970,7 @@ function renderKenshu(){
   s.querySelectorAll('[data-ks]').forEach(function(el3){
     var fn=function(){var p=el3.getAttribute('data-ks').split('|');kd.rows[+p[0]][p[1]]=el3.value;ksave();};
     el3.onchange=fn;
-    if(el3.tagName==='TEXTAREA')el3.oninput=fn;
+    if(el3.tagName==='TEXTAREA'||el3.type==='text')el3.oninput=fn;
   });
   s.querySelectorAll('[data-ksdel]').forEach(function(b2){b2.onclick=function(){
     if(!confirm('この研修の記録を消しますか？'))return;
