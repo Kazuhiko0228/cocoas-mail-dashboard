@@ -14664,6 +14664,16 @@ var EN_DICT={
 '冬（12〜2月）の製作とあそび':'Winter (Dec–Feb) crafts & play',
 '秋（9〜11月）の製作と自然あそび':'Autumn (Sep–Nov) crafts & nature play',
 '次の年度前準備（3月〜）に向けて随時整備':'Prepare as needed for next year’s setup (from March)',
+'氏名・住所・健康などの生徒情報は園の記録として保存され、園のアカウントでログインしたほかの端末からも開けます（顔写真だけは、この端末の中に残ります）。':'Student information such as name, address and health is saved as school records and can be opened on other devices signed in with the school account (only face photos stay on this device).',
+'いま園の記録につながっていません。ここで直した生徒情報はこの端末の中だけに残り、園の記録には保存されません。':'Not connected to the school records right now. Student information you edit here stays on this device only and is not saved to the school records.',
+'ただし、戻した内容はまだ園の記録に送れていません。園の記録につながっているときに、もう一度戻してください。':'However, the restored data has not been sent to the school records yet. Please restore again while connected to the school records.',
+'ただし、ログインが切れているか園の記録につながっていないため、戻した内容は園の記録に送れていません。このあとログインすると、園の記録の内容に置き換わります。ログインし直してから、もう一度戻してください。':'However, your sign-in has expired or the school records cannot be reached, so the restored data was not sent to the school records. Signing in will replace it with the school records. Please sign in again, then restore once more.',
+'未保存：まだ園の記録に送れていない変更があります':'Not saved: some changes have not been sent to the school records yet',
+'同じブラウザのほかのタブで別の園にログインしたため、このタブは園の記録とつながっていません。開き直してログインしてください':'Another tab in this browser signed in to a different school, so this tab is no longer connected to the school records. Reopen this page and sign in again.',
+'同じブラウザのほかのタブで保存した内容と合わせて保存しました':'Saved together with the changes made in another tab of this browser',
+'園の記録の新しい内容を、この端末に保存できませんでした。保存容量がいっぱいです':'Couldn’t save the latest school records on this device. Storage is full.',
+'ほかのタブで設定かカリキュラムが変わりました。今すぐ同期で表示に入れます':'Settings or curriculum were changed in another tab. Press Sync now to show them.',
+'未保存：ログインを取り直せませんでした。つながったら、もう一度ログインしてください':'Not saved: couldn’t sign in again. Once connected, please sign in again.',
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -23164,10 +23174,46 @@ var PSTATE={keys:['absence_log','dm_out','checkin_log'],busy:false,at:null,
   }
 };
 
+/* ══ 未来WA（保護者の画面）が、この端末にだけ置く鍵 ══════════════
+   同じ配信元なので、未来WA も同じ入れ物（cocoas_…）に書く。そのうち、この端末・このご家庭だけのもの。
+   parent.html から拾った一覧：
+   - cocoas_wa_srv_… … 未来WA が園から読み込んだ、そのご家庭の分だけの控え（rec_登園シート など名前に日本語が入る）
+   - cocoas_wa_apiBase・cocoas_wa_apiTenant … 未来WA のつなぎ先
+   - cocoas_wa_chkUnsent・cocoas_wa_chkOwner … 園にまだ届いていない登園・降園の印と、その持ち主
+   - cocoas_wa_token・cocoas_wa_sid・cocoas_wa_guest・cocoas_wa_paykey・cocoas_psession … 保護者のログイン・お試し・支払いの控え
+     （いまはタブの中だけに置いているが、置き場所が変わっても混ざらないよう、名前でも断る）
+   - ご家庭ご自身が書く鍵（parent.html の WA_SEND・WA_OWN_KEY。園の側では parent.js の PARENT_WRITE で、
+     園の帳簿とは別の入れ物に入る）
+     wa_orders・wa_ev_joins・wa_ev_joindetail・wa_ev_reviews・wa_prod_reviews・wa_feed_…・wa_viewed・wa_track…（wa_track_ok・wa_track_off）・
+     wa_help_…・wa_consent・wa_health_consent・wa_hid_salt（その端末の匿名の家庭IDの合言葉）・wa_pref・wa_promo_ok・
+     wa_points（ご家庭と出品者の分を1つに持つ。どちらも園の帳簿ではない）・absence_log・checkin_log・dm_out・dm_seen・posts_seen_…
+     この画面は、どれも自分の鍵として読み書きしない（保護者から届いた分は PSTATE が pstate_ の名前で持つ）。
+     dm_seen_staff（園の端末の既読の印）は名前が違うので、ここには当たらない。
+   ★スナップショットと控えのファイルがこれらまで拾い、戻すと園の記録へ送っていた。
+     ほかの端末で職員がログインすると、読み込みがそのまま受け入れ、その端末の未来WA に
+     よそのご家庭の控えと、未来WA のつなぎ先まで入っていた。
+   ★ご家庭ご自身が書く鍵を入れていなかったため、保護者がログインした同じブラウザで戻すと、
+     ご家庭のメッセージ（dm_out）・欠席の理由（absence_log）・同意・注文・匿名の家庭IDの合言葉まで園の記録へ送られ、
+     ほかの端末で職員がログインすると、その端末の同じ名前に入っていた。その端末の未来WA が、前のご家庭の分を自分のものとして読むおそれがあった。
+   出品者の画面（creator.html）と共用の鍵（wa_products・wa_posts・wa_settings など）は園の帳簿なので、ここには入れない。 */
+var WA_DEVICE_KEY=/^cocoas_(wa_srv_|wa_api|wa_chk|wa_token$|wa_sid$|wa_guest$|wa_paykey$|psession$|wa_orders$|wa_ev_joins$|wa_ev_joindetail$|wa_ev_reviews$|wa_prod_reviews$|wa_feed_|wa_viewed$|wa_track|wa_help_|wa_consent$|wa_health_consent$|wa_hid_salt$|wa_pref$|wa_promo_ok$|wa_points$|absence_log$|checkin_log$|dm_out$|dm_seen$|posts_seen_)/;
+
 var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
+  /* sending … いま送っている鍵。sendP … その送信が終わったら解ける約束。retryMs … 送り直すまでの間
+     pullAt … 園の記録を丸ごと読み込み始めた時刻。pullGen … 丸ごとの読み込みを書き終えた回数
+     wn … 鍵ごとの書き換えの回数（localStorage.setItem の包みで数える。読み直しの書き込みは数えない）
+     pre・mine … このタブのまだ送っていない保存の、書く直前の手元の中身と、このタブが書いた中身（SYNC.push の説明を参照）。sendPre … 送っている保存の pre
+     seen … カリキュラムと設定の、このタブが最後に読んだ・書いた手元の中身。seenMem … そのときの控え（SET・CUR）の中身（SYNC.cachedMerge）
+     refetch … 読み込みの返事を書かずに飛ばした鍵がある。次の読み直しは、変わったところだけでなく丸ごと取る */
+  sending:{},sendP:null,retryMs:0,pullAt:0,pullGen:0,wn:{},pre:{},mine:{},sendPre:{},seen:{},seenMem:{},refetch:false,
+  /* 送り待ちに載せたら true */
   mark:function(key){
-    if(!API.online())return;
-    if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(key))return;
+    if(!API.online())return false;
+    key=String(key);
+    /* ★cocoas_ で始まらない鍵（edugrow_apiAlive など、この端末の中の控え）まで送り待ちに入れていた。
+       園の記録に「中身の無い行」ができ、ログインのたびに送られていた */
+    if(key.indexOf('cocoas_')!==0)return false;
+    if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(key))return false;
     /* ★画面が「この端末内にのみ保存されます」「外部には送信されません」と
        書いているのに、サーバへ中身ごと送っていた。書いてあるとおり留める。
        - guide_files … スクールガイドの原本
@@ -23177,21 +23223,295 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
        いずれも別の鍵に分けてあるので、記録そのものの同期は止まらない。
        ★kidDocs は、この端末の中にしか無いファイルの置き場所を指している。
          ほかの端末へ送ると、開けない行だけが並んでしまう。 */
-    if(/^cocoas_(guide_files|contactPhotos|staffDocs|kidDocs)$/.test(key))return;
-    if(/^cocoas_pstate_/.test(key))return;   /* 保護者から届いた控え。園の帳簿ではないので送り返さない */
+    if(/^cocoas_(guide_files|contactPhotos|staffDocs|kidDocs)$/.test(key))return false;
+    if(/^cocoas_pstate_/.test(key))return false;   /* 保護者から届いた控え。園の帳簿ではないので送り返さない */
+    if(WA_DEVICE_KEY.test(key))return false;       /* 未来WA がこの端末にだけ置く鍵（上の WA_DEVICE_KEY） */
+    /* 共用の入れ物が、ほかの園の中身になっている（SYNC.foreign）。この園の記録へ送らない */
+    if(SYNC.foreign())return false;
     SYNC.queue[key.replace(/^cocoas_/,'')]=true;
     clearTimeout(SYNC.timer);
     SYNC.timer=setTimeout(SYNC.push,1200);
+    return true;
   },
+  /* 書き換えを覚える（localStorage.setItem の包みと、控えから戻す backupRestoreSet から呼ぶ）。
+     v … 書いた中身の文字。before … 書く直前の手元の中身。same … 中身の変わらない書き直し。
+     書き換えの回数は、中身が変わったときだけ数える（SYNC.keepLocal の説明を参照） */
+  wrote:function(key,v,before,same){
+    key=String(key);
+    if(key.indexOf('cocoas_')!==0)return;
+    var k=key.slice(7),base=before,hop=Object.prototype.hasOwnProperty;
+    if(!same)SYNC.wn[key]=(SYNC.wn[key]||0)+1;
+    if(SYNC.CACHED_KEYS[k]){
+      /* カリキュラムと設定の変更の元は、手元の中身ではなく控え（SET・CUR）の中身（SYNC.seenMem の説明を参照） */
+      if(hop.call(SYNC.seenMem,k)&&SYNC.seenMem[k]!==null)base=SYNC.seenMem[k];
+      SYNC.seen[k]=v;SYNC.seenMem[k]=SYNC.memJ(k);
+      if(SYNC.seenMem[k]===null)SYNC.seenMem[k]=v;
+    }
+    if(!SYNC.mark(key))return;
+    if(!hop.call(SYNC.pre,k))SYNC.pre[k]=base;
+    SYNC.mine[k]=v;
+  },
+  /* ══ このタブのログインの園と、共用の入れ物の園が違うか ══
+     ★ログインの控え（トークン）はタブごと、入れ物（cocoas_…）はブラウザで共用。同じブラウザのほかのタブが
+       別の園でログインすると、入れ物はその園の中身に入れ替わる。このタブの1分ごとの読み直しと送信は
+       自分の園の記録とのやりとりを続け、別の園の園児と園内メモを自分の園の記録へ送り、自分の園の園児を消していた。
+     ずれていれば、このタブは園の記録を読み書きしない（開き直してログインし直すまで） */
+  tidMemo:{t:null,v:null},
+  tokenTid:function(){
+    var t=API.token(),v=null,p,o;
+    if(!t)return null;
+    if(SYNC.tidMemo.t===t)return SYNC.tidMemo.v;
+    try{
+      p=String(t).split('.')[1]||'';
+      p=p.replace(/-/g,'+').replace(/_/g,'/');
+      while(p.length%4)p+='=';
+      o=JSON.parse(decodeURIComponent(escape(atob(p))));
+      if(o&&o.tid!==undefined&&o.tid!==null)v=String(o.tid);
+    }catch(e){v=null;}
+    SYNC.tidMemo={t:t,v:v};
+    return v;
+  },
+  /* このタブでログインした園（serverLogin が sessionStorage に置く。タブごと） */
+  tabTenant:function(){try{return JSON.parse(sessionStorage.getItem('edugrow_tabTenant'))||null;}catch(e){return null;}},
+  foreign:function(){
+    var tn=null,tid,tt;
+    try{tn=API.tenant();}catch(e){tn=null;}
+    if(!tn||tn.id===undefined||tn.id===null)return false;
+    tid=SYNC.tokenTid();
+    if(tid===null){tt=SYNC.tabTenant();tid=(tt&&tt.id!==undefined&&tt.id!==null)?String(tt.id):null;}
+    if(tid===null||tid===String(tn.id))return false;
+    SYNC.setStatus('同じブラウザのほかのタブで別の園にログインしたため、このタブは園の記録とつながっていません。開き直してログインしてください');
+    return true;
+  },
+  /* 読み込みの要求を出す時点の控え（時刻・書き換えの回数・送っている鍵・手元の中身・カリキュラムと設定の控えの中身） */
+  snap:function(){
+    var o={t:Date.now(),wn:{},sending:{},raw:{},mem:{}},k,i,n,hop=Object.prototype.hasOwnProperty;
+    for(k in SYNC.seenMem)if(hop.call(SYNC.seenMem,k))o.mem[k]=SYNC.seenMem[k];
+    for(k in SYNC.wn)if(hop.call(SYNC.wn,k))o.wn[k]=SYNC.wn[k];
+    for(k in SYNC.sending)if(hop.call(SYNC.sending,k))o.sending[k]=true;
+    try{
+      for(i=0;i<localStorage.length;i++){
+        n=localStorage.key(i);
+        if(!syncTracked(n))continue;
+        o.raw[n.slice(7)]=localStorage.getItem(n);
+      }
+    }catch(e){}
+    return o;
+  },
+  /* 要求を出したあとで、このタブが書き換えた鍵か（回数が増えた）。
+     「送り待ちにあるか」だけでは決めない。中身の変わらない書き直し（開いた画面が同じ中身を保存し直す）でも
+     送り待ちに載るので、それで止めると、ほかの端末の新しい中身を受け取れず、次の送信で古い中身が勝ってしまう。
+     中身が変わった書き直しは、必ず回数が増えるので、ここで拾える。 */
+  keepLocal:function(k,at){
+    var fk='cocoas_'+k;
+    return (SYNC.wn[fk]||0)!==(at.wn[fk]||0);
+  },
+  /* ══ 読み込みの返事を、この鍵に書いてよいか ══
+     'own' … 要求を出したあとで、このタブが保存した。返事で上書きせず、行ごとに重ねる（SYNC.mergeIn）。
+       その保存をもう送り始めていても重ねる。送った中身には返事の変更（ほかの端末の保存）が入っていないので、重ねた中身をもう一度送る
+     'skip' … 書かない。次の読み直しで丸ごと取り直す（SYNC.refetch）
+       ・このタブがこの鍵を送っている（要求の時点で送っていた）。返事は送る前の園の記録かもしれない
+       ・要求を出したあとで、手元の中身が変わった（同じブラウザのほかのタブが保存した、または読み込んだ）
+       ・要求を出したあとで、同じブラウザのほかのタブがこの鍵を送り終えた（SYNC.noteSent）。返事はその保存より古いかもしれない
+     'write' … 書く
+     ★要求を出す時点の手元と「園の記録とそろえた中身」の違いで、ほかのタブの送る前の保存を見分けていた（otherTab）。
+       そろえた中身はタブごと、入れ物はブラウザで共用なので、ほかのタブが読み込んで書いた中身まで「送る前の保存」と見誤った。
+       ・ほかのタブが別の園でログインすると、その園の園児を行ごとに重ね、職員が何もしなくても自分の園の記録へ送り、自分の園の園児を消した
+       ・ほかのタブが先に読み直した中身を「保存」とみて、ほかの端末がそのあと消した行を戻して送り、直した行を古い中身で送った
+     いまは、要求のあとで手元が変わったかどうかだけを見る（誰が書いたかは決めない）。書かずに飛ばすだけで、送ることはしない。
+     要求より前の、ほかのタブの送る前の保存は、そのタブが送るときに重ね直す（SYNC.push） */
+  judge:function(k,at,L,sent){
+    var hop=Object.prototype.hasOwnProperty;
+    /* 送らない鍵（syncTracked が偽。手元の中身を控えに取っていない）は、これまでどおり。
+       このタブが書き換えていれば手元のまま、そうでなければ書く */
+    if(!syncTracked('cocoas_'+k))return (SYNC.keepLocal(k,at)||SYNC.sending[k]||at.sending[k])?'skip':'write';
+    if(SYNC.keepLocal(k,at))return 'own';
+    if(SYNC.sending[k]||at.sending[k])return 'skip';
+    if(L!==(hop.call(at.raw,k)?at.raw[k]:null))return 'skip';
+    if(sent&&hop.call(sent,k)&&sent[k]>=at.t)return 'skip';
+    return 'write';
+  },
+  /* 送り終えた鍵と時刻を、同じブラウザのタブどうしで見られる所に置く（SYNC.judge）。
+     cocoas_ を付けない名前なので、送り待ち・控えの書き出し・変更ログには混ざらない。10分より古いものは消す */
+  SENT_KEY:'edugrow_syncSent',
+  sentMap:function(){try{return JSON.parse(localStorage.getItem(SYNC.SENT_KEY))||{};}catch(e){return {};}},
+  noteSent:function(keys){
+    var m=SYNC.sentMap(),now=Date.now(),k;
+    for(k in m)if(Object.prototype.hasOwnProperty.call(m,k)&&!(now-m[k]<600000))delete m[k];
+    keys.forEach(function(x){m[x]=now;});
+    try{window.__rawSet(SYNC.SENT_KEY,JSON.stringify(m));}catch(e){}
+  },
+  /* 要求を出したあとでこのタブが保存した鍵に、返事の中身を行ごとに重ねる（syncMerge3）。
+     重ねる元は、要求を出す時点の手元の中身（カリキュラムと設定は、そのときの控え SET・CUR の中身。SYNC.seenMem）。
+     行どうしがぶつかったら、このタブの保存を残す。
+     返すもの：'wrote' 重ねた中身を書いた／'same' 手元がすでに返事の中身を含んでいた／'skip' 重ねられない／'fail' 書けなかった
+     ★手元の中身を丸ごと残すか、返事の中身で丸ごと上書きするかのどちらかだった。
+       開き直した端末の起動の読み込みを待つあいだに職員が連絡先を1件保存すると、手元の古い控えが丸ごと送られ、
+       閉じていたあいだにほかの端末が同じ鍵の別の園児に入れた変更が、園の記録から消えていた。 */
+  mergeIn:function(k,at,L,rv){
+    var fk='cocoas_'+k,nv=JSON.stringify(rv),hop=Object.prototype.hasOwnProperty,mv,ms,same;
+    if(syncParse(L)===undefined)return 'skip';
+    mv=syncMerge3(syncParse((SYNC.CACHED_KEYS[k]&&hop.call(at.mem,k)&&at.mem[k]!==null)?at.mem[k]:(hop.call(at.raw,k)?at.raw[k]:null)),syncParse(L),rv,{conflict:false});
+    ms=JSON.stringify(mv);
+    if(ms===undefined)return 'skip';
+    same=syncSameRaw(L,ms);
+    if(!same){try{window.__rawSet(fk,ms);}catch(e){try{storageFullBanner();}catch(e2){}return 'fail';}}
+    else ms=L;
+    if(hop.call(SYNC.mine,k))SYNC.mine[k]=ms;
+    if(SYNC.CACHED_KEYS[k])SYNC.aligned(k,ms,mv);
+    /* 園の記録にあるのは返事の中身。重ねた中身との違いが、まだ届いていない分 */
+    if(syncSameRaw(ms,nv)){delete SYNC.queue[k];delete SYNC.pre[k];delete SYNC.mine[k];}
+    else SYNC.mark(fk);
+    return same?'same':'wrote';
+  },
+  /* カリキュラムと設定は、画面を開いたときに読んだ控え（CUR・SET）を丸ごと書き直す。
+     手元に書いた中身を控えにも入れる。入れないと、次にこのタブで保存したとき、控えの古い中身で書き戻してしまう */
+  adopt:function(k,v){
+    var o=null,p;
+    if(!syncIsObj(v))return;
+    try{o=(k==='settings')?SET:((k==='curriculum')?CUR:null);}catch(e){o=null;}
+    if(!o||typeof o!=='object')return;
+    for(p in v)if(Object.prototype.hasOwnProperty.call(v,p))o[p]=v[p];
+  },
+  /* 控え（SET・CUR）の中身の文字。無い・作れないときは null */
+  memJ:function(k){
+    try{return JSON.stringify((k==='settings')?SET:((k==='curriculum')?CUR:null));}catch(e){return null;}
+  },
+  /* 手元の中身（raw）と控えが、そろったところ。控えに中身（v）を入れ、そのときの両方を覚える */
+  aligned:function(k,raw,v){
+    SYNC.adopt(k,v);
+    SYNC.seen[k]=raw;
+    SYNC.seenMem[k]=SYNC.memJ(k);
+  },
+  /* ══ カリキュラムと設定を書くときに、同じブラウザのほかのタブの保存と重ねる ══
+     ★CUR・SET は画面を開いたときに1回だけ読み、保存のたびに丸ごと書き直す。同じブラウザの職員タブ2つで設定を保存すると、
+       あとから保存したタブが自分の古い控えで、先に保存したタブの変更を手元でも園の記録でも黙って元に戻していた。
+     このタブが最後に読んだ・書いた手元の中身（seen）から、書く直前の手元（before）が変わっていれば、ほかのタブが書いている。
+     そのときの控えの中身（seenMem）を元にして、このタブの変更（v）と手元を項目ごとに重ねて書く。同じ項目をどちらも変えていれば、このタブの保存を使う。
+     元を手元の中身（seen）にしないのは、控え SET が決まった初期値（電話番号の空欄など）を足してあり、園の記録の中身には無い項目があるため。
+     手元の中身を元にすると、初期値のままの項目が「このタブで変えた」ことになり、ほかのタブが入れた値を空欄に戻していた。
+     手元を園の記録の中身に戻すことはしない（ほかのタブの書き換えを見張って戻す仕組み TABW は入れない。2026-09-16 のご判断）。
+     返すもの：重ねた中身の文字。重ねないときは null（v をそのまま書く） */
+  cachedMerge:function(fk,v,before){
+    var k,s,b,l,r,mv,ms;
+    fk=String(fk);
+    if(fk.indexOf('cocoas_')!==0)return null;
+    k=fk.slice(7);
+    if(!SYNC.CACHED_KEYS[k]||!Object.prototype.hasOwnProperty.call(SYNC.seen,k))return null;
+    s=SYNC.seen[k];
+    if(before===null||before===s||v===before||syncSameRaw(before,s))return null;
+    if(SYNC.foreign())return null;
+    b=syncParse((Object.prototype.hasOwnProperty.call(SYNC.seenMem,k)&&SYNC.seenMem[k]!==null)?SYNC.seenMem[k]:s);l=syncParse(v);r=syncParse(before);
+    if(!syncIsObj(l)||!syncIsObj(r))return null;
+    mv=syncMerge3(syncIsObj(b)?b:undefined,l,r,{conflict:false});
+    ms=JSON.stringify(mv);
+    if(ms===undefined||ms===v)return null;
+    SYNC.adopt(k,mv);
+    SYNC.setStatus('同じブラウザのほかのタブで保存した内容と合わせて保存しました',true);
+    return ms;
+  },
+  /* 丸ごとの読み込みの最中か。返事が来ないときに送れなくならないよう、待つのは20秒まで */
+  pulling:function(){return !!SYNC.pullAt&&(Date.now()-SYNC.pullAt)<20000;},
+  /* 一度に送る鍵の数。サーバは400を超えると全部を断るので、控えから戻したときなどは分けて送る */
+  PUSH_MAX:300,
+  /* ══ 送り待ちを送る。送れたら true、送れなかった・送らなかったら false で解ける ══
+     保存してから送るまで（1.2秒）のあいだに、同じブラウザのほかのタブが手元を書き換えることがある
+     （開き直した・ログインしたタブの丸ごとの読み込み、1分ごとの読み直し、ほかのタブの保存）。
+     手元がこのタブの書いた中身（mine）から変わっていれば、書く直前の中身（pre）を元にして、このタブの保存と手元を行ごとに重ねて送る。
+     ★送る時点の手元をそのまま送っていた。保存した直後に同じブラウザで別のタブを開き直すと、そのタブの起動の読み込みが
+       手元を園の記録の古い中身で上書きし、このタブはそれを送った。画面には「保存しました」と出たまま、手元からも園の記録からも消えた。
+     送っているあいだに、ほかのタブの読み込みが手元を送る前の中身に戻したときも、送り終えたところで重ね直す。 */
   push:function(){
-    if(!API.online()||SYNC.busy)return Promise.resolve();
-    var keys=Object.keys(SYNC.queue);if(!keys.length)return Promise.resolve();
-    SYNC.busy=true;SYNC.queue={};SYNC.setStatus('保存中…');
-    var data={};keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){data[k]=null;}});
-    return API.call('PUT','/state',{data:data})
-      .then(function(){SYNC.setStatus('保存しました',true);})
-      .catch(function(e){keys.forEach(function(k){SYNC.queue[k]=true;});SYNC.setStatus('未保存：'+e.message);})
-      .then(function(){SYNC.busy=false;});
+    /* ★時計の番号を空に戻していなかった。1回保存すると SYNC.timer に古い番号が残り続け、
+       1分ごとの読み直し（pollTick）が「送り待ちがある」と見て、ずっと止まっていた。 */
+    clearTimeout(SYNC.timer);SYNC.timer=null;
+    if(!API.online())return Promise.resolve(false);
+    /* ★送っている最中に呼ばれると何もせずに戻り、送り終わっても誰も時計を掛け直さなかった。
+       送っているあいだの保存が「保存しました」と出たまま送られずに残り、送り待ちがあるので読み直しも止まっていた。
+       いまの送信が終わったところ（下の最後の then）で、送り待ちが残っていれば掛け直す。 */
+    if(SYNC.busy)return SYNC.sendP||Promise.resolve(false);
+    /* 園の記録を丸ごと読み込んでいる最中は送らず、少し待ってから送る。
+       起動したときに書いた初期値（自宅マップの設定など）を先に送ると、読み込みが返る前に
+       園の記録の本物を初期値で上書きしてしまう */
+    if(SYNC.pulling()){SYNC.timer=setTimeout(SYNC.push,1200);return Promise.resolve(false);}
+    var keys=Object.keys(SYNC.queue);if(!keys.length)return Promise.resolve(true);
+    /* 共用の入れ物が、ほかの園の中身になっている。送り待ちは残し、送らない（時計も掛けない） */
+    if(SYNC.foreign())return Promise.resolve(false);
+    keys=keys.slice(0,SYNC.PUSH_MAX);
+    SYNC.busy=true;SYNC.setStatus('保存中…');
+    var data={},rawOf={},ok=false,hop=Object.prototype.hasOwnProperty;
+    keys.forEach(function(k){
+      var fk='cocoas_'+k,cur=null,mv,ms;
+      delete SYNC.queue[k];SYNC.sending[k]=true;
+      try{cur=localStorage.getItem(fk);}catch(e){cur=null;}
+      if(hop.call(SYNC.mine,k)&&SYNC.mine[k]!==null&&cur!==null&&!syncSameRaw(cur,SYNC.mine[k])){
+        mv=syncMerge3(syncParse(SYNC.pre[k]),syncParse(SYNC.mine[k]),syncParse(cur),{conflict:false});
+        ms=JSON.stringify(mv);
+        if(ms!==undefined){
+          if(ms!==cur){
+            try{window.__rawSet(fk,ms);}catch(e2){}
+            if(SYNC.CACHED_KEYS[k])SYNC.aligned(k,ms,mv);
+          }
+          cur=ms;
+        }
+      }
+      SYNC.sendPre[k]=hop.call(SYNC.pre,k)?SYNC.pre[k]:undefined;
+      delete SYNC.pre[k];delete SYNC.mine[k];
+      rawOf[k]=cur;
+      try{data[k]=JSON.parse(cur);}catch(e3){data[k]=null;}
+    });
+    SYNC.sendP=API.call('PUT','/state',{data:data})
+      .then(function(){
+        ok=true;SYNC.retryMs=0;SYNC.setStatus('保存しました',true);
+        SYNC.noteSent(keys);
+        keys.forEach(function(k){
+          var fk='cocoas_'+k,b=SYNC.sendPre[k],cur=null,mv,ms;
+          delete SYNC.sendPre[k];
+          /* 送っているあいだに、このタブがまた保存した鍵は、次の送信で重ねる */
+          if(hop.call(SYNC.mine,k)||b===undefined||rawOf[k]===null)return;
+          try{cur=localStorage.getItem(fk);}catch(e){return;}
+          if(cur===null||syncSameRaw(cur,rawOf[k]))return;
+          mv=syncMerge3(syncParse(b),syncParse(rawOf[k]),syncParse(cur),{conflict:false});
+          ms=JSON.stringify(mv);
+          if(ms===undefined||ms===cur)return;
+          try{window.__rawSet(fk,ms);}catch(e2){return;}
+          if(SYNC.CACHED_KEYS[k])SYNC.aligned(k,ms,mv);
+        });
+      })
+      .catch(function(e){
+        keys.forEach(function(k){
+          SYNC.queue[k]=true;
+          /* 送れなかった保存は、また送り待ち。重ねる元（pre）と、このタブの書いた中身（mine）も戻す */
+          if(SYNC.sendPre[k]!==undefined)SYNC.pre[k]=SYNC.sendPre[k];
+          if(!hop.call(SYNC.mine,k)&&rawOf[k]!==null)SYNC.mine[k]=rawOf[k];
+          delete SYNC.sendPre[k];
+        });
+        SYNC.setStatus('未保存：'+e.message);
+      })
+      .then(function(){
+        SYNC.busy=false;SYNC.sending={};SYNC.sendP=null;
+        if(!Object.keys(SYNC.queue).length)return ok;
+        if(ok){if(!SYNC.timer)SYNC.timer=setTimeout(SYNC.push,1200);return ok;}
+        /* ★送れなかったときは送り待ちに戻すだけで、次に何かを保存するまで送り直さなかった。
+           「未保存」のまま残り、そのあいだ読み直しも止まっていた。
+           少し間をあけて送り直す（5秒→10秒→20秒…いちばん長くて60秒）。すぐ送り直すと、つながらないあいだ通信を出し続ける。
+           ログインが切れたとき（401）は送れないので時計を掛けない。ロックの窓でパスワードを入れ直し、
+           ログインを取り直せたところで送る（IDLE.check・IDLE.unlock） */
+        if(!API.online())return ok;
+        SYNC.retryMs=Math.min(SYNC.retryMs?SYNC.retryMs*2:5000,60000);
+        clearTimeout(SYNC.timer);SYNC.timer=setTimeout(SYNC.push,SYNC.retryMs);
+        return ok;
+      });
+    return SYNC.sendP;
+  },
+  /* 送り待ちを全部送り終えるまで待つ（今すぐ同期・控えから戻したあと・読み込み直す前に使う）。
+     全部送れたら true。送れなかった・つながっていない・丸ごとの読み込みの最中なら false（残りは時計が送り直す） */
+  flush:function(){
+    if(!API.online())return Promise.resolve(false);
+    if(SYNC.busy)return (SYNC.sendP||Promise.resolve(false)).then(function(ok){return ok?SYNC.flush():false;});
+    if(!Object.keys(SYNC.queue).length)return Promise.resolve(true);
+    if(SYNC.pulling())return Promise.resolve(false);
+    return SYNC.push().then(function(ok){return ok?SYNC.flush():false;});
   },
   /* ★読み込み時に1回だけ作る控え（CUR・SET・DB のキャッシュ）は、
      サーバから読み直しても作り直されない。画面は古いまま残り、
@@ -23199,33 +23519,84 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
      読み直しで中身が変わった控えがあれば、印を立てて画面を作り直す。 */
   CACHED_KEYS:{curriculum:1,settings:1},
   stale:false,
+  /* 読み込んだ中身を手元に書けなかった（保存容量がいっぱい） */
+  writeFailed:function(){
+    SYNC.refetch=true;
+    try{storageFullBanner();}catch(e){}
+    SYNC.setStatus('園の記録の新しい内容を、この端末に保存できませんでした。保存容量がいっぱいです');
+  },
   pull:function(){
     if(!API.online())return Promise.resolve();
+    if(SYNC.foreign())return Promise.resolve();
     SYNC.setStatus('読み込み中…');
+    /* 要求を出す時点の控え。返事を待つあいだに書き換わった鍵は、返事で上書きしない（SYNC.judge） */
+    var at=SYNC.snap();
+    SYNC.pullAt=Date.now();
     return API.call('GET','/state').then(function(j){
+      SYNC.pullAt=0;
+      /* 待つあいだに、同じブラウザのほかのタブが別の園でログインした。何も書かない */
+      if(SYNC.foreign()){SYNC.pullDone();return j;}
+      var sent=SYNC.sentMap(),fail=false,skipped=false,hop=Object.prototype.hasOwnProperty;
       Object.keys(j.data||{}).forEach(function(k){
         /* サーバ応答で接続先や職員アカウントを書き換えられないようにする（テナント乗っ取りの防止） */
         if(/^(apiToken|apiBase|apiTenant|psession|staffSession|staffAccounts|parentAccounts)$/.test(k))return;
+        /* 未来WA がこの端末にだけ置く鍵（つなぎ先・ご家庭の控え）も受け入れない */
+        if(WA_DEVICE_KEY.test('cocoas_'+k))return;
         if(j.data[k]===null||j.data[k]===undefined)return;
-        var nv=JSON.stringify(j.data[k]);
+        var fk='cocoas_'+k,nv=JSON.stringify(j.data[k]),L=null,how,res;
+        try{L=localStorage.getItem(fk);}catch(e1){}
+        if(syncSameRaw(L,nv)){
+          /* 手元がすでに返事と同じ中身。送り待ちの分も送らなくてよい */
+          if(SYNC.CACHED_KEYS[k])SYNC.aligned(k,L,j.data[k]);
+          if(!SYNC.sending[k]){delete SYNC.queue[k];delete SYNC.pre[k];delete SYNC.mine[k];}
+          return;
+        }
+        how=SYNC.judge(k,at,L,sent);
+        /* 要求を出す時点で手元に無かった鍵は、待つあいだに書いたものでも、画面が作った初期値とみて園の記録の中身にする */
+        if(how==='own'&&(!hop.call(at.raw,k)||at.raw[k]===null))how='write';
+        if(how==='skip'){skipped=true;return;}
+        if(how==='own'){
+          /* カリキュラムと設定も行ごと（項目ごと）に重ねる。
+             ★返事を待つあいだに職員が設定を保存し、そのあいだにほかの端末が設定の別の項目を変えていると、
+               手元を園の記録の中身に置き換えて送り待ちからも外していた。表示は「最新の状態です」のまま、職員の保存が黙って消えた */
+          res=SYNC.mergeIn(k,at,L,j.data[k]);
+          if(res==='fail')fail=true;
+          if(res==='skip')skipped=true;
+          if(res==='wrote'&&SYNC.CACHED_KEYS[k])SYNC.stale=true;
+          return;
+        }
         if(SYNC.CACHED_KEYS[k]){
-          var ov=null;
-          try{ov=localStorage.getItem('cocoas_'+k);}catch(e2){}
           /* ★文字どうしで比べていたため、中身が同じでも「並び順」が違うだけで
              「変わった」ことになり、読み込み直し → また不一致 → …と
              画面が点滅し続けた（2026-08-27 のご報告）。
              中身で比べる。 */
-          if(!syncSameValue(ov,j.data[k]))SYNC.stale=true;
+          if(!syncSameValue(L,j.data[k]))SYNC.stale=true;
         }
-        (window.__rawSet||localStorage.setItem.bind(localStorage))('cocoas_'+k,nv);
+        /* __rawSet は送り待ちに載らない。読み込んだだけの中身を園の記録へ送り返さない */
+        try{window.__rawSet(fk,nv);}catch(e3){fail=true;return;}
+        if(SYNC.CACHED_KEYS[k])SYNC.aligned(k,nv,j.data[k]);
+        /* 要求より前から送り待ちにあった分（起動したときに書いた初期値など）は、
+           園の記録の中身で置き換えたので送らない。送ると、読み込んだものを送り返すだけになる */
+        delete SYNC.queue[k];delete SYNC.pre[k];delete SYNC.mine[k];
       });
-      SYNC.lastPull=j.serverTime;SYNC.setStatus('最新の状態です',true);
+      SYNC.pullGen++;
+      /* 飛ばした鍵・書けなかった鍵は、次の読み直しで丸ごと取り直す。
+         ★書けなかった鍵を飛ばしたまま「最新の状態です」と出していた */
+      SYNC.refetch=skipped||fail;
+      SYNC.lastPull=j.serverTime;
+      if(fail)SYNC.writeFailed();
+      else SYNC.setStatus('最新の状態です',true);
+      SYNC.pullDone();
       return j;
-    }).catch(function(e){SYNC.setStatus('読み込み失敗：'+e.message);throw e;});
+    }).catch(function(e){SYNC.pullAt=0;SYNC.pullDone();SYNC.setStatus('読み込み失敗：'+e.message);throw e;});
+  },
+  /* 読み込みのあいだ待たせていた送り待ちを送る */
+  pullDone:function(){
+    if(!SYNC.busy&&!SYNC.timer&&Object.keys(SYNC.queue).length)SYNC.timer=setTimeout(SYNC.push,1200);
   },
   /* ほかの端末（同じ園の先生）が書いたものを、開いているあいだ1分ごとに取りに行く（2026-09-14 安田さん）。
-     ・変わったところだけ（?since=）。全部は取らない
-     ・このタブが見えているときだけ。送り待ち（まだサーバへ送っていない書きかけ）があるときは取りに行かない
+     ・変わったところだけ（?since=）。全部は取らない（前の読み込みで飛ばした鍵があるときだけ丸ごと取る）
+     ・このタブが見えているときだけ。送り待ち（まだ園の記録へ送っていない書きかけ）があるときは取りに行かない
      ・カリキュラムと設定は、開いている画面が手元の控えを持っているので、ここでは書き換えず「更新があります」を出す
        （書き換えると、この画面の古い控えで次に上書きしてしまうため）
      ・入力中・窓を開いているときは描き直さない（書いている途中の文字が消えるため） */
@@ -23237,19 +23608,60 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
   },
   pollTick:function(){
     if(!API.online()||document.hidden||!SYNC.lastPull)return;
-    if(SYNC.busy||SYNC.timer||Object.keys(SYNC.queue||{}).length)return;
-    API.call('GET','/state?since='+encodeURIComponent(SYNC.lastPull)).then(function(j){
-      var raw=window.__rawSet||localStorage.setItem.bind(localStorage),changed=0,cachedChanged=false;
+    /* 送り待ちの有無は queue と busy で見る。
+       ★時計（SYNC.timer）も見ていた。送り終わっても番号が残っていたため、1回保存すると読み直しが二度と動かなかった */
+    if(SYNC.busy||SYNC.pulling()||Object.keys(SYNC.queue||{}).length)return;
+    if(SYNC.foreign())return;
+    /* 要求を出す時点の控え。返事が届くまでに書き換わった鍵は、返事で上書きしない（SYNC.judge） */
+    var at=SYNC.snap(),gen=SYNC.pullGen,full=SYNC.refetch;
+    API.call('GET',full?'/state':'/state?since='+encodeURIComponent(SYNC.lastPull)).then(function(j){
+      /* 待つあいだに丸ごとの読み込み（SYNC.pull）が書き終えていれば、こちらの返事のほうが古い。何も書かない
+         （書くと、新しい中身を古い中身に戻し、lastPull も前に戻ってしまう） */
+      if(gen!==SYNC.pullGen)return;
+      if(SYNC.foreign())return;
+      var raw=window.__rawSet,changed=0,cachedChanged=false,skipped=false,fail=false,sent=SYNC.sentMap();
       Object.keys(j.data||{}).forEach(function(k){
         if(/^(apiToken|apiBase|apiTenant|psession|staffSession|staffAccounts|parentAccounts)$/.test(k))return;
+        if(WA_DEVICE_KEY.test('cocoas_'+k))return;
         if(j.data[k]===null||j.data[k]===undefined)return;
-        var ov=null; try{ov=localStorage.getItem('cocoas_'+k);}catch(e){}
+        var fk='cocoas_'+k,ov=null,how,res;
+        try{ov=localStorage.getItem(fk);}catch(e){}
+        /* 手元がすでに同じ中身。カリキュラムと設定の seen はここで進めない（控え CUR・SET はまだ古いことがある。SYNC.cachedMerge） */
         if(syncSameValue(ov,j.data[k]))return;
         if(SYNC.CACHED_KEYS[k]){cachedChanged=true;return;}
-        raw('cocoas_'+k,JSON.stringify(j.data[k])); changed++;
+        how=SYNC.judge(k,at,ov,sent);
+        if(how==='skip'){skipped=true;return;}
+        if(how==='own'){
+          /* 要求を出したあとで、このタブが保存した。返事で丸ごと上書きせず、行ごとに重ねる（SYNC.mergeIn） */
+          res=SYNC.mergeIn(k,at,ov,j.data[k]);
+          if(res==='wrote')changed++;
+          if(res==='fail')fail=true;
+          if(res==='skip')skipped=true;
+          return;
+        }
+        /* ★容量がいっぱいで書けなかった鍵を飛ばしたまま lastPull を進め、その変更は二度と届かなかった。
+           画面は古いまま「最新の状態です」と出て、空きが戻ってから職員が同じ鍵を保存すると、古い中身が送られていた */
+        try{raw(fk,JSON.stringify(j.data[k]));}catch(e4){fail=true;return;}
+        changed++;
       });
-      if(!cachedChanged)SYNC.lastPull=j.serverTime||SYNC.lastPull;
+      /* カリキュラムと設定を、同じブラウザのほかのタブが書き換えている（このタブの控え CUR・SET は古い）。
+         ★同じブラウザなので手元が返事と同じになり、「ほかの端末で更新があります」も出なかった。書き換えずに知らせる
+         （このタブで保存するときは SYNC.cachedMerge で重ねるので、ほかのタブの保存は消えない） */
+      var ck,cv,otherTab=false;
+      for(ck in SYNC.CACHED_KEYS){
+        if(!Object.prototype.hasOwnProperty.call(SYNC.CACHED_KEYS,ck)||!Object.prototype.hasOwnProperty.call(SYNC.seen,ck))continue;
+        cv=null;try{cv=localStorage.getItem('cocoas_'+ck);}catch(e5){}
+        if(cv!==null&&!syncSameRaw(cv,SYNC.seen[ck]))otherTab=true;
+      }
+      if(fail)SYNC.writeFailed();
+      else if(skipped)SYNC.refetch=true;
+      else{
+        if(!cachedChanged)SYNC.lastPull=j.serverTime||SYNC.lastPull;
+        /* 飛ばした鍵・書けなかった鍵を丸ごと取り直せた。「保存できませんでした」などを出したままにしない */
+        if(full){SYNC.refetch=false;if(!cachedChanged&&!otherTab)SYNC.setStatus('最新の状態です',true);}
+      }
       if(cachedChanged)SYNC.setStatus('ほかの端末で更新があります（今すぐ同期で読み込めます）');
+      else if(otherTab&&!fail)SYNC.setStatus('ほかのタブで設定かカリキュラムが変わりました。今すぐ同期で表示に入れます');
       if(!changed)return;
       var ae=document.activeElement,typing=ae&&(/^(INPUT|TEXTAREA|SELECT)$/.test(ae.nodeName)||ae.isContentEditable);
       if(typing||document.querySelector('.modal-bg'))return;
@@ -23285,12 +23697,147 @@ function syncSameValue(rawOld,newVal){
   try{ a=(rawOld==null)?undefined:JSON.parse(rawOld); }catch(e){ return false; }
   try{ return JSON.stringify(syncNorm(a))===JSON.stringify(syncNorm(newVal)); }catch(e){ return false; }
 }
+/* 保存の文字どうしが同じ中身か。ふつうは文字がそのまま同じなので、違うときだけ中身で比べる */
+function syncSameRaw(a,b){
+  if(a===b)return true;
+  if(a===null||a===undefined||b===null||b===undefined)return false;
+  var v;
+  try{ v=JSON.parse(b); }catch(e){ return false; }
+  return syncSameValue(a,v);
+}
+/* 保存の文字を中身にする。無い・読めないときは undefined */
+function syncParse(raw){
+  if(raw===null||raw===undefined)return undefined;
+  try{ return JSON.parse(raw); }catch(e){ return undefined; }
+}
+/* 園の記録とそろえた中身を覚えておく鍵か（SYNC.snap）。
+   送らない鍵（SYNC.mark で留めているもの）は覚えない。スナップショット・変更ログ・顔写真など大きな控えがあり、
+   覚えるとタブの中にもう1つ同じ大きさの写しを持つことになるため。 */
+function syncTracked(n){
+  n=String(n||'');
+  if(n.indexOf('cocoas_')!==0)return false;
+  if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts|guide_files|contactPhotos|staffDocs|kidDocs)$/.test(n))return false;
+  if(/^cocoas_pstate_/.test(n))return false;
+  if(WA_DEVICE_KEY.test(n))return false;
+  return true;
+}
+/* ══ 手元の保存と、園の記録の新しい中身を、行ごとに重ねる ══════════════
+   b … 園の記録とそろえた中身（手元と返事の、共通の元）。l … 手元。r … 返事（園の記録）。
+   ・片方だけが変えたところは、変えたほうを使う
+   ・両方が同じに変えたところは、そのまま
+   ・両方が違うように変えたところ（ぶつかった）は、手元を使い、st.conflict に印を立てる
+   ・片方が消し、もう片方が直していたところは、直したほうを残す（消えるより、残って見えるほうを選ぶ）。これもぶつかったとみなす
+   重ねられるのは、入れ物（{…}）と、行ごとに id を持つ一覧（連絡先・記録など）。
+   id の無い一覧や文字は、行に分けられないので、まるごと1つとして比べる。
+   ★読み直しの返事が届く前に保存すると、手元を丸ごと残すか、返事で丸ごと上書きするかしかなく、
+     同じ鍵のほかの行（別の園児）に入ったほかの端末の変更か、職員の保存のどちらかが黙って消えていた。 */
+function syncJ(v){
+  if(v===undefined)return undefined;
+  try{ return JSON.stringify(syncNorm(v)); }catch(e){ return ' '; }
+}
+function syncIsObj(v){ return v!==null&&typeof v==='object'&&Object.prototype.toString.call(v)==='[object Object]'; }
+function syncIsArr(v){ return Object.prototype.toString.call(v)==='[object Array]'; }
+/* 一覧の行の id。id が無い・数でも文字でもないときは null。1 と '1' は別の行として分ける */
+function syncRowId(x){
+  if(!syncIsObj(x))return null;
+  var id=x.id;
+  if(typeof id==='number'&&isFinite(id))return 'n'+id;
+  if(typeof id==='string'&&id!=='')return 's'+id;
+  return null;
+}
+/* 一覧を id → 行 の入れ物にする。id の無い行や、同じ id が2つある一覧は重ねられないので null */
+function syncRowMap(a){
+  var m={},i,id;
+  for(i=0;i<a.length;i++){
+    id=syncRowId(a[i]);
+    if(id===null||Object.prototype.hasOwnProperty.call(m,id))return null;
+    m[id]=a[i];
+  }
+  return m;
+}
+function syncMerge3(b,l,r,st){
+  var hop=Object.prototype.hasOwnProperty,jl=syncJ(l),jr=syncJ(r),jb=syncJ(b),k,i;
+  if(jl===jr)return l;
+  if(jl===jb)return r;
+  if(jr===jb)return l;
+  /* 入れ物どうし */
+  if(syncIsObj(l)&&syncIsObj(r)&&(b===undefined||b===null||syncIsObj(b))){
+    var bo=syncIsObj(b)?b:{},o={};
+    for(k in l){
+      if(!hop.call(l,k))continue;
+      if(hop.call(r,k)){o[k]=syncMerge3(hop.call(bo,k)?bo[k]:undefined,l[k],r[k],st);continue;}
+      if(hop.call(bo,k)){
+        /* 返事では消えている。手元が元のままなら消す。手元で直していれば残す */
+        if(syncJ(l[k])===syncJ(bo[k]))continue;
+        st.conflict=true;
+      }
+      o[k]=l[k];
+    }
+    for(k in r){
+      if(!hop.call(r,k)||hop.call(l,k))continue;
+      if(hop.call(bo,k)){
+        /* 手元では消している。返事が元のままなら消す。返事で直していれば残す */
+        if(syncJ(r[k])===syncJ(bo[k]))continue;
+        st.conflict=true;
+      }
+      o[k]=r[k];
+    }
+    return o;
+  }
+  /* 行ごとに id を持つ一覧どうし */
+  if(syncIsArr(l)&&syncIsArr(r)&&(b===undefined||b===null||syncIsArr(b))){
+    var ba=syncIsArr(b)?b:[],ml=syncRowMap(l),mr=syncRowMap(r),mb=syncRowMap(ba);
+    if(ml&&mr&&mb){
+      var out=[],ids=[],id,x,p,q;
+      for(i=0;i<l.length;i++){
+        x=l[i];id=syncRowId(x);
+        if(hop.call(mr,id)){x=syncMerge3(hop.call(mb,id)?mb[id]:undefined,x,mr[id],st);}
+        else if(hop.call(mb,id)){
+          if(syncJ(x)===syncJ(mb[id]))continue;
+          st.conflict=true;
+        }
+        out.push(x);ids.push(id);
+      }
+      /* 返事にだけある行は、返事の並びで直前にある行のうしろに入れる（無ければ先頭。新しい順の一覧でも古い順でも崩れない） */
+      for(i=0;i<r.length;i++){
+        x=r[i];id=syncRowId(x);
+        if(hop.call(ml,id))continue;
+        if(hop.call(mb,id)){
+          if(syncJ(x)===syncJ(mb[id]))continue;
+          st.conflict=true;
+        }
+        p=-1;
+        for(q=i-1;q>=0&&p<0;q--)p=ids.indexOf(syncRowId(r[q]));
+        out.splice(p+1,0,x);ids.splice(p+1,0,id);
+      }
+      return out;
+    }
+  }
+  /* 行に分けられない。ぶつかったので手元を使う */
+  st.conflict=true;
+  return l;
+}
 
 /* localStorage への書き込みを検知して同期キューに積む（既存の保存処理は変更しない） */
 (function(){
   var raw=(window.__rawSet||localStorage.setItem.bind(localStorage));
   var prev=localStorage.setItem.bind(localStorage);
-  localStorage.setItem=function(k,v){prev(k,v);try{SYNC.mark(k);}catch(e){}};
+  /* カリキュラムと設定の、このタブが読んだ中身（SYNC.cachedMerge）。CUR・SET は、この包みより前に読み終えている */
+  try{
+    SYNC.seen.settings=localStorage.getItem('cocoas_settings');SYNC.seen.curriculum=localStorage.getItem('cocoas_curriculum');
+    SYNC.seenMem.settings=SYNC.memJ('settings');SYNC.seenMem.curriculum=SYNC.memJ('curriculum');
+  }catch(e){}
+  localStorage.setItem=function(k,v){
+    if(String(k).indexOf('cocoas_')!==0){prev(k,v);return;}
+    /* 書く直前の手元の中身。中身の変わらない書き直しか（書き換えの回数は、中身が変わったときだけ数える。SYNC.keepLocal）と、
+       まだ送っていない保存を重ね直すときの元（SYNC.push）に使う */
+    var before=null,sv=String(v),mv=null;
+    try{before=localStorage.getItem(k);}catch(e){}
+    try{mv=SYNC.cachedMerge(k,sv,before);}catch(e){mv=null;}
+    if(mv!==null)sv=mv;
+    prev(k,sv);
+    try{SYNC.wrote(k,sv,before,before===sv);}catch(e){}
+  };
   window.__rawSetOrig=raw;
 })();
 
@@ -23331,6 +23878,9 @@ function serverLogin(){
     .then(function(j){
       API.setToken(j.token);API.setTenant(j.tenant);
       sessionStorage.setItem('cocoas_serverUser',JSON.stringify(j.user));
+      /* このタブでログインした園（タブごと）。ロックを解くときに同じ園でログインを取り直す（IDLE.check）。
+         共用の入れ物の園が変わったかの見分けにも使う（SYNC.foreign） */
+      try{sessionStorage.setItem('edugrow_tabTenant',JSON.stringify({id:j.tenant&&j.tenant.id,code:j.tenant&&j.tenant.code}));}catch(e){}
       /* この端末は、これ以降サーバで使う端末になる。デモのアカウントでは入れなくなる。 */
       setServerBound();
       /* 通信が切れた日に、この人だけは入れるようにする。
@@ -23346,7 +23896,8 @@ function serverLogin(){
           stSet('staffAccounts',accs);
         });
       }catch(e){}
-      return SYNC.pull().then(function(){
+      /* 読み込みで重ねて送り待ちに載った分（SYNC.mergeIn）を送ってから開き直す。開き直すと送り待ちは消える */
+      return SYNC.pull().then(function(){return SYNC.flush();}).then(function(){
         if(j.user.mustChange)setTimeout(function(){passwordChangeModal(true);},400);
         location.reload();
       });
@@ -23403,7 +23954,20 @@ function initSyncBar(){
     +'<button class="btn btn-sm" id="syncNow" style="padding:3px 9px;font-size:11px;">今すぐ同期</button>';
   var spacer=bar.querySelector('.spacer');
   if(spacer)bar.insertBefore(w,spacer.nextSibling);else bar.appendChild(w);
-  document.getElementById('syncNow').onclick=function(){SYNC.push().then(SYNC.pull).then(function(){location.reload();});};
+  /* ★送り待ちを1回送るだけで、送れなかった分・送っている最中に保存した分が残っていても読み込み直していた。
+     読み込みがまだ送っていない書きかけを園の記録の古い中身で上書きし、再読み込みで消えていた。
+     全部送り終えてから読み込む。送れなかったときは読み込まず、そのことを出す（残りは時計が送り直す） */
+  document.getElementById('syncNow').onclick=function(){
+    SYNC.flush().then(function(ok){
+      if(!ok&&Object.keys(SYNC.queue).length){SYNC.setStatus('未保存：まだ園の記録に送れていない変更があります');return;}
+      /* 読み込みで重ねて送り待ちに載った分（返事を待つあいだの保存。SYNC.mergeIn）を送り終えてから開き直す。
+         送れなかったときは開き直さない（開き直すと送り待ちが消え、次の読み込みで園の記録の中身に戻る） */
+      return SYNC.pull().then(function(){return SYNC.flush();}).then(function(ok2){
+        if(!ok2&&Object.keys(SYNC.queue).length){SYNC.setStatus('未保存：まだ園の記録に送れていない変更があります');return;}
+        location.reload();
+      });
+    }).then(null,function(){});
+  };
 }
 
 /* ========== パスワードの保管（平文をやめる） ==========
@@ -23539,9 +24103,16 @@ var IDLE={
   /* 鍵を開けてよいかの確認。サーバに接続しているときは、サーバに聞きます。 */
   check:function(pw,done){
     try{
-      if(typeof API!=='undefined'&&API.online()){
-        var t=(API.tenant()||{}).code||'';
-        var u=(typeof serverUser==='function'&&serverUser())||{};
+      /* ★ログインが切れた（401）あとは、ログインの控えが消えて API.online() が偽になり、端末の中のハッシュでしか確かめていなかった。
+         ロックは解けても、ログインは取り直さないので、送り待ちは送られず、解いたあとの保存は送り待ちにも載らなかった。
+         次にログインすると、読み込みが園の記録の中身で上書きし、保存が消えていた（表示は「未保存：…」のまま）。
+         園の記録で使っているタブ（職員としてログインした控えがある）なら、控えが消えていても園の記録でパスワードを確かめ、ログインを取り直す */
+      var u=(typeof serverUser==='function'&&serverUser())||{};
+      if(typeof API!=='undefined'&&(API.online()||(API.enabled()&&u.loginId))){
+        /* このタブでログインした園。無ければ（前の版でログインしたタブ）、入れ物の園 */
+        var tt=(typeof SYNC!=='undefined'&&SYNC.tabTenant)?SYNC.tabTenant():null;
+        var t=(tt&&tt.code)||(API.tenant()||{}).code||'';
+        var wasOnline=API.online();
         if(!t||!u.loginId){done(false);return;}
         /* ここでは API.call を使いません。合わないときに、いまのログインまで切れてしまうためです。 */
         fetch(API.base()+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -23552,7 +24123,18 @@ var IDLE={
           .then(function(x){
             if(x.ok&&x.j&&x.j.token){API.setToken(x.j.token);done(true);return;}
             done(false,(x.j&&x.j.error)?x.j.error:'');
-          },function(){done(false,'通信ができませんでした。電波の状態をご確認のうえ、もう一度お試しください。');});
+          },function(){
+            /* ログインが切れたあとで、園の記録に届かない。これまでどおり端末の中で確かめて開ける。
+               ログインは取り直せていないので、送れていないことを出しておく */
+            if(!wasOnline){
+              var s0=null;try{s0=(typeof currentStaff==='function')?currentStaff():null;}catch(e1){}
+              if(s0){staffLoginBy(s0.loginId,pw,function(ok){
+                if(ok)try{SYNC.setStatus('未保存：ログインを取り直せませんでした。つながったら、もう一度ログインしてください');}catch(e2){}
+                done(ok);
+              });return;}
+            }
+            done(false,'通信ができませんでした。電波の状態をご確認のうえ、もう一度お試しください。');
+          });
         return;
       }
     }catch(e){}
@@ -23564,6 +24146,9 @@ var IDLE={
     var ov=document.getElementById('idleLock');
     if(ov&&ov.parentNode)ov.parentNode.removeChild(ov);
     IDLE.locked=false;IDLE.bump();
+    /* ログインが切れて送れなかった送り待ちは、送り直す時計を掛けていない（SYNC.push）。
+       ロックの窓でログインを取り直せていれば（IDLE.check）、ここで送る。取り直せていなければ送れないので掛けない */
+    try{if(typeof SYNC!=='undefined'&&API.online()&&!SYNC.busy&&Object.keys(SYNC.queue).length){clearTimeout(SYNC.timer);SYNC.timer=setTimeout(SYNC.push,1200);}}catch(e){}
   }
 };
 
@@ -24267,7 +24852,15 @@ function staffBoot(){
         try{ _once=sessionStorage.getItem('cocoas_pullReload')==='1'; }catch(e){}
         if(!_once){
           try{ sessionStorage.setItem('cocoas_pullReload','1'); }catch(e){}
-          location.reload();return;
+          /* ★返事を待つあいだの設定の保存を重ねて送り待ちに載せても（SYNC.mergeIn）、送る前に読み込み直していた。
+             送り待ちはタブの中にしか無いので、読み込み直すと消え、次の読み込みで園の記録の中身に戻っていた。
+             送り終えてから読み込み直す。送れなかったときは読み込み直さず、作り直しだけにする（控え CUR・SET は SYNC.adopt で新しくしてある） */
+          return SYNC.flush().then(function(ok){
+            if(ok||!Object.keys(SYNC.queue).length){location.reload();return;}
+            try{ if(typeof page!=='undefined'&&page)go(page); }catch(e){}
+            try{ SYNC.pollStart(); }catch(e){}
+            return PSTATE.pull();
+          });
         }
         /* 2回目は、作り直しだけにして読み込み直さない */
         try{ if(typeof page!=='undefined'&&page)go(page); }catch(e){}
@@ -25275,7 +25868,20 @@ function renderRoster(){
   var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
     +tabs.map(function(t){return '<button class="btn btn-sm'+(rosterTab===t[0]?' btn-primary':'')+'" data-rtab="'+esc(t[0])+'">'+ic(t[2])+t[1]+'</button>';}).join('')
     +'<span style="flex:1;"></span><span class="muted" style="font-size:12px;">在園 '+kids.length+'名</span></div>'
-    +'<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:10px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12px;color:#6b3f08;line-height:1.55;">氏名・住所・健康などの生徒情報は<b>この端末の中だけ</b>に保存されます。ほかの端末には出ません。いま出ているのは見本です。</div></div>';
+    +'<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:10px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12px;color:#6b3f08;line-height:1.55;">'
+    /* ★園の記録につながっているときも「この端末の中だけに保存されます。いま出ているのは見本です」と出していた。
+       実際は園の記録として保存され、ほかの端末からも開ける（見本も入れていない）。事実と逆のことを伝えていた。
+       顔写真（contactPhotos）だけは SYNC.mark で送らないので、この端末に残ると書き添える。
+       サインをいただいた書類は、つながっているときは園の記録に置く（rpDocCard）ので、ここには書かない。
+       前に園の記録で使っていた端末が、いまつながっていないとき（ログインが切れた・通信が切れた日）は、
+       見本ではないが、直した内容は園の記録に送られない。そのとおりに出す。
+       はじめからつないでいない端末（商談のデモなど）は、これまでどおりの文。 */
+    +(API.online()
+      ?'氏名・住所・健康などの生徒情報は<b>園の記録として保存</b>され、園のアカウントでログインしたほかの端末からも開けます（顔写真だけは、この端末の中に残ります）。'
+      :(serverBound()
+        ?'いま園の記録につながっていません。ここで直した生徒情報は<b>この端末の中だけ</b>に残り、園の記録には保存されません。'
+        :'氏名・住所・健康などの生徒情報は<b>この端末の中だけ</b>に保存されます。ほかの端末には出ません。いま出ているのは見本です。'))
+    +'</div></div>';
   if(rosterTab==='care')h+=kidsCareHtml();
   else if(rosterTab==='list')h+=rosterList(kids);
   else if(rosterTab==='profile')h+=rosterProfile(kids);
@@ -27869,7 +28475,15 @@ function logStamp(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()
 /* すべての保存を横取りしてログ化（保存自体は必ず先に実行し、ログ失敗でアプリを壊さない） */
 (function(){
   var raw=localStorage.setItem.bind(localStorage),busy=false;
-  window.__rawSet=raw;
+  /* 包みを1枚も通らない、入れ物そのものへの書き込み（送り待ちにも変更ログにも載らない）。
+     ★ここで作った raw（この時点の localStorage.setItem＝同期の包みを通ったもの）をそのまま入れていた。
+       「送り待ちに載せない書き込み」のつもりで使っている読み直し（SYNC.pull・pollTick）が毎回 SYNC.mark を通り、
+       受け取っただけの帳簿を園の記録へ送り返していた。1.2秒待つあいだにほかの端末が保存した新しい中身を、
+       その古い中身で消すことがあった。
+     これを使う場所：SYNC.pull・pollTick（読み直し。送らない）、PSTATE（保護者から届いた控え。送らない）、
+     スナップショットと変更ログの保存（端末の中の控え。送らない）、控えから戻す（園の記録にも戻したいので、
+     backupRestoreSet から SYNC.wrote を呼び、書き換えの回数を数えて送り待ちに載せる） */
+  window.__rawSet=function(k,v){Object.getPrototypeOf(localStorage).setItem.call(localStorage,k,v);};
   localStorage.setItem=function(k,v){
     try{ raw(k,v); }
     catch(err){
@@ -27907,8 +28521,45 @@ function collectAll(){
     if(k==='cocoas_snapshots'||k==='cocoas_eventLog')continue;
     /* ログイン用のトークンは書き出しません（バックアップの受け渡しから乗っ取られないようにするためです）。 */
     if(k==='cocoas_apiToken')continue;
+    /* 未来WA がこの端末にだけ置く鍵（ご家庭の控え・未来WA のつなぎ先など。WA_DEVICE_KEY）は入れない。
+       ★入れていたため、戻すとよそのご家庭の控えが園の記録へ送られ、ほかの端末にまで広がっていた */
+    if(WA_DEVICE_KEY.test(k))continue;
     o[k]=localStorage.getItem(k);}
   return o;
+}
+/* 控えから戻した1件を書く。戻した中身は園の記録にも戻したいので、送り待ちに載せる。
+   __rawSet は送り待ちに載らない（変更ログに1件ずつ残さないために使っている）ので、SYNC.mark を明示的に呼ぶ。
+   書き換えの回数も数える。戻したあと、先に出ていた読み直しの返事が、戻した中身を古い中身で上書きしないように */
+function backupRestoreSet(k,v){
+  var before=null;
+  try{before=localStorage.getItem(k);}catch(e){}
+  window.__rawSet(k,v);
+  try{if(typeof SYNC!=='undefined')SYNC.wrote(k,String(v),before,before===String(v));}catch(e){}
+}
+/* 控えから戻したあと、戻した中身を園の記録へ送り終えてから読み込み直す。
+   ★送り待ちに載せた直後（1.2秒待つ前）に読み込み直していたため、送る前に送り待ちが消えていた。
+     つながっているときは、読み込み直したときの園の記録の読み込みで、戻した中身がすぐ元に戻っていた。
+   送れなかったときは、そのことを伝えてから読み込み直す（戻す前の状態も自動保存に残っている）。 */
+function backupAfterRestore(msg){
+  var p=(typeof SYNC!=='undefined'&&SYNC.flush)?SYNC.flush():Promise.resolve(true);
+  p.then(null,function(){return false;}).then(function(){
+    var left=false,out=false;
+    /* ★「つながっていて、送り待ちが残っている」ときだけ知らせていた。
+       ログインの期限が切れていると、送った PUT が 401 で返り、そこでログインの控えが消えるので
+       「つながっていない」とみなされ、何も知らせずに「復元しました」とだけ出していた。
+       ログインし直すと読み込みが園の記録の古い中身で上書きし、戻した内容は黙って消えていた。
+       園の記録で使う端末（serverBound）なのにつながっていないときも、送れていないので知らせる。
+       はじめからつないでいない端末（商談のデモなど）は、戻した中身がこの端末に残るので、これまでどおり */
+    try{
+      out=!API.online()&&serverBound();
+      left=out||Object.keys(SYNC.queue).length>0;
+    }catch(e){}
+    if(!left){alert(msg);location.reload();return;}
+    alert(msg+'\n'+(out
+      ?'ただし、ログインが切れているか園の記録につながっていないため、戻した内容は園の記録に送れていません。このあとログインすると、園の記録の内容に置き換わります。ログインし直してから、もう一度戻してください。'
+      :'ただし、戻した内容はまだ園の記録に送れていません。園の記録につながっているときに、もう一度戻してください。'));
+    location.reload();
+  });
 }
 function snapshots(){try{return JSON.parse(localStorage.getItem('cocoas_snapshots'))||[];}catch(e){return [];}}
 function takeSnapshot(reason){
@@ -27933,7 +28584,11 @@ function autoSnapshot(){
 function restoreSnapshot(idx){
   var arr=snapshots(),sn=arr[idx];if(!sn)return false;
   takeSnapshot('復元前の自動保存');
-  Object.keys(sn.data).forEach(function(k){(window.__rawSet||localStorage.setItem.bind(localStorage))(k,sn.data[k]);});
+  Object.keys(sn.data).forEach(function(k){
+    /* 以前のスナップショットに入っている未来WA の端末だけの鍵は戻さない（collectAll の WA_DEVICE_KEY） */
+    if(WA_DEVICE_KEY.test(k))return;
+    backupRestoreSet(k,sn.data[k]);
+  });
   return true;
 }
 function backupDownload(){
@@ -27958,14 +28613,15 @@ function backupRestoreFile(file,done){
                       'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1,
                       'cocoas_staffAccounts':1,'cocoas_parentAccounts':1,
                       'cocoas_staffSession':1,'cocoas_psession':1};
-      Object.keys(p.data).forEach(function(k){if(NO_RESTORE[k])return;if(String(k).indexOf('cocoas_')===0)(window.__rawSet||localStorage.setItem.bind(localStorage))(k,p.data[k]);});
+      /* 未来WA の端末だけの鍵（WA_DEVICE_KEY）も戻さない。以前の控えのファイルには入っていることがある */
+      Object.keys(p.data).forEach(function(k){if(NO_RESTORE[k]||WA_DEVICE_KEY.test(k))return;if(String(k).indexOf('cocoas_')===0)backupRestoreSet(k,p.data[k]);});
       /* ★復元は「上書き」ではなく「重ね書き」。控えに入っていない記録は
          いまのデータが残るのに、件数だけ出していたので全部戻ったように見えていた。
          あわせて、復元そのものが変更ログに1件も残っていなかった。 */
       var extra=[],ki;
       for(ki=0;ki<localStorage.length;ki++){
         var kk2=localStorage.key(ki);
-        if(String(kk2).indexOf('cocoas_')!==0||NO_RESTORE[kk2])continue;
+        if(String(kk2).indexOf('cocoas_')!==0||NO_RESTORE[kk2]||WA_DEVICE_KEY.test(kk2))continue;
         if(p.data[kk2]===undefined)extra.push((typeof logLabel==='function')?logLabel(kk2):kk2);
       }
       try{
@@ -28308,12 +28964,12 @@ function renderBackupSettings(s){
     if(!confirm('バックアップファイルの内容で現在のデータを上書きします。よろしいですか？（復元前の状態は自動保存されます）'))return;
     backupRestoreFile(f,function(err,n){
       if(err){alert('復元できませんでした：'+err.message);return;}
-      alert(n+'件のデータを復元しました。画面を再読み込みします。');location.reload();
+      backupAfterRestore(n+'件のデータを復元しました。画面を再読み込みします。');
     });
   };
   s.querySelectorAll('[data-bkres]').forEach(function(b){b.onclick=function(){
     if(!confirm('この時点の状態に戻します。現在のデータは上書きされます（戻す前の状態も自動保存されます）。よろしいですか？'))return;
-    if(restoreSnapshot(+b.getAttribute('data-bkres'))){alert('復元しました。画面を再読み込みします。');location.reload();}
+    if(restoreSnapshot(+b.getAttribute('data-bkres')))backupAfterRestore('復元しました。画面を再読み込みします。');
     else alert('復元できませんでした');
   };});
 }

@@ -618,8 +618,92 @@
    ========================================================================= */
 
 /* ---- shared storage helpers (index.html と同じ prefix 'cocoas_') ---- */
-function stGet(k,d){try{var v=JSON.parse(localStorage.getItem('cocoas_'+k));return v==null?d:v;}catch(e){return d;}}
-function stSet(k,v){localStorage.setItem('cocoas_'+k,JSON.stringify(v));}
+/* ── 園から受け取った控えの置き場所 ──────────────
+   同じURLの頭で開く EduGrow（園の職員の画面）・出品者の画面（creator.html）と、端末の保存場所を分け合っている。
+   下の鍵は、職員の画面・出品者の画面も同じ名前（cocoas_contacts など）で「園の帳簿そのもの」として持っている。
+   園とつながっているときは、園から届いた「このご家庭の分だけに絞った控え」を、未来WA だけの名前
+   （cocoas_wa_srv_＋鍵）に置き、読むのもそこから読む。共用の名前には書かない。
+   ★以前は、読み込み（WSYNC.pull）が共用の名前 cocoas_contacts などへそのまま書いていた。
+     同じブラウザで EduGrow を開いたまま保護者がログインすると、職員の帳簿（連絡先が3件）が
+     このご家庭の1件に置き換わり、職員がそのあと1件を直して保存した時点で、園の記録の帳簿まで1件になっていた
+     （請求・メッセージ・日々の記録・商品の一覧も同じ。下書きの商品や園内の申し送りが、職員の次の保存で消える）。
+   つながっていないとき（見本：同じ端末の EduGrow が書いたものを、そのまま保護者の画面で見せる）は、
+   これまでどおり共用の名前を読む。
+   「つながっている」は、接続先が設定されているとき（WAPI.enabled と同じ見方）で見る。トークンの有無では分けない。
+   トークンは期限切れ（401）で途中から消えるので、そこで共用の名前に切り替わると、
+   同じブラウザの職員の帳簿（園内の申し送り・送る前の請求やメッセージ）が保護者の画面に出てしまうため。
+   接続先があるときのログインは必ず園に確かめるので、この端末の中だけで入る見本の道は通らない。
+   history・studentProfiles・bmShared は園から届かない鍵（職員の画面だけのもの）。つながっているときは読まない。
+   園から届く鍵を増やしたら（園の記録の側の parent.js の PARENT_READ）、ここにも足す。
+   保護者ご自身が書く鍵（WA_SEND）は、もともと未来WA だけの名前なので、ここには入れない。 */
+var WA_SRV_PFX='cocoas_wa_srv_';
+var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
+function waSrvOn(){
+  /* WAPI.enabled（接続先が入っているか）と同じ見方を、保存の中身から直に読む。
+     WAPI はこのずっと後ろで作るので、起動の途中（同意の鍵の写し替えなど）で WAPI に頼ると、
+     まだ無いせいで「つながっていない」とみなし、共用の名前（職員の帳簿）を読んでしまう。
+     stGet を通さないのは、stGet が置き場所を決めるときにここを呼ぶため（互いに呼び合う形にしない） */
+  try{
+    var v=null;
+    try{ v=JSON.parse(localStorage.getItem('cocoas_wa_apiBase')); }catch(x){ v=null; }
+    return !!String(v||'').replace(/\/$/,'');
+  }catch(e){ return false; }
+}
+function stName(k){
+  k=String(k);
+  if(WA_SRV_KEY.test(k)&&waSrvOn())return WA_SRV_PFX+k;
+  return 'cocoas_'+k;
+}
+function stGet(k,d){try{var v=JSON.parse(localStorage.getItem(stName(k)));return v==null?d:v;}catch(e){return d;}}
+function stSet(k,v){localStorage.setItem(stName(k),JSON.stringify(v));}
+/* このブラウザで EduGrow（職員の画面）や出品者の画面を使っている印。どれも保護者の画面は書かない鍵。
+   cocoas_apiToken・cocoas_staffSession・cocoas_serverUser は、EduGrow がタブの中（sessionStorage）に置くので、両方を見る。
+   cocoas_apiBase・apiTenant・staffAccounts・rolePerms と各版数、edugrow_serverBound・edugrow_apiAlive は、
+   EduGrow を開いただけ（ログインの前）でも端末に残る。
+   出品者の画面は、開くと cocoas_wa_creator を書く。rl_tab も出品者の画面だけ。
+   ここに当たる鍵が1つでもあれば「職員・出品者の画面がある」とみなす。
+   共用の名前のどれに手を出さないかは、鍵ごとに waSharedHeld で決める（出品者の画面の印は、頭が wa_ の鍵だけを守る）。 */
+var WA_EG_SIGN=['cocoas_apiToken','cocoas_staffSession','cocoas_serverUser','cocoas_apiBase','cocoas_apiTenant',
+  'cocoas_staffAccounts','cocoas_rolePerms','cocoas_permsVersion','cocoas_accountsVersion','cocoas_tplPermsVersion',
+  'cocoas_mockVersion','edugrow_serverBound','edugrow_apiAlive','edugrow_aiWide'];
+var WA_CR_SIGN=['cocoas_wa_creator','cocoas_rl_tab'];
+var WA_STAFF_SIGN=WA_EG_SIGN.concat(WA_CR_SIGN);
+function waSignHere(list){
+  /* 読めないときは、あるものとして扱う（職員の帳簿を消しすぎない・見本を書き込みすぎない側に倒す） */
+  try{
+    return list.some(function(k){
+      var s=null;
+      try{ s=sessionStorage.getItem(k); }catch(x){ s=null; }
+      return localStorage.getItem(k)!==null||s!==null;
+    });
+  }catch(e){ return true; }
+}
+/* 職員の画面か出品者の画面のどちらかがある。共用の名前のうち、出品者の画面も持つ鍵（wa_products など、頭が wa_ のもの）を
+   消す・移す・種を足すかを決めるときに使う（waSharedHeld・waProducts） */
+function waStaffHere(){ return waSignHere(WA_STAFF_SIGN); }
+/* EduGrow（職員の画面）がある。出品者の画面の印は数えない。
+   見本（テストのご家庭・キャンペーン・SNS・おたより・身体測定）を共用の名前に書くかは、こちらで決める。
+   それらの鍵は職員の帳簿で、出品者の画面は書かない（連絡先はお名前を出すために読むだけ）ため。
+   ★以前は seedAll も waStaffHere で決めていたので、見本の端末で出品者の画面を先に一度開いただけで
+     テストのご家庭が作られず、見本のログイン（takahashi@example.com）が「メールアドレスまたはパスワードが違います」で通らず、
+     ログイン画面のテスト用アカウントの案内も消えていた。買う人が入れないので、出品者の画面に注文も届かなかった。 */
+function waEduGrowHere(){ return waSignHere(WA_EG_SIGN); }
+/* 共用の名前（cocoas_contacts・cocoas_wa_products など、WA_SRV_KEY の一覧）かどうか */
+function waSharedName(k){ return String(k).indexOf('cocoas_')===0&&WA_SRV_KEY.test(String(k).slice(7)); }
+/* 共用の名前 k を、このブラウザのほかの画面の帳簿として残すか（移さない・消さない）。
+   eg は waEduGrowHere()、staff は waStaffHere() の答え（鍵ごとに端末を見直さないよう、呼ぶ側で1回だけ見る）。
+   頭が wa_ の鍵（wa_products・wa_posts・wa_settings など）は、出品者の画面（creator.html）も同じ名前で書くので、
+   職員の画面か出品者の画面のどちらかがあれば残す（これまでどおり）。
+   それ以外（contacts・settings・rec_ など）は職員の帳簿で、出品者の画面は書かない（連絡先はお名前を出すために読むだけ）。
+   こちらは EduGrow（職員の画面）があるときだけ残す。
+   ★以前はどの鍵も waStaffHere で決めていた。保護者だけの端末でログイン画面の下の「教育者・教育事業者の方はこちら」を
+     一度開いただけで、出品者の画面が書く cocoas_wa_creator を職員の印とみなし、以前の版が共用の名前に置いた
+     前のご家庭の控え（cocoas_contacts・cocoas_rec_きょうの様子・cocoas_settings など）が、移されず・消されず、
+     ログアウトしても別のご家庭がログインしても端末に残り続けていた。
+     creator.html が書く鍵は、頭が wa_ のもの（wa_products・wa_posts・wa_settings・wa_order_recv・wa_events_user・
+     wa_comms_user・wa_creator・wa_points・wa_seed_v・wa_amz_log）と rl_tab だけで、園の返事も頭が wa_ の鍵しか書かない
+     （2026-09-16 に creator.html の stSet・setItem を grep で確かめた）。 */
+function waSharedHeld(k,eg,staff){ return /^cocoas_wa_/.test(String(k))?!!staff:!!eg; }
 /* ========== パスワードの保管（平文をやめる） ==========
    ブラウザに標準で入っている暗号の機能（Web Crypto）を使い、パスワードを
    PBKDF2（15万回・SHA-256）のハッシュに変えてから保存します。
@@ -715,6 +799,9 @@ function klassLabel(c){
 /* この端末の連絡先が、まだ手つかずのテスト用のままかどうか。
    園が実際のご家庭を入れた端末では、テスト用の案内やパスワードを一切出さない。 */
 function isDemoContacts(){
+  /* 園とつながっている端末では、テスト用の案内を出さない（ログインは園に確かめるので、テスト用のアカウントでは入れない）。
+     以前の版が入れた見本の連絡先が控えに残っていても、ここで止める */
+  if(waSrvOn())return false;
   var en=(stGet('contacts',null)||[]).filter(function(c){return c.kind==='enrolled';});
   if(!en.length)return false;
   return en.every(function(c){
@@ -845,7 +932,20 @@ function makeResetCode(em){
 
 
 function seedAll(){
-  if(!localStorage.getItem('cocoas_contacts')) stSet('contacts',seedEnrolled());
+  /* 園とつながっているときは、見本（テストのご家庭・キャンペーン・おたより・身体測定）を入れない。
+     ★以前は開くたびに入れていたので、園から届かなかった鍵（園がまだキャンペーンを作っていない等）は見本のまま残り、
+       本物のご家庭に見本の内容が出ていた。身体測定は本物のお子さまの番号で、架空の身長・体重が4か月分できていた。
+     この端末の中だけのアカウント（parentAccounts）も、つながっているときは使わない（ログインは園に確かめる）ので作らない。
+     古い形のパスワードをハッシュに置き換える片付けだけは、どちらでも行う。 */
+  if(waSrvOn()){try{parentCredSweep();}catch(e){}return;}
+  /* つながっていない見本でも、このブラウザで EduGrow（職員の画面）を使っているときは、
+     共用の名前（contacts・rec_身体測定・campaign・sns・posts）に見本を書かない。見本の画面は、あるものだけで出す。
+     出品者の画面だけがあるときは書く（waEduGrowHere の説明を参照）。
+     ★以前は、職員がログインしている同じブラウザで ?api の無い未来WA を開くと、職員の帳簿にキャンペーン・SNS・おたよりの見本と、
+       本物の園児の番号で作った架空の身体測定が入った。職員がそのあと身体測定の画面で保存すると、それが園の記録へ送られていた。
+     保護者の画面だけの鍵（parentAccounts）は、これまでどおり作る（見本のログインに使う。EduGrow は読まず、園の記録にも送らない）。 */
+  var share=!waEduGrowHere();
+  if(share&&!localStorage.getItem('cocoas_contacts')) stSet('contacts',seedEnrolled());
   var en=enrolled();
   /* 保護者アカウント：メールアドレス → {childId, pwh}
      パスワードは平文では持たず、ハッシュだけを保存します。
@@ -872,6 +972,7 @@ function seedAll(){
   });
   stSet('parentAccounts',acc);
   try{parentCredSweep();}catch(e){}
+  if(!share)return;
   // body-measure sample (rec_身体測定): 直近4ヶ月
   if(!localStorage.getItem('cocoas_rec_身体測定')){
     var bm={};var base={11:[88,12.2],12:[92,13.5],13:[80,10.4],14:[104,16.8],15:[101,16.0]};
@@ -971,6 +1072,8 @@ function logout(asked){
      ボタンから呼ばれると asked にクリックの情報が入るので、true のときだけ確認ずみとみなす */
   if(asked!==true&&!chkLogoutOk())return;
   try{WAPI.setToken('');}catch(e){}
+  /* 前のご家庭の送り待ちと送り直しの時計を捨てる（WSYNC.reset の説明を参照） */
+  try{WSYNC.reset();}catch(e){}
   /* お支払いの一覧はご家庭のもの。共用のタブレットで次の方に見せない。 */
   try{WPAY.reset();WPAY.pending=null;}catch(e){}
   /* 共用のタブレットで次の方が入ったとき、その方にもご案内のお知らせが出るように戻す */
@@ -978,17 +1081,26 @@ function logout(asked){
   sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');
   /* 共用のタブレットで、次のご家庭に前の内容が見えないようにします。
 
-     サーバにつないでいるとき（＝保護者専用の端末）は、
-     ログインのときと同じように、この端末のものをすべて消します。
+     園とつながっているときは、ログインのときと同じように、
+     この端末にある未来WA（保護者）の鍵をすべて消します（waWipeLocal）。
      つないでいないとき（＝園のパソコンで試している場合）は、
      園の連絡先台帳や設定まで消してしまわないよう、
      保護者側で書いたものだけを消します。 */
   try{
     var server=(typeof WAPI!=='undefined')&&WAPI.enabled();
-    Object.keys(localStorage).forEach(function(k){
+    /* ★園とつながっているときは、ログインと同じく cocoas_ をすべて消していたので、
+       同じブラウザの EduGrow（職員）の接続先・職員アカウント・帳簿・端末だけの写真まで消えていた。
+       ログインと同じ決め方で、保護者の鍵だけを消す */
+    if(server)waWipeLocal();
+    else Object.keys(localStorage).forEach(function(k){
       if(k.indexOf('cocoas_')!==0)return;
-      if(k==='cocoas_wa_apiBase'||k==='cocoas_wa_apiTenant')return;
-      if(server||/^cocoas_(wa_|posts_seen_)/.test(k)) localStorage.removeItem(k);
+      /* 接続先の設定と、出品者ご本人の情報など（頭が wa_ でも保護者のものではない）は残す */
+      if(WA_NOT_OWN[k])return;
+      /* 商品の一覧など、出品者の画面も同じ名前で持っている帳簿は残す（waWipeLocal の説明を参照） */
+      if(waSharedName(k))return;
+      /* ポイントは出品者の画面と同じ入れ物。保護者のぶんだけを消す */
+      if(k==='cocoas_wa_points'){waPointsDropParent();return;}
+      if(/^cocoas_(wa_|posts_seen_)/.test(k)) localStorage.removeItem(k);
     });
     if(server)seedAll();
   }catch(e){}
@@ -1010,9 +1122,19 @@ function isGuest(){return sessionStorage.getItem('cocoas_wa_guest')==='1';}
 var lastTab=null;
 function render(){
   var c=sessionChild();
+  /* 上の帯「デモ版（プロトタイプ）｜ログイン・データはこの端末内のみ」は、園とつながっていないときだけ出す。
+     ★つながっているときも出していたので、園でお預かりしている本物の内容・園に確かめるログインの上に、
+       「この端末内のみ」という事実と違う案内が出ていた。つながっているかは、読み書きの置き場所と同じ見方（waSrvOn）。 */
+  var ribbon=document.querySelector('.demo-ribbon');
+  if(ribbon)ribbon.style.display=waSrvOn()?'none':'';
   /* 描き終わったあとに、画面の文字を英語へ差し替える（日本語のときは何もしない） */
   setTimeout(function(){try{langApply(document.body);langToggleWire();}catch(e){}},0);
-  if(!c&&!isGuest()){document.getElementById('root').innerHTML=loginHTML();wireAuth();return;}
+  if(!c&&!isGuest()){
+    /* ログインはできている（このタブにトークンがある）のに、このご家庭の控えがまだ手元に無いあいだは、
+       ログイン画面ではなく「読み込み中」／「読み込めませんでした」を出す（waFirstHTML の説明を参照） */
+    if(waFirstNeed()){document.getElementById('root').innerHTML=waFirstHTML();waFirstWire();return;}
+    document.getElementById('root').innerHTML=loginHTML();wireAuth();return;
+  }
   /* まだご同意をいただいていない、または規約の版が上がったときは、
      先に同意画面をお出しする。 */
   if(!consentOk()){
@@ -1712,10 +1834,16 @@ function waProducts(){
   /* 種データは EduGrow・未来WA・クリエイターのどこから開いても同じになるよう、
      「空なら全部入れる」ではなく「足りない id だけ足す」形にしている。
      園が消した商品が復活しないよう、版数を控えて一度だけ動かす。 */
-  var d=WA_SEED_PRODUCTS;
+  /* 園とつながっているときは、園から届いた一覧（未来WA だけの名前の控え）に種を足さない。
+     足すと、園が消した商品が保護者の画面にだけ戻る。版数の印（wa_seed_v）は出品者の画面と同じ名前なので、
+     ここで立てると、同じブラウザの出品者の画面で種が足されなくなる。
+     つながっていなくても、このブラウザで職員・出品者の画面を使っているときは、共用の名前の一覧に種を書かない
+     （seedAll と同じ決め方。種を足すのは出品者の画面に任せる）。
+     書かないときは、一覧がまだ無いあいだ、種を見せるだけにする。 */
+  var d=WA_SEED_PRODUCTS,keep=waSrvOn()||waStaffHere();
   var cur=stGet('wa_products',null);
-  if(!cur||!cur.length){stSet('wa_products',d.slice());return d.slice();}
-  if(stGet('wa_seed_v',0)!==WA_SEED_V){
+  if(!cur||!cur.length){if(!keep)stSet('wa_products',d.slice());return d.slice();}
+  if(!keep&&stGet('wa_seed_v',0)!==WA_SEED_V){
     var have={};cur.forEach(function(x){have[String(x.id)]=1;});
     var add=d.filter(function(x){return !have[String(x.id)];});
     if(add.length){cur=cur.concat(add);stSet('wa_products',cur);}
@@ -3826,6 +3954,14 @@ var EN_DICT={
 'コピーしました':'Copied',
 '最新の状態です':'Up to date',
 '読み込み失敗：':'Load failed:',
+'この端末の空きが足りず、一部を読み込めませんでした':'Not enough space on this device; some items could not be loaded',
+'園の記録を読み込んでいます…':'Loading your school records…',
+'ログインはできています。このままお待ちください。':'You are signed in. Please wait a moment.',
+'園の記録を読み込めませんでした':'Could not load your school records',
+'電波の届くところで、もう一度お試しください。つながると自動で読み直します。':'Please try again where you have a signal. It will reload automatically once connected.',
+'時間がかかっています。もう一度読み込むか、このままお待ちください。':'This is taking longer than usual. Try again, or keep waiting.',
+'もう一度読み込む':'Try again',
+'ログイン画面に戻る':'Back to sign-in',
 '送信しました。':'Sent.',
 '記録がありません':'No records',
 'をつくっています':'being created…',
@@ -6835,11 +6971,13 @@ var WAPI={
   }catch(e){}},
   enabled:function(){return !!WAPI.base();},
   online:function(){return WAPI.enabled()&&!!WAPI.token();},
-  call:function(method,path,body){
+  /* signal … 取りやめの合図（AbortController）。読み込みが返らないときに頼み直す WSYNC.drop だけが渡す */
+  call:function(method,path,body,signal){
     var h={'Content-Type':'application/json'};
     if(WAPI.token())h.Authorization='Bearer '+WAPI.token();
-    return fetch(WAPI.base()+path,{method:method,headers:h,
-      body:body?JSON.stringify(body):undefined})
+    var o={method:method,headers:h,body:body?JSON.stringify(body):undefined};
+    if(signal)o.signal=signal;
+    return fetch(WAPI.base()+path,o)
       .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
         if(r.status===401){WAPI.setToken('');var e401=new Error('ログインの有効期限が切れました。もう一度ログインしてください。');e401.status=401;throw e401;}
         /* サーバが添えた短い印（code）と番号（status）も残す。
@@ -6857,31 +6995,184 @@ var WAPI={
 /* checkin_log … 登園・降園を押した控え。園の登園シートの空欄に出すため、園にも送る。 */
 var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_feed_comment|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|checkin_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen)$/;
 
+/* ── ご家庭が変わるときに、この端末から消してよい鍵（未来WA・保護者のものだけ）──────
+   同じURLの頭で開く EduGrow（園の職員の画面）・出品者の画面と、端末の保存場所を分け合っている。
+   どれも名前の頭が cocoas_ なので、頭だけを見て消すと、ほかの画面の持ち物まで消える。
+   ★以前はログインのたびに、接続先の設定2つ以外の cocoas_ をすべて消していた（ログアウトも同じ）。
+     同じブラウザで EduGrow を使っていると、職員の接続先（apiBase・apiTenant）・職員アカウント（staffAccounts）・
+     職員の帳簿・この端末にだけ置いた園児の顔写真や職員の資格証の控え（contactPhotos・staffDocs・kidDocs）
+     まで消え、保護者の画面で一度ログインしただけで、EduGrow がつながらない・写真が無い状態になっていた。
+   保護者の鍵は、この画面が読み書きするもの（stGet/stSet）・園へ送るもの（WA_SEND）・
+   園から受け取って置くもの（WSYNC.pull）から決めた。ここに無い鍵には触れない。 */
+/* 保護者だけが使う鍵。ご家庭が変わったら必ず消す。
+   残すと、次のご家庭が何かを保存したとき、前のご家庭の分と一緒に園へ送られてしまう（WA_SEND）。
+   posts_seen_x は、お子さまを開いていないとき（教材だけ見る方など）の既読の控え */
+var WA_OWN_KEY=/^cocoas_(wa_[A-Za-z0-9_]+|posts_seen_([0-9]+|x)|absence_log|checkin_log|dm_out|dm_seen)$/;
+/* 頭が wa_ でも、保護者のご家庭の持ち物ではないもの。
+   接続先の設定、出品者ご本人の情報（wa_creator・wa_amz_log）、種の商品を足した版数（wa_seed_v。出品者の画面と共用）。
+   ★以前は wa_seed_v も消していたので、同じブラウザの出品者の画面が次に開いたとき、
+     園が消した見本の商品を「まだ足していない」とみなして一覧に戻していた。 */
+var WA_NOT_OWN={'cocoas_wa_apiBase':1,'cocoas_wa_apiTenant':1,'cocoas_wa_creator':1,'cocoas_wa_amz_log':1,'cocoas_wa_seed_v':1};
+/* ポイント（wa_points）は出品者の画面と同じ入れ物に、保護者のぶん（parent）と出品者のぶん（creator）を分けて持っている。
+   ご家庭が変わるときは、保護者のぶんだけを外す。
+   ★以前は入れ物ごと消していたので、同じブラウザの出品者のポイントまで0に戻っていた。 */
+function waPointsDropParent(){
+  var k='cocoas_wa_points';
+  try{
+    var b=null;
+    try{ b=JSON.parse(localStorage.getItem(k)); }catch(x){ b=null; }
+    if(!b||typeof b!=='object'||Array.isArray(b)){ localStorage.removeItem(k); return; }
+    if(!Object.prototype.hasOwnProperty.call(b,'parent'))return;
+    delete b.parent;
+    if(Object.keys(b).length)localStorage.setItem(k,JSON.stringify(b));
+    else localStorage.removeItem(k);
+  }catch(e){ try{ localStorage.removeItem(k); }catch(x){} }
+}
+/* 共用の名前（WA_SRV_KEY の一覧。cocoas_contacts・cocoas_wa_products など）は、EduGrow・出品者の画面の帳簿そのもの。
+   いまは園から受け取った控えを未来WA だけの名前（WA_SRV_PFX）に置くので、ここには書かない。
+   ただ、以前の読み込みが書いた前のご家庭の控えや、見本の内容が、保護者の端末に残っていることがある。
+   ほかの画面の帳簿でないとき（waSharedHeld が偽）だけ消す。前のご家庭のお子さまの情報を残さないため。
+   職員の画面を使っているブラウザでは、職員の帳簿なので消さない。出品者の画面だけのブラウザでは、頭が wa_ の鍵だけを残す。
+   ★以前は wa_products・wa_posts・wa_settings など頭が wa_ の鍵を、保護者だけの鍵（WA_OWN_KEY）として
+     職員の画面があっても消していた。同じブラウザで出品者の画面（creator.html）を開いたまま保護者がログインすると、
+     商品の一覧・投稿が空になり、料率も元に戻っていた。 */
+function waWipeLocal(){
+  /* 頭が wa_ の共用の名前は出品者の画面の印も数え、それ以外は EduGrow の印だけで決める（waSharedHeld の説明を参照） */
+  var eg=waEduGrowHere(),staff=waStaffHere();
+  try{
+    Object.keys(localStorage).forEach(function(k){
+      if(k.indexOf('cocoas_')!==0)return;
+      if(WA_NOT_OWN[k])return;
+      /* 園から受け取った、前のご家庭の控え（未来WA だけの名前）。職員の画面があってもなくても必ず消す。
+         WA_OWN_KEY の wa_ のあとは英数字だけなので、rec_登園シート などの名前はそちらでは拾えない */
+      if(k.indexOf(WA_SRV_PFX)===0){localStorage.removeItem(k);return;}
+      if(waSharedName(k)){if(!waSharedHeld(k,eg,staff))localStorage.removeItem(k);return;}
+      /* 以前の版が書いた、この端末の中だけのアカウント（前のご家庭のメールアドレスとお子さまの番号）。
+         園とつながっていて、EduGrow の印が無い端末では消す（waParentAccountsDrop の説明を参照） */
+      if(k==='cocoas_parentAccounts'){waParentAccountsDrop(eg);return;}
+      if(k==='cocoas_wa_points'){waPointsDropParent();return;}
+      if(WA_OWN_KEY.test(k))localStorage.removeItem(k);
+    });
+  }catch(e){}
+}
+/* 以前の版が書いた、この端末の中だけのアカウント（cocoas_parentAccounts）の片付け。
+   中身は、その端末でログインしたご家庭のメールアドレスとお子さまの番号。
+   園とつながっているときはログインを園に確かめるので使わず、いまの版はつながっているとき作らない（seedAll）。
+   消すのは、園とつながっていて EduGrow（職員の画面）の印が無い端末だけ。eg は waEduGrowHere() の答え。
+   出品者の画面の印は数えない（出品者の画面はこの鍵を書かず、園の返事でも書き換えない）。
+   つながっていない見本の端末では、見本のログイン（テスト用のご家庭）に使う鍵なので消さない。
+   ★以前は、つながっている端末を開き直すたびに以前の版の seedAll がここへ書いていたのに、いまの版はどこでも消していなかった。
+     更新しても、ログアウトしても、別のご家庭がログインしても、共用のタブレットに前のご家庭のメールアドレスが残り続けていた
+     （以前の版は、ログインのたびに cocoas_ をすべて消していたので、残るのはその時のご家庭の分だけだった）。 */
+function waParentAccountsDrop(eg){
+  if(eg||!waSrvOn())return;
+  try{ localStorage.removeItem('cocoas_parentAccounts'); }catch(e){}
+}
+/* 以前の版で園とつながって使っていた、保護者だけの端末の片付け。
+   ★以前は、園から届いた控えを共用の名前（cocoas_contacts など）に置いていた（stName の説明を参照）。
+     いまはつながっているとき未来WA だけの名前しか読まないので、移さないと、更新した直後は手元の控えが空に見える。
+     ログインしたままのタブでも前回の内容が出ず、読み込みが返るまで待たされる（電波が弱いと、何も出せない）。
+     共用の名前には、前のご家庭の控えが残り続ける。
+   ほかの画面の帳簿でない共用の名前（waSharedHeld が偽）だけ、控えを
+   未来WA だけの名前へ移し、共用の名前から消す。移し先にすでにあるときは、移し先を残して共用の名前だけを消す。
+   移すのは一度だけ（移したあとは共用の名前に何も残らず、いまの版はそこへ書かない）。
+   職員の画面があるブラウザでは、共用の名前は職員の帳簿なので、移さない・消さない。
+   出品者の画面だけがあるブラウザでは、出品者の画面も書く頭が wa_ の鍵だけを残し、contacts・settings・rec_ などは移して消す。
+   前の版が開くたびに入れていた見本（キャンペーンなど）が混ざることがあるが、
+   次に園の記録を読み込んだとき、園から届かなかった鍵は WSYNC.pull が消す。 */
+function waSrvMigrate(){
+  if(!waSrvOn())return;
+  var eg=waEduGrowHere(),staff=waStaffHere();
+  waParentAccountsDrop(eg);
+  var keys=[];
+  try{ keys=Object.keys(localStorage).filter(function(k){ return waSharedName(k)&&!waSharedHeld(k,eg,staff); }); }catch(e){ keys=[]; }
+  keys.forEach(function(k){
+    var to=WA_SRV_PFX+k.slice(7);
+    try{ if(localStorage.getItem(to)===null)localStorage.setItem(to,localStorage.getItem(k)); }catch(e){}
+    /* 移せなかった（空きが足りない）ときも、共用の名前からは消す。中身は園の記録にあり、次の読み込みで戻る */
+    try{ localStorage.removeItem(k); }catch(e){}
+  });
+}
+
 var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,chkP:null,
+  /* pend … いま頼んでいて、まだ返っていない読み込み（pull）の一覧。1件ずつ、頼んだときのトークン（tok）・頼んだ時刻（at）・
+     取りやめの道具（ab。使えないブラウザでは null）を持つ。okTok … 読み込みが通ったときのトークン。
+     firstErr … 読み込みが通らなかったときの理由（通ったら空に戻す）。firstT … 返らない読み込みを見張る時計（waFirstWatch）。
+     どれも waFirstNeed／waFirstHTML が見る。
+     頼んでいる数だけ（以前の pullN）ではなく、トークンごとに見る。返らないまま「ログイン画面に戻る」で入り直せるようにしたので、
+     数だけだと前のトークンの返らない分が残り、新しいログインの読み込みを「まだ返っていない」とみなして、頼み直しを止めてしまうため。 */
+  pend:[],okTok:'',firstErr:'',firstT:null,
+  /* sending … いま送っている最中の鍵（送り終えたら空に戻す）。
+     gen … ご家庭が変わるたびに1つ進める番号（WSYNC.reset）。送っている最中にご家庭が変わったら、
+     送れなかった分を次のご家庭の送り待ちに戻さないために見る */
+  sending:{},gen:0,
   mark:function(key){
-    if(!WAPI.online())return;
     var k=String(key).replace(/^cocoas_/,'');
     if(!WA_SEND.test(k))return;
+    if(!WAPI.online()){
+      /* ログインの期限が切れたあと（401 でトークンが消える）でも、ご家庭のログインが残っているあいだの保存は、
+         送り待ちに載せておく（送るのは、同じご家庭で入り直してから）。
+         ★以前はつながっていないと何もしなかったので、期限が切れたあとに送った欠席の連絡やメッセージは送り待ちに無く、
+           期限切れのロックからパスワードで入り直すと、ログインの片付け（waWipeLocal）で手元からも消え、園に届かなかった。 */
+      if(WSYNC.holdable())WSYNC.q[k]=true;
+      return;
+    }
     WSYNC.q[k]=true;
     clearTimeout(WSYNC.timer);
     WSYNC.timer=setTimeout(WSYNC.push,1500);
+  },
+  /* 期限切れのあいだも送り待ちに載せてよいか。園とつながっていて、ご家庭のログイン（psession）が残っているとき。
+     教材だけ見ている方（ゲスト）と、ログアウトのあとは載せない */
+  holdable:function(){
+    try{ return WAPI.enabled()&&!isGuest()&&!!sessionStorage.getItem('cocoas_psession'); }catch(e){ return false; }
+  },
+  /* ご家庭が変わるとき（ログアウト・別のご家庭のログイン・接続をやめる）に、前のご家庭の送り待ちを捨てる。
+     ★以前は送り待ちと送り直しの時計が残ったので、前のご家庭の分が送れずに待っているあいだに次のご家庭がログインすると、
+       30秒後の送り直しが、次のご家庭の手元の中身（片付けのあとで空のことがある）を、次のご家庭の分として園に送っていた。 */
+  reset:function(){
+    clearTimeout(WSYNC.timer);clearTimeout(WSYNC.retry);
+    WSYNC.q={};WSYNC.sending={};WSYNC.fail=false;WSYNC.gen++;
+  },
+  /* この鍵に、まだ園に届いていない手元の保存があるか。
+     before は、読み込みを頼んだ時点の手元の中身（WSYNC.pull が控える）。
+     送り待ちにある・送っている最中・頼んだあとに手元が変わった、のどれかなら「ある」 */
+  mine:function(k,before){
+    if(WSYNC.q[k]||WSYNC.sending[k])return true;
+    var now=null;
+    try{ now=localStorage.getItem('cocoas_'+k); }catch(e){ return true; }
+    var was=Object.prototype.hasOwnProperty.call(before,k)?before[k]:null;
+    return now!==was;
   },
   push:function(){
     if(!WAPI.online()||WSYNC.busy)return Promise.resolve();
     var keys=Object.keys(WSYNC.q);
     if(!keys.length)return Promise.resolve();
+    var data={},ok=false,gen=WSYNC.gen;
+    keys=keys.filter(function(k){
+      var s=null;
+      try{ s=localStorage.getItem('cocoas_'+k); }catch(e){ s=null; }
+      /* 手元に無い鍵は送らない。園の記録にあるこのご家庭の分を、空で上書きしないため。
+         ★以前は無い鍵も null のまま送っていた。ログインの片付け（waWipeLocal）のあと、読み込みが返る前に
+           送り直しの時計が回ると、それまでに送った欠席の連絡やメッセージが、園の記録から丸ごと消えていた。 */
+      if(s===null)return false;
+      try{ data[k]=JSON.parse(s); }catch(e){ data[k]=null; }
+      return true;
+    });
+    WSYNC.q={};
+    if(!keys.length)return Promise.resolve();
     var was=chkUnsent(),stamp=chkDirty(),hasChk=keys.indexOf('checkin_log')>=0;
-    WSYNC.busy=true;WSYNC.q={};WSYNC.say('保存中…');
+    WSYNC.busy=true;WSYNC.say('保存中…');
+    keys.forEach(function(k){WSYNC.sending[k]=true;});
     clearTimeout(WSYNC.retry);
-    var data={},ok=false;
-    keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('cocoas_'+k));}catch(e){data[k]=null;}});
     return WAPI.call('PUT','/parent/state',{data:data})
       .then(function(){
         ok=true;WSYNC.fail=false;WSYNC.say('保存しました',true);
         /* 送っているあいだに押された分があれば（印が変わっている・予約がある）、まだ下ろさない */
-        if(hasChk&&!WSYNC.q.checkin_log&&chkDirty()===stamp)chkDirtySet(false);
+        if(gen===WSYNC.gen&&hasChk&&!WSYNC.q.checkin_log&&chkDirty()===stamp)chkDirtySet(false);
       })
       .catch(function(e){
+        /* 送っているあいだにご家庭が変わったときは、次のご家庭の送り待ちに戻さない（WSYNC.reset の説明を参照） */
+        if(gen!==WSYNC.gen)return;
         /* 送れなかったぶんは、しばらくしてもう一度送る。
            ★以前は予約に戻すだけで、送り直す時計を掛けていなかった。
            次に何かを保存するまで送られず、電波の無いところで押した登園は
@@ -6893,6 +7184,7 @@ var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,ch
       })
       .then(function(){
         WSYNC.busy=false;
+        if(gen===WSYNC.gen)WSYNC.sending={};
         /* 送っているあいだに保存されたものは、送信中なので断られて予約に残っている。
            時計はもう消えているので、ここで続けて送る */
         if(ok&&Object.keys(WSYNC.q).length){clearTimeout(WSYNC.timer);WSYNC.timer=setTimeout(WSYNC.push,300);}
@@ -6903,18 +7195,67 @@ var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,ch
   pull:function(){
     if(!WAPI.online())return Promise.resolve();
     WSYNC.say('読み込み中…');
-    return WAPI.call('GET','/parent/state').then(function(j){
-      var raw=window.__rawSet||localStorage.setItem.bind(localStorage);
+    /* 頼んだときのトークン。返事が来るまでにログアウト・別のご家庭のログインがあったら、その返事は置かない
+       （前のご家庭の中身を、次のご家庭の控えとして残さないため） */
+    var tok=WAPI.token();
+    /* 頼んだ時点の、保護者ご自身が書く鍵（WA_SEND）の手元の中身。返事を置くときに、手元が変わっていないかを見る（WSYNC.mine） */
+    var before={};
+    try{
+      Object.keys(localStorage).forEach(function(n){
+        if(n.indexOf('cocoas_')===0&&WA_SEND.test(n.slice(7)))before[n.slice(7)]=localStorage.getItem(n);
+      });
+    }catch(e){}
+    var ab=null;
+    try{ if(typeof AbortController==='function')ab=new AbortController(); }catch(e){ ab=null; }
+    var me={tok:tok,at:Date.now(),ab:ab,gone:false};
+    WSYNC.pend.push(me);
+    function done(){ var i=WSYNC.pend.indexOf(me); if(i>=0)WSYNC.pend.splice(i,1); }
+    /* 「読み込み中」を出しているタブでは、返らないまま20秒たったら「読み込めませんでした」に替える */
+    try{ waFirstWatch(); }catch(e){}
+    return WAPI.call('GET','/parent/state',null,ab?ab.signal:null).then(function(j){
+      done();
+      if(WAPI.token()!==tok)return j;
+      var raw=window.__rawSet||localStorage.setItem.bind(localStorage),full=false,got={},bad={};
       Object.keys(j.data||{}).forEach(function(k){
-        /* 接続先そのものをサーバ応答で書き換えられないようにする */
+        /* 接続先そのものを園の記録の返事で書き換えられないようにする */
         if(/^wa_api/.test(k))return;
         /* 届いていない印・控えの持ち主の印も、この端末のものなので書き換えさせない */
         if(/^wa_chk/.test(k))return;
         /* 登園・降園の控えは、下で足し合わせる */
         if(k==='checkin_log')return;
+        /* 未来WA だけの名前の頭（wa_srv_）で届いた鍵は置かない。置くと、下で消す見分けが崩れる */
+        if(k.indexOf('wa_srv_')===0)return;
         if(j.data[k]==null)return;
-        raw('cocoas_'+k,JSON.stringify(j.data[k]));
+        /* 保護者ご自身が書く鍵（WA_SEND）は、もともと未来WA だけの名前なので、そのまま置く（送るときにそこから読む）。
+           それ以外（園の帳簿から、このご家庭の分だけに絞って届いたもの）は、未来WA だけの名前に置く。
+           ★以前は cocoas_contacts などの共用の名前へそのまま書いていたので、同じブラウザの EduGrow の帳簿が
+             このご家庭の分に置き換わり、職員の次の保存で園の記録の帳簿まで減っていた（stName の説明を参照）。
+           一覧（WA_SRV_KEY）に無い新しい鍵も、共用の名前には書かない。
+           同じブラウザに EduGrow があると、同じ中身を2か所に持つことになり、端末の空きが足りなくなることがある。
+           1つ置けなくても、ほかの鍵は置く（1つの失敗で読み込み全体を止めない）。 */
+        if(WA_SEND.test(k)){
+          /* まだ園に届いていない手元の保存がある鍵は、返事で上書きしない（手元を残し、送り待ちから送る）。
+             返事は頼んだ時点の園の記録なので、そのあとの保存は入っていない。
+             ★以前はそのまま上書きしていた。開いてすぐ（読み込みが返る前に）欠席の連絡やメッセージを送ると、
+               手元が園の古い中身に戻り、1.5秒後にその古い中身が送られて、「保存しました」と出たまま園の記録からも消えていた
+               （登園・降園の控えは chkApplySrv で足し合わせているので、ここは通らない）。 */
+          if(WSYNC.mine(k,before))return;
+          try{ raw('cocoas_'+k,JSON.stringify(j.data[k])); }catch(x){ full=true; }
+          return;
+        }
+        got[k]=1;
+        try{ raw(WA_SRV_PFX+k,JSON.stringify(j.data[k])); }catch(x){ full=true; bad[k]=1; }
       });
+      /* 園から届かなかった鍵の控えは消す。返事は、このご家庭に渡せるものの全部なので、
+         届かなかった鍵は「いまは無い」もの（園が消した・前の版が入れていた見本・前の版から移した古い控え）。
+         置けなかった鍵は、前の控えを残す（空きが足りないだけで、中身が無くなったわけではないため） */
+      try{
+        Object.keys(localStorage).forEach(function(n){
+          if(n.indexOf(WA_SRV_PFX)!==0)return;
+          var k=n.slice(WA_SRV_PFX.length);
+          if(!got[k]&&!bad[k])localStorage.removeItem(n);
+        });
+      }catch(x){}
       /* 登園・降園の控えは、園に届いている分を土台にして、この端末にしか無い分を足す。
          ★以前は、ほかの鍵と同じく園の控えでまるごと上書きしていた。
          開いてすぐ「登園」を押す（開いたときの読み込みが、押したあとに返ってくる）、
@@ -6923,9 +7264,18 @@ var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,ch
       chkApplySrv(j.data?j.data.checkin_log:null);
       WSYNC.pulledAt=Date.now();
       if(j.childId!=null){try{sessionStorage.setItem('cocoas_psession',String(j.childId));}catch(e){}}
-      WSYNC.say('最新の状態です',true);
+      /* このトークンのぶんは読み込めた。ログイン画面の代わりの「読み込み中」は、もう出さない */
+      WSYNC.okTok=tok;WSYNC.firstErr='';
+      WSYNC.say(full?'この端末の空きが足りず、一部を読み込めませんでした':'最新の状態です',!full);
       return j;
+    },function(e){
+      done();
+      throw e;
     }).catch(function(e){
+      /* 返らないので取りやめて頼み直した分（WSYNC.drop）。頼み直した読み込みが続いているので、失敗の案内も時計も出さない */
+      if(me.gone)throw e;
+      /* 最初の読み込みが通らなかったときは「読み込めませんでした」を出す（waFirstHTML） */
+      if(WAPI.token()===tok)WSYNC.firstErr=String(e&&e.message||'');
       WSYNC.say('読み込み失敗：'+e.message);
       /* 開いたときに電波が無かったなど。届いていない登園・降園があれば、しばらくして読み直して送る */
       if(chkDirty()&&WAPI.online()){clearTimeout(WSYNC.retry);WSYNC.retry=setTimeout(function(){WSYNC.flush();},30000);}
@@ -6948,6 +7298,24 @@ var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,ch
     },function(e){WSYNC.chkP=null;throw e;});
     return WSYNC.chkP;
   },
+  /* このトークンで頼んで、まだ返っていない読み込みのうち、いちばん新しいものを頼んでからの時間（ミリ秒）。無ければ -1 */
+  waiting:function(tok){
+    var t=-1,now=Date.now();
+    WSYNC.pend.forEach(function(r){ if(r.tok===tok&&(t<0||now-r.at<t))t=now-r.at; });
+    return t;
+  },
+  /* このトークンで頼んでいる読み込みを取りやめる（頼み直す前に。同じ読み込みを2本並べないため）。
+     取りやめの道具が使えないブラウザでは何もせず false を返す */
+  drop:function(tok){
+    var list=WSYNC.pend.filter(function(r){ return r.tok===tok; });
+    if(!list.length||list.some(function(r){ return !r.ab; }))return false;
+    list.forEach(function(r){
+      r.gone=true;
+      var i=WSYNC.pend.indexOf(r); if(i>=0)WSYNC.pend.splice(i,1);
+      try{ r.ab.abort(); }catch(e){}
+    });
+    return true;
+  },
   say:function(t,fade){
     WSYNC.msg=t;
     var el=document.getElementById('waSyncMsg');
@@ -6963,6 +7331,11 @@ var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,ch
     if(!WAPI.online())return;
     var sent=Promise.resolve();
     if(Object.keys(WSYNC.q).length){clearTimeout(WSYNC.timer);sent=WSYNC.push();}
+    /* ログインはできているのに、このご家庭の控えがまだ読み込めていない（「読み込み中」「読み込めませんでした」を出している）ときは、
+       登園の控えだけでなく、まるごと読み直す。読み直しの中で登園・降園の控えも足し合わせる（chkApplySrv）。
+       登園の控えだけを読み直すと、ご家庭の控え（連絡先など）が手元に無いままなので、
+       電波が戻っても画面に戻っても「読めませんでした」の画面から先へ進めない。 */
+    if(waFirstNeed()){sent.then(function(){waFirstPull();});return;}
     /* 送る予約は開き直すと消えるが、「まだ届いていない」の印は端末に残っている。
        そのときは、予約の分を送り終えてから控えを読み直して足し合わせ、足りない分を送る。
        ★以前は予約が無いと何もせず（開き直すと、見た記録など別の鍵の予約しか無い）、
@@ -6982,6 +7355,94 @@ var WSYNC={q:{},timer:null,retry:null,busy:false,fail:false,msg:'',pulledAt:0,ch
   try{window.addEventListener('online',flush);}catch(e){}
   try{document.addEventListener('visibilitychange',flush);}catch(e){}
 })();
+
+/* ── ログインしたままのタブで、ご家庭の控えがまだ手元に無いとき ──────
+   園とつながっている端末では、ご家庭の控えを未来WA だけの名前（WA_SRV_PFX）に置く。
+   以前の版から更新した直後や、控えを置く前に読み込みが切れたときは、このタブにトークン（ログインの証）があるのに
+   控えが空なので、お子さまが引けず（sessionChild が空）、そのままではログイン画面が出る。
+   トークンはまだ有効なので、ログアウトされたように見せない。
+   読み込みが返るまでは「読み込み中」、通らなかったら「読み込めませんでした」と「もう一度読み込む」を出す。
+   電波が戻ったとき（online）・画面に戻ってきたとき（visibilitychange）も読み直す（WSYNC.flush）。
+   読み込めたあとでもお子さまが引けないとき（園の名簿から外れた等）は、これまでどおりログイン画面を出す。 */
+function waFirstNeed(){
+  try{
+    if(isGuest()||!waSrvOn()||!WAPI.online())return false;
+    /* 手元の控えでお子さまが引けるときは、ふだんの画面を出す（flush も、これまでどおり登園の控えだけを読み直す。
+       まるごと読み直して描き直すと、書きかけのメッセージなどが消えるため） */
+    if(sessionChild())return false;
+    return WSYNC.okTok!==WAPI.token();
+  }catch(e){ return false; }
+}
+/* 読み込みがこの時間を過ぎても返らないときは、「読み込めませんでした」と「もう一度読み込む」「ログイン画面に戻る」を出す */
+var WA_FIRST_WAIT_MS=20000;
+function waFirstHTML(){
+  var wait=WSYNC.waiting(WAPI.token());
+  /* slow … 頼んだまま20秒たっても返らない。返事はそのまま待ち続け、届けばふだんの画面を出す */
+  var slow=wait>=WA_FIRST_WAIT_MS;
+  var failed=slow||(wait<0&&!!WSYNC.firstErr);
+  return '<div class="login-wrap">'
+    +'<div style="text-align:right;margin-bottom:6px;">'+langToggleHTML()+'</div>'
+    +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div>'+(waSchoolSet()?'<div class="sub" style="margin-top:8px;">'+esc(waSchoolSet())+'</div>':'')+'</div>'
+    +(failed
+      ? '<div class="card" id="waFirstBox" data-first="failed"'+(slow?' data-slow="1"':'')+' style="text-align:center;">'
+        +'<div style="font-size:15px;font-weight:700;margin-bottom:8px;">園の記録を読み込めませんでした</div>'
+        +(slow
+          ? '<div class="muted" style="line-height:1.7;margin-bottom:14px;">時間がかかっています。もう一度読み込むか、このままお待ちください。</div>'
+          : '<div class="muted" style="line-height:1.7;margin-bottom:14px;">電波の届くところで、もう一度お試しください。つながると自動で読み直します。</div>')
+        +'<button class="btn" id="waFirstRetry">もう一度読み込む</button>'
+        +'</div>'
+        +'<div style="text-align:center;margin-top:12px;"><button class="link" id="waFirstBack">ログイン画面に戻る</button></div>'
+      : '<div class="card" id="waFirstBox" data-first="loading" style="text-align:center;">'
+        +'<div style="font-size:15px;font-weight:700;margin-bottom:8px;">園の記録を読み込んでいます…</div>'
+        +'<div class="muted" style="line-height:1.7;">ログインはできています。このままお待ちください。</div>'
+        +'</div>')
+    +'</div>';
+}
+function waFirstWire(){
+  var r=document.getElementById('waFirstRetry');
+  if(r)r.onclick=function(){waFirstPull(true);};
+  var b=document.getElementById('waFirstBack');
+  /* 別のアカウントで入り直したいときの出口。ログアウトと同じ道（まだ届いていない登園・降園があれば確かめる） */
+  if(b)b.onclick=function(){logout();};
+  waFirstWatch();
+}
+/* 「読み込み中」を出したまま、読み込みが返らずに20秒たったら描き直して「読み込めませんでした」に替える。
+   ★以前は時間の見張りが無く（WAPI.call にも時間切れが無い）、最初の読み込みが返らず止まったままだと
+     「園の記録を読み込んでいます…」が出続けた。「もう一度読み込む」も「ログイン画面に戻る」も出ず、
+     電波が戻った・画面に戻ったときも、二重に頼まない作りなので何も変わらず、抜け出す手段が開き直ししかなかった。
+   読み込みを頼んだとき（WSYNC.pull）と、この画面を描いたとき（waFirstWire）に掛け直す */
+function waFirstWatch(){
+  clearTimeout(WSYNC.firstT);WSYNC.firstT=null;
+  var w=WSYNC.waiting(WAPI.token());
+  if(w<0||w>=WA_FIRST_WAIT_MS)return;
+  WSYNC.firstT=setTimeout(function(){
+    WSYNC.firstT=null;
+    try{
+      var box=document.getElementById('waFirstBox');
+      if(box&&box.getAttribute('data-first')==='loading'&&waFirstNeed())render();
+    }catch(e){}
+  },WA_FIRST_WAIT_MS-w+50);
+}
+/* まるごと読み直して、描き直す。読み込み中に重ねて頼まない。
+   again … 「もう一度読み込む」を押したとき。20秒たっても返らない読み込みは取りやめてから頼み直す（WSYNC.drop）。
+   電波が戻った・画面に戻ったとき（WSYNC.flush）は取りやめない。遅れて届く返事を待ち、届けばそのまま出す。 */
+function waFirstPull(again){
+  if(!waFirstNeed())return;
+  var tok=WAPI.token(),w=WSYNC.waiting(tok);
+  if(w>=0){
+    if(!again||w<WA_FIRST_WAIT_MS)return;
+    if(!WSYNC.drop(tok)){
+      /* 取りやめられないブラウザでは頼み直さず、待つ時間を始めから数え直して「読み込み中」に戻す（返事が届けば、そのまま出す） */
+      WSYNC.pend.forEach(function(r){ if(r.tok===tok)r.at=Date.now(); });
+      render();
+      return;
+    }
+  }
+  var p=WSYNC.pull();
+  /* 頼んだ時点で「読み込み中」に描き直す（前の「読み込めませんでした」を消す） */
+  render();
+  p.then(function(){render();},function(){render();});
+}
 
 /* ══ ダウンロードでお渡しする教材 ══════════════
    ファイルは園のサーバでお預かりしている。
@@ -7502,7 +7963,7 @@ function waServerLogin(email,pw,cb){
          ★以前は下の一掃で一緒に消していた。電波の無いところで押してしまい、
          30分後のロックをパスワードで解除すると、まだ送っていない登園が消えていた。
          別のご家庭のログインのときは、これまでどおり何も残さない。 */
-      var keepChk=null,keepDirty='';
+      var keepChk=null,keepDirty='',keepOwn={};
       try{
         /* 同じご家庭かどうかは、いま開いているお子さまのメールアドレスで見る。
            お子さまの番号だけで見ると、この端末で見本のご家庭（番号11など）を試したあと、
@@ -7515,21 +7976,35 @@ function waServerLogin(email,pw,cb){
         var owner='';try{owner=localStorage.getItem(CHK_OWNER_KEY)||'';}catch(x){}
         if(!same&&!!em&&owner===chkOwnerOf(em))same=true;
         if(same){keepChk=chkLog();if(!keepChk.length)keepChk=null;keepDirty=chkDirty();}
-      }catch(e){keepChk=null;keepDirty='';}
+        /* 同じご家庭なら、まだ園に届いていない保存（送り待ち・送っている最中の鍵）の手元の中身も取っておき、
+           片付けのあとに戻して送り待ちに載せ直す。読み込み（WSYNC.pull）は、その鍵を返事で上書きしない（WSYNC.mine）。
+           ★以前は登園・降園の控えしか取っておかなかったので、期限切れ（401）で送れなかった欠席の連絡やメッセージは、
+             期限切れのロックからパスワードで入り直した時点で手元から消え、園にも届かなかった。
+           別のご家庭のログインのときは、前のご家庭の送り待ちを捨てる（WSYNC.reset）。 */
+        if(same){
+          Object.keys(WSYNC.q).concat(Object.keys(WSYNC.sending)).forEach(function(k){
+            if(k==='checkin_log'||!WA_SEND.test(k))return;
+            var s=localStorage.getItem('cocoas_'+k);
+            if(s!==null)keepOwn[k]=s;
+          });
+        }else WSYNC.reset();
+      }catch(e){keepChk=null;keepDirty='';keepOwn={};try{WSYNC.reset();}catch(x){}}
       /* 前にこの端末を使った方の内容を残さない。
          共用のタブレットで、別のご家庭のものが見えてしまわないようにするため。
-         接続先の設定だけは残す。 */
+         消すのは未来WA（保護者）の鍵だけ。接続先の設定と、EduGrow（職員）・出品者の画面の鍵には触れない（waWipeLocal） */
       try{
-        var keep={'cocoas_wa_apiBase':1,'cocoas_wa_apiTenant':1};
-        Object.keys(localStorage).forEach(function(k){
-          if(/^cocoas_/.test(k)&&!keep[k])localStorage.removeItem(k);
-        });
+        waWipeLocal();
         /* 読み込み（WSYNC.pull）が、園の控えと足し合わせて送り直す */
         if(keepChk)localStorage.setItem('cocoas_checkin_log',JSON.stringify(keepChk));
         if(keepChk&&keepDirty)localStorage.setItem(CHK_UNSENT_KEY,keepDirty);
+        Object.keys(keepOwn).forEach(function(k){
+          try{ localStorage.setItem('cocoas_'+k,keepOwn[k]); WSYNC.q[k]=true; }catch(x){}
+        });
         localStorage.setItem(CHK_OWNER_KEY,chkOwnerOf(email));
       }catch(e){}
       return WSYNC.pull().then(function(){
+        /* 取っておいた、まだ園に届いていない保存を送る（載せ直しただけで、送る時計は掛かっていないため） */
+        if(Object.keys(WSYNC.q).length){clearTimeout(WSYNC.timer);WSYNC.timer=setTimeout(WSYNC.push,300);}
         /* 前にこの端末を使った方のぶんを残さない。
            ダウンロードとLINEはサーバにしか無いので、ご家庭が変わったら聞き直す。 */
         WDL.tried=false;WDL.loaded=false;WDL.list=[];WDL.map={};
@@ -7716,17 +8191,31 @@ function waSyncWire(){
   var b=document.getElementById('waSyncOff');
   if(b)b.onclick=function(){
     if(!confirm('サーバとの接続をやめます。この端末の中だけで動く状態に戻ります。よろしいですか？'))return;
-    WAPI.setToken('');WAPI.setBase('');WAPI.setTenant('');render();
+    /* つながっていない状態では、読み書きが共用の名前（職員の画面と同じ cocoas_contacts など）に切り替わる。
+       ご家庭のログイン（psession）を残したままだと、同じブラウザの職員の帳簿から、このお子さまの行を
+       職員だけの項目（園内の申し送りなど）ごと引いて保護者の画面に出してしまう。
+       ログアウトと同じく、保護者の鍵と園から受け取った控えを消し、ログイン画面に戻す。 */
+    if(!chkLogoutOk())return;
+    try{WSYNC.reset();}catch(e){}
+    try{waWipeLocal();}catch(e){}
+    try{sessionStorage.removeItem('cocoas_psession');sessionStorage.removeItem('cocoas_wa_guest');}catch(e){}
+    try{WPAY.reset();WPAY.pending=null;}catch(e){}
+    WAPI.setToken('');WAPI.setBase('');WAPI.setTenant('');
+    try{seedAll();}catch(e){}
+    render();
   };
 }
 
 /* ---- boot ---- */
+/* 以前の版が共用の名前に置いた控えを、保護者だけの端末で一度だけ移す（seedAll より先に。説明は waSrvMigrate） */
+waSrvMigrate();
 seedAll();
 waHelpInit();
 render();
 /* すでにログイン済みのタブでは、開いたときに最新を取りにいく */
 if(WAPI.online()){
-  WSYNC.pull().then(function(){render();}).catch(function(){});
+  /* 通らなかったときも描き直す。ご家庭の控えがまだ手元に無いタブでは、「読み込み中」を「読み込めませんでした」に替えるため */
+  WSYNC.pull().then(function(){render();},function(){if(waFirstNeed())render();}).catch(function(){});
   /* いまお渡しできる教材と、LINEの設定は、端末には残していない。
      開くたびにサーバへ聞き直す。 */
   WDL.load().then(function(){return WLINE.load();}).then(function(){render();});
