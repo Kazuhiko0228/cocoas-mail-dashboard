@@ -89,6 +89,11 @@
   /* いま見ている画面のプランを、上の帯にいつも出す。
      商談のときは、ここを押してプランごとの見え方をそのまま見せる。
      札が増えて帯が窮屈になったとき、はみ出さずに折り返すよう wrap を足した。 */
+  /* ★折り返しを足したつもりで書いていなかった。360px の日本語では札の行が1行のまま伸びて
+     画面から 7px はみ出し、40画面すべてが横に動くようになっていた（367px ／ 画面は 360px）。
+     折り返しは下の「スマホで持ったときの直し」の中に置いてある。
+     ★はじめここに（画面のはばに関わらず）書いたら、広い画面でも上の帯の並びがわずかに動き、
+       1280・1600 の写真が 1〜15/255 ずれた。広い画面は1画素も変えない決まりなので、せまい画面だけにした。 */
   .planbar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2);}
   .planbar .pb-l{font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:.04em;white-space:nowrap;}
   .planbar .pb-now{font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;}
@@ -139,9 +144,18 @@
     .field input,.field select,.field textarea{font-size:16px;}
   }
   /* タブレットの縦持ちでは、4列以上だけ2列に落とす */
-  @media(min-width:561px) and (max-width:820px){
+  @media(min-width:561px) and (max-width:880px){
     .grid[style*="1fr 1fr 1fr 1fr"],.grid[style*="repeat(4"]{
       grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;}
+  }
+  /* ★並べる箱の中に表を入れたとき、箱は「中身より細くならない」決まりのまま広がります。
+     設定の「戻せる時点」と「最近の変更ログ」を2列に並べている所で、
+     表のはばのぶんだけ列ごと広がり、767px の画面が横に動いていました
+     （日本語で 927px、英語では 1282px。画面の右はしが指で戻せなくなる）。
+     表は .scrollx の中で横に動かして見られるので、箱のほうは列のはばまで縮んでよい。
+     せまい画面だけに効かせます（広い画面は列が十分に長く、いまのままで収まっています）。 */
+  @media(max-width:880px){
+    .grid>*{min-width:0;}
   }
   /* 左右2段に分ける組み。せまい画面では横に並べきれず画面からはみ出すので1列に折り返す。
      並びは class に持たせる（style= に直に書くと、折り返しの指定が効かない）。
@@ -262,6 +276,15 @@
   .reci{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;cursor:pointer;background:#fff;}
   .reci.on{border-color:var(--teal-l);background:#f1faf6;}
   .reci input{width:auto;}
+  /* ★個別メッセージの宛先一覧。英語にすると右はしの状態の札が長くなり、
+     名前の欄が 390px の画面で 23px、360px の画面では 0px まで押しつぶされて、
+     保護者名が1文字ずつ縦に流れていた。
+     名前の欄がこれより細くならない下限を決めて、入りきらない札は下の行へ回す。 */
+  @media(max-width:560px){
+    .reci{flex-wrap:wrap;}
+    .reci>div{min-width:150px !important;}
+    .reci>.pill{margin-left:auto;}
+  }
   .chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;}
   .chip{font-size:12px;padding:5px 12px;border-radius:99px;border:1px solid var(--line);background:#fff;color:var(--tx2);cursor:pointer;}
   .chip.on{background:var(--teal);border-color:var(--teal);color:#fff;}
@@ -341,14 +364,90 @@
   /* せまい画面では、.scrollx に包み忘れた表も横に動かして見られるようにする。
      包み忘れが1つでもあると、画面ごと横にずれて、指で戻せなくなるため。
      ここは受け皿。新しく表を作るときは、これまでどおり .scrollx に包むこと。 */
-  @media(max-width:820px){
+  @media(max-width:880px){
     .card>table,.card>div>table{display:block;overflow-x:auto;max-width:100%;}
   }
   /* 表の中のプルダウンが、列にはさまれて指で押せない細さ（24px）まで潰れていた。
      せまい画面では、押せる大きさを下限として決めておく。 */
-  @media(max-width:820px){
+  @media(max-width:880px){
     td select,th select,td input:not([type="checkbox"]):not([type="radio"]){min-width:96px;}
   }
+  /* ★スマホで出席簿・午睡チェックの表を横に送ると、いちばん左の園児名まで一緒に流れて、
+     どの子の記録を見ているのか分からなくなっていた。
+     表のはばは 出席簿 891px・英語 1156px、午睡チェック 1498px。見えているのは 304px しかない。
+     いちばん左の列だけをその場に貼り付けて、名前がいつも見えるようにする。
+     行の下の細い線は表がまとめて引いているので、貼り付けた列だけ線が消えてしまう。
+     そこだけ内側の影で線を描き直している。 */
+  @media(max-width:880px){
+    /* ★ここで折り返しを止めると、貼り付けた列が画面いっぱいに広がって
+       右の列が1つも見えなくなった（配信カレンダーの英語で 318px）。
+       折り返すかどうかは、これまでどおり各画面の指定にまかせる。 */
+    table.stickycol th:first-child,table.stickycol td:first-child{
+      position:sticky;left:0;z-index:2;background:var(--card);
+      box-shadow:inset 0 -1px 0 var(--line2),6px 0 7px -4px rgba(31,41,55,.26);}
+    table.stickycol thead th:first-child{
+      z-index:3;box-shadow:inset 0 -1px 0 var(--line),6px 0 7px -4px rgba(31,41,55,.26);}
+  }
+  /* 横に送れることが分かる合図。右のはしに影を出す。
+     白い覆いを中身と一緒に動かし、影はその下に置いてある。
+     中身が収まっているときは覆いがちょうど影に重なって見えなくなるので、
+     送れる表のときだけ影が出る。 */
+  @media(max-width:880px){
+    .scrollx.hint{
+      background:
+        linear-gradient(to right,var(--card) 30%,rgba(255,255,255,0)) left center,
+        linear-gradient(to left,var(--card) 30%,rgba(255,255,255,0)) right center,
+        radial-gradient(farthest-side at 0 50%,rgba(31,41,55,.20),rgba(31,41,55,0)) left center,
+        radial-gradient(farthest-side at 100% 50%,rgba(31,41,55,.20),rgba(31,41,55,0)) right center;
+      background-repeat:no-repeat;
+      background-size:28px 100%,28px 100%,13px 100%,13px 100%;
+      background-attachment:local,local,scroll,scroll;}
+    /* ★上の「包み忘れの受け皿」で、包んだ箱ではなく表そのものが横に動く作りになっていた。
+       それだと貼り付けた列も一緒に流れ、箱に付けた影も出ない。
+       合図を出す表では、包んだ箱のほうを動かす。 */
+    .scrollx.hint>table{display:table;overflow:visible;max-width:none;}
+  }
+  /* ★せまい画面で、表の見出しや値が「未／実／施」のように1文字ずつ縦に割れていた。
+     列の幅は決めてあるのに折り返しを止めていないと、
+     表は列を1文字ぶんまで細らせてから折り返してしまう。
+     字は折り返さず、はばがたりないときは表ごと横に動かす（親は .scrollx）。
+     広い画面では割れていないので、せまい画面だけに効かせる。 */
+  @media(max-width:880px){
+    table.nwtbl th,table.nwtbl td{white-space:nowrap;}
+    /* 見出しだけ折り返さない表。左の列に長い画面名が入るもの */
+    table.nwhead th{white-space:nowrap;}
+    /* 長い文が入る列は、細くしすぎないようにしたうえで折り返してよい */
+    table.nwtbl td.wrapcell{white-space:normal;min-width:160px;}
+    /* 記録がまだ無いときの案内は1行の文章なので、折り返さないと表が異常に広くなる */
+    table.nwtbl td.empty{white-space:normal;}
+  }
+  /* ★監査対応の一覧は、状態・書類名・そろえる時期・行き先の4列に固定のはばを付けている。
+     スマホでは書類名の列に残るはばがほぼ 0 になり、
+     どこに何を保管するかの説明文が右はしで切れて読めなかった。
+     せまい画面では1件ずつ上下に並べ替えて、文章が折り返して読めるようにする。 */
+  @media(max-width:880px){
+    .card>table.austack{display:block;overflow:visible;}
+    table.austack tbody,table.austack tr,table.austack td{display:block;width:auto;}
+    table.austack tr{padding:12px 0;border-bottom:1px solid var(--line2);}
+    table.austack tr:last-child{border-bottom:none;}
+    table.austack td{width:auto !important;text-align:left !important;border-bottom:none;padding:3px 0;}
+    table.austack td:first-child{padding-bottom:8px;}
+    /* ★「保管：」のことばと同じ行に欄を置くと、英語で「Storage:」になったときだけ
+       欄が 17px 細くなり、そこで折り返しが1行ふえて、下の1行が隠れていた（英語で2件）。
+       欄は行をまるごと使う形にして、ことばの長さで はばが変わらないようにする。 */
+    .aupl{flex-wrap:wrap;}
+    .aupl textarea{flex:1 1 100%;}
+  }
+  /* ★監査の「保管：」の欄は、入れた文字の長さに関わらず 179px のままで、
+     長い置き場所は右はしで切れていた（30件中9件。広い画面でも6件）。
+     欄は色も枠もない見た目なので、切れていることも分からない。
+     その行の残りいっぱいまで広げる。枠が見えないので、広げても見た目は変わらず、
+     いままで隠れていた続きが出るだけ。 */
+  .aupl input,.aupl textarea{flex:1 1 auto;}
+  /* スマホで出す折り返せる欄。枠のない見た目にそろえるため、
+     右下の「引っぱって大きくする」つまみは出さない（高さは中身に合わせて自動で伸びる）。
+     ★はじめ .auplw とだけ書いたら、下の textarea.autogrow のほうが強くて つまみが出たままだった。 */
+  textarea.autogrow.auplw{resize:none;}
   /* 長文の記載欄：中身の量に合わせて高さが伸びるので、スクロールせずに全文が見える */
   textarea.autogrow{resize:vertical;overflow:hidden;min-height:40px;line-height:1.65;white-space:pre-wrap;word-break:break-word;}
   /* 表の中に長文が入る画面：セルを上ぞろえにして、長い語も折り返す */
@@ -383,6 +482,10 @@
   .shiftcell.s日{background:#EAF3DE;color:#27500A;}
   .shiftcell.s遅{background:#E6F1FB;color:#123E6B;}
   .shiftcell.s休{background:#F1EFE8;color:#98A2AE;}
+  /* 勤務表の上にある「早・日・遅」の時刻の組。「休憩」のことばと休憩時刻の欄をひと組にする。
+     すき間は親（.shpat）と同じ 6px なので、広い画面の並びは組にする前と同じ。
+     せまい画面で次の行へ送るための足場で、送る指定は下のスマホの所にある。 */
+  .shbrk{display:flex;align-items:center;gap:6px;}
   #printArea{display:none;}
   @page{size:A4 landscape;margin:14mm;}
   @media print{
@@ -753,6 +856,282 @@ button.hpr:hover{background:#FAF9F5}
   .fdperi input[type="date"]{width:100%}
   .fdperi .fdpert{text-align:center}
 }
+
+/* ══ スマホで持ったときの直し（2026-09-21 安田さんのご指摘）══════════════
+   ここから下は、せまい画面のときだけ効かせます。
+   1280px 以上の見た目は1つも変えません（今日そろえた6つの四角と連絡ボードの下の線を崩さないため）。 */
+
+/* ★窓（記録を書く小さな画面）を開いているあいだも、右下の丸いボタンが上に乗っていた。
+   丸が出るのは右下で、窓の「保存」も右下にある。保存を押したつもりで相談の板が開き、
+   書いたものが保存できなかった。文字を打っていると下半分がキーボードで埋まるので、
+   保存はほぼ全部が丸の下に隠れていた。
+   メニューをかぶせて開いているときも、暗い幕の上に丸だけが残って押せていた。
+   窓（#modalRoot の中身）があるあいだと、メニューが開いているあいだは、丸も板も出さない。
+   ※窓は閉じると取り除かれるので、中身の有無で見分けられる。 */
+@media(max-width:880px){
+  #modalRoot:not(:empty)~#aiFab,#modalRoot:not(:empty)~#aiPanel{display:none !important;}
+  .app:not(.navoff)~#aiFab,.app:not(.navoff)~#aiPanel{display:none !important;}
+}
+
+/* ★丸いボタンが、画面のとちゅうにある押しどころに重なっていた。
+   シフト表の勤務マス・経費の承認者・権限管理のチェック・配信カレンダーの作成・
+   全体周知の担当者・午睡のマスなどが、丸の下に入って押せなくなっていた。
+   ★58px → 46px に小さくし、送っているあいだ薄くする、までは前に入れた。
+     それでも 360px の日本語で10画面15件、英語で15画面19件が丸の下に残っていた。
+     いちばん困るのはホームで、右下の「午睡チェック」の四角を押すと相談の板が開いた。
+     薄くしても押しどころは丸に取られたままなので、「薄さ」では直らない。
+
+   ここからが今回の直し。
+   浮いている丸は、中身の上に乗っているかぎり必ずどこかの押しどころを隠す。
+   そこで、せまい画面では画面の右はしに丸1つぶんの「通り道」を空けて、そこに丸を置く。
+   - 丸は 46px → 38px、右はしから 3px（＝ 360px の画面で x は 319〜357px）
+   - カードの中身は、もともと右はしから 43px 内側で終わっている（左右の余白 18px ＋ カードの内側 25px）。
+     だから、カードの中に入っているものは、これだけで丸と1つも重ならなくなる。
+     ※この 43px が、丸の大きさの上限を決めています。カードの内側の余白（.card の 24px）を
+       詰めるときは、ここの 38px と 3px も一緒に見直してください。
+     ★内側の余白を書き足したカードが10枚あり（12px・14px・20px）、
+       そこだけ中身が右はしから 33px まで出てきて、横向き（844px）で丸に重なっていた。
+       せまい画面では、カードの右の余白だけを 24px にそろえて、この 43px を必ず成り立たせる。
+   - ホームとメニューは、カードに入らない札が画面のはばいっぱいに並ぶ。
+     この2つの画面だけ、中身ぜんたいを右はしから 34px 内側へ寄せる。
+     ★はじめ札の並び（.hday・.tiles）だけを寄せたら、上のカードと右はしがそろわず、
+       ホームで連絡ボードのカードだけが右へはみ出して見えた。画面ごと寄せるほうが揃う。
+   - カレンダー取込の帯も、カードに入らず画面のはばいっぱいに出るので同じだけ寄せる。
+   管理者43画面・一般24画面 × 日英 × 360/390/430/540/767/880/844横向き で、
+   画面の上・まん中・下まで送りながら、丸の四角の中に入る押しどころを総当たりで数えて 0 件
+   （2026-09-21 直したあとに、同じ数え方でもう一度数え直した結果です）。
+   ★はじめ 820px までにしていたら、横向き（844×390）が外れて 28画面86件が残っていた。
+     この通り道の計算は「左右の余白 18px」が前提で、それが効くのは 880px まで。
+     そこで 880px までを同じ扱いにする。881px 以上の見た目は1行も変わりません。 */
+@media(max-width:880px){
+  #aiFab{width:38px;height:38px;right:3px;bottom:12px;font-size:18px;
+    transition:transform .1s,opacity .18s;}
+  #aiFab .dot{width:10px;height:10px;}
+  /* 送っているあいだは薄くして、通り道のとなりに何があるか見えるようにする */
+  #aiFab.scrolling{opacity:.3;}
+  section[data-page="home"],section[data-page="menu"],.cal-banner{padding-right:34px;}
+  .card{padding-right:24px !important;}
+}
+/* 相談の板そのものは、手のひらの幅のときだけ画面いっぱいに広げる。
+   タブレット（834px など）では、これまでどおり 384px の板のまま出す。 */
+@media(max-width:880px){
+  #aiPanel{right:10px;left:10px;width:auto;max-width:none;bottom:60px;}
+}
+
+/* ★勤務表の上にある「早・日・遅」の時刻。
+   早番・日勤・遅番の3つを、1行に横ならびで詰め込んでいた。
+   せまい画面では入力の字を 16px にしているので、休憩の欄（100px）には
+   「12:00-13:0」までしか入らず、終わりの時刻がどの区分でも読めなかった。
+   「休憩」のことばも、はばが 11px まで押しつぶされて「休／憩」と縦に割れていた。
+   せまい画面では、区分ごとに1行を使い、「休憩」とその欄はさらに次の行へ送る。
+   時刻の欄は、その行の残りいっぱいまで広げる（360px で 240px ほど）。 */
+@media(max-width:880px){
+  .shpat{flex:1 1 100%;flex-wrap:wrap;}
+  .shpat>.shiftcell{flex:none;}
+  .shbrk{flex:1 1 100%;}
+  .shbrk>.muted{flex:none;white-space:nowrap;}
+  .shpat>input,.shbrk>input{flex:1 1 120px;min-width:120px;width:auto !important;}
+}
+
+/* ★上の帯が 180px（画面のたての2割）を占めたまま貼り付いていた。
+   3段に折り返していて、そのうち1段は「表示中のプラン」。園の毎日の仕事では使わない。
+   左右の余白も 26px で、中身（18px）と合っていなかった。
+   せまい画面では、プランの札を出さずに1段にまとめ、余白を中身と同じ 18px にそろえる。
+   見出しの下の小さな行き先（記録・書類 など）は、見出しと同じことを言うので出さない。
+   「新規メッセージ」は、ことばを消してプラスの印だけにする（何のボタンかは title で残る）。
+   ★ここを 820px までにしていたので、横向き（844×390）と 880px の端末が外れていた。
+     その2つでは、プランの札と見出しの下の行き先が出たまま帯が折り返し、
+     42画面すべてで帯が 129〜134px（横向きでは画面のたての3分の1）になっていた。
+     せまい画面のほかの直しは 880px までを1つの区切りにしているので、ここも 880px にそろえる。
+     実測：844×390 と 880×900 の日英とも、42画面の帯が 129/134px から 51px になった。
+     881px 以上は1行も変わりません。 */
+@media(max-width:880px){
+  /* ★すき間は 8px だった。見出しに配れるはばが 134px しかなく、
+     英語の長い題（Inspection document storage など）が3〜4段に折り返して、
+     帯が 74〜92px に伸びていた（360px・英語で9画面）。
+     すき間を 4px にして、下の「ことばの切り替え」と「?」も小さくし、
+     見出しのはばを 134px → 166px に広げる。これで題は必ず2段までにおさまり、
+     2段（37.7px）は帯の高さを決めている 44px のボタンより低いので、帯は 61px のまま動かない。
+     左右の余白 18px は、中身と左はしをそろえるためのものなので変えない。 */
+  .topbar{padding:8px 18px;gap:4px;}
+  .topbar>.spacer{display:none;}
+  /* ★はじめ「はばは中身なり（flex:1 1 auto）」にしたら、見出しが 205px のまま縮まず、
+     「新規メッセージ」だけが2段目へ回って帯が 113px になっていた。
+     折り返す形のままだと、はみ出す前に次の段へ送られてしまう。
+     はばの元を 0 にして、余ったぶんだけを見出しに配る。こうすると縮んでから並ぶ。
+     折り返し自体は残す（共有中の帯が出る園で、横にはみ出させないため）。 */
+  .topbar .tbttl{flex:1 1 0;min-width:0;}
+  .topbar .tbttl .crumb{display:none;}
+  /* ★「?」を指で押せる 44px にしたら、見出しの行の下にぶら下がって帯が 61px から 80px
+     （英語の長い見出しでは 99px）に伸びた。見出しの中を横ならびにして、
+     「?」を文字の右どなりに置く。帯は日本語で 61px、英語でも最大 92px におさまる。
+     40画面・日英・360/390 で測って、高くなるのは英語の「日常チェック」1つだけ。 */
+  .topbar .tbttl h1{font-size:14.5px;line-height:1.3;overflow-wrap:anywhere;display:flex;align-items:center;}
+  #planBar{display:none;}
+  /* 出さない決まりにしたが、あとで出すことにしたときに備えて折り返しも入れておく。
+     1行のまま伸びると、360px の日本語で 7px はみ出して画面ごと横に動いた。 */
+  .planbar{flex-wrap:wrap;}
+  .topbar .btn-primary{width:44px;min-width:44px;padding:0;gap:0;font-size:0;justify-content:center;}
+  /* ほかの端末と共有中の帯。せまい画面では、印と「今すぐ同期」だけにして1段におさめる */
+  #syncBar .muted,#syncBar #syncStatus{display:none;}
+  /* ことばの切り替え（日本語 ⇄ EN）。帯の中で 78px を使っていた。
+     字と余白を詰めて 58px にし、空いた 20px を見出しに回す。
+     高さは指で押せる 44px のままにしておく。 */
+  .langtg{min-height:44px;align-items:center;}
+  .langtg span{padding:6px 3px;font-size:10px;}
+  /* ★「?」を 44px にしたら、見出しと横に並ぶぶん、題に残るはばが 80px しか無くなり、
+     英語の題が4段に折り返して帯が 92px になっていた（360px の日常チェック・保育記録）。
+     見た目は 34px に戻し、押せる広さだけを四方 5px ずつ外へ広げて 44px を保つ。
+     広げるのは透明な当たり判定だけなので、見出しの字の上には何も描かれない。 */
+  #helpBtn{width:34px;height:34px;font-size:15px;position:relative;}
+  #helpBtn::after{content:"";position:absolute;left:-5px;right:-5px;top:-5px;bottom:-5px;}
+  #helpWrap{margin-left:4px !important;}
+}
+
+/* ★入力する所の字が 16px より小さいと、iPhone は触れた瞬間に画面ごと拡大する。
+   拡大したままになるので、指で戻すまで表の右はしが見えなくなっていた。
+   361か所が 11〜13.5px だった。せまい画面では、入力する所をすべて 16px にする。
+   午睡の担当の欄のように、画面をつくる所で字の大きさを直に書いてある場所があるので、
+   そこも上書きできるよう !important を付ける（ここはせまい画面の中だけ）。
+   ★ここだけ 820px のままだったので、横向きのスマホ（844px）とタブレットの分割（821〜880px）で
+     341か所が小さい字に戻り、触れた瞬間に画面が拡大していた。ほかのスマホ向けの手当てと同じ 880px にそろえる。 */
+@media(max-width:880px){
+  input,select,textarea,
+  .field input,.field select,.field textarea,
+  .ai-foot input,#staffLogin input,
+  td input,td select,td textarea,th input,th select,th textarea{font-size:16px !important;}
+}
+
+/* ★日付・月・日時の欄は、中の字をブラウザが自分で描きます。
+   はばを 150〜200px と直に決めてあったので、字を 16px にしたとたんに
+   「September 2026」が「September 202」までしか出なくなりました
+   （シフト表・経費・カリキュラム・身体測定・やること・研修の月の欄と、
+   全体周知の予約日時、登園の日付。日英とも 360px で8か所）。
+   字が 13.5px だったころも 171px 必要な所に 160px しか無く、7か所が切れていました。
+   ここは中身が欄の外へ流れないので、切れていること自体が画面から分かりません。
+   せまい画面では、欄のはばの下限を「中身なり」にして、決め打ちのはばより中身を優先する。
+   いちばん長い日時の欄でも 227px で、カードの中に残るはば（360px の画面で 274px）に収まるので、
+   画面が横に動くことはありません。 */
+@media(max-width:880px){
+  input[type="date"],input[type="month"],input[type="week"],
+  input[type="time"],input[type="datetime-local"]{min-width:max-content;}
+}
+
+/* ★指で押す所が小さすぎた。消す「×」が 14px、チェックが 13px、ボタンの高さが 33px しかなく、
+   となりを押してしまう。よく押すもの・消すものから、44px に近づける。
+   表の中のマスは、大きくすると表が横に広がるが、表は横に送れるので読めなくならない。
+   ★ここを 820px までにしていたので、横向き（844×390）と 880px の端末が外れていた。
+     指で持つ端末なのに、チェックが 13px・札が 21px のままで、となりを押していた。
+     せまい画面のほかの直しは 880px までを1つの区切りにしているので、ここもそろえる。
+     そのぶん、横向きでは上の帯が 51px から 61px になります（中のボタンが 44px になるため）。
+     帯は1段のままで、縦に使える所は 10px 減るだけなので、押し間違いが減るほうを取りました。
+     丸いボタンの下に押しどころが入らないことは、844×390 と 880×900 の日英・管理者/一般で
+     数え直して 0 件のままであることを確かめています。881px 以上は1行も変わりません。 */
+@media(max-width:880px){
+  .btn{min-height:44px;min-width:44px;}
+  #navToggle{width:44px;height:44px;}
+  /* 「?」（#helpBtn）と「ことばの切り替え」（.langtg）は、帯のはばの取り合いに関わるので
+     上の「上の帯」のまとまりへ移しました。ここには置かないでください。 */
+  .seg button{min-height:44px;}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;}
+  /* 連絡ボードの「＋」と、やることの見出し。毎日押すものなので先に大きくする */
+  .hbb{width:44px;height:44px;}
+  .tkhead{min-height:44px;}
+  /* ★チェックと丸印は、画面をつくる所で style="width:auto" と直に書いてある場所が
+     28か所あり、指定を足しても 13px のままだった。ここだけは強く上書きする。
+     44px にはしない。出席簿のように1行に何本も並ぶ表では、
+     マスが 44px になると行がとても高くなり、いちどに見える園児が2〜3人まで減る。
+     ★24px にしたが、まだ親指の先（44px）の半分ちょっとで、となりを押していた。
+       同じ行にある入力の欄はすでに高さ 44px を下限にしてあるので、
+       チェックを 32px にしても行はそれ以上高くならない（32 < 44）。
+       13px → 32px（面積で 6.1倍）にする。 */
+  input[type="checkbox"],input[type="radio"]{width:32px !important;height:32px !important;}
+  /* 入力する所は、字を 16px にしても高さが 28〜38px のままの所があった（余白を直に書いてある） */
+  input:not([type="checkbox"]):not([type="radio"]),select,textarea{min-height:44px;}
+  .hbd{font-size:22px;padding:0 10px;min-width:44px;min-height:44px;}
+  /* 朝いちばんに押す「ログイン」。余白を直に書いてあるので 39〜43px しか無かった。
+     その下の「デモのログイン情報を見る」も、字だけで 19px だった。 */
+  #staffLogin button.sl-go,#staffLogin .sl-hint button{min-height:44px;}
+  .ai-head button{width:44px;height:44px;font-size:20px;}
+  .ai-foot button{min-height:44px;}
+  /* AIの板の「保育の相談／使い方」の切り替え（42px）。
+     下に並ぶ聞きたいことの札は 31px だったが、44px にすると札だけで板の半分を使ってしまうので
+     40px までにする（答えを読む所を狭くしないため）。 */
+  .ai-tabs button{min-height:44px;}
+  .ai-chips button{min-height:40px;}
+  .napcell{min-width:44px;height:44px;font-size:14px;}
+  .shiftcell{min-width:44px;height:44px;font-size:14px;}
+  /* AI保育計画の上の3つの切り替え（アイディア自動生成・EduGrow AI・AI記録管理）。
+     余白を直に書いてあるので高さが 38〜43px しか無く、となりの札を押していた */
+  button[data-aitab]{min-height:44px;}
+  /* 年間の一覧の「やること」の列。題名を押すと「なぜ必要か」が開く所なのに、
+     はばが 43px しか残らず、押しどころとして小さすぎた（字も縦に割れていた）。
+     下限を 220px にして、足りないぶんは表ごと横に送る。 */
+  table.anntbl td.row-name,table.anntbl thead th:nth-child(2){min-width:220px;}
+  /* 年間スケジュールの見出し（題名を押すと「なぜ必要か」が開く）。
+     はばは 220px あるのに高さが 16〜32px しかなく、上下のとなりの題を押していた。
+     1画面に13個ならぶ、よく押すボタンなので 44px にする。 */
+  .anhead{min-height:44px;}
+  /* やることカレンダーの札。44px にすると1日のマスに2つ入れただけで
+     1か月が画面3枚ぶんになり、月を見わたす道具でなくなる。
+     21px → 30px（1.4倍）にして、札どうしの間も 3px から 5px に広げる。
+     ★30px でもまだ親指の先に足りず、日をまたいで隣の札を押していた。
+       月を1画面で見わたせる形は守りたいので 44px にはせず、36px（1.7倍）にする。 */
+  .tkchip{min-height:36px;padding:8px;margin-bottom:5px;}
+}
+
+/* ★窓（職員を追加・明細など、記録を書く小さな画面）の「保存」が押せなかった。
+   iPhone は、字を打ちはじめると画面の下半分を鍵盤がふさぎます。
+   窓は画面のまん中に出していたので、下にある「保存」が鍵盤の下に入り、
+   指が1本も届きませんでした（390×844・鍵盤 336px のとき、鍵盤の上の縁は y=508 で、
+   保存は y=734。226px ぶん下にありました）。
+   窓は position:fixed で画面に貼り付いているので、画面を送っても動きません。
+   直し方は2つ重ねます。
+   ① 鍵盤で隠れていない高さ（--vvh）と、その上の位置（--vvt）を下のところで書き出し、
+      せまい画面では窓ぜんたいをその中におさめる。
+   ② 窓のいちばん下にある「キャンセル／保存」の行を、窓の下に貼り付ける（.mfoot）。
+      中身が長くて送らないと見えない窓でも、保存はいつも見えている所に残ります。
+   --vvh が無いブラウザ（visualViewport を持たない古い端末）では 100% のままで、
+   これまでと同じ見え方になります。 */
+@media(max-width:880px){
+  .modal-bg{top:var(--vvt,0px);height:var(--vvh,100%);}
+  .modal{max-height:100%;padding-bottom:0;}
+  .modal>.mfoot{position:sticky;bottom:0;z-index:2;background:var(--card);
+    padding:12px 0 18px;margin-top:8px;box-shadow:0 -9px 12px -10px rgba(0,0,0,.4);}
+}
+
+/* ★ダッシュボードの「フォロータスク」で、保護者の名前と日付が1文字ずつ縦に割れていた
+   （360px の日本語で1行が 170px、英語では 253px。名前の欄のはばが 30〜57px しか残っていない）。
+   1行に「印・名前と日付・ボタン2つ」を横ならびで入れていて、
+   ボタンの側は字を折り返さない決まりなので 185〜211px を取り、
+   残りぜんぶが名前の欄に押し付けられていた。
+   せまい画面では、ボタンの行をまるごと次の段へ送って右へ寄せる。
+   名前の欄は1行のはばいっぱい（360px で 270px）になる。 */
+@media(max-width:880px){
+  .task{flex-wrap:wrap;}
+  /* ★はじめ「いちばん最後の子」とだけ書いたので、ボタンが1つだけの行
+     （保護者からの連絡の「返信する」・本日のタスク・今週の配信予定）でも
+     そのボタン自体が1行のはばいっぱいに伸び、字が右はしに寄って別の形に見えていた。
+     次の段へ送りたいのは「ボタンを2つまとめて入れてある箱」なので、箱だけにする。
+     ボタンが直に置いてある行は、これまでどおり名前のとなりに並ぶ。 */
+  .task>div:last-child{flex:1 1 100%;justify-content:flex-end;margin-left:0;}
+}
+
+/* ★ダッシュボードの「やり取り中の連絡リスト」。列のはばを決めていないので、
+   名前の列に 38px しか残らず、「佐藤 健一」が1文字ずつ縦に割れて
+   1行の高さが 221〜265px（360px の画面のたての3分の1）になっていた。
+   名前の列に 160px を約束して、足りないぶんは表ごと横に送る（表は .scrollx で包んだ）。 */
+@media(max-width:880px){
+  table.dashlead td.row-name,table.dashlead thead th:first-child{min-width:160px;}
+}
+
+/* ★連絡先・園児名簿の名札の丸（.avatar）で、2文字が2行に割れていた。
+   丸は 34px の正円のつもりだったが、横ならびの中で縮む決まりのままだったので、
+   となりの名前に押されて 24.5px（英語では 19.5px）まで細っていた。
+   丸は縮ませない。中の字も折り返さない。 */
+@media(max-width:880px){
+  .avatar{flex:none;white-space:nowrap;}
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
@@ -780,10 +1159,12 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
     <div class="topbar">
       <button id="navToggle" title="メニューの開け閉め" aria-label="メニューの開け閉め"><span></span><span></span><span></span></button>
       <!-- 読み込みが終わるまでの見出し。開く画面はホームなので、ここもホームにする（2026-09-16） -->
-      <div><div class="crumb" id="crumb">ホーム</div><h1 id="pageTitle">ホーム</h1></div>
+      <!-- 見出しの箱に名前を付ける。せまい画面で、ここだけを縮めて1段におさめるため -->
+      <div class="tbttl"><div class="crumb" id="crumb">ホーム</div><h1 id="pageTitle">ホーム</h1></div>
       <div class="spacer"></div>
       <span id="langBox"></span>
-      <button class="btn btn-primary" data-go="compose">{ic:plus}新規メッセージ</button>
+      <!-- せまい画面ではプラスの印だけにするので、何のボタンかは title で残す（英語にも切り替わる） -->
+      <button class="btn btn-primary" data-go="compose" title="新規メッセージ">{ic:plus}新規メッセージ</button>
     </div>
     <div class="content">
       <section data-page="home"></section>
@@ -4044,6 +4425,73 @@ function fimgSweep(){try{wireFileImgs(document);}catch(e){}}
   var t=null;
   function later(){ if(t)return; t=setTimeout(function(){t=null;fimgSweep();},0); }
   try{ new MutationObserver(later).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+})();
+
+/* ══ 窓（記録を書く小さな画面）を、鍵盤の上にきちんと出す ══════════
+   ★スマホで窓の「保存」が押せませんでした。
+     字を打ちはじめると画面の下半分が鍵盤でふさがりますが、窓は画面に貼り付いていて
+     動かないので、下にある「保存」が鍵盤の下に入ったままになります
+     （390×844・鍵盤 336px のとき、鍵盤の上の縁は y=508、保存は y=734）。
+   ブラウザは「鍵盤で隠れていない所」の高さと位置を教えてくれます（visualViewport）。
+   それを --vvh（見えている高さ）と --vvt（その上の位置）として書き出し、
+   窓の大きさはスタイルの側（せまい画面のところ）で合わせます。
+   教えてくれない古い端末では何も起きません（これまでどおりの見え方）。 */
+(function(){
+  var vv=window.visualViewport;
+  if(!vv||!document.documentElement||!document.documentElement.style.setProperty)return;
+  var t=null;
+  function put(){
+    t=null;
+    try{
+      var r=document.documentElement.style;
+      r.setProperty('--vvh',Math.round(vv.height)+'px');
+      r.setProperty('--vvt',Math.round(vv.offsetTop)+'px');
+    }catch(e){}
+  }
+  /* 鍵盤の出し入れは何度も続けて知らされるので、まとめて1回にする */
+  function later(){ if(t)return; t=setTimeout(put,0); }
+  try{ vv.addEventListener('resize',later); vv.addEventListener('scroll',later); }catch(e){}
+  put();
+})();
+
+/* 窓のいちばん下にある「キャンセル／保存」の行に印（mfoot）を付ける。
+   その行は、せまい画面では窓の下に貼り付けて、いつでも押せるようにしている。
+   ★窓は30か所でそれぞれ作っていて、作る所を1つずつ直すと必ずどこかが漏れる。
+     この製品では、その漏れ方で何度も不具合が出ている。
+     増えた窓を見張って、ここでまとめて印を付ける。
+   印を付けるのは「ボタンだけが入っていて、書き込む欄が1つも無い、いちばん下の行」。
+   書き込む欄が混じっている行（検索の欄とボタンが並ぶ行など）には付けない。 */
+function mfootMark(root){
+  if(!root||!root.querySelectorAll)return;
+  var ms=root.querySelectorAll?root.querySelectorAll('.modal'):[];
+  for(var i=0;i<ms.length;i++){
+    var m=ms[i];
+    if(m.querySelector('.mfoot'))continue;
+    /* いちばん下から2つまでを見る（ボタンの行の下に注意書きが付く窓があるため） */
+    var kids=m.children,seen=0;
+    for(var j=kids.length-1;j>=0&&seen<2;j--){
+      var k=kids[j];
+      if(k.nodeType!==1)continue;
+      seen++;
+      if(!k.querySelector||!k.querySelector('button'))continue;
+      if(k.querySelector('input,select,textarea'))continue;
+      k.className=(k.className?k.className+' ':'')+'mfoot';
+      break;
+    }
+  }
+}
+(function(){
+  if(typeof MutationObserver==='undefined')return;
+  function start(){
+    var root=document.getElementById('modalRoot');
+    if(!root)return;
+    try{
+      new MutationObserver(function(){ try{ mfootMark(root); }catch(e){} })
+        .observe(root,{childList:true,subtree:true});
+    }catch(e){}
+    try{ mfootMark(root); }catch(e){}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 /* ══ ブラウザの「戻る」「進む」で画面を行き来する ══════════
    ★安田さんのご依頼（2026-08-27）。1枚のHTMLなので、これまでは
@@ -17327,7 +17775,10 @@ function renderDash(){
       '</div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;"><h3>'+ic('users')+'やり取り中の連絡リスト</h3>'+
-      (activeLeads.length?'<table><thead><tr><th>名前</th><th>状況</th><th>次回アクション</th><th>方法</th></tr></thead><tbody>'+activeLeads.map(function(c){var age=(typeof spAge==='function')?spAge(c.dob):'';return '<tr style="cursor:pointer;" data-lead="'+esc(c.id)+'"><td class="row-name">'+esc(c.name)+' <span class="row-sub">'+esc(c.child||'')+(age?' '+esc(age):'')+'</span></td><td>'+statusPill(c.status)+'</td><td class="row-sub">'+(c.nextAction?fmt(c.nextAction):'—')+'</td><td>'+(c.nextMethod?'<span class="tag">'+c.nextMethod+'</span>':'<span class="muted">—</span>')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">対応中のリードはありません</div>')+
+      /* ★スマホでは、名前の列に 38px しか残らず「佐藤 健一」が1文字ずつ縦に割れて、
+         1行の高さが 221〜265px（画面のたての3分の1）になっていた。
+         表を横に送れる形に包み、名前の列には下のところで 160px を約束する。 */
+      (activeLeads.length?'<div class="scrollx hint"><table class="dashlead"><thead><tr><th>名前</th><th>状況</th><th>次回アクション</th><th>方法</th></tr></thead><tbody>'+activeLeads.map(function(c){var age=(typeof spAge==='function')?spAge(c.dob):'';return '<tr style="cursor:pointer;" data-lead="'+esc(c.id)+'"><td class="row-name">'+esc(c.name)+' <span class="row-sub">'+esc(c.child||'')+(age?' '+esc(age):'')+'</span></td><td>'+statusPill(c.status)+'</td><td class="row-sub">'+(c.nextAction?fmt(c.nextAction):'—')+'</td><td>'+(c.nextMethod?'<span class="tag">'+c.nextMethod+'</span>':'<span class="muted">—</span>')+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="empty">対応中のリードはありません</div>')+
     '</div>');
   s.querySelectorAll('[data-task]').forEach(function(b){b.addEventListener('click',function(){var p=b.getAttribute('data-task').split('|');routeTo(p);});});
   s.querySelectorAll('[data-lead]').forEach(function(r){r.onclick=function(){contactModal(+r.getAttribute('data-lead'));};});
@@ -17924,6 +18375,13 @@ function contactModal(id,forceKind){
     })()+
     /* リード（営業）のときはメモ欄を出さない。共有事項に一本化したため。
        これまでメモに書いた内容は消さず、隠して持っておく。 */
+   /* ★「在園児のときだけ出す欄」の箱（enrolledFields）を閉じ忘れていた。
+      そのため、メモ欄と「キャンセル／保存」の行まで、その箱の中に入っていた。
+      リード（顧客リスト）の方を開くと箱ごと隠れるので、保存のボタンが1つも出ず、
+      体験の結果や次回アクションを書いても、残す手段が無かった（実測：f_save の高さ 0）。
+      ここで箱を閉じて、メモ欄と保存の行を箱の外に出す。
+      メモ欄は、もともと下の applyKind が別に出し入れしているので、動きは変わらない。 */
+    '</div>'+
    '<div class="field" id="f_noteRow"><label>メモ</label><input id="f_note" value="'+esc((c.note||''))+'"></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="f_cancel">キャンセル</button><button class="btn btn-primary" id="f_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
@@ -19277,15 +19735,18 @@ function renderDeliveries(){
   var rows=DELIVERIES.map(function(d){var t=nextDelivery(d);return {d:d,t:t};});
   var sched=stGet('scheduled',[]).slice().sort(function(a,b){return a.when<b.when?-1:1;});
   s.innerHTML=
-    (sched.length?'<div class="card" style="margin-bottom:16px;"><h3>'+ic('clock')+'予約済み配信（'+sched.length+'件）</h3><div class="muted" style="margin-bottom:8px;">予約したものは、その日が来ても自動では送られません。当日に「全体周知・お知らせ」を開いて「未来WAへ送る」を押してください。行を押すと、宛先と文章を見られます。</div><table><thead><tr><th style="width:150px;">予約日時</th><th style="width:100px;">種別</th><th style="width:150px;">内容</th><th>宛先</th><th style="width:90px;"></th></tr></thead><tbody>'+sched.map(function(q){
+    (sched.length?'<div class="card" style="margin-bottom:16px;"><h3>'+ic('clock')+'予約済み配信（'+sched.length+'件）</h3><div class="muted" style="margin-bottom:8px;">予約したものは、その日が来ても自動では送られません。当日に「全体周知・お知らせ」を開いて「未来WAへ送る」を押してください。行を押すと、宛先と文章を見られます。</div><div class="scrollx hint"><table class="stickycol nwtbl"><thead><tr><th style="width:150px;">予約日時</th><th style="width:100px;">種別</th><th style="width:150px;">内容</th><th>宛先</th><th style="width:90px;"></th></tr></thead><tbody>'+sched.map(function(q){
       var ns=schNames(q);
       return '<tr><td class="row-name">'+esc(q.when.replace('T',' '))+'</td><td>'+esc(q.kind||'')+'</td><td>'+esc(q.label||'')+'</td>'
         +'<td class="row-sub" style="line-height:1.7;">'+(ns.length?ns.map(function(n){return '<div>'+esc(n)+'</div>';}).join('')+'<div style="color:var(--tx3);">計 '+ns.length+'名</div>':'<span class="muted">—</span>')+'</td>'
-        +'<td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm btn-ghost" data-schview="'+esc(q.id)+'">'+ic('mail')+'</button><button class="btn btn-sm btn-ghost" data-schdel="'+esc(q.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table></div>':'')+
+        +'<td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm btn-ghost" data-schview="'+esc(q.id)+'">'+ic('mail')+'</button><button class="btn btn-sm btn-ghost" data-schdel="'+esc(q.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table></div></div>':'')+
     '<div class="card" style="margin-bottom:16px;"><h3>'+ic('cal')+'定期配信スケジュール</h3>'+
-      '<table><thead><tr><th>配信</th><th>配信時期</th><th>対象</th><th>次回予定</th><th></th></tr></thead><tbody>'+
+      /* ★英語では表が 478px になり、「次回予定」と「作成」が画面の外に出たまま、
+         横に送れる合図も無かった。hint で影を出し、stickycol で配信の名前を貼り付けて、
+         送った先でも何の配信の「作成」か分かるようにする。 */
+      '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>配信</th><th>配信時期</th><th>対象</th><th>次回予定</th><th></th></tr></thead><tbody>'+
         rows.map(function(r){var nd=r.t?(fmt(iso(r.t))+(daysUntil(r.t)<=0?' <span class="tag">本日</span>':' <span class="row-sub">'+daysUntil(r.t)+'日後</span>')):'<span class="row-sub">都度</span>';return '<tr><td class="row-name">'+r.d.label+'</td><td class="row-sub">'+r.d.when+'</td><td>'+r.d.to+'</td><td>'+nd+'</td><td style="text-align:right;"><button class="btn btn-sm btn-primary" data-go2="'+esc(r.d.go.join('|'))+'">作成</button></td></tr>';}).join('')+
-      '</tbody></table></div>'+
+      '</tbody></table></div></div>'+
     '<div class="cal-banner" style="margin-bottom:16px;"><div style="width:42px;height:42px;border-radius:12px;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;">'+ic('cal')+'</div><div style="flex:1;"><div style="font-weight:600;">Googleカレンダー連携（次フェーズ）</div><div class="muted">体験日・説明会・Daycare対象日をカレンダーから取込み、リマインド／サンクス／請求書を予定どおり自動配信。</div></div><button class="btn btn-primary" id="calSync">カレンダーに取り込む</button></div>'+
     /* ★「ダッシュボードのフォロータスクにまとめました」と書いてあったが、
        ダッシュボードはサイドバーとメニューから外したので、行く道が無い案内になっていた
@@ -19625,7 +20086,10 @@ function renderStaff(){
   s.innerHTML=
     (alerts.length?'<div class="cal-banner" style="margin-bottom:16px;background:#FCEBEB;border:1px solid #E24B4A;"><div style="width:40px;height:40px;border-radius:11px;background:#fff;color:#A32D2D;display:flex;align-items:center;justify-content:center;">'+ic('alert')+'</div><div style="flex:1;"><div style="font-weight:600;color:#A32D2D;">健康診断の更新が必要な職員 '+alerts.length+'名</div><div class="muted">'+alerts.map(function(x){return x.name;}).join('・')+'</div></div></div>':'')+
     '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap;"><h3 style="margin:0;">'+ic('staff')+'職員名簿</h3><div style="display:flex;gap:8px;"><button class="btn btn-sm" id="staffPrint">'+ic('printer')+'労働者名簿を出力</button><button class="btn btn-primary" id="addStaff">'+ic('plus')+'職員を追加</button></div></div>'+
-      '<table><thead><tr><th>氏名</th><th>年齢/性別</th><th>役職 / 雇用</th><th>保有資格</th><th>入社日（勤続）</th><th>健康診断（次回期限）</th><th>ログインアカウント</th><th></th></tr></thead><tbody>'+
+      /* ★「役職 / 雇用」の見出しも値も1文字ずつ縦に割れ、
+         「スクールマネージャー」が縦書きのようになっていた。
+         nwtbl で折り返しを止め、はばがたりないぶんは表ごと横に動かす。 */
+      '<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>氏名</th><th>年齢/性別</th><th>役職 / 雇用</th><th>保有資格</th><th>入社日（勤続）</th><th>健康診断（次回期限）</th><th>ログインアカウント</th><th></th></tr></thead><tbody>'+
       (st.length?st.map(function(x){var ks=kenshinStatus(x.kenshinDate),nd=kenshinNext(x.kenshinDate);return '<tr>'+
         '<td><div class="row-name">'+x.name+'</div><div class="row-sub">'+(x.kana||'')+'</div></td>'+
         '<td class="row-sub">'+(x.dob?ageOf(x.dob):'—')+(x.sex?'<div class="row-sub">'+esc(x.sex)+'</div>':'')+'</td>'+
@@ -19635,7 +20099,7 @@ function renderStaff(){
         '<td>'+(x.kenshinDate?fmt(x.kenshinDate):'未登録')+(nd?'<div class="row-sub">→ '+fmt(iso(nd))+'</div>':'')+' <span class="pill" style="background:'+ks.bg+';color:'+ks.fg+';">'+ks.lab+'</span></td>'+
         '<td>'+(function(){var a=acctOfStaff(x);if(!a)return '<button class="btn btn-sm" data-mkacct="'+esc(x.id)+'">'+ic('plus')+'アカウント作成</button>';var col=roleColor(a.role);return '<span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span><div class="row-sub">ID: '+esc(a.loginId)+'</div><button class="btn btn-sm btn-ghost" data-editacct="'+esc(a.id)+'" style="padding:2px 8px;font-size:11px;">編集</button>';})()+'</td>'+
         '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+esc(x.id)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(x.id)+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="8" class="empty">職員が登録されていません</td></tr>')+
-      '</tbody></table></div>'+
+      '</tbody></table></div></div>'+
     kenbenCardHtml();
   kenbenWire();
   $('#addStaff').onclick=function(){staffModal();};
@@ -19896,7 +20360,22 @@ function staffModal(id){
 }
 
 /* ---------- audit ---------- */
+/* ★保管先の欄は、画面を描くときのはばだけを見て「1行の欄」か「折り返せる欄」かを決めている。
+   タブレットを回すと（iPad 11 は たて834・よこ1194）境目をまたぐのに描き直さないので、
+   表は積んだ形なのに欄は1行のまま、という食い違いが出ていた。はばが変わったら描き直す。 */
+var auWrapLast=null;
+function auditWrapWatch(){
+  var now=false;
+  try{now=window.matchMedia('(max-width:880px)').matches;}catch(e){now=false;}
+  if(auWrapLast===null){auWrapLast=now;return;}
+  if(now===auWrapLast)return;
+  auWrapLast=now;
+  var sec=$('section[data-page="audit"]');
+  if(sec&&sec.style.display!=='none'&&typeof renderAudit==='function')renderAudit();
+}
+window.addEventListener('resize',auditWrapWatch);
 function renderAudit(){
+  try{auWrapLast=window.matchMedia('(max-width:880px)').matches;}catch(e){auWrapLast=false;}
   var s=$('section[data-page="audit"]');
   var fy=auditFY(),isCur=(fy===curFY());
   var ph=auditPhase(),stt=auditState(fy),flat=auditItemsFlat();
@@ -19904,6 +20383,19 @@ function renderAudit(){
   var pre=flat.filter(function(it){return it.when==='年度前';}),preDone=pre.filter(function(it){return stt[it.key]==='済';}).length;
   var ope=flat.filter(function(it){return it.when==='運営中';}),opeDone=ope.filter(function(it){return stt[it.key]==='済';}).length;
   var STO={'未':{bg:'#FCEBEB',fg:'#A32D2D'},'対応中':{bg:'#FAEEDA',fg:'#854F0B'},'済':{bg:'#EAF3DE',fg:'#27500A'}};
+  /* ★保管先の欄は1行しか出せない作りだった。
+     スマホでは、欄を行いっぱい（274px）に広げても、
+     「カリキュラム（日別スケジュール・日案）」のような長い置き場所は 304px になり、
+     どうやっても最後まで出せない（1行の欄は折り返せないため）。
+     せまい画面のときだけ、折り返せる欄（複数行）で出して、全部読めるようにする。
+     広い画面は行が十分に長いので、これまでどおり1行の欄のまま出す。 */
+  var auWrap=false;
+  try{auWrap=window.matchMedia('(max-width:880px)').matches;}catch(e){auWrap=false;}
+  function auPlaceHTML(it){
+    var v=String(auditPlaceOf(it)),st='border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);';
+    if(auWrap)return '<textarea class="autogrow auplw" data-place="'+esc(it.key)+'" rows="1" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="'+st+'">\n'+esc(v)+'</textarea>';
+    return '<input data-place="'+esc(it.key)+'" value="'+v.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="'+st+'width:auto;min-width:160px;">';
+  }
   s.innerHTML=
     '<div class="card" style="margin-bottom:14px;">'+recHead('監査対応',
       '<select id="auFY" style="width:150px;">'+auditFYList().map(function(y){return '<option value="'+y+'"'+(y===fy?' selected':'')+'>'+y+'年度</option>';}).join('')+'</select>')
@@ -19942,12 +20434,19 @@ function renderAudit(){
     AUDIT_CATS.map(function(c){
       var _its=c.items.filter(auditItemShow);
       if(!_its.length)return '';
-      return '<div class="card" style="margin-bottom:14px;"><h3>'+c.cat+'</h3><table><tbody>'+
+      /* ★4列に固定のはばを付けているので、スマホでは書類名の列がほぼ 0 になり、
+         保管先の説明文が右はしで切れて読めなかった。
+         austack は、せまい画面だけ1件ずつ上下に並べ替えて文章を折り返す。 */
+      return '<div class="card" style="margin-bottom:14px;"><h3>'+c.cat+'</h3><table class="austack"><tbody>'+
       _its.map(function(it){var cur=stt[it.key];var opt=['未','対応中','済'].map(function(o){return '<option'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('');var wc=it.when==='年度前'?'background:#E6F1FB;color:#123E6B':'background:#FAEEDA;color:#854F0B';return '<tr>'+
         '<td style="width:110px;"><select data-st="'+esc(it.key)+'" style="background:'+STO[cur].bg+';color:'+STO[cur].fg+';font-weight:500;">'+opt+'</select></td>'+
         '<td><div class="row-name">'+it.name+'</div>'
         +(it.note?'<div class="row-sub" style="color:#5F5E5A;">'+esc(it.note)+'</div>':'')
-        +'<div class="row-sub" style="display:flex;align-items:center;gap:3px;"><span>'+(auditPlaceOf(it)?'保管：':'')+'</span><input data-place="'+esc(it.key)+'" value="'+String(auditPlaceOf(it)).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);width:auto;min-width:160px;">'+'</div>'
+        /* ★保管先の欄は、入れた文字の長さに関わらず 179px のままだった。
+           園での置き場所は「入園者名簿・月間名簿・退園者ファイル」のように長いので、
+           30件のうち9件が右はしで切れ、続きを読む手段がどこにもなかった
+           （広い画面でも6件切れていた）。欄を、その行の残りいっぱいまで広げる。 */
+        +'<div class="row-sub aupl" style="display:flex;align-items:center;gap:3px;"><span>'+(auditPlaceOf(it)?'保管：':'')+'</span>'+auPlaceHTML(it)+'</div>'
         +(function(){var di=auditDataInfo(it.key,fy);return di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'';})()
         +auditLineHtml(it.key,fy)+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
@@ -19988,10 +20487,15 @@ function renderAudit(){
       sl.setAttribute('data-was',v);
       auditSet(k,v,fy);renderAudit();
     };});
+  /* 折り返せる欄で出したときは、中身の量に合わせて高さを合わせる */
+  autoGrowAll(s);
   s.querySelectorAll('[data-place]').forEach(function(inp){
     inp.onfocus=function(){inp.style.borderBottom='1px solid var(--line)';};
     inp.onblur=function(){inp.style.borderBottom='none';};
-    inp.onchange=function(){auditPlaceSet(inp.getAttribute('data-place'),inp.value.trim());renderAudit();};
+    /* ★スマホでは折り返せる欄で出すので、改行が入れられるようになった。
+       改行が入ったまま保存すると、監査パッケージの表（1行1件）で行が割れてしまう。
+       保存するときに、改行は空白1つに直す。 */
+    inp.onchange=function(){auditPlaceSet(inp.getAttribute('data-place'),inp.value.replace(/[\r\n]+/g,' ').trim());renderAudit();};
   });
   s.querySelectorAll('[data-sys]').forEach(function(b){b.onclick=function(){
     var v=b.getAttribute('data-sys');
@@ -20943,7 +21447,9 @@ function edTouen(){
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select>'
       +'<div class="muted" style="font-size:11px;margin-top:3px;">朝の時点の天気を入れてください</div></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
-    '<div class="scrollx"><table><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
+    /* ★横に送ると園児名の列まで一緒に流れて、誰の記録か分からなくなっていた。
+       stickycol で左の1列を貼り付け、hint で「横に送れる」影を出す。 */
+    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=viewOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席')+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
         /* 登園・降園の時刻（シート4行「登園時間」）。保護者が未来WAで押したものには「保護者」の札 */
@@ -21260,7 +21766,9 @@ function napBlock(klass){
       +'<h3 style="margin:0;flex:1;">'+ic('clock')+'午睡チェック</h3>'
       +'<button class="btn btn-sm" id="npPrint">'+ic('printer')+'午睡だけ出力</button></div>'
     +'<div class="muted" style="margin-bottom:10px;">マスを押すと記録します：仰向け ↑ → 横向き → → うつ伏せ ↓（要注意・赤） → 消す。<br>国の目安は 0歳児 5分に1回／1〜2歳児 10分に1回／3歳以上 15〜30分に1回。'+napGuide(klass)+'</div>'
-    +'<div class="scrollx"><table><thead><tr><th style="min-width:90px;">園児</th>'+slots.map(function(t){return '<th style="font-size:10px;padding:4px 2px;">'+t+'</th>';}).join('')+'</tr>'
+    /* ★時間の列を送ると園児名まで一緒に流れていた。5分間隔にして列が増えても同じなので、
+       左の1列を貼り付ける。hint は「横に送れる」ことを知らせる影。 */
+    +'<div class="scrollx hint"><table class="stickycol"><thead><tr><th style="min-width:90px;">園児</th>'+slots.map(function(t){return '<th style="font-size:10px;padding:4px 2px;">'+t+'</th>';}).join('')+'</tr>'
     +'<tr><th style="font-size:10px;color:var(--tx3);font-weight:400;">担当</th>'+slots.map(function(t){return '<th style="padding:2px;"><select data-cb2="'+esc(t)+'" style="width:88px;font-size:11px;padding:3px 4px;">'+staffOpts(chargeAt(t))+'</select></th>';}).join('')+'</tr></thead><tbody>'
     +kids.map(function(c){return '<tr><td class="row-name" style="white-space:nowrap;">'+childFullName(c)+'</td>'+slots.map(function(t){var v=d.cells[c.id+'|'+t]||'';return '<td style="padding:2px;"><button class="napcell v'+v+'" data-nc="'+esc(c.id+'|'+t)+'">'+(NAP_MARK[v]||'・')+'</button></td>';}).join('')+'</tr>';}).join('')
     +'</tbody></table></div>'
@@ -21358,7 +21866,9 @@ function edBody(){
       ?''
       :(d.locked?'<div class="muted" style="margin-bottom:10px;color:#27500A;background:#EAF3DE;padding:6px 10px;border-radius:6px;">この月の測定結果は保存済みです。身長・体重は直せません。直すときは上の「編集する」を押してください。</div>':'<div class="muted" style="margin-bottom:10px;">身長と体重を入れ終わったら、上の「保存する」を押してください。保存すると、この月の数字は直せなくなります。</div>'))+
     '<div class="muted" style="margin-bottom:10px;">「保護者へ測定結果を送信」を押すと、その月の結果が<b>保護者の画面に出るようになります</b>（お子様ご本人の記録だけ・他児の記録は見えません）。押すまでは園の中だけです。<br>控えは個別メッセージの「未来WAで届けた記録」にも残ります。</div>'+
-    '<table><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th></tr></thead><tbody>'+
+    /* ★「クラス」「カウプ指数」の見出しが1文字ずつ縦に割れていた。
+       nwtbl で折り返しを止め、はばがたりないぶんは表ごと横に動かす。 */
+    '<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th></tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
       var _bd=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
@@ -21367,7 +21877,7 @@ function edBody(){
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td>'+
-      '<td class="row-sub">'+(function(){var sd=bmSharedOf(recMonth,c.id);return sd?esc(fmt(sd)):'<span class="muted">—</span>';})()+'</td></tr>';}).join(''):'<tr><td colspan="6" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table>'+
+      '<td class="row-sub">'+(function(){var sd=bmSharedOf(recMonth,c.id);return sd?esc(fmt(sd)):'<span class="muted">—</span>';})()+'</td></tr>';}).join(''):'<tr><td colspan="6" class="empty">該当クラスの園児がいません</td></tr>')+'</tbody></table></div>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数 = 体重(g) ÷ 身長(cm)² × 10。目安：15〜17がふつう。</div></div>';
   /* ★控えを BM_F（by と locked だけ）で取り、差分を BM_F2（rows を含む）で
      取っていた。before.rows が毎回 undefined になり、触っていない園児まで
@@ -21752,7 +22262,9 @@ function edKujo(){
       +'<button class="btn btn-sm" id="kjAdd">'+ic('plus')+'受付を追加</button>'
       +'<button class="btn btn-sm btn-primary" id="kjPrint">'+ic('printer')+'記録を出力</button>')
     +'<div class="muted" style="margin-bottom:10px;">保護者から苦情やご要望を受けたときに、「受付を追加」から1件ずつ書きます。行の「ひらく」で、あとから直せます。監査で見られる書類です。</div>'
-    +'<div class="tablewrap scrollx"><table><thead><tr>'
+    /* ★見出しと値が1文字ずつ縦に割れていた。nwtbl で折り返しを止め、
+       長い「内容」「対応したこと」だけ wrapcell で折り返す。hint は横に送れる合図。 */
+    +'<div class="tablewrap scrollx hint"><table class="nwtbl"><thead><tr>'
     +'<th style="width:96px;">受付日</th><th style="width:88px;">受けた方法</th><th style="width:120px;">申し出た方</th>'
     +'<th>内容</th><th>対応したこと</th><th style="width:92px;">対応した職員</th>'
     +'<th style="width:104px;">完了</th><th style="width:88px;">第三者委員</th><th style="width:92px;">状態</th><th style="width:104px;"></th>'
@@ -21766,8 +22278,8 @@ function edKujo(){
         +'<td>'+esc(r.date?fmt(r.date):'—')+'</td>'
         +'<td class="row-sub">'+esc(r.way||'')+'</td>'
         +'<td class="row-sub">'+esc(r.person||'')+'</td>'
-        +'<td class="row-sub">'+esc(kujoCut(r.content))+'</td>'
-        +'<td class="row-sub">'+esc(kujoCut(r.shori))+'</td>'
+        +'<td class="row-sub wrapcell">'+esc(kujoCut(r.content))+'</td>'
+        +'<td class="row-sub wrapcell">'+esc(kujoCut(r.shori))+'</td>'
         +'<td class="row-sub">'+esc(r.by||'')+'</td>'
         +'<td>'+(r.doneDate?'<span class="pill" style="background:#EAF3DE;color:#27500A;">'+esc(fmt(r.doneDate))+'</span>'
                           :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">対応中</span>')+'</td>'
@@ -22413,7 +22925,9 @@ function renderDrill(){
     '<div class="card" style="margin-bottom:16px;">'+/* 回数は市町村によって違うので、見出しでは言い切らない。右の「実施済 ◯/◯」は実際の件数なので残す */
     recHead('年間 避難訓練','<span class="tag" style="background:#EAF3DE;color:#27500A;">実施済 '+doneN+' / '+D.rows.length+'</span><button class="btn btn-sm" id="dr2PrintYear">'+ic('printer')+'年間記録表を出力</button>')+
       '<div class="muted" style="margin-bottom:10px;">実施記録の参加名簿・年齢別人数は、その日の「登園（出席）」から自動で入ります（手で直せます）。</div>'+
-      '<div class="scrollx"><table><thead><tr><th style="width:44px;">月</th><th style="width:132px;">種別</th><th style="width:110px;">対象クラス</th><th style="width:130px;">実施日</th><th>タイム</th><th style="width:76px;">状態</th><th style="width:150px;"></th></tr></thead><tbody>'+
+      /* ★「月」「対象クラス」「未実施」が1文字ずつ縦に割れていた。
+         nwtbl で折り返しを止め、hint で横に送れる合図を出す。 */
+      '<div class="scrollx hint"><table class="nwtbl"><thead><tr><th style="width:44px;">月</th><th style="width:132px;">種別</th><th style="width:110px;">対象クラス</th><th style="width:130px;">実施日</th><th>タイム</th><th style="width:76px;">状態</th><th style="width:150px;"></th></tr></thead><tbody>'+
       D.rows.map(function(r,i){
         var kc=drillKindColor(r.kind);
         var done=!!r.record.date;
@@ -23354,7 +23868,13 @@ function renderShift(){
   s.innerHTML='<div class="card" style="margin-bottom:14px;"><div class="chips" style="margin:0;">'+[['plan','勤務表（シフト予定）'],['time','出勤簿（実績の打刻）']].map(function(t){return '<span class="chip'+(t[0]===shiftTab?' on':'')+'" data-shtab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>'
     +'<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+esc(shiftMonth)+'" style="width:160px;"><button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm" id="shPrint">'+ic('printer')+'記号で出力</button><button class="btn btn-sm btn-primary" id="shPrintTime">'+ic('printer')+'時刻表記で出力</button>')+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">'+
-      ['早','日','遅'].map(function(k){return '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+esc(k)+'" value="'+esc(m.pat[k])+'" style="width:105px;font-size:12px;padding:5px 8px;" title="勤務時間"><span class="muted" style="font-size:11px;">休憩</span><input data-brk="'+esc(k)+'" value="'+esc((m.brk[k]||''))+'" style="width:100px;font-size:12px;padding:5px 8px;" placeholder="12:00-13:00" title="休憩時間"></span>';}).join('')+
+      /* ★「休憩」のことばと休憩時刻の欄を、勤務時間の欄とひとつながりに並べていた。
+         せまい画面では入力の字を 16px にしているので、100px の欄には「12:00-13:0」までしか入らず、
+         終わりの時刻が読めなかった（早・日・遅の3つとも）。
+         「休憩」のことばもはばが 11px まで押しつぶされ、1文字ずつ縦に割れていた。
+         休憩のことばと欄をひと組にまとめて、せまい画面では次の行へ送れるようにする。
+         組にまとめただけなので、広い画面の並びは1pxも変わらない（すき間は親と同じ 6px）。 */
+      ['早','日','遅'].map(function(k){return '<span class="shpat" style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s'+k+'" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">'+k+'</span><input data-pat="'+esc(k)+'" value="'+esc(m.pat[k])+'" style="width:105px;font-size:12px;padding:5px 8px;" title="勤務時間"><span class="shbrk"><span class="muted" style="font-size:11px;">休憩</span><input data-brk="'+esc(k)+'" value="'+esc((m.brk[k]||''))+'" style="width:100px;font-size:12px;padding:5px 8px;" placeholder="12:00-13:00" title="休憩時間"></span></span>';}).join('')+
       '<span style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span class="shiftcell s休" style="display:inline-flex;align-items:center;justify-content:center;width:28px;cursor:default;">休</span>休み</span>'+
       '<span class="muted">セルをタップ：早 → 日 → 遅 → 休 → 消去</span></div>'+
     '<div class="scrollx"><table><thead><tr><th style="min-width:110px;">職員</th>'+days.map(function(dd){var wd=new Date(y,mo-1,dd).getDay();return '<th style="padding:4px 2px;font-size:10px;text-align:center;'+(wd===0?'color:#A32D2D;':wd===6?'color:#185FA5;':'')+'">'+dd+'<br>'+WD[wd]+'</th>';}).join('')+'</tr></thead><tbody>'+
@@ -25950,17 +26470,20 @@ function renderAccessSettings(s){
       +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saMyPw">'+ic('shield')+'自分のパスワードを変える</button><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
     var perms=rolePerms();
     html+='<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('shield')+'権限管理（役割ごとの閲覧範囲）</h3><div class="muted" style="margin-bottom:10px;">チェックした画面だけ、その役割の職員に表示されます。管理者は常に全画面。（例：一般スタッフは監査・請求書・設定を非表示に）</div>'
-      +'<table><thead><tr><th style="min-width:150px;">画面</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+roleLabel(r)+'</span></th>';}).join('')+'</tr></thead><tbody>'
+      /* ★役割の札「管理者」「園長」「主任・リーダー」が1文字ずつ縦に割れていた。
+         nwhead は見出しだけ折り返しを止める。左の画面名は長いので、これまでどおり折り返す。 */
+      +'<div class="scrollx hint"><table class="nwhead"><thead><tr><th style="min-width:150px;">画面</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+roleLabel(r)+'</span></th>';}).join('')+'</tr></thead><tbody>'
       /* 生徒情報（enroll）は請求書発行（billing）の中に入れた。押しても何も変わらない行に
          なるので、この表には出さない。保存のときは請求書発行と同じ扱いにしている（下の pmSave）。 */
       +ACCESS_PAGES.filter(function(pg){return pg.p!=='enroll';}).map(function(pg){return '<tr><td>'+esc(pg.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||((perms[r]||[]).indexOf(pg.p)>-1);var dis=(r==='管理者'||pg.p==='dashboard')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-pm="'+esc(r+'|'+pg.p)+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
-      +'</tbody></table><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="pmSave">'+ic('check')+'権限を保存</button> <span class="muted" id="pmMsg"></span></div></div>';
+      +'</tbody></table></div><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" id="pmSave">'+ic('check')+'権限を保存</button> <span class="muted" id="pmMsg"></span></div></div>';
     var tp=tplPerms();
     function tplMatrix(kind,title,items){
       return '<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('doc')+title+'</h3><div class="muted" style="margin-bottom:10px;">チェックした役割にだけ、そのテンプレートが表示されます。（管理者は常に全件）</div>'
-        +'<table><thead><tr><th style="min-width:220px;">テンプレート</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+roleLabel(r)+'</span></th>';}).join('')+'</tr></thead><tbody>'
+        /* 権限管理の表と同じ作り。役割の札が縦に割れないよう nwhead を付ける */
+        +'<div class="scrollx hint"><table class="nwhead"><thead><tr><th style="min-width:220px;">テンプレート</th>'+STAFF_ROLES.map(function(r){var c=roleColor(r);return '<th style="text-align:center;"><span style="background:'+c.bg+';color:'+c.fg+';padding:2px 8px;border-radius:99px;font-size:11px;">'+roleLabel(r)+'</span></th>';}).join('')+'</tr></thead><tbody>'
         +items.map(function(it){var list=(tp[kind]||{})[it.key]||[];return '<tr><td>'+esc(it.label)+'</td>'+STAFF_ROLES.map(function(r){var on=(r==='管理者')||list.indexOf(r)>-1;var dis=(r==='管理者')?' disabled':'';return '<td style="text-align:center;"><input type="checkbox" data-tpm="'+esc(kind+'|'+it.key+'|'+r)+'"'+(on?' checked':'')+dis+' style="width:auto;"></td>';}).join('')+'</tr>';}).join('')
-        +'</tbody></table><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" data-tpmsave="'+esc(kind)+'">'+ic('check')+'この表の権限を保存</button> <span class="muted" data-tpmmsg="'+esc(kind)+'"></span></div></div>';
+        +'</tbody></table></div><div style="margin-top:10px;"><button class="btn btn-primary btn-sm" data-tpmsave="'+esc(kind)+'">'+ic('check')+'この表の権限を保存</button> <span class="muted" data-tpmmsg="'+esc(kind)+'"></span></div></div>';
     }
     /* 個別メッセージのひな形は、どの役職でも見られる形にしたので、この表は出さない。
        全体周知・お知らせのほうは、園が役職で分けて使っているのでそのまま残す。 */
@@ -27773,7 +28296,8 @@ function renderBilling(){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+INV_STATUS.filter(function(st){return st!=='発行済'||cnt[st]>0;}).map(function(st){var col=invStatusColor(st);return '<span class="tag" style="background:'+col.bg+';color:'+col.fg+';">'+st+' '+cnt[st]+'</span>';}).join('')
     +(pausedN?'<span class="tag" style="background:#F1EFE8;color:#5B6875;" title="休園中の園児も請求書を作れます">休園中 '+pausedN+'名</span>':'')
     +'<span style="flex:1;"></span><span style="font-weight:700;font-size:15px;">今月の請求合計 '+yen(sum)+'</span></div></div>'
-    +'<div class="card"><div class="scrollx"><table><thead><tr><th>園児</th><th>宛名</th><th>クラス</th><th>プラン</th><th style="text-align:right;">給食</th><th style="text-align:right;">延長保育</th><th style="text-align:right;">請求額</th><th>発行日</th><th>支払期日</th><th>入金日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
+    /* ★見出しと値が1文字ずつ縦に割れていた。nwtbl で折り返しを止め、hint で横に送れる合図を出す。 */
+    +'<div class="card"><div class="scrollx hint"><table class="nwtbl"><thead><tr><th>園児</th><th>宛名</th><th>クラス</th><th>プラン</th><th style="text-align:right;">給食</th><th style="text-align:right;">延長保育</th><th style="text-align:right;">請求額</th><th>発行日</th><th>支払期日</th><th>入金日</th><th>状態</th><th style="width:230px;"></th></tr></thead><tbody>'
     +(rows.length?rows.map(function(x){var col=invStatusColor(x.r.status);
       return '<tr><td class="row-name">'+esc(childFullNameHon(x.c))
         +(x.c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中</span>':'')
@@ -27993,7 +28517,9 @@ function expList(mk){
       '<button class="btn btn-sm" id="exAdd">'+ic('plus')+'行を追加</button><button class="btn btn-sm" id="exPrint">'+ic('printer')+'精算表を出力</button><button class="btn btn-sm" id="exCsv">'+ic('folder')+'データ保存</button>'
       +'<button class="btn btn-sm btn-primary" id="exSave">'+ic('check')+'保存</button><button class="btn btn-sm" id="exSend" title="送り先あての文面を作ります">'+ic('send')+'送る</button><span class="muted" id="exMsg" style="font-size:12px;"></span>')
     +'<div class="muted" style="margin-bottom:10px;">日付・支払先・内容・金額を入力し、科目を選びます。科目ごとの小計と合計は自動計算されます。</div>'
-    +'<div class="scrollx"><table><thead><tr><th style="width:110px;">日付</th><th>支払先</th><th>内容</th><th style="width:96px;">領収書番号</th><th style="width:130px;">科目</th><th style="width:110px;text-align:right;">金額</th><th style="width:44px;"></th></tr></thead><tbody>'
+    /* ★「支払先」「内容」「領収書番号」の見出しが1文字ずつ縦に割れていた。
+       nwtbl で折り返しを止め、hint で横に送れる合図を出す。 */
+    +'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th style="width:110px;">日付</th><th>支払先</th><th>内容</th><th style="width:96px;">領収書番号</th><th style="width:130px;">科目</th><th style="width:110px;text-align:right;">金額</th><th style="width:44px;"></th></tr></thead><tbody>'
     +(rows.length?rows.map(function(r,i){
       return '<tr><td><input type="date" data-ex="'+i+'|date" value="'+esc((r.date||''))+'"></td>'
         +'<td><input data-ex="'+i+'|payee" value="'+String(r.payee||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="例：CanDo"></td>'
@@ -29270,7 +29796,10 @@ function renderTasks(){
     +'<div class="card">'+recHead('年間の一覧（この月以外もふくむ）','<button class="btn btn-sm btn-primary" id="tkPrintY">'+ic('printer')+'一覧を印刷</button>')
     +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">上の「毎月やること」に出ているものは、ここには出しません。'
       +'ここに出るのは、決まった月だけに行うことです。年度のはじめに、いつ何をするかを見わたすために使います。</div>'
-    +'<div class="scrollx"><table><thead><tr><th style="width:70px;">時期</th><th>やること</th><th style="width:250px;">目安</th><th style="width:160px;">使う画面</th></tr></thead><tbody>'
+    /* ★スマホでは、時期70・目安250・使う画面160 と決めた残りしか「やること」に回らず、
+       題名の押しどころが 43px まで細って、字が1文字ずつ縦に割れていた（anntbl で下限を置く）。
+       hint は、横に送れることが分かる右はしの影。 */
+    +'<div class="scrollx hint"><table class="anntbl"><thead><tr><th style="width:70px;">時期</th><th>やること</th><th style="width:250px;">目安</th><th style="width:160px;">使う画面</th></tr></thead><tbody>'
     +tasksYearOnly().map(function(t){
       /* 題名だけを出し、押すと「なぜ必要か」が開く。上の「毎月やること」と同じ動きにそろえる */
       var ai=ANNUAL_TASKS.indexOf(t),ao=!!annOpen[ai],wy=t.why||'';
@@ -30026,10 +30555,14 @@ function renderBackupSettings(s){
         : '')+'<span class="muted" id="bkMsg"></span></div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;align-items:start;">'
     +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">自動保存（スナップショット）</div>'
-    +(sn.length?'<table><thead><tr><th>日時</th><th>種別</th><th></th></tr></thead><tbody>'+sn.map(function(x,i){var realIdx=snapshots().length-1-i;return '<tr><td class="row-sub">'+esc(x.at)+'</td><td>'+esc(x.reason)+'</td><td style="text-align:right;"><button class="btn btn-sm" data-bkres="'+esc(realIdx)+'">この時点に戻す</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ自動保存はありません</div>')
+    /* ★2段組みの中に素の表を置いていたので、はみ出しても横に動かせず、
+       「日次自動」が1文字ずつ縦に割れていた。nwtbl で折り返しを止め、包んで横に動かす。 */
+    +(sn.length?'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>日時</th><th>種別</th><th></th></tr></thead><tbody>'+sn.map(function(x,i){var realIdx=snapshots().length-1-i;return '<tr><td class="row-sub">'+esc(x.at)+'</td><td>'+esc(x.reason)+'</td><td style="text-align:right;"><button class="btn btn-sm" data-bkres="'+esc(realIdx)+'">この時点に戻す</button></td></tr>';}).join('')+'</tbody></table></div>':'<div class="empty">まだ自動保存はありません</div>')
     +'</div>'
     +'<div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">最近の変更ログ（新しい順）</div>'
-    +(lg.length?'<table><thead><tr><th>日時</th><th>項目</th><th>操作者</th></tr></thead><tbody>'+lg.map(function(x){return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(x.at.slice(5))+'</td><td>'+esc(x.label)+(x.n>1?' <span class="muted">×'+x.n+'</span>':'')+'</td><td class="row-sub">'+esc(x.by||'—')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ記録はありません</div>')
+    /* ★同じ理由で「操作者」の見出しと「本部管理者」が1文字ずつ縦に割れ、
+       表が 333px になって 360px の画面を 14px はみ出していた。 */
+    +(lg.length?'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>日時</th><th>項目</th><th>操作者</th></tr></thead><tbody>'+lg.map(function(x){return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(x.at.slice(5))+'</td><td>'+esc(x.label)+(x.n>1?' <span class="muted">×'+x.n+'</span>':'')+'</td><td class="row-sub">'+esc(x.by||'—')+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="empty">まだ記録はありません</div>')
     +'</div></div></div>';
   s.insertAdjacentHTML('beforeend',html);
   document.getElementById('bkDl').onclick=backupDownload;
@@ -30797,6 +31330,18 @@ function initAI(){
     +'<div class="ai-foot"><input id="aiInput" placeholder="症状や相談を入力（例：転んで頭を打った）"><button id="aiSend">➤</button></div>'
     +'<div class="ai-note">園の手順書と危機管理マニュアルからお答えします。見つからないときだけAIに聞きます（答えに印を付けます）。緊急時は必ず119番通報・受診・園の指示を優先してください。</div>';
   document.body.appendChild(panel);document.body.appendChild(fab);
+  /* ★せまい画面では、丸が画面のとちゅうにある押しどころ（勤務マス・承認者・作成など）に
+     重なって、その下に何があるのか分からなかった。
+     送っているあいだは薄くして、下を見えるようにする（薄いあいだも押せる）。
+     送るのをやめて 0.6 秒たったら、もとの濃さに戻す。
+     濃さを変えるだけなので、広い画面では見た目も動きも変わらない
+     （薄くする指定は、せまい画面のときだけ書いてある）。 */
+  var fabFade=null;
+  window.addEventListener('scroll',function(){
+    fab.classList.add('scrolling');
+    if(fabFade)clearTimeout(fabFade);
+    fabFade=setTimeout(function(){fab.classList.remove('scrolling');},600);
+  });
   fab.onclick=function(){AI_OPEN=!AI_OPEN;panel.classList.toggle('open',AI_OPEN);var dot=fab.querySelector('.dot');if(dot)dot.style.display='none';if(AI_OPEN&&!aiStarted){aiStarted=true;aiGreet();}};
   $('#aiClose').onclick=function(){AI_OPEN=false;panel.classList.remove('open');};
   /* 大きく表示する。長い答えは、384px の枠では読みにくい（2026-08-27 のご依頼）。

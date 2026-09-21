@@ -65,14 +65,40 @@
   .topbar .out{background:var(--line2);border:1px solid var(--line);color:var(--tx2);}
   /* ごきょうだいの切り替え。押している子が、ひと目で分かるようにする */
   .sibsw{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-left:6px;}
+  /* 横に送る形にしたとき、帯の中に灰色の棒を出さない */
+  .sibsw::-webkit-scrollbar{display:none;}
+  /* ★入りきらないお子さまがいるとき、右のはしを薄くするだけにしていた。
+     お子さまが4人のご家庭では、4人目が右はしに10〜27pxだけ顔を出し、
+     その細いところがちょうど薄くなるので、4人目が居ないように見えていた。
+     横に送れることが分かるよう、右のはしに「›」を出す（幅のせまい画面だけ）。
+     場所を取らない置き方にして、上の帯の高さは変えない。
+     いちばん右まで送ったら、この合図は消す（sibMoreMark） */
+  .sibmore{display:none;}
   .sibsw .sibl{font-size:11px;color:var(--tx2);margin-right:1px;}
   .sibsw .sibb{border:1px solid var(--line);background:var(--card);color:var(--tx2);
     border-radius:999px;padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer;
     min-height:34px;line-height:1.2;}
   .sibsw .sibb.on{background:var(--c);border-color:var(--c);color:#fff;font-weight:700;}
-  @media(max-width:560px){
-    .sibsw{width:100%;order:9;margin:6px 0 0;}
-    .sibsw .sibb{flex:1;min-width:0;padding:7px 8px;}
+  /* ★このまとまりを「幅560pxまで」だけに掛けていたので、
+     電話を横に倒したとき（844×390）は掛からず、上の帯の中の480pxに
+     お子さまのボタンを並べようとして3段に折り返していた。
+     クラス名が「P/r/e/ク/ラ/ス」と1文字ずつ縦に流れ、ログアウトも縦になり、
+     帯の高さが 76px から 175px まで伸びていた（お子さまが3人・4人のご家庭だけ）。
+     背の低い横向きのときも、同じ組み直しを掛ける（入力欄の文字の直しと同じ掛け方） */
+  @media(max-width:560px),(max-width:1024.98px) and (max-height:539.98px){
+    /* ★ここでも段が増えて帯が伸びていました。横に送る形と、指の目安44pxにそろえます。 */
+    /* お子さまの段を下ろすには、帯そのものが段を作れる必要がある */
+    .topbar{flex-wrap:wrap;}
+    .sibsw{width:100%;order:9;margin:6px 0 0;flex-wrap:nowrap;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .sibsw .sibb{flex:0 0 auto;min-width:0;max-width:46%;min-height:44px;padding:7px 12px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* 合図は上の帯に重ねて置く。流れの中に入れると帯がまた伸びるため、
+       場所を取らない置き方（重ね置き）にする。指の邪魔をしないよう、押せなくしておく */
+    .sibsw.more ~ .sibmore{display:flex;align-items:center;justify-content:flex-end;
+      position:absolute;right:16px;bottom:12px;height:44px;width:34px;
+      pointer-events:none;color:var(--tx2);font-size:20px;line-height:1;padding-right:2px;
+      background:linear-gradient(to right,rgba(255,255,255,0),var(--card) 58%);}
   }
 
   /* 現在地を示す花。押すとホームへ戻る */
@@ -295,9 +321,15 @@
   .sstat b{display:block;font-size:16px;font-weight:800;}
   .sstat span{font-size:11px;color:var(--tx3);}
   /* 使い方サポート */
-  #waHelpFab{position:fixed;right:16px;bottom:78px;z-index:900;width:48px;height:48px;border-radius:50%;
+  /* ★下のタブの高さしか見ていなかったので、ホームバーのある機種では
+     「?」の丸ボタンが画面のいちばん下に食い込んでいた。機種ぶんを足す。 */
+  #waHelpFab{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:900;
+    width:48px;height:48px;border-radius:50%;
     background:var(--p);color:#fff;border:none;font-size:22px;font-weight:800;cursor:pointer;
     box-shadow:0 6px 18px rgba(235,78,155,.38);}
+  /* ★下から出る窓より「?」の丸ボタンのほうが手前にいたので、
+     窓のとじるボタンや金額に重なっていた。窓が出ているあいだは引っ込める。 */
+  #waHelpFab.fabhid{display:none;}
   #waHelpPanel{position:fixed;right:12px;bottom:136px;z-index:901;width:min(370px,calc(100vw - 24px));
     height:min(500px,calc(100vh - 200px));background:var(--card);border:1px solid var(--line);
     border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.2);display:none;flex-direction:column;overflow:hidden;}
@@ -380,6 +412,71 @@
   }
   @media(min-width:1120px){
     .scroll .card{max-width:none;}
+  }
+
+  /* 開催期間の「いつから」「いつまで」を横に並べる帯。
+     日付の欄は中身ぶんの幅を最後まで手放さないので、
+     ちぢめてよいと言っておかないと画面からはみ出す。 */
+  .daterow{display:flex;gap:8px;align-items:center;}
+  .daterow input{flex:1;min-width:0;}
+
+  /* ===== スマホ幅（540px 未満）だけの組み直し =====
+     保護者はほとんどスマホで開きます。ここが読めないと何もできません。
+     540px 以上（PC・タブレット）の見た目は、このまとまりの外なので変わりません。 */
+  @media(max-width:539.98px){
+    /* ★上の帯は、ロゴ・お子さま・言語・ログアウトを1列に押し込んでいました。
+       390px では、お子さまの欄が 7.7px までつぶれてお名前が消え、
+       クラス名が「P/r/e/ク/ラ/ス/2/歳/児」と1文字ずつ縦に並び、
+       帯の高さが 76px から 136px にふくらんでいました。
+       2段に分けます。1段目にロゴ・言語・ログアウト、2段目にお子さま。 */
+    .topbar{flex-wrap:wrap;gap:8px;padding:9px 14px 11px;}
+    .topbar .bloom{order:1;width:38px;height:38px;}
+    .topbar .walogo{order:2;height:26px;margin-right:auto;}
+    /* ★ログアウトと言語の札もちぢめられて、文字が縦一列になっていました */
+    .topbar .langtg{order:3;margin-right:0;flex-shrink:0;white-space:nowrap;}
+    .topbar .out{order:4;flex-shrink:0;white-space:nowrap;
+      padding:8px 13px;border-radius:11px;font-size:12.5px;min-height:38px;}
+    /* お子さまだけで1段を使い切る。ここで初めてお名前を出す幅ができる */
+    .topbar .who{order:5;flex:1 1 100%;min-width:0;}
+    /* ★クラス名に折り返し止めが無く、幅が無くなると1文字ずつ縦に流れていました。
+       1行に収め、入らないときは終わりを点にします。 */
+    .topbar .who .p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+    /* ★ごきょうだいが同じメールのご家庭では切り替えが出て、帯が全滅していました。
+       お名前のボタンが1文字ずつ縦に伸び、言語の切り替えが画面の外に出ていました。
+       切り替えは帯の3段目に丸ごと下ろし、横に並べます。 */
+    /* ★お子さまが3人・4人のご家庭では、ここが2段に折り返して
+       上の帯が 151px から 197px まで伸び、画面の4分の1を占めていました。
+       段を増やさず、入りきらないぶんは横に送っていただく形にします。 */
+    .sibsw{order:6;width:100%;margin:2px 0 0;gap:6px;flex-wrap:nowrap;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .sibsw .sibl{flex:0 0 auto;}
+    /* ★高さが40pxしかなく、指で押す目安の44pxに届いていませんでした。
+       幅は名前ぶんだけ取り、長いお名前は画面の半分までにとどめます。 */
+    .sibsw .sibb{flex:0 0 auto;min-width:0;max-width:46%;min-height:44px;padding:8px 13px;font-size:13px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* この幅では帯の余白が 14px・11px なので、横に送れる合図もそこへ合わせる */
+    .sibsw.more ~ .sibmore{right:14px;bottom:11px;}
+
+    /* ★「?」の丸ボタンが、申込・送迎時間変更・商品の札・保存に重なっていました。
+       いちばん下まで送ったときに隠れないよう、中身の下に丸ボタン1つぶんの余白を置きます。 */
+    .scroll{padding-bottom:142px;}
+
+    /* 日付は「yyyy/mm/dd」とカレンダーの絵で150pxほど要る。
+       2つ横に入らない幅のときは、無理に詰めず下に折り返す */
+    .daterow{flex-wrap:wrap;}
+    .daterow input{flex:1 1 150px;}
+  }
+
+  /* ★入力欄の文字が15px以下だと、触った瞬間に iPhone が画面を勝手に拡大します。
+     この直しを 540px 未満のまとまりの中に入れていたため、
+     iPhone を横に倒したとき（844×390）と、540〜767px の端末では
+     15pxのまま残り、欄を触るたびに拡大していました。
+     縦でも横でも効くよう、幅の狭いとき「または」背の低い横向きのときに掛けます。
+     パソコンの見た目（1280px以上）はこのまとまりの外なので変わりません。
+     行の中で直に指定している欄もあるので、ここだけは強く上書きします。 */
+  @media(max-width:767.98px),(max-width:1024.98px) and (max-height:539.98px){
+    input,select,textarea{font-size:16px !important;}
   }
 
   /* toast */
@@ -772,7 +869,12 @@ function childFullName(c){
   return full||(c.child?childName(c):(c.name||''));
 }
 /* ms は省略できる。長い案内（お支払いの確認中など）は2.2秒では読み終わらないので、呼ぶ側が長くする。 */
-function toast(msg,ms){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},ms||2200);}
+/* ★下から出る短いお知らせだけ、英語にしても日本語のまま出ていた。
+   画面の中の文字は langApply が差し替えるが、ここは textContent で直に入れるので届かない。
+   アラートと同じ langMsg を通す。辞書に無いことばは、これまでどおり日本語のまま出る。 */
+function toast(msg,ms){var t=document.getElementById('toast');
+  var m=msg;try{if(typeof langMsg==='function')m=langMsg(msg);}catch(e){}
+  t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},ms||2200);}
 
 /* ---- seed sample data if empty (standalone で動くように・実データは入れない) ---- */
 function seedEnrolled(){return [
@@ -794,7 +896,12 @@ function ageClass(dob){
 function klassLabel(c){
   if(!c)return '';
   var a=ageClass(c.dob);
-  return esc(c.klass)+'クラス'+(a?'　'+a:'');
+  /* ★「さくらクラス　2歳児」をひとつづきの文字として出していたので、
+     英語にしても丸ごと日本語のまま残っていた。
+     クラスの名前（園がつけたお名前）と、訳すことば（クラス・◯歳児）を分ける。
+     日本語のときの見た目は、これまでとまったく同じ。 */
+  return '<span data-nolang="1">'+esc(c.klass)+'</span>クラス'
+    +(a?(langNow()==='en'?' ':'　')+'<span>'+esc(a)+'</span>':'');
 }
 /* この端末の連絡先が、まだ手つかずのテスト用のままかどうか。
    園が実際のご家庭を入れた端末では、テスト用の案内やパスワードを一切出さない。 */
@@ -1153,8 +1260,9 @@ function render(){
   wirePortal(c);
   /* ご案内の書き方が変わったときは、一度だけお知らせする。ご同意はやり直さない */
   try{ if(!noticeShown&&noticeNeeded()){noticeShown=true;noticeOpen();} }catch(e){}
-  /* タブが変わったときだけ先頭へ戻す。同じタブ内の絞り込みでは位置を保つ */
-  if(lastTab!==tab){lastTab=tab;try{window.scrollTo(0,0);}catch(e){}}
+  /* タブが変わったときだけ先頭へ戻す。同じタブ内の絞り込みでは位置を保つ。
+     出欠の「送れました」のお知らせも、ここで片づける（別の画面まで持ち越さない） */
+  if(lastTab!==tab){lastTab=tab;attDone=null;try{window.scrollTo(0,0);}catch(e){}}
   try{if(sessionChild())PLOCK.start();}catch(e){}
 }
 
@@ -1318,6 +1426,8 @@ function noticeSeen(){
 }
 function noticeOpen(){
   var ov=document.createElement('div');
+  /* 重ねて出す窓には共通の名札を付ける。「?」の丸ボタンは、これを見て引っ込む */
+  ov.className='wa-ovl';
   ov.style.cssText='position:fixed;inset:0;z-index:1450;background:rgba(0,0,0,.42);'
     +'display:flex;align-items:center;justify-content:center;padding:18px;';
   ov.innerHTML='<div class="card" style="max-width:420px;width:100%;background:var(--bg,#fff);">'
@@ -1485,6 +1595,8 @@ function legalHTML(which){
 function waLegalOpen(which){
   var d=WA_LEGAL[which]; if(!d)return;
   var ov=document.createElement('div');
+  /* 重ねて出す窓には共通の名札を付ける。「?」の丸ボタンは、これを見て引っ込む */
+  ov.className='wa-ovl';
   ov.style.cssText='position:fixed;inset:0;z-index:1400;background:var(--bg,#fff);'
     +'overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 16px 40px;';
   ov.innerHTML='<div style="max-width:640px;margin:0 auto;">'
@@ -1585,8 +1697,11 @@ function healthGateHTML(){
     +'<div style="font-weight:800;font-size:14px;color:#A32D2D;">'
     +'健康に関する情報のお取り扱いについて</div>'
     +'<div style="margin-top:8px;font-size:13px;line-height:1.9;">'
+    /* ★1つ目の文と「そのため、」がひとかたまりで、次の文は太字の中にありました。
+       文の途中で切れているため辞書が引けず、英語にしても日本語のまま残っていました。
+       1文ずつに分けます。太字の場所は変えていないので、日本語の見た目は同じです。 */
     +'アレルギー・既往症・体温などの健康に関する情報は、法律上とくに配慮が必要なものです。'
-    +'そのため、<b>利用規約への同意とは別に、あらためてご同意をいただいています。</b>'
+    +'<span>そのため、</span><b>利用規約への同意とは別に、あらためてご同意をいただいています。</b>'
     +'同意をいただくまで、健康に関する情報は表示しません。</div>'
     +'<button class="btn" data-hc="open" style="margin-top:12px;">内容を読んで同意する</button>'
     +'</div>';
@@ -2321,8 +2436,12 @@ function storeHTML(c){
   }
   return '<h2 class="sec sec-g">🛍️ ストア</h2>'
     +(linked
+      /* ★英語にしても、この案内文だけ日本語のまま残っていた。
+         園名とひとつづきの文になっていて、辞書が引けなかったため。
+         園名を span で切り離し、文のほうだけ辞書で引けるようにする。 */
       ? '<div class="muted" style="margin:-4px 2px 14px;line-height:1.75;">'
-        +esc(waSchoolName())+'が、実際に導入・おすすめしている教材リストです。'
+        +'<span data-nolang="1">'+esc(waSchoolName())+'</span>'
+        +'が、実際に導入・おすすめしている教材リストです。'
         +'教材購入時はこちらからお買い求めください。</div>'
       : '<div class="card petal-c"><div style="font-weight:700;font-size:14px;">おうちで使える教材</div>'
         +'<div class="muted" style="margin-top:5px;">園とつながると、先生が選んだ教材や園指定の用品も表示されます。</div>'
@@ -2365,7 +2484,14 @@ function schoolPickHTML(all,linked){
   var uses =all.filter(function(x){return x.use&&!x.pick&&!x.need;});
   var out='';
   if(picks.length){
-    out+='<div class="pickhead"><div class="pickttl">'+esc(waSchoolName())+' が選んだもの</div>'
+    /* ★園名とひとつづきの見出しだったので、英語にしても日本語のまま残っていた。
+       園名を span で切り離すと、残りを辞書で引ける。 */
+    /* ★英語では「園 's picks」と、園の名前とのあいだに空きが出ていた。
+       日本語の「園 が選んだもの」の空きが、そのまま英語にも残るため。
+       空きは日本語のときだけ置く。 */
+    out+='<div class="pickhead"><div class="pickttl">'
+      +'<span data-nolang="1">'+esc(waSchoolName())+'</span>'
+      +(langNow()==='en'?'':' ')+'が選んだもの</div>'
       +'<div class="muted">今月のねらいに合わせて、先生が選んでいます。</div></div>'
       +'<div class="prow">'+picks.map(prodTileHTML).join('')+'</div>';
   }
@@ -3212,11 +3338,17 @@ var LANG_SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,INPUT:1,NOSCRIPT:1};
 /* 辞書に無くても形で分かるもの（日付・回数・人数・様）。数はそのまま、単位だけ英語にする。
    保存する値には使わない（画面の文字だけ） */
 var LANG_MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+/* 請求の「9月分」のように、月だけを言うときの月の名前。日付の中では短い形（LANG_MON）を使う */
+var LANG_MON_FULL=['January','February','March','April','May','June','July',
+  'August','September','October','November','December'];
 var LANG_WD={'月':'Mon','火':'Tue','水':'Wed','木':'Thu','金':'Fri','土':'Sat','日':'Sun'};
 function langRx(key){
   var m;
   if((m=key.match(/^(\d{1,2})日$/)))return m[1];
   if((m=key.match(/^(\d{1,2})月$/)))return LANG_MON[+m[1]-1]||null;
+  /* ★保育料のご請求の月が「Month 9」と出ていた。英語では月は名前で言う。
+     辞書の '{0}月分' では名前にできないので、ここで受ける（日本語は「9月分」のまま） */
+  if((m=key.match(/^(\d{1,2})月分$/)))return LANG_MON_FULL[+m[1]-1]||null;
   if((m=key.match(/^(\d{4})年 ?(\d{1,2})月$/)))return (LANG_MON[+m[2]-1]||m[2])+' '+m[1];
   if((m=key.match(/^(\d{4})年 ?(\d{1,2})月 ?(\d{1,2})日$/)))return (LANG_MON[+m[2]-1]||m[2])+' '+(+m[3])+', '+m[1];
   if(LANG_WD[key])return LANG_WD[key];
@@ -3291,6 +3423,35 @@ function langApply(root){
     [].forEach.call(els,function(e){['placeholder','title','aria-label'].forEach(function(a){
       var v=e.getAttribute(a); if(!v)return; var k=v.replace(/^\s+|\s+$/g,''); var t2=langLookup(k); if(t2)e.setAttribute(a,t2);});});
   }catch(e){}
+  langGap(root);
+}
+/* ★英語にしたとき、文の終わりの「.」のすぐうしろに次の文が続き、
+   「…MiraiWA.We do not record…」と、2つの文が1つにつながって見えていた
+   （スクール5か所・マイページ3か所。2026-09-21 に測りました）。
+   もとの日本語は「…います。お名前・…」で、「。」そのものが空きの役をするため、
+   文と文のあいだに空きを入れていない。太字などで文が分かれていると、
+   訳しても空きがどこにも入らない。
+   訳し終わったあとに見て回り、次の文字がすぐ続くところにだけ半角の空きを入れる。
+   日本語のときは呼ばれない（langApply が英語のときしか進まないため）。
+   文そのものは切らない（行分けは tidyNotes の持ち場で、日本語の見た目を変えないため）。 */
+function langGap(root){
+  if(!root||!document.createTreeWalker)return;
+  try{
+    var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false),n,ns=[];
+    while((n=w.nextNode())){
+      var p=n.parentNode; if(!p||LANG_SKIP[p.nodeName])continue;
+      if(!/\S/.test(n.nodeValue))continue;   /* 空きだけの文字は、すでに区切りになっている */
+      ns.push(n);
+    }
+    for(var i=0;i<ns.length-1;i++){
+      var a=ns[i].nodeValue,b=ns[i+1].nodeValue;
+      /* すでに空きがあるものは、二度入れない（何度訳し直しても同じ形になるように） */
+      var endDot=/[.!?][”’"']?$/.test(a),endSep=/[,:]$/.test(a);
+      if(!endDot&&!endSep)continue;
+      var next=/^[A-Za-z(“"']/.test(b)||(/:$/.test(a)&&/^[0-9]/.test(b));
+      if(next)ns[i].nodeValue=a+' ';
+    }
+  }catch(e){}
 }
 function langToggleHTML(){
   var en=langNow()==='en';
@@ -3300,6 +3461,52 @@ function langToggleHTML(){
 function langToggleWire(){ var b=document.getElementById('langTg'); if(b)b.onclick=function(){ langSet(langNow()==='en'?'ja':'en'); }; }
 /* 英語の辞書。鍵は日本語そのもの。無いことばは日本語のまま出る。 */
 var EN_DICT={
+/* ★札の右に件数が付くと、辞書が引けずに日本語のまま残っていた。
+   「すべて 17」のように数まで書いた鍵しか無く、数が変わったとたんに外れていた。
+   {0} は数の入るところ。これで件数がいくつでも英語になる。 */
+'すべて {0}':'All {0}','園の教材 {0}':'School materials {0}','一般サービス {0}':'General Services {0}',
+'教材 {0}':'Learning materials {0}','絵本 {0}':'Picture books {0}','知育玩具 {0}':'Educational toys {0}',
+'制服 {0}':'Uniforms {0}','クラフト材料 {0}':'Craft Supplies {0}','食育用品 {0}':'Food education supplies {0}',
+'ハンドメイド {0}':'Handmade {0}','ダウンロード教材 {0}':'Downloadable Materials {0}','イベント用品 {0}':'Event Supplies {0}',
+'中古・レンタル {0}':'Used & Rental {0}','募集中 {0}':'Open {0}','開催済み {0}':'Past {0}',
+'🎒 入園・進級の準備 {0}':'🎒 Preparing for Enrollment & Moving Up {0}','✏️ 手先を使わせたい {0}':'✏️ Fine Motor Skills {0}',
+'🎶 からだを動かしたい {0}':'🎶 Active Play {0}','🗣️ ことばを増やしたい {0}':'🗣️ Build Vocabulary {0}',
+'🔎 「なぜ？」に答えたい {0}':'🔎 Answering \'Why?\' {0}','🔢 かず・かたちにふれたい {0}':'🔢 Numbers & Shapes {0}',
+'🍚 食べムラをどうにかしたい {0}':'🍚 Picky Eating {0}','✂️ おうちで何かつくりたい {0}':'✂️ Making Things at Home {0}',
+/* ★マイページと保育料のご請求が、英語にしてもほとんど日本語のまま出ていた。
+   「9月分」「お支払期日：2026-09-30」のように、ことばと数字をつないでから
+   画面に出していたため、辞書のどの鍵にも当たらなかった。
+   数の入るものは {0} の形にして、数がいくつでも引けるようにする。
+   ★ただし「9月分」だけは、ここに '{0}月分':'Month {0}' と置いていたので
+     「Month 9」と出ていた。英語では月は名前で言うので、langRx で September にする。
+     日本語は「9月分」のまま。 */
+/* 0〜5歳児はひとつずつ鍵があるので、そちらが優先される。ここは 6歳児のための受け皿 */
+'{0}歳児':'{0}-year-olds',
+/* クラスの名前（園がつけたお名前）は訳さず、うしろの「クラス」だけを訳す。
+   英語では「Pre」と続けて出るので、頭に半角の空きを入れて「Pre Class」にする */
+'クラス':' Class',
+/* 日時や版のあとに残る閉じかっこ。英語の本文に全角のかっこが1つだけ残るのを防ぐ */
+'）':')',
+'に同意（版':'agreed (version',
+/* スクールガイドの分類。右に件数が付くので、数の入る形も持つ */
+'はじめに':'Getting started','毎日のこと':'Everyday life','健康・お薬':'Health & medicine',
+'安全・災害':'Safety & disasters','手続き':'Forms & procedures','園の情報':'About the school',
+'はじめに {0}':'Getting started {0}','毎日のこと {0}':'Everyday life {0}','健康・お薬 {0}':'Health & medicine {0}',
+'安全・災害 {0}':'Safety & disasters {0}','手続き {0}':'Forms & procedures {0}','園の情報 {0}':'About the school {0}',
+/* 健康に関する情報のお断り。1文目だけ辞書に無く、日本語のまま残っていた */
+'アレルギー・既往症・体温などの健康に関する情報は、法律上とくに配慮が必要なものです。':'Allergies, medical history, body temperature and other health information need special care under the law.',
+'身長・体重・体温などは、法律上とくに配慮が必要な「健康に関する情報」です。':'Height, weight, body temperature and the like are “health information” that needs special care under the law.',
+/* ご利用状況の記録のお知らせ。3つの文が、どれも辞書に無かった */
+'どの記事が読まれているか、どの教材が選ばれているかを集計し、園と未来WAのサービス改善に使わせていただきます。':'We tally which articles are read and which materials are chosen, and use it to improve the school’s and MiraiWA’s service.',
+'ただし、園が保護者アカウントとつなげて見ることはできる形で保存されます。':'However, records are stored in a form the school can view alongside your guardian account.',
+'記録に残らないようにしたい場合は、マイページからいつでも止められます。':'If you would rather not be recorded, you can stop it at any time from My Page.',
+/* 欠席・送迎時間変更を送ったときの、下から出るお知らせ */
+'園に送信しました':'Sent to the school',
+/* 出欠・ご相談の入力欄の案内文。欄の中の薄い文字も英語にする */
+'例：発熱のためお休みします（37.8度）':'e.g. Staying home with a fever (37.8°C)',
+'園へのご連絡・ご相談を入力してください':'Write a message or question for the school',
+/* 矢印や絵文字が付いていて、そのままでは辞書に当たらなかったもの */
+'くわしく見る・申し込む →':'Details & sign up →','🔗 園の SNS・最新情報':'🔗 School SNS & Updates',
 'スクール':'School','あそぶ':'Play','まなぶ':'Learn','ストア':'Store','つながる':'Connect','マイページ':'My Page',
 '園とつながる':'Connect to school','ログアウト':'Log out','ログイン':'Log in','メールアドレス':'Email','パスワード':'Password',
 'パスワードをお忘れですか？':'Forgot your password?','まずは教材だけ見てみる':'Browse materials first',
@@ -3583,7 +3790,7 @@ var EN_DICT={
 '🔢 かず・かたちにふれたい 2':'🔢 Numbers & Shapes 2',
 'イベントの開催日をむかえたとき':'When the event day arrives',
 '寝つきは、寝る前1時間で決まる':'Falling Asleep: It Comes Down to the Hour Before Bed',
-'・児童情報を登録する権限の確認':'・Confirming your authority to register child information',
+'・児童情報を登録する権限の確認':'• Confirming your authority to register child information',
 '代表者　代表取締役　安田 応彦':'Representative: 安田 応彦 (Representative Director)',
 '🍚 食べムラをどうにかしたい 1':'🍚 Picky Eating 1',
 '名称　株式会社BIM JAPAN':'Company name: 株式会社BIM JAPAN',
@@ -3592,7 +3799,7 @@ var EN_DICT={
 '季節の工作キット ダウンロード版':'Seasonal Craft Kit (Download Version)',
 'テンポを合わせる練習になります。':'It\'s good practice for keeping in time.',
 '子どもの防災リュックに入れるもの':'What to Pack in Your Child\'s Emergency Backpack',
-'・利用規約・プライバシーポリシー':'・Terms of Service and Privacy Policy',
+'・利用規約・プライバシーポリシー':'• Terms of Service and Privacy Policy',
 '✂️ おうちで何かつくりたい 2':'✂️ Making Things at Home 2',
 '数は「かぞえる」より「くらべる」':'Numbers: \'Comparing\' Before \'Counting\'',
 '集合場所を、園と家で分けて決める':'Decide Separate Meeting Points for School and Home',
@@ -3644,7 +3851,8 @@ var EN_DICT={
 '服のボタンで練習。自分でできた実感につながります。':'Practice with the buttons on their clothes. It builds the feeling of "I did it myself."',
 '受け取らなくても、機能はすべてお使いいただけます。':'Even if you don\'t receive them, you can still use all features.',
 '材料は家にあるものだけ。画面ごしに一緒に作ります。':'Only materials you have at home. We\'ll make it together over video.',
-'・スポンサー・キャンペーンのお知らせ　受け取らない':'・Sponsor and campaign notices: Not receiving',
+'・スポンサー・キャンペーンのお知らせ　受け取らない':'• Sponsor and campaign notices: Not receiving',
+'・スポンサー・キャンペーンのお知らせ　受け取る':'• Sponsor and campaign notices: Receiving',
 '利用規約とは別に、個別のご同意をいただいています。':'This consent is asked for separately from the Terms of Service.',
 'スポンサー・キャンペーンのお知らせを受け取ります。':'Receive sponsor and campaign notices.',
 '照明を落とし、画面を消すだけで変わることがあります。':'Simply dimming the lights and turning off screens can make a difference.',
@@ -4030,6 +4238,8 @@ var EN_DICT={
 '出品中':'Listed',
 '年齢別':'By Age',
 '送信：':'Sent:',
+/* 送迎時間変更のご連絡に出る、時刻つきのことば。時刻はご家庭が選ばれた値なので {0}:{1} で受ける */
+'登園 {0}:{1}':'Drop-off {0}:{1}','お迎え {0}:{1}':'Pick-up {0}:{1}',
 'お写真':'Photos',
 '合言葉':'Passcode',
 '責任者':'Person Responsible',
@@ -4236,7 +4446,7 @@ var EN_DICT={
 '災害時の避難先のご案内':'Evacuation site information (in case of disaster)',
 '治癒証明書／登園許可証':'Recovery certificate / Return-to-school permit',
 '内容は上のとおりです。':'See the details above.',
-'とつながっています 🌸':'connected 🌸',
+'とつながっています 🌸':'is connected 🌸',
 'スクールガイドをひらく':'Open School Guide',
 '立てているコミュニティ':'Communities Started',
 'オンライン（Zoom）':'Online (Zoom)',
@@ -4338,7 +4548,7 @@ var EN_DICT={
 'ご利用にあたって（施設の内容の掲示）':'Before You Enroll (Facility Information)',
 '登園の際、担任に直接ご提出ください。':'Hand it directly to your child’s teacher at drop-off.',
 '入園のときにお渡ししている一式です。':'The full set we give you at enrollment.',
-'・スポンサー・キャンペーンのお知らせ':'・Sponsor and campaign notices',
+'・スポンサー・キャンペーンのお知らせ':'• Sponsor and campaign notices',
 'まだ身体測定のお知らせがありません。':'No measurement results yet.',
 'おうちでできる遊びを探すところです。':'Find activities to do at home here.',
 '「申込をする」でお申し込みできます。':'Tap “Sign up” to register.',
@@ -4391,7 +4601,7 @@ var EN_DICT={
 '開催期間・種別・テーマ・年齢でしぼりこめます。':'Filter by date, type, theme, and age.',
 '知りたいことを入れるか、下からお選びください。':'Type your question or choose from the options below.',
 '各商品ページに表示するお届け予定日によります。':'Based on the estimated delivery date shown on each product page.',
-'が、実際に導入・おすすめしている教材リストです。':'’s list of materials in use and recommended.',
+'が、実際に導入・おすすめしている教材リストです。':'’s list of the materials it uses and recommends.',
 'この資料の原本は、まだ園から登録されていません。':'The school hasn’t uploaded the original of this document yet.',
 '園への連絡と、園からのお知らせを見るところです。':'Send notices to the school and see announcements from the school.',
 '写真を押すと、くわしい内容と口コミが見られます。':'Tap a photo to see details and reviews.',
@@ -4510,6 +4720,9 @@ var EN_DICT={
 '国産の木で、子どもの手の大きさに合わせた道具をつくっています。工作キットは園での使用実績があるものだけを出しています。':'We make tools from Japanese wood, sized for children’s hands. We only offer craft kits proven in schools.',
 'クレジットカード（決済代行会社 Stripe のお支払いページでお手続きいただきます。カード番号は当社には届きません）':'Credit card (payment is made on Stripe’s payment page; your card number never reaches us)',
 '内訳・お振込先は、園からの「おたより」または「メッセージ」でご案内します。ご不明な点は「メッセージ」からお問い合わせください。':'Details and bank transfer info will be sent via “Newsletters” or “Messages” from the school. For questions, contact us through “Messages”.',
+/* ★上の鍵は2文つなぎで、行に分けたあとには当たらない。1行ずつの形も持たせる */
+'内訳・お振込先は、園からの「おたより」または「メッセージ」でご案内します。':'Details and bank transfer info come from the school via “Newsletters” or “Messages”.',
+'ご不明な点は「メッセージ」からお問い合わせください。':'For questions, please contact us through “Messages”.',
 '希望月の前々月1日〜月末営業日までにご提出ください（例：8月変更希望なら6月末まで）。原則1か月1枚のみ、口頭ではお受けできません。':'Submit between the 1st and the last business day of the month two months before the desired month (e.g., by the end of June for an August change). As a rule, one form per month; verbal requests are not accepted.',
 '希望月の前々月末営業日までにご提出ください（例：8月退園希望なら6月末まで）。期日以降のご提出は基本保育料等が発生し、返金はいたしかねます。':'Submit by the last business day of the month two months before the desired month (e.g., by the end of June to withdraw in August). Late submissions incur base tuition and other fees, which are non-refundable.',
 '国産ひのき／{0}歳から・保護者の付きそい前提':'Japanese cypress / Ages {0}+ · Adult supervision required',
@@ -4524,8 +4737,11 @@ var EN_DICT={
 'お求めずみ {0}枚。下の「受け取る」からダウンロードできます。':'Purchased: {0}. Tap “Download” below to get them.',
 '持ち物・感染症のきまり・避難場所・警報のときの休園・各種の届出用紙まで、{0}件。紙をなくしても、必要なときにここで確認できます。':'{0} items, from belongings, illness rules, and evacuation sites to weather-warning closures and forms. Lost the paper copy? Check it here anytime.',
 '枚。下の「受け取る」からダウンロードできます。':'photo(s). Tap “Download” below to get them.',
-'持ち物・感染症のきまり・避難場所・警報のときの休園・各種の届出用紙まで、':'Belongings, illness rules, evacuation sites, weather-warning closures, and forms:',
-'件。紙をなくしても、必要なときにここで確認できます。':'items. Lost the paper copy? Check it here anytime.',
+/* ★説明文は「。」で行を分けてから英語に差し替えるので、辞書は「行」の形で持つ。
+   1文目に件数が入り、2文目が別の行になるため、下の2つでないと引けない
+   （上にある2文つなぎの鍵は、行が分かれたあとには当たらない）。 */
+'持ち物・感染症のきまり・避難場所・警報のときの休園・各種の届出用紙まで、{0}件。':'Belongings, illness rules, evacuation sites, weather-warning closures, and forms: {0} documents.',
+'紙をなくしても、必要なときにここで確認できます。':'Lost the paper copy? You can check here anytime.',
 'ご購入前に確認をご希望の場合は info@bimjapan.jp へご連絡ください。':'To check before buying, please contact info@bimjapan.jp.',
 '休園希望月の前々月{0}日〜前々月末営業日までにご提出ください。年度内の休園は最大{1}か月です。休園月分の基本保育料・授業料の{2}％をいただき、お席を確保します。教育関連費は全額発生します。':'Please submit between day {0} and the last business day of the month two months before your leave begins. Leave can last up to {1} months per school year. For each month of leave, we charge {2}% of the base childcare fee/tuition to hold your child’s place. Education expenses are charged in full.',
 'ご案内の書き方を変えました（園の預かり先にも保存する旨を書き足しています）。緊急のご連絡の案内は、出欠・連絡の画面に移しました。未来WAの説明は、園からお届けするものを先に書く形にしました。':'We’ve reworded our notice (it now mentions that your information is also stored with the school’s storage provider). Emergency contact guidance has moved to the Attendance & Messages screen. The MiraiWA description now lists what the school sends you first.',
@@ -5091,8 +5307,13 @@ function meHTML(c){
       +'<div class="muted" style="font-size:11.5px;">'+esc(c.childKana||'')+'</div>'
       +'<div style="font-weight:800;font-size:17px;margin-top:2px;">'+esc(c.childFull||c.child)+'</div>'
       +'<div class="muted" style="margin-top:6px;">'+klassLabel(c)+'</div>'
-      +'<div class="muted" style="margin-top:3px;">生年月日　'+esc(fmtDate?fmtDate(c.dob):(c.dob||'—'))+'</div>'
-      +'<div class="muted" style="margin-top:6px;">'+esc(waSchoolName())+' とつながっています 🌸</div></div>'
+      /* ★「生年月日　5/10」と続けて出していたので、英語にしても見出しだけ日本語で残っていた。
+         見出しと日付を分けて、見出しだけを訳す。 */
+      +'<div class="muted" style="margin-top:3px;"><span>生年月日</span>'+(langNow()==='en'?' ':'　')
+        +'<span>'+esc(fmtDate?fmtDate(c.dob):(c.dob||'—'))+'</span></div>'
+      /* ★園の名前と続けて1つの文にしていたので、英語にならなかった。園の名前だけを訳さない。 */
+      +'<div class="muted" style="margin-top:6px;"><span data-nolang="1">'+esc(waSchoolName())+'</span>'
+        +' とつながっています 🌸</div></div>'
       /* 保育料のご請求は、配属スクールより上に置く */
       +billHTML(c)
       +schoolInfoHTML()
@@ -5172,12 +5393,20 @@ function consentCardHTML(){
   var r=consentGet();
   return '<div class="card" style="margin-top:14px;">'
     +'<div style="font-weight:800;font-size:13.5px;">利用規約・プライバシーポリシー</div>'
+    /* ★日時・版とことばがひとつづきだったので、英語にしてもこの行だけ日本語で残っていた。
+       日時と版（訳さないもの）を分けて、あいだのことばだけを辞書で引けるようにする。 */
     +(r?'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
-        +esc(r.at)+' に同意（規約の版 '+esc(r.ver)+'）<br>'
+        +'<span data-nolang="1">'+esc(r.at)+'</span>'
+        +'<span> に同意（規約の版 </span>'
+        +'<span data-nolang="1">'+esc(r.ver)+'</span><span>）</span><br>'
         +'ご案内の版　'+(r.noticeVer
             ? esc(r.noticeVer)+(r.noticeAt?'（'+esc(r.noticeAt)+' に確認）':'')
             : '記録がありません')+'<br>'
         +esc(r.dev||'')
+        /* ★箇条書きの点は、英語にしても日本語の中黒「・」のままだった。
+           ここは「・」＋ことばで1つの鍵になっているので、英語の訳のほうを
+           「• ことば」に直した（EN_DICT の '・利用規約・プライバシーポリシー' など）。
+           日本語は「・」のまま。ここは触らない。 */
         +((r.items&&r.items.length)?'<br>'+r.items.map(function(x){return '・'+esc(x);}).join('<br>'):'')
         +'<br>・スポンサー・キャンペーンのお知らせ　'
         +(stGet('wa_promo_ok',false)?'受け取る':'受け取らない')
@@ -5534,10 +5763,12 @@ function connectHTML(c){
         +'<button class="chip'+(s.open===''?' on':'')+'" data-cf="open" data-v="">すべて</button></div>'
       +'<div class="card petal-c" style="margin-top:12px;">'
       +'<div class="flabel">開催期間</div>'
-      +'<div style="display:flex;gap:8px;align-items:center;">'
-        +'<input type="date" id="evFrom" value="'+esc(s.from)+'" style="flex:1;">'
+      /* ★360px の幅で「終了日」の欄が画面から31pxはみ出していた。
+         日付の欄は中身ぶんの幅を手放さないので、daterow でちぢめてよいと伝える。 */
+      +'<div class="daterow">'
+        +'<input type="date" id="evFrom" value="'+esc(s.from)+'">'
         +'<span class="muted">〜</span>'
-        +'<input type="date" id="evTo" value="'+esc(s.to)+'" style="flex:1;">'
+        +'<input type="date" id="evTo" value="'+esc(s.to)+'">'
         +(s.from||s.to?'<button class="chip" id="evDx">×</button>':'')+'</div>'
       /* 対象者を先に選ぶ。クリエイター側は「保護者向け」だけ種別を使い、
          それ以外はテーマを使う作りなので、こちらも同じように出し分ける。 */
@@ -5742,7 +5973,10 @@ function portalHTML(c){
       +(linked
          ? '<div style="display:flex;align-items:center;gap:9px;">'+waFaceHTML(c,34)
            +'<div style="min-width:0;text-align:left;">'
-           +'<div class="p">'+esc(c.klass)+'クラス'+(waAgeLabel(c)?'　'+esc(waAgeLabel(c)):'')+'</div>'
+           /* ★上の帯も同じで、ひとつづきだったため英語にならなかった。
+              クラスの名前だけを訳さず、あとは辞書で引けるように分ける。 */
+           +'<div class="p"><span data-nolang="1">'+esc(c.klass)+'</span>クラス'
+             +(waAgeLabel(c)?(langNow()==='en'?' ':'　')+'<span>'+esc(waAgeLabel(c))+'</span>':'')+'</div>'
            +'<div class="n">'+esc(c.child)+' <span class="whoarrow">›</span></div></div></div>'
          : '<div class="p">未来WA</div><div class="n">園とつながっていません <span class="whoarrow">›</span></div>')+'</button>'
     /* ★ごきょうだいが同じメールで登録されているとき、いちばん最後に
@@ -5759,7 +5993,10 @@ function portalHTML(c){
           return '<button class="sibb'+(on?' on':'')+'" data-sib="'+esc(k.id)+'"'
             +(on?' aria-current="true"':'')+'>'+esc(k.child||k.name)+'</button>';
         }).join('')
-        +'</div>';
+        +'</div>'
+        /* 入りきらないお子さまがいるときだけ出る「›」。読み上げには出さない
+           （押すものではなく、横に送れることを目で知らせるだけのため） */
+        +'<div class="sibmore" aria-hidden="true">›</div>';
     })()
     +'<img src="'+WA_LOGO+'" alt="未来WA" class="walogo">'
     +langToggleHTML()
@@ -5791,12 +6028,42 @@ function bloomEmpty(msg){
   return '<div class="bloom-empty">'+bloomSVG('',56)+'<div>'+esc(msg)+'</div></div>';
 }
 
+/* ★お子さまが4人のご家庭で、4人目が右はしに10pxほどしか見えず、
+   しかもそこを薄くしていたので、4人目が居ないように見えていた。
+   まだ右に続いているときだけ「›」を出し、いちばん右まで送ったら消す。
+   お子さまのボタンの右はしで見るので、合図そのものの幅は数に入らない。 */
+function sibMoreMark(sw){
+  try{
+    if(!sw||!sw.classList)return;
+    var bs=sw.querySelectorAll('.sibb'),last=bs[bs.length-1];
+    if(!last)return;
+    var more=last.getBoundingClientRect().right>sw.getBoundingClientRect().left+sw.clientWidth+1;
+    sw.classList.toggle('more',more);
+  }catch(e){}
+}
 function wirePortal(c){
   document.getElementById('logout').onclick=logout;
   /* お子さまの切り替え */
   Array.prototype.forEach.call(document.querySelectorAll('[data-sib]'),function(b){
     b.onclick=function(){ switchChild(b.getAttribute('data-sib')); };
   });
+  /* 切り替えは横に送る形なので、いま見ているお子さまのボタンが
+     画面の外から始まらないよう、まんなかへ寄せておく */
+  try{
+    var sw=document.querySelector('.sibsw'),on=document.querySelector('.sibb.on');
+    if(sw){
+      if(on&&sw.scrollWidth>sw.clientWidth+1){
+        var r1=sw.getBoundingClientRect(),r2=on.getBoundingClientRect();
+        var to=sw.scrollLeft+(r2.left-r1.left)-(r1.width-r2.width)/2;
+        sw.scrollLeft=to>0?to:0;
+      }
+      /* ★横に送れる合図を、最初に一度つけるだけにしていた。
+         いちばん右まで送ったあとも「›」が残り、まだ先があるように見えていた。
+         送るたびに見直す。 */
+      sibMoreMark(sw);
+      sw.onscroll=function(){sibMoreMark(sw);};
+    }
+  }catch(e){}
   var mb=document.getElementById('meBtn');
   if(mb)mb.onclick=function(){tab='me';render();};
   var bb=document.getElementById('bloomBtn');
@@ -6368,6 +6635,25 @@ function submitAbsence(c,date,kind,reason){
   stSet('absence_log',log);
 }
 function myAbsences(c){return (stGet('absence_log',[])||[]).filter(function(a){return a.childId===c.id;}).sort(function(a,b){return a.date<b.date?1:-1;});}
+/* ★欠席の種類（病欠・都合欠）と、ご家庭が書かれた文とを、全角の空きでつないでから
+   ひとかたまりで出していた。辞書に「病欠」があっても、鍵は「病欠　37.8」になるので
+   当たらず、英語にしても日本語のまま残っていた。
+   決まったことば（病欠・都合欠・登園 9:00・お迎え 16:00）と、ご家庭が書かれた文とを
+   分けて出し、決まったことばだけを辞書で引けるようにする。
+   ご家庭が書かれた文は、書かれたままの言葉でお見せする（訳さない）。 */
+function attDetailHTML(s){
+  var t=String(s||''),out=[],sep=(langNow()==='en')?' ':'　',m;
+  /* 決まったことばは、かならず先頭に並ぶ（欠席の種類、または登園・お迎えの時刻）。
+     そこだけを切り出し、残りはご家庭が書かれた文として、書かれたまま出す。
+     全角の空きで切りきってしまうと、ご家庭の文の中の空きまで変わるため、
+     決まったことばのぶんだけを取る。 */
+  while((m=t.match(/^(病欠|都合欠|(?:登園|お迎え) \d{1,2}:\d{2})(　|$)/))){
+    out.push('<span>'+esc(m[1])+'</span>');
+    t=t.slice(m[0].length);
+  }
+  if(t)out.push('<span data-nolang="1">'+esc(t)+'</span>');
+  return out.join(sep);
+}
 function attHTML(c){
   /* 出欠の連絡と、園への返信をまとめて新しい順に出す */
   var hist=myAbsences(c).concat(myReplies(c)).sort(function(a,b){
@@ -6376,6 +6662,9 @@ function attHTML(c){
      欠席は 都合欠／病欠 を選び、送迎時間変更は 登園・お迎えの時刻を入れる。
      遅刻・早退は送迎時間変更と中身が同じなので置かない。 */
   var absSub=(typeof attSub!=='undefined')?attSub:'病欠';
+  /* 英語のときは、ことばのあいだを半角の空きにする（全角の空きは英語の中で広すぎるため）。
+     日本語のときは、これまでどおり全角の空き */
+  var sep=(langNow()==='en')?' ':'　';
   return '<div class="card"><h2 class="sec sec-o">📅 出欠・連絡</h2>'
     +'<div class="info" style="margin-bottom:8px;">送信すると、園のホームにすぐ届きます。登園シートには園の先生が書き写します。前日までのご連絡にご協力ください。</div>'
     /* この画面は園の記録に入るまで時間差がない前提だが、見るのは職員が画面を開いたとき。
@@ -6391,7 +6680,17 @@ function attHTML(c){
       +'<div class="field"><label>お迎えの時間</label><input id="at_out" type="time"></div></div></div>'
     +'<div class="field"><label>伝えたいこと（自由記入）</label><textarea id="at_reason" rows="3" placeholder="例：発熱のためお休みします（37.8度）"></textarea></div>'
     +'<button class="btn" id="at_send">この内容を送信する</button>'
-    +'<div id="at_done" class="sent-ok hide"></div>'
+    /* ★送信したお知らせを、押した直後にここへ書き込んでいた。
+       0.9秒あとに画面を作り直すので、そのたびに消えていた。
+       「送れたのか分からない」ので、同じ連絡を2回・3回と送ってしまう。
+       送った中身を覚えておき、作り直したあとも出し続ける。 */
+    +'<div id="at_done" class="sent-ok'+(attDone?'':' hide')+'">'
+    +(attDone
+      ?'<b>園に送信しました。</b><div class="muted" style="margin-top:4px;">'
+        +'<span>'+esc(fmtDate(attDone.date))+'</span>'+sep+'<span>'+esc(attDone.kind)+'</span>'
+        +(attDone.detail?sep+attDetailHTML(attDone.detail):'')+'</div>'
+      :'')
+    +'</div>'
     /* 送信履歴は送信欄と同じ枠の中に置く */
     +'<div class="hist-in"><div class="hist-t">🗒 連絡の履歴</div>'
     +(hist.length?hist.map(function(a){
@@ -6399,11 +6698,18 @@ function attHTML(c){
              :(a.kind==='返信'?'#E9F3EC;color:#0F6E56':'#E6F1FB;color:#0C447C');
       return '<div class="att-item"><div class="dt">'+fmtDate(a.date)+'</div><div style="flex:1;">'
         +'<span class="badge-k" style="background:'+col+';">'+esc(a.kind)+'</span>'
-        +'<div class="muted" style="margin-top:4px;white-space:pre-wrap;">'+esc(a.reason||'（理由なし）')+'</div>'
-        +'<div style="font-size:10.5px;color:var(--tx3);margin-top:2px;">送信：'+esc(a.at)+'</div></div></div>';
+        +'<div class="muted" style="margin-top:4px;white-space:pre-wrap;">'
+          +(a.reason?attDetailHTML(a.reason):'<span>（理由なし）</span>')+'</div>'
+        /* ★「送信：」と日時をひとつづきで出していたので、辞書のどの鍵にも当たらず、
+           英語にしてもこの行だけ日本語で残っていた。ことばと日時を分ける。 */
+        +'<div style="font-size:10.5px;color:var(--tx3);margin-top:2px;"><span>送信：</span>'
+          +'<span data-nolang="1">'+esc(a.at)+'</span></div></div></div>';
       }).join(''):bloomEmpty('まだ連絡はありません'))+'</div>';
 }
 var attSub='病欠';
+/* 最後に送った連絡。画面を作り直しても「送れました」を出し続けるために覚えておく。
+   保存する値ではないので、端末には残さない（タブを変えると消える） */
+var attDone=null;
 function wireAtt(c){
   var $=function(id){return document.getElementById(id);};
   if(!$('at_seg'))return;
@@ -6428,14 +6734,20 @@ function wireAtt(c){
       detail=[i?'登園 '+i:'',o?'お迎え '+o:'',reason].filter(Boolean).join('　');
     }
     submitAbsence(c,date,kind,detail);
-    /* 送信したことが画面で分かるようにする */
-    var d=$('at_done');
-    if(d){d.classList.remove('hide');
-      d.innerHTML='<b>園に送信しました。</b><div class="muted" style="margin-top:4px;">'
-        +esc(fmtDate(date))+'　'+esc(kind)+(detail?'　'+esc(detail):'')+'</div>';}
+    /* 送信したことが画面で分かるようにする。
+       ★画面を作り直すだけだったので、英語のときは作り直したところが
+         日本語に戻っていた。render なら、作り直したあとに英語へ差し替わる。 */
+    attDone={date:date,kind:kind,detail:detail};
     $('at_reason').value='';
-    var hist=document.querySelector('.hist-in');
-    setTimeout(function(){wirePortal(c);},900);
+    toast('園に送信しました');
+    render();
+    /* ★画面を作り直すと、いちばん上に戻ってしまう。
+       送ったお知らせが見えないままでは、送れたのかが分からない。
+       お知らせのところまで運ぶ。 */
+    try{
+      var d2=document.getElementById('at_done');
+      if(d2&&d2.scrollIntoView)d2.scrollIntoView({block:'center'});
+    }catch(e){}
   };
 }
 
@@ -6480,7 +6792,10 @@ function billHTML(c){
       +'<span style="font-weight:700;font-size:15px;">'+(+x.mk.split('-')[1])+'月分</span>'
       +'<span style="background:'+(paid?'#EAF3DE':'#FAEEDA')+';color:'+(paid?'#27500A':'#854F0B')+';border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;">'+(paid?'お支払い済み':'お支払いのお願い')+'</span></div>'
       +'<div style="font-size:22px;font-weight:700;margin-bottom:4px;">¥'+Number(x.r.total||0).toLocaleString()+'</div>'
-      +'<div class="muted" style="font-size:12.5px;">お支払期日：'+(x.r.due?x.r.due:'園からのご案内をご確認ください')+'</div>'
+      /* ★「お支払期日：2026-09-30」とひとつづきで出していたので、
+         英語にしても見出しごと日本語のまま残っていた。見出しと日付を分ける。 */
+      +'<div class="muted" style="font-size:12.5px;"><span>お支払期日：</span>'
+        +'<span>'+esc(x.r.due?x.r.due:'園からのご案内をご確認ください')+'</span></div>'
       +'</div>';
   }).join('')+'<div class="muted" style="margin-top:6px;font-size:12px;">内訳・お振込先は、園からの「おたより」または「メッセージ」でご案内します。ご不明な点は「メッセージ」からお問い合わせください。</div></div>';
 }
@@ -6836,6 +7151,37 @@ function waHelpToggle(open){
       +'知りたいことを入れるか、下からお選びください。');
   }
 }
+/* ★下から出る窓より「?」の丸ボタンのほうが手前にいたので、
+   商品のくわしい内容を開いたとき、とじるボタンや金額の上に重なっていた。
+   窓が出ているあいだは引っ込め、とじたら戻す。
+   同意をいただく前に隠す仕組み（style.display）とはぶつからないよう、
+   ここでは付け外しできる名札を使う。 */
+function waFabSync(){
+  var f=document.getElementById('waHelpFab');
+  if(!f)return;
+  var open=false;
+  /* ★見ていたのが .sheet-bg だけでした。下から出るシートは使うのをやめていて、
+     いま重ねて出しているのは、ご案内の窓・規約・特定商取引法の3つです。
+     どれも .sheet-bg を付けないので、この仕組みは一度も働いていませんでした。
+     いま出している窓に共通の名札（wa-ovl）を見ます。 */
+  try{open=!!document.querySelector('.sheet-bg,.wa-ovl');}catch(e){}
+  /* ★名札を丸ごと書き換えていたので、あとから別の名札を付けても消えていました。
+     付け外しだけにします。 */
+  if(f.classList){ if(open)f.classList.add('fabhid'); else f.classList.remove('fabhid'); }
+  else f.className=open?'fabhid':'';
+}
+/* 窓は body の下に足したり外したりされるので、その出入りを見て合わせる */
+function waFabWatch(){
+  if(window.__waFabWatch)return;
+  window.__waFabWatch=1;
+  if(typeof MutationObserver!=='function'){
+    /* 古い端末では見張れないので、時間で追いかける */
+    setInterval(waFabSync,600);return;
+  }
+  try{
+    new MutationObserver(waFabSync).observe(document.body,{childList:true});
+  }catch(e){setInterval(waFabSync,600);}
+}
 function waHelpInit(){
   if(document.getElementById('waHelpFab'))return;
   var fab=document.createElement('button');
@@ -6864,6 +7210,7 @@ function waHelpInit(){
       if(c==='この画面の使い方'){waHelpPush('me',esc(c));waHelpLog(c,1);
         setTimeout(function(){waHelpShow(waHelpNow(),false);},160);return;}
       waHelpAsk(c);};});
+  waFabWatch();
 }
 
 
@@ -8125,6 +8472,8 @@ function lawSellerHTML(p){
 }
 function waLawOpen(){
   var ov=document.createElement('div');
+  /* 重ねて出す窓には共通の名札を付ける。「?」の丸ボタンは、これを見て引っ込む */
+  ov.className='wa-ovl';
   ov.style.cssText='position:fixed;inset:0;z-index:1400;background:var(--bg,#fff);'
     +'overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 16px 40px;';
   ov.innerHTML='<div style="max-width:640px;margin:0 auto;">'+lawOperatorHTML()
@@ -8141,8 +8490,9 @@ function healthLockHTML(){
   return '<div class="card" style="border-color:#E8C9C9;background:#FCEBEB;">'
     +'<h2 class="sec sec-c" style="margin-top:0;">📈 身体記録</h2>'
     +'<div style="font-size:13px;line-height:1.9;">'
+    /* ★ここも1文目と「そのため、」がひとかたまりで、辞書が引けませんでした。1文ずつに分けます。 */
     +'身長・体重・体温などは、法律上とくに配慮が必要な「健康に関する情報」です。'
-    +'そのため、<b>ご同意をいただくまで表示しません。</b></div>'
+    +'<span>そのため、</span><b>ご同意をいただくまで表示しません。</b></div>'
     +'<button class="btn" data-hc="open" style="margin-top:12px;">内容を読んで同意する</button>'
     +'</div>';
 }
@@ -8153,7 +8503,11 @@ function healthCardHTML(){
     +'<div class="muted" style="margin-top:7px;font-size:12px;line-height:1.8;">'
     +'アレルギー・既往症・体温などは、法律上とくに配慮が必要な情報です。'
     +'利用規約とは別に、個別のご同意をいただいています。</div>'
-    +(r?'<div class="muted" style="margin-top:7px;font-size:12px;">'+esc(r.at)+' に同意（版 '+esc(r.ver)+'）</div>'
+    /* ★ここも日時・版とことばがひとつづきで、英語にならなかった */
+    +(r?'<div class="muted" style="margin-top:7px;font-size:12px;">'
+        +'<span data-nolang="1">'+esc(r.at)+'</span>'
+        +'<span> に同意（版 </span>'
+        +'<span data-nolang="1">'+esc(r.ver)+'</span><span>）</span></div>'
        :'<div style="margin-top:7px;font-size:12px;color:#A32D2D;">まだ同意をいただいていません</div>')
     +'<button class="btn sec" data-hc="open" style="margin-top:11px;width:100%;font-size:12.5px;">'
     +(r?'内容を確認する・同意を取り消す':'内容を読んで同意する')+'</button></div>';
