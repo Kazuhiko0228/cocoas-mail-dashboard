@@ -403,6 +403,58 @@
   .modal{background:#fff;border-radius:16px;width:500px;max-width:100%;max-height:90vh;overflow:auto;padding:24px;}
   .modal h2{font-size:17px;margin:0 0 18px;display:flex;align-items:center;gap:8px;}
   .modal h2 svg{width:18px;height:18px;flex-shrink:0;color:var(--teal);}
+  /* ══ 月間カリキュラム（2026-09-21 作り直し）══════════════════
+     ★以前は1本の表で、スマホでは担当より右が画面の外にあった。
+       1日1枚のカードにして、横に送らなくても届くようにする。
+       押すところはすべて44px以上（先生は片手・立ったまま触るため）。 */
+  .curwk-row{display:flex;gap:8px;align-items:center;}
+  .curwk-list{flex:1;display:flex;gap:6px;overflow-x:auto;padding:2px;scrollbar-width:thin;}
+  .curwk-b{white-space:nowrap;min-height:40px;}
+  .curwk-row > .btn{white-space:nowrap;min-height:40px;}
+  .curdays{display:flex;flex-direction:column;gap:12px;}
+  .daycard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;max-width:1000px;}
+  .daycard.dc-care{background:#F7F6FE;}
+  .dc-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .dc-date{font-size:17px;font-weight:700;display:flex;align-items:baseline;gap:5px;}
+  .dc-date span{font-size:12px;font-weight:400;color:var(--tx3);}
+  .dc-tea{width:120px;}
+  .dc-care-l{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;white-space:nowrap;min-height:44px;}
+  .dc-care-l input{width:auto;}
+  .dc-slots{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .dc-slots-1{grid-template-columns:1fr;}
+  .dc-slot{border:1px solid var(--line2);border-radius:11px;padding:10px 11px;min-width:0;}
+  .dc-slot-h{font-size:12px;font-weight:700;color:var(--tx3);margin-bottom:6px;}
+  .dc-body{display:block;width:100%;text-align:left;min-height:56px;margin-top:6px;padding:9px 11px;
+    border:1px dashed var(--line);border-radius:10px;background:var(--bg);cursor:pointer;font:inherit;color:inherit;}
+  .dc-body.on{border-style:solid;background:#fff;}
+  .dc-body b{display:block;font-size:13.5px;}
+  .dc-body span{display:block;font-size:11.5px;color:var(--tx3);margin-top:3px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dc-body-empty{color:var(--tx3);font-size:13px;}
+  .dc-body[disabled]{opacity:.5;cursor:default;}
+  .dc-jis{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:9px;}
+  .dc-jis .btn{min-height:44px;}
+  .dc-why{margin-top:8px;}
+  .dc-memo{margin-top:10px;}
+  .dc-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;}
+  .dc-foot .btn{min-height:44px;}
+  .dc-edge{display:flex;gap:8px;flex-wrap:wrap;opacity:.7;}
+  .curact-modal{width:760px;max-width:100%;}
+  @media(max-width:768px){
+    .dc-slots{grid-template-columns:1fr;}
+    .dc-tea{width:100px;}
+    .daycard{padding:12px 13px;}
+    /* 窓は画面いっぱいに出す（中央の小さな箱にしない） */
+    .modal-bg{padding:0;}
+    .modal{width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}
+  }
+  @media(min-width:1024px){
+    /* 活動内容の窓（左）と日案の窓（右）を並べる */
+    .modal-bg.pair-l{justify-content:flex-start;padding-left:20px;}
+    .modal-bg.pair-l .modal{max-width:46vw;}
+    .modal-bg.pair-r{justify-content:flex-end;padding-right:20px;background:transparent;}
+    .modal-bg.pair-r .modal{max-width:48vw;box-shadow:0 8px 32px rgba(20,28,24,.28);}
+  }
   .agenda{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line2);}
   .agenda:last-child{border-bottom:none;}
   .agenda .date{width:62px;flex-shrink:0;text-align:center;}
@@ -2179,8 +2231,88 @@ function curSched(){if(!CUR.schedule)CUR.schedule={};return CUR.schedule;}
 function curSchedGet(cls,date){var s=curSched(),o=((s[cls]||{})[date]);
   if(!o)o={};
   return {am:o.am||'',pm:o.pm||'',daycare:!!o.daycare,memo:o.memo||'',
-          amText:o.amText||'',pmText:o.pmText||'',teacher:o.teacher||''};}
+          amText:o.amText||'',pmText:o.pmText||'',teacher:o.teacher||'',
+          /* 2026-09-21 足した。活動内容を6つの欄で書けるようにするための入れ物。
+             amText は残す（紙・デイリーレポート・日案がこの欄しか見ていないため）。 */
+          amBody:o.amBody||null,pmBody:o.pmBody||null};}
 function curSchedSet(cls,date,obj){var s=curSched();s[cls]=s[cls]||{};s[cls][date]=obj;DB.curriculum=CUR;}
+/* ══ 活動内容の6つの欄（2026-09-21 安田さんのご判断）══════════
+   名前・内容・ねらい・準備と材料・進め方・気をつけること。
+   aiFields には「AIの下書きが入った欄」の名前を残す。監査で
+   「この文は誰が書いたか」を出せるようにするため。 */
+function curBodyEmpty(){return {name:'',text:'',aim:'',prep:'',steps:'',care:'',aiFields:[]};}
+function curBodyNorm(o){
+  if(!o)return curBodyEmpty();
+  return {name:o.name||'',text:o.text||'',aim:o.aim||'',prep:o.prep||'',
+          steps:o.steps||'',care:o.care||'',
+          aiFields:(o.aiFields&&o.aiFields.length)?o.aiFields.slice():[]};
+}
+function curBodyGet(cls,date,half){
+  var sc=curSchedGet(cls,date);
+  return curBodyNorm(half==='pm'?sc.pmBody:sc.amBody);
+}
+/* まとめの1行。紙・デイリーレポート・日案の「主な活動」はここだけを読む。
+   ★ここを書き戻さないと、それらが一斉に白紙になる。 */
+function curBodyLine(b){
+  b=curBodyNorm(b);
+  var first=String(b.text||'').split('\n')[0]||'';
+  return [b.name,first].filter(Boolean).join('　').replace(/^\s+|\s+$/g,'');
+}
+function curBodyHas(b){
+  b=curBodyNorm(b);
+  return !!(b.name||b.text||b.aim||b.prep||b.steps||b.care);
+}
+function curBodySet(cls,date,half,body){
+  var sc=curSchedGet(cls,date),b=curBodyNorm(body);
+  var had=curBodyHas(half==='pm'?sc.pmBody:sc.amBody);
+  if(half==='pm'){sc.pmBody=b;}else{sc.amBody=b;}
+  /* 6つの欄を全部消したときは、まとめの1行も消す。
+     残すと、画面には何も無いのに紙にだけ前の文が出る */
+  if(!curBodyHas(b)&&had){if(half==='pm')sc.pmText='';else sc.amText='';}
+  /* ★amText の書き戻しは必ず残す。止めると紙・デイリーレポート・日案が白紙になる。
+     6つの欄が全部空のときだけ、手で書いた1行をそのまま残す。 */
+  var line=curBodyLine(b);
+  if(curBodyHas(b)){if(half==='pm')sc.pmText=line;else sc.amText=line;}
+  curSchedSet(cls,date,sc);
+}
+/* ══ 週の区切り（2026-09-21 安田さんのご判断：月曜はじまり）══════
+   園の週案・シフトが月曜はじまりで動いているため。
+   ★保存の鍵には一切使わない。画面に出す順番を決めるだけ。
+     weekOfMonth（1日はじまり・7日ずつ）は、以前の「週の内容」を読むために
+     そのまま残してある。混ぜると、前に入れた週の内容が別の週に化ける。 */
+function curDateKey(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function curWeeksOf(mk){
+  var y=+String(mk).slice(0,4),mo=+String(mk).slice(5,7);
+  if(!y||!mo)return [];
+  var dim=new Date(y,mo,0).getDate();
+  var shift=(new Date(y,mo-1,1).getDay()+6)%7; /* 月曜を0にした曜日 */
+  var mon=new Date(y,mo-1,1-shift),last=new Date(y,mo-1,dim),out=[],k;
+  while(mon<=last){
+    var w={days:[],before:[],after:[]};
+    for(k=0;k<5;k++){ /* 月〜金だけ。土日は今までどおり出さない */
+      var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+k);
+      var key=curDateKey(d),kmk=key.slice(0,7);
+      if(kmk===mk)w.days.push(key);
+      else if(kmk<mk)w.before.push(key);
+      else w.after.push(key);
+    }
+    /* 月をまたぐ週は、その月の日だけ出す。平日が1日も無い週は出さない */
+    if(w.days.length)out.push(w);
+    mon=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+7);
+  }
+  return out;
+}
+/* 何週目かだけだと先生がどこか分からないので、日付の範囲も出す */
+function curWeekLabel(w){
+  if(!w||!w.days.length)return '';
+  var a=w.days[0],b=w.days[w.days.length-1];
+  return (+a.slice(5,7))+'/'+(+a.slice(8,10))+'-'+(+b.slice(5,7))+'/'+(+b.slice(8,10));
+}
+function curWeekIndexOf(mk,date){
+  var ws=curWeeksOf(mk),i,j;
+  for(i=0;i<ws.length;i++)for(j=0;j<ws[i].days.length;j++)if(ws[i].days[j]===date)return i;
+  return 0;
+}
 function curContAll(){if(!CUR.contentM)CUR.contentM={};return CUR.contentM;}
 function curCont(mk){var a=curContAll();mk=mk||CUR.month;if(!a[mk])a[mk]={};return a[mk];}
 function curContGet(cls,wk,type,mk){var c=curCont(mk);return (((c[cls]||{})[wk]||{})[type])||{theme:'',teacher:'',plan:''};}
@@ -2405,20 +2537,74 @@ var ACTREP_JIKAN=['予定どおり','短かった','長かった'];
 var ACTREP_TSUGI=['同じ活動をもう一度','発展させる','別の活動にする'];
 function actRepAll(){return stGet('act_reports',{});}
 function actRepKey(cls,date){return cls+'|'+date;}
-function actRepGet(cls,date){
-  var o=actRepAll()[actRepKey(cls,date)];
+/* ══ 実施の記録を午前・午後に分ける（2026-09-21 追加のご指示）══════
+   ★鍵（クラス|日付）は変えない。中に am / pm を足すだけ。
+     未入力書類の画面が、鍵のいちばん後ろの「|」から先を日付として読んでいる。
+     鍵を3つに増やすと、そこが am を日付として読み、
+     月末のふりかえりの判定が壊れる。 */
+var ACTREP_WHY=['雨天','行事が入った','子どもの体調','時間が足りなかった','職員が足りなかった','その他'];
+function actRepRaw(cls,date){var o=actRepAll()[actRepKey(cls,date)];return o||{};}
+function actRepNorm(o){
   if(!o)o={};
   return {done:o.done||'', picks:(o.picks&&o.picks.length)?o.picks:[],
           aiPicks:(o.aiPicks&&o.aiPicks.length)?o.aiPicks:[],
           free:o.free||'', muzu:o.muzu||'', jikan:o.jikan||'', tsugi:o.tsugi||'',
+          why:o.why||'', whyText:o.whyText||'',
+          movedFrom:o.movedFrom||'',
           at:o.at||'', by:o.by||''};
 }
-function actRepSet(cls,date,o){
-  var a=actRepAll();
-  o.at=lockNow(); o.by=lockWho();
-  a[actRepKey(cls,date)]=o; stSet('act_reports',a);
+function actRepHalf(cls,date,half){
+  var r=actRepRaw(cls,date);
+  /* 移し替えがまだ走っていない端末でも、午前に前の記録が見えるようにする */
+  if(half!=='pm'&&!r.am&&!r.pm&&r.done)return actRepNorm(r);
+  return actRepNorm(half==='pm'?r.pm:r.am);
 }
-function actRepHas(cls,date){return !!actRepGet(cls,date).done;}
+function actRepHalfSet(cls,date,half,o){
+  var a=actRepAll(),k=actRepKey(cls,date),r=a[k]||{};
+  o.at=lockNow(); o.by=lockWho();
+  r[half==='pm'?'pm':'am']=o;
+  a[k]=r; stSet('act_reports',a);
+}
+/* その日のまとめ。紙や一覧で「この日の記録」を1つだけ見たいときに使う */
+function actRepGet(cls,date){
+  var am=actRepHalf(cls,date,'am'),pm=actRepHalf(cls,date,'pm');
+  return am.done?am:(pm.done?pm:am);
+}
+function actRepHas(cls,date){
+  return !!(actRepHalf(cls,date,'am').done||actRepHalf(cls,date,'pm').done);
+}
+/* ══ 1回だけの移し替え ═══════════════════════════
+   いままでの記録は1日に1つだった。活動が入っているコマへ寄せる。
+   両方あるときは午前へ（1つの記録を2つに増やすと、実施率が実際より良く出るため）。
+   もとの done は消さずに dayDone として残す。監査で
+   「これは日ごとに付けた記録を移したものです」と示せるようにするため。 */
+function actRepMigrateAmPm(){
+  if(!CUR||CUR.actRepAmPmMoved)return;
+  try{
+    var a=actRepAll(),k,touched=false;
+    for(k in a){
+      if(!Object.prototype.hasOwnProperty.call(a,k))continue;
+      var r=a[k]||{};
+      if(r.am||r.pm)continue;
+      if(!(r.done||r.free||r.muzu||r.jikan||r.tsugi||(r.picks&&r.picks.length)))continue;
+      var cut=String(k).lastIndexOf('|');
+      if(cut<0)continue;
+      var cls=String(k).slice(0,cut),date=String(k).slice(cut+1);
+      var sc=curSchedGet(cls,date);
+      var hasAm=!!(sc.am||sc.amText||curBodyHas(sc.amBody));
+      var hasPm=!!(sc.pm||sc.pmText||curBodyHas(sc.pmBody));
+      var half=(!hasAm&&hasPm)?'pm':'am';
+      var mv=actRepNorm(r); mv.movedFrom='day';
+      r[half]=mv;
+      r.dayDone=r.done||''; r.dayAt=r.at||''; r.dayBy=r.by||'';
+      delete r.done; delete r.picks; delete r.aiPicks; delete r.free;
+      delete r.muzu; delete r.jikan; delete r.tsugi; delete r.at; delete r.by;
+      a[k]=r; touched=true;
+    }
+    if(touched)stSet('act_reports',a);
+  }catch(e){}
+  CUR.actRepAmPmMoved=1; DB.curriculum=CUR;
+}
 /* 選んだ項目を並べる。下書き由来のものには印を付ける（紙でも区別できるように） */
 function actRepPickText(v){
   var ai=v.aiPicks||[];
@@ -2445,10 +2631,13 @@ function actRepChoices(cls,date){
   return out;
 }
 
-function actRepModal(cls,date){
-  var o=actRepGet(cls,date),ch=actRepChoices(cls,date);
+function actRepModal(cls,date,half){
+  half=(half==='pm')?'pm':'am';
+  var o=actRepHalf(cls,date,half),ch=actRepChoices(cls,date);
   var d=new Date(date+'T00:00:00'),WDJ=['日','月','火','水','木','金','土'];
   var a=curDayActivities(cls,date);
+  var halfLabel=(half==='pm')?'午後':'午前';
+  var halfAct=(half==='pm')?a.afternoon:a.morning;
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
 
@@ -2460,12 +2649,24 @@ function actRepModal(cls,date){
   m.innerHTML='<div class="modal" style="width:560px;">'
     +'<h2>'+ic('check')+'この活動をやりましたか</h2>'
     +'<div class="muted" style="margin:-8px 0 14px;font-size:12.5px;">'
-      +esc(cls)+'　'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+WDJ[d.getDay()]+'）'
-      +((a.morning||a.afternoon)?'<br>'+esc([a.morning,a.afternoon].filter(Boolean).join(' / ')):'')
+      +esc(cls)+'　'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+WDJ[d.getDay()]+'）　'+halfLabel
+      +(halfAct?'<br>'+esc(halfAct):'')
+      /* ★この記録は、午前・午後に分ける前に「1日に1つ」で付けたものを移したもの。
+         そうと分かる断りを添える（古いことが分かるように）。 */
+      +(o.movedFrom==='day'?'<br><b>この記録は、午前・午後に分ける前に、その日の記録として付けられたものです。</b>':'')
       +'</div>'
     +'<div style="display:flex;gap:10px;margin-bottom:16px;">'
       +'<button class="btn'+(o.done==='やった'?' btn-primary':'')+'" data-rdone="やった" style="flex:1;padding:14px;">やった</button>'
       +'<button class="btn'+(o.done==='できなかった'?' btn-primary':'')+'" data-rdone="できなかった" style="flex:1;padding:14px;">できなかった</button>'
+    +'</div>'
+    /* 「できなかった」の理由。2026-09-21 安田さんのご判断で、
+       未記入でも保存できる（理由を必須にすると現場が止まるため）。 */
+    +'<div id="rpWhy"'+(o.done==='できなかった'?'':' style="display:none;"')+'>'
+      +'<div class="field"><label>できなかった理由</label><div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +ACTREP_WHY.map(function(x){
+        return '<button class="btn btn-sm'+(x===o.why?' btn-primary':'')+'" data-rwhy="'+esc(x)+'">'+esc(x)+'</button>';
+      }).join('')+'</div></div>'
+      +'<div class="field"><label>ひとこと</label><input id="rpWhyText" value="'+esc(o.whyText)+'" placeholder="書かなくても保存できます"></div>'
     +'</div>'
     +'<div id="rpBody"'+(o.done?'':' style="display:none;"')+'>'
       +((ch.length||o.picks.length)
@@ -2497,7 +2698,7 @@ function actRepModal(cls,date){
       +'<button class="btn btn-primary" id="rpSave">保存</button></div>'
     +'</div>';
 
-  var cur={done:o.done,picks:o.picks.slice(),muzu:o.muzu,jikan:o.jikan,tsugi:o.tsugi};
+  var cur={done:o.done,picks:o.picks.slice(),muzu:o.muzu,jikan:o.jikan,tsugi:o.tsugi,why:o.why};
   function mark(name,v){
     m.querySelectorAll('[data-'+name+']').forEach(function(b){
       b.className='btn btn-sm'+(b.getAttribute('data-'+name)===v?' btn-primary':'');});
@@ -2508,6 +2709,12 @@ function actRepModal(cls,date){
       x.className='btn'+(x.getAttribute('data-rdone')===cur.done?' btn-primary':'');
       x.style.flex='1';x.style.padding='14px';});
     var bd=m.querySelector('#rpBody'); if(bd)bd.style.display='';
+    var wy=m.querySelector('#rpWhy'); if(wy)wy.style.display=(cur.done==='できなかった')?'':'none';
+  };});
+  m.querySelectorAll('[data-rwhy]').forEach(function(b){b.onclick=function(){
+    /* 押し直すと外せる。理由は未記入でも保存できるため */
+    cur.why=(cur.why===b.getAttribute('data-rwhy'))?'':b.getAttribute('data-rwhy');
+    mark('rwhy',cur.why);
   };});
   m.querySelectorAll('[data-rpick]').forEach(function(b){b.onclick=function(){
     var v=b.getAttribute('data-rpick'),i=cur.picks.indexOf(v);
@@ -2528,9 +2735,13 @@ function actRepModal(cls,date){
       var inCh=ch.filter(function(x){return x.t===t;})[0];
       return inCh?inCh.ai:(prevAi.indexOf(t)>-1);
     });
-    actRepSet(cls,date,{done:cur.done,picks:cur.picks,aiPicks:aiPicks,
+    actRepHalfSet(cls,date,half,{done:cur.done,picks:cur.picks,aiPicks:aiPicks,
       free:(m.querySelector('#rpFree')||{}).value||'',
-      muzu:cur.muzu,jikan:cur.jikan,tsugi:cur.tsugi});
+      muzu:cur.muzu,jikan:cur.jikan,tsugi:cur.tsugi,
+      /* 「やった」に戻したときに理由が残らないようにする */
+      why:(cur.done==='できなかった')?(cur.why||''):'',
+      whyText:(cur.done==='できなかった')?((m.querySelector('#rpWhyText')||{}).value||''):'',
+      movedFrom:o.movedFrom||''});
     m.remove();
     /* この窓は、カリキュラムからも AI記録管理からも開く。いま出ている方を作り直す */
     try{
@@ -2543,25 +2754,43 @@ function actRepModal(cls,date){
 }
 /* 紙に出す（監査で「計画と実際が合っているか」を聞かれたとき用） */
 function actRepBody(cls,mk){
-  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),rows='',d,date,r,a;
+  /* ★1日1行だったので、午前と午後で別の活動をしていても実施は1つしか刷れなかった。
+     1日2行（午前・午後）にする。「できなかった」の理由の列も足す（2026-09-21）。 */
+  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),rows='',d,date,a,moved=0,noWhy=0;
   for(d=1;d<=dim;d++){
     date=mk+'-'+pad(d);
-    r=actRepGet(cls,date);
     a=curDayActivities(cls,date);
-    if(!r.done&&!a.morning&&!a.afternoon)continue;
-    rows+='<tr><td>'+d+'日</td>'
-      +'<td>'+esc([a.morning,a.afternoon].filter(Boolean).join(' / ')||'—')+'</td>'
-      +'<td>'+esc(r.done||'未記入')+'</td>'
-      +'<td>'+esc(actRepPickText(r))+(r.free?'<div style="font-size:10px;">'+esc(r.free)+'</div>':'')+'</td>'
-      +'<td>'+esc([r.muzu,r.jikan,r.tsugi].filter(Boolean).join('／'))+'</td>'
-      +'<td style="font-size:10px;">'+esc(r.by||'')+'</td></tr>';
+    var am=actRepHalf(cls,date,'am'),pm=actRepHalf(cls,date,'pm');
+    if(!am.done&&!pm.done&&!a.morning&&!a.afternoon)continue;
+    var cells=[];
+    [['午前',a.morning,am],['午後',a.afternoon,pm]].forEach(function(x){
+      var lab=x[0],act=x[1],r=x[2];
+      if(!r.done&&!act)return;
+      if(r.movedFrom==='day')moved++;
+      if(r.done==='できなかった'&&!r.why)noWhy++;
+      cells.push('<td style="text-align:center;">'+lab+'</td>'
+        +'<td>'+esc(act||'—')+'</td>'
+        +'<td>'+esc(r.done||'未記入')+(r.movedFrom==='day'?'<div style="font-size:9px;">日ごとの記録から</div>':'')+'</td>'
+        +'<td style="font-size:10px;">'+esc([r.why,r.whyText].filter(Boolean).join('／'))+'</td>'
+        +'<td>'+esc(actRepPickText(r))+(r.free?'<div style="font-size:10px;">'+esc(r.free)+'</div>':'')+'</td>'
+        +'<td>'+esc([r.muzu,r.jikan,r.tsugi].filter(Boolean).join('／'))+'</td>'
+        +'<td style="font-size:10px;">'+esc(r.by||'')+'</td>');
+    });
+    /* 片方しか無い日もあるので、日付の欄は実際に出す行数ぶんだけまとめる */
+    cells.forEach(function(c,i){
+      rows+='<tr>'+(i===0?'<td rowspan="'+cells.length+'" style="white-space:nowrap;">'+d+'日</td>':'')+c+'</tr>';
+    });
   }
-  if(!rows)rows='<tr><td colspan="6">記録がありません</td></tr>';
-  return '<table><thead><tr><th style="width:44px;">日</th><th>予定していた活動</th><th style="width:80px;">実施</th>'
-    +'<th>子どもの様子（先生が選んだもの）</th><th style="width:150px;">ふりかえり</th><th style="width:90px;">書いた人</th></tr></thead>'
+  if(!rows)rows='<tr><td colspan="8">記録がありません</td></tr>';
+  return '<table><thead><tr><th style="width:36px;">日</th><th style="width:36px;">時間帯</th><th>予定していた活動</th><th style="width:72px;">実施</th>'
+    +'<th style="width:100px;">できなかった理由</th>'
+    +'<th>子どもの様子（先生が選んだもの）</th><th style="width:130px;">ふりかえり</th><th style="width:80px;">書いた人</th></tr></thead>'
     +'<tbody>'+rows+'</tbody></table>'
     +'<p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。'
-    +'（下書き）と付いた項目は、AIやひな型が書いた文から選ばれたものです。</p>';
+    +'（下書き）と付いた項目は、AIやひな型が書いた文から選ばれたものです。</p>'
+    +(moved?'<p style="font-size:10px;">※「日ごとの記録から」と付いた '+moved+'件 は、午前・午後に分ける前に、1日に1つとして付けられた記録です。'
+      +'そのころは1日に1つの記録なので、あとの月と混ぜて平均を出さないでください。</p>':'')
+    +(noWhy?'<p style="font-size:10px;">※「できなかった」のうち、理由が空のものが '+noWhy+'件 あります。</p>':'');
 }
 
 var NICHI={cls:null,date:null,env:[],rows:[]};
@@ -2570,7 +2799,11 @@ function nichiModal(cls,date){
   NICHI.cls=cls; NICHI.date=date;
   NICHI.env=o.env.slice();
   NICHI.rows=o.rows.length?o.rows.slice():[{t:'',c:'',h:''}];
-  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  /* 広い画面では、活動内容の窓（左）と日案の窓（右）を並べられるようにする。
+     狭い画面では1枚ずつ（右の窓は、左を閉じてから開く）。 */
+  var pair=!!($('#curActBg')&&window.innerWidth>=1024);
+  var m=el('div',{class:'modal-bg'+(pair?' pair-r':''),id:'nichiBg'});$('#modalRoot').appendChild(m);
+  if(pair){var lb=$('#curActBg'); if(lb)lb.className='modal-bg pair-l';}
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   var hd=nichiHeads(cls),age=nichiAgeLabel(cls);
   var d=new Date(date+'T00:00:00'),WDJ=['日','月','火','水','木','金','土'];
@@ -2589,6 +2822,15 @@ function nichiModal(cls,date){
       +((hd.boy||hd.girl)?'（男児 '+hd.boy+'名 / 女児 '+hd.girl+'名）':'')
       +'　※人数と日付は在籍から入れています</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+      /* 園の書いたものが先、AIの作文はそのあと。並び順をそうしている（2026-09-21） */
+      +((function(){
+        var ab=curBodyGet(cls,date,'am'),pb=curBodyGet(cls,date,'pm'),s2=curSchedGet(cls,date);
+        var any=curBodyHas(ab)||curBodyHas(pb)||!!s2.amText||!!s2.pmText;
+        return '<button class="btn btn-sm'+(any?' btn-primary':'')+'" id="niFromDay"'+(any?'':' disabled')
+          +' title="'+(any?'午前・午後に書いた活動内容から、この日案の空いている欄に下書きを入れます。':'先に午前・午後の活動内容を書くと、ここに下書きが入ります。')+'">'
+          +ic('back')+'午前・午後から取り込む</button>'
+          +(any?'':'<span class="muted" style="font-size:11.5px;">先に午前・午後の活動内容を書くと、ここに下書きが入ります。</span>');
+      })())
       +'<button class="btn btn-sm" id="niAI">'+ic('sparkles')+'AIで下書き</button>'
       /* §13 「AIと活動を考える」で採用した活動を、この日案に入れる。
          採用ずみのものがあるときだけ出す。押すまで書類は変わらない。 */
@@ -2710,6 +2952,40 @@ function nichiModal(cls,date){
       +((x.safe&&x.safe.length)?('　／ 注意点：'+x.safe.join(' / ')):''));
   };
 
+  /* ══ 午前・午後から取り込む（2026-09-21 安田さんのご判断）══════════
+     日案の窓は作り直さない。紙の日案と同じ形で、印刷もここから出ているため。
+     足すのは、この取り込みだけ。
+     ★すでに書いてある欄は上書きしない（いまの「採用した活動を入れる」と同じ）。
+     子どもの姿は入れない（実際に見ていないことを書けないため）。 */
+  if($('#niFromDay'))$('#niFromDay').onclick=function(){
+    var ab=curBodyGet(cls,date,'am'),pb=curBodyGet(cls,date,'pm'),s2=curSchedGet(cls,date);
+    var put=[],skip=[];
+    function two(a,b2){return [a,b2].filter(Boolean).join('\n');}
+    /* ★「主な活動」は、窓を開いた時点で curDayActivities から自動で入っている。
+       そのままだと「すでに書かれています」で、取り込みが一度も効かない。
+       自動で入った文のままなら、空とみなして入れ替える。 */
+    var autoK=o.katsudo?'':[act.morning,act.afternoon].filter(Boolean).join(' / ');
+    function set(id,label,val){
+      var e=$('#'+id); if(!e||!val)return;
+      var cur=String(e.value||'').replace(/^\s+|\s+$/g,'');
+      if(cur&&!(id==='niKatsudo'&&cur===autoK)){skip.push(label);return;}
+      e.value=val; put.push(label);
+    }
+    set('niKatsudo','主な活動',[ab.name||s2.amText,pb.name||s2.pmText].filter(Boolean).join('／'));
+    set('niNerai','ねらい',two(ab.aim,pb.aim));
+    set('niJunbi','準備・材料',two(ab.prep,pb.prep));
+    /* 一日の流れは、1行も書かれていないときだけ入れる。時間は空のまま */
+    var written=NICHI.rows.filter(function(r){return r.t||r.c||r.h;}).length;
+    var flow=[];
+    String(ab.steps||'').split('\n').forEach(function(t){if(t.replace(/^\s+|\s+$/g,''))flow.push({t:'',c:t,h:''});});
+    String(pb.steps||'').split('\n').forEach(function(t){if(t.replace(/^\s+|\s+$/g,''))flow.push({t:'',c:t,h:''});});
+    if(!written&&flow.length){NICHI.rows=flow;drawRows();put.push('一日の流れ');}
+    else if(flow.length)skip.push('一日の流れ');
+    var care=[ab.care?('午前：'+ab.care):'',pb.care?('午後：'+pb.care):''].filter(Boolean).join('　／　');
+    msg('入れました：'+(put.length?put.join('・'):'なし')
+      +(skip.length?('　／ すでに書かれていたので触っていません：'+skip.join('・')):'')
+      +(care?('　／ 気をつけること　'+care):''));
+  };
   $('#niAI').onclick=function(){
     var b=$('#niAI'); b.disabled=true; msg('下書きを作っています…');
     /* まずこの端末の中で下書きを作る。サーバに繋がらなくても必ず何か出る */
@@ -2775,10 +3051,12 @@ function nichiModal(cls,date){
       msg('AIには繋がらなかったので、園の記録から下書きを作りました。文章は必ず先生が直してください。'); });
   };
   $('#niPrint').onclick=function(){ nichiPrint(cls,date,collect()); };
-  $('#niCancel').onclick=function(){m.remove();};
+  /* 左右に並べていたときは、閉じたら左の窓を元の真ん中に戻す */
+  function unpair(){var lb=$('#curActBg'); if(lb)lb.className='modal-bg';}
+  $('#niCancel').onclick=function(){m.remove();unpair();};
   $('#niSave').onclick=function(){
     curDailySet(cls,date,collect());
-    m.remove();
+    m.remove(); unpair();
     if(typeof renderCurriculum==='function')renderCurriculum();
   };
 }
@@ -5094,8 +5372,14 @@ function missingDocs(){
   try{
     var c=[];
     (CLASSES||[]).forEach(function(k){
-      var sc=curSchedGet(k,t), has=!!(sc.am||sc.pm||sc.amText||sc.pmText);
-      if(has&&typeof actRepGet==='function'&&!(actRepGet(k,t).done))c.push({l:'活動記録（'+k+'）',d:'きょうの活動の「記録」がまだです',p:'curriculum',cls:k});
+      var sc=curSchedGet(k,t);
+      /* ★実施の記録を1日に1つで見ていたので、午前だけ書いた日も「済」になり、
+         午後の記録が抜けたまま気づけなかった。午前・午後で別々に出す（2026-09-21）。 */
+      /* 1日託児の日は、午前・午後に分けず1つのコマ（午前）として数える */
+      var hasAm=sc.daycare?true:!!(sc.am||sc.amText||curBodyHas(sc.amBody));
+      var hasPm=sc.daycare?false:!!(sc.pm||sc.pmText||curBodyHas(sc.pmBody));
+      if(hasAm&&!actRepHalf(k,t,'am').done)c.push({l:'活動記録（'+k+'）',d:sc.daycare?'きょうの活動の「記録」がまだです':'きょうの午前の活動の「記録」がまだです',p:'curriculum',cls:k});
+      if(hasPm&&!actRepHalf(k,t,'pm').done)c.push({l:'活動記録（'+k+'）',d:'きょうの午後の活動の「記録」がまだです',p:'curriculum',cls:k});
       var any=false, s=curSched()[k]||{};
       /* ★日付の鍵があるかどうかだけで見ていたので、担当だけ入れた日や、選んだ活動を空に戻した日があると
          その月が入力済みになり、監査の一覧（今月分なし）と食い違っていた。
@@ -7339,11 +7623,16 @@ function aiActPlaces(){
   var base=['保育室','園庭','ホール','テラス','公園・散歩','その他','おまかせ'],out=[],i;
   try{
     var e=(typeof aiEnvOf==='function')?aiEnvOf(aiK()):null;
+    /* ★園に登録された場所を続けて2回足していたので、「保育室（室内）」が2つ並び、
+       押してもどちらが選ばれたか分からず、AIへも2つの場所が送られていた。
+       足すのは1回だけ（2026-09-21）。 */
     if(e&&e.place&&base.indexOf(e.place)<0)out.push(e.place);
-    if(e&&e.place)out.push(e.place);
   }catch(x){}
   for(i=0;i<base.length;i++)if(out.indexOf(base[i])<0)out.push(base[i]);
-  return out;
+  /* 園が「保育室」と登録した場合に、はじめからある「保育室」と重なるため、同じ名前は1つにまとめる */
+  var seen={},uniq=[];
+  for(i=0;i<out.length;i++){if(seen[out[i]])continue;seen[out[i]]=1;uniq.push(out[i]);}
+  return uniq;
 }
 var AIACT={open:false,klass:'',step:'in',busy:false,ideas:[],err:'',
            back:null,detailOpen:false,rejected:[],
@@ -7402,6 +7691,19 @@ var AIACT_Q=[
    opts:['冒険や探検のストーリー','色や音の変化','子どもたちで協力する','身近な物を意外な使い方で遊ぶ','季節らしいテーマ','何が起こるか分からない仕掛け','おまかせ'],
    when:function(i){return i.want==='おまかせ'&&!i.free;}}
 ];
+/* ★複数選べる質問の答えを「・」でつないだ1つの文字にしていた。
+   選択肢の名前そのものに「・」が入っている（紙・段ボール／水・氷 など）ため、
+   つなぐ→切り分ける をすると「紙」と「段ボール」に割れ、
+   「この選択肢は選ばれているか」の照合に一度も当たらなかった。
+   押しても色が変わらず、AIへ渡す文も割れたままだった。
+   一覧（配列）で覚える。古い保存（cocoas_aiActPref）は、読むときだけ一覧として受け取る
+   （園の設定は消さない）。AIへ渡すときは「、」でつなぐ（選択肢の名前に「、」は入っていない）。 */
+function aiActAnsList(v){
+  if(v==null||v==='')return [];
+  if(Object.prototype.toString.call(v)==='[object Array]')return v.slice();
+  return [String(v)];
+}
+function aiActAnsText(v){return aiActAnsList(v).join('、');}
 /* クラスごとに覚えている答え（「今後の提案にも反映」で保存されたもの） */
 function aiActPref(){return stGet('aiActPref',{});}
 function aiActPrefOf(k){return aiActPref()[k]||{};}
@@ -7411,7 +7713,7 @@ function aiActPickQ(){
   var saved=aiActPrefOf(AIACT.klass),out=[],i;
   for(i=0;i<AIACT_Q.length&&out.length<3;i++){
     var q=AIACT_Q[i];
-    if(saved[q.k])continue;
+    if(aiActAnsList(saved[q.k]).length)continue;
     var ok=true; try{ ok=q.when?q.when(AIACT.inp):true; }catch(e){ ok=false; }
     if(ok)out.push(q);
   }
@@ -7421,15 +7723,17 @@ function aiActPickQ(){
 function aiActQText(){
   var saved=aiActPrefOf(AIACT.klass),out=[],i;
   for(i=0;i<AIACT_Q.length;i++){
-    var q=AIACT_Q[i],v=AIACT.qans[q.k]||saved[q.k];
-    if(v&&v!=='おまかせ')out.push(q.q.replace(/[？?]$/,'')+'：'+v);
+    var q=AIACT_Q[i],v=AIACT.qans[q.k];
+    if(!aiActAnsList(v).length)v=saved[q.k];
+    var txt=aiActAnsText(v);
+    if(txt&&txt!=='おまかせ')out.push(q.q.replace(/[？?]$/,'')+'：'+txt);
   }
   return out.join(' ／ ');
 }
 function aiActQHTML(){
   var q=AIACT.qlist[AIACT.qi]; if(!q)return '';
   var cur=AIACT.qans[q.k]||'';
-  var sel=q.multi?String(cur).split('・').filter(Boolean):[cur];
+  var sel=aiActAnsList(cur);
   return '<div class="muted" style="font-size:11.5px;">あと'+(AIACT.qlist.length-AIACT.qi)+'問　（'
     +(AIACT.qi+1)+' / '+AIACT.qlist.length+'）</div>'
     +'<h3 style="margin:8px 0 12px;font-size:16px;">'+esc(q.q)+'</h3>'
@@ -7449,45 +7753,100 @@ function aiActQHTML(){
     +'「今後も同じ答えでよい」を押すと、このクラスでは次から聞きません。</div>';
 }
 function aiActQWire(){
-  var m=$('#aiActBg'); if(!m)return;
+  var m=aiActRoot(); if(!m)return;
   var q=AIACT.qlist[AIACT.qi]; if(!q)return;
   m.querySelectorAll('[data-aiq]').forEach(function(b){b.onclick=function(){
     var v=b.getAttribute('data-aiq');
     if(q.multi){
-      var cur=String(AIACT.qans[q.k]||'').split('・').filter(Boolean);
+      var cur=aiActAnsList(AIACT.qans[q.k]);
       var i=cur.indexOf(v);
       if(i>=0)cur.splice(i,1); else cur.push(v);
-      AIACT.qans[q.k]=cur.join('・');
+      AIACT.qans[q.k]=cur;
     }else{ AIACT.qans[q.k]=(AIACT.qans[q.k]===v)?'':v; }
     aiActDraw();
   };});
-  if($('#aiq_skip'))$('#aiq_skip').onclick=function(){AIACT.qans[q.k]='';aiActQStep();};
+  if($('#aiq_skip'))$('#aiq_skip').onclick=function(){AIACT.qans[q.k]=q.multi?[]:'';aiActQStep();};
   if($('#aiq_next'))$('#aiq_next').onclick=function(){aiActQStep();};
   if($('#aiq_keep'))$('#aiq_keep').onclick=function(){
-    if(!AIACT.qans[q.k]){alert('先に答えを選んでください。');return;}
+    if(!aiActAnsList(AIACT.qans[q.k]).length){alert('先に答えを選んでください。');return;}
     aiActPrefSet(AIACT.klass,q.k,AIACT.qans[q.k]);
     aiActQStep();
   };
 }
 function aiActQStep(){
   AIACT.qi++;
-  if(AIACT.qi>=AIACT.qlist.length){AIACT.step='out';aiActGo();return;}
+  /* ★質問が終わったところで、先に画面を「結果の画面」に切り替えてから聞きに行っていた。
+     結果の画面は「案が0件なら案がありません。」と書く作りなので、
+     15秒のあいだ、ずっとその文が出ていた。
+     いまは aiActGo が待ちの画面（wait）にしてから聞きに行く（2026-09-21）。 */
+  if(AIACT.qi>=AIACT.qlist.length){aiActGo();return;}
   aiActDraw();
 }
+/* 失敗の知らせを、原因ごとに分ける。
+   「もう一度お試しください」だけでは、待てば直るのか・運営に言うのかが分からないため。 */
+function aiActFailText(note){
+  var n=String(note||'');
+  if(/GEMINI_API_KEY|接続先が設定されていません/.test(n))
+    return 'AIの接続先（鍵）がまだ設定されていません。園では直せないので、運営にご連絡ください。';
+  if(/Standard|プラン/.test(n))
+    return 'AIと活動を考える機能は、Standard プラン以上でご利用いただけます。運営にご相談ください。';
+  if(/上限|本日はお休み/.test(n))
+    return n+'（今日はこれ以上使えません。明日またお試しください。）';
+  if(/混み合/.test(n))
+    return 'AI側が混み合っています。1〜2分おいてから、もう一度お試しください。';
+  if(/返事が空/.test(n))
+    return 'AIからの返事が空でした。条件（やりたいこと・時間・場所）を少し変えてお試しください。';
+  if(/504|timeout|Timeout|時間/.test(n))
+    return '時間内にAIから返事が来ませんでした。もう一度お試しください。';
+  if(/Failed to fetch|Load failed|NetworkError|ネットワーク|通信に失敗/.test(n))
+    return 'インターネットとの通信が切れました。つながってから、もう一度お試しください。';
+  return 'AIから案が返りませんでした。'+(n?('（'+n+'）'):'')+'もう一度お試しください。';
+}
+/* 待っているあいだに出す画面。いま何の条件で考えているかも出す */
+function aiActWaitHTML(){
+  var i=AIACT.inp,cond=[i.minutes,i.place,i.when,(i.want==='おまかせ'?'':i.want),i.free].filter(Boolean).join('／');
+  return '<div class="card" style="text-align:center;padding:30px 20px;">'
+    +'<div style="font-size:16px;font-weight:700;margin-bottom:8px;">案を作っています…（15秒ほど）</div>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.9;">いま考えている条件<br>'+esc(cond||'おまかせ')+'</div>'
+    +'<div style="margin-top:16px;"><button type="button" class="btn" id="aia_stop">取り消す</button></div></div>';
+}
 /* ── 窓を開く。back には、閉じたあとに描き直す関数を渡す。 ── */
-function aiActOpen(klass,back){
+function aiActOpen(klass,back,host,onAdopt){
   AIACT.open=true; AIACT.klass=klass||aiK(); AIACT.step='in';
   AIACT.ideas=[]; AIACT.err=''; AIACT.busy=false; AIACT.rejected=[];
   AIACT.qlist=[]; AIACT.qi=0; AIACT.qans={};
   AIACT.back=back||null; AIACT.detailOpen=false;
+  AIACT.host=host||''; AIACT.onAdopt=onAdopt||null; AIACT.stopped=false;
   aiActDraw();
 }
+/* ══ 活動内容の窓の中で開く（2026-09-21）═══════════════
+   ★別の窓を重ねると、採用したあと「別の画面で入れ直す」往復が要った。
+     同じ窓の下半分を差し替え、押したらその場でその日のその欄に入るようにする。
+   host … 描き込む場所の id。onAdopt … 案を選んだときに呼ぶ処理。
+   back … 「書いていた欄に戻る」ときに呼ぶ処理（書いた文は消さない）。 */
+function aiActOpenIn(klass,host,onAdopt,back){
+  /* ★aiActOpen が先に描いてしまうと、重ねない約束の別窓（#aiActBg）が
+     一瞬できてそのまま残り、下の欄が押せなくなっていた。
+     先に描き込む場所を決めてから描く。 */
+  aiActOpen(klass,back,host,onAdopt);
+}
+function aiActRoot(){return AIACT.host?$('#'+AIACT.host):$('#aiActBg');}
 function aiActClose(){
   AIACT.open=false;
   var m=$('#aiActBg'); if(m)m.remove();
+  var h=AIACT.host; AIACT.host=''; AIACT.onAdopt=null;
+  if(h){var e2=$('#'+h); if(e2)e2.innerHTML='';}
   if(AIACT.back)try{AIACT.back();}catch(e){}
 }
 function aiActDraw(){
+  if(AIACT.host){
+    var hst=$('#'+AIACT.host);
+    if(hst){
+      /* 重ねない約束なので、別窓が残っていたら必ず片づける */
+      var o2=$('#aiActBg'); if(o2)o2.remove();
+      hst.innerHTML=AIACT.open?aiActInner():''; if(AIACT.open)aiActWire(); return;
+    }
+  }
   var old=$('#aiActBg'); if(old)old.remove();
   if(!AIACT.open)return;
   var m=el('div',{class:'modal-bg',id:'aiActBg'});
@@ -7509,6 +7868,7 @@ function aiActInner(){
     +'ここで入れるのは4つだけです。</div>';
 
   if(AIACT.step==='q')return head+aiActQHTML();
+  if(AIACT.step==='wait')return head+aiActWaitHTML();
   if(AIACT.step==='out')return head+aiActResultHTML();
 
   var i=AIACT.inp;
@@ -7536,7 +7896,7 @@ function aiActInner(){
       : '')
     +(AIACT.err?'<div style="margin-top:12px;padding:10px 13px;border-radius:9px;background:#FCEBEB;border:1px solid #E8C9C9;color:#A32D2D;font-size:12.5px;">'+esc(AIACT.err)+'</div>':'')
     +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">'
-      +'<button type="button" class="btn" id="aia_cancel">閉じる</button>'
+      +'<button type="button" class="btn" id="aia_cancel">'+(AIACT.host?'書いていた欄に戻る':'閉じる')+'</button>'
       +'<button type="button" class="btn btn-primary" id="aia_go"'+(AIACT.busy?' disabled':'')+'>'
       +(AIACT.busy?'考えています…（15秒ほど）':'3つの案をつくる')+'</button></div>';
   return h;
@@ -7548,6 +7908,9 @@ function aiActLis(t,a){
     +a.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
 }
 function aiActResultHTML(){
+  /* ★考えている最中でも、この画面が「案がありません。」と書いていた。
+     考えているあいだは待ちの画面を出す（2026-09-21） */
+  if(AIACT.busy)return aiActWaitHTML();
   if(!AIACT.ideas.length)return '<div class="empty">案がありません。</div>';
   var COL={'おすすめ':['#EAF3DE','#639922','#27500A'],'かんたん':['#E7F2F9','#7FB6D8','#0F5C8C'],'別方向':['#FBF1DE','#EBD8AE','#96600A']};
   return AIACT.ideas.map(function(x,i){
@@ -7568,22 +7931,32 @@ function aiActResultHTML(){
         +(x.easy?'時間が足りないとき：'+esc(x.easy)+'<br>':'')
         +(x.rain?'外でできないとき：'+esc(x.rain):'')+'</div>'
       +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
-        +'<button type="button" class="btn btn-sm btn-primary" data-aiadopt="'+i+'">'+ic('check')+'この案でいく</button>'
-        +'<button type="button" class="btn btn-sm" data-aiedit="'+i+'">直してから使う</button>'
-        +'<button type="button" class="btn btn-sm" data-aireject="'+i+'">この案はやめる</button></div>'
+        /* 活動内容の窓の中で開いているときは、押したその場でその日の欄に入る。
+           別の画面へ飛ばさないので、「預かる → 入れ直す」の往復が要らない。 */
+        +(AIACT.onAdopt
+          ?'<button type="button" class="btn btn-sm btn-primary" data-aiadopt="'+i+'">'+ic('check')+'この案をここに入れる</button>'
+          :'<button type="button" class="btn btn-sm btn-primary" data-aiadopt="'+i+'">'+ic('check')+'この案でいく</button>'
+           +'<button type="button" class="btn btn-sm" data-aiedit="'+i+'">直してから使う</button>'
+           +'<button type="button" class="btn btn-sm" data-aireject="'+i+'">この案はやめる</button>')
+        +'</div>'
       +'</div>';
   }).join('')
   +'<div style="display:flex;gap:10px;justify-content:space-between;margin-top:14px;flex-wrap:wrap;">'
     +'<button type="button" class="btn" id="aia_back">条件を変える</button>'
     +'<div style="display:flex;gap:10px;"><button type="button" class="btn" id="aia_again">3つとも作り直す</button>'
-    +'<button type="button" class="btn" id="aia_cancel">閉じる</button></div></div>'
+    +'<button type="button" class="btn" id="aia_cancel">'+(AIACT.host?'書いていた欄に戻る':'閉じる')+'</button></div></div>'
   +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.9;">'
     +'これはAIが作った下書きです。やるかどうかを決めるのは先生と園です。'
     +'子どもの様子は、実際に見たことだけを書いてください。</div>';
 }
 function aiActWire(){
-  var m=$('#aiActBg'); if(!m)return;
+  var m=aiActRoot(); if(!m)return;
   if(AIACT.step==='q'){aiActQWire();return;}
+  if(AIACT.step==='wait'){
+    var sp=m.querySelector('#aia_stop');
+    if(sp)sp.onclick=function(){AIACT.stopped=true;AIACT.busy=false;AIACT.step='in';aiActDraw();};
+    return;
+  }
   m.querySelectorAll('[data-aia]').forEach(function(b){b.onclick=function(){
     AIACT.inp[b.getAttribute('data-aia')]=b.getAttribute('data-aiv'); aiActSaveInputs(); aiActDraw();};});
   if($('#aia_more'))$('#aia_more').onclick=function(){aiActSaveInputs();AIACT.detailOpen=!AIACT.detailOpen;aiActDraw();};
@@ -7617,8 +7990,9 @@ function aiActDetailText(){
 }
 function aiActGo(){
   if(AIACT.busy)return;
-  if(!aiCanServer()){AIACT.err='いまサーバにつながっていないため、AIには聞けません。';aiActDraw();return;}
-  AIACT.busy=true; AIACT.err=''; aiActDraw();
+  if(!aiCanServer()){AIACT.err='いまサーバにつながっていないため、AIには聞けません。ネットワークにつながってから、もう一度お試しください。';AIACT.step='in';aiActDraw();return;}
+  /* ★先に画面を切り替えてから聞きに行くのをやめ、待ちの画面にしてから聞く */
+  AIACT.busy=true; AIACT.err=''; AIACT.stopped=false; AIACT.step='wait'; aiActDraw();
   var k=AIACT.klass,i=AIACT.inp;
   var want=(i.want==='おまかせ'?'':i.want);
   if(i.free)want=(want?want+' ':'')+i.free;
@@ -7632,9 +8006,11 @@ function aiActGo(){
     rejected:AIACT.rejected.length?aiScrub(AIACT.rejected.join('\n')):''
   }).then(function(got){
     AIACT.busy=false;
+    /* 取り消しを押されていたら、返ってきたものは使わない */
+    if(AIACT.stopped){AIACT.stopped=false;return;}
     var list=(got&&got.ideas)?got.ideas:null;
     if(!list||!list.length){
-      AIACT.err='AIから案が返りませんでした。'+(AI_NET.note?('（'+AI_NET.note+'）'):'')+'もう一度お試しください。';
+      AIACT.err=aiActFailText(AI_NET.note);
       AIACT.step='in';
     }else{
       AIACT.ideas=list; AIACT.step='out';
@@ -7647,6 +8023,14 @@ function aiActGo(){
 function aiActAdopt(idx,edit){
   var x=AIACT.ideas[idx]; if(!x)return;
   var k=AIACT.klass;
+  /* 活動内容の窓の中で開いているときは、その場でその日のその欄に入れる。
+     預かり（aiActPend）も、別の画面への移動も要らない。 */
+  if(AIACT.onAdopt){
+    aiActLogAdd({at:aiNow(),klass:k,name:x.name,how:'採用',by:(currentStaff()?currentStaff().name:''),report:''});
+    aiPlanAdd({kind:'活動提案',klass:k,title:x.name,data:x,byAI:true,status:'下書き',adopted:true});
+    try{AIACT.onAdopt(x);}catch(e){}
+    return;
+  }
   aiActLogAdd({at:aiNow(),klass:k,name:x.name,how:'採用',by:(currentStaff()?currentStaff().name:''),report:''});
   aiPlanAdd({kind:'活動提案',klass:k,title:x.name,data:x,byAI:true,
              status:'下書き',adopted:true});
@@ -7659,9 +8043,10 @@ function aiActAdopt(idx,edit){
     +'・月間カリキュラムの活動欄にも同じボタンが出ます\n'
     +'・AI保育計画 → AI記録管理 にも下書きとして残ります'
     +(edit?'\n\n入れたあとで直してお使いください。':''));
-  /* ★AI保育計画を開けない園（オプション・プランで外している）でも go していたので、
-     案内のあとホームへ飛ばされ、いま作業していたカリキュラムから外されていた。開けないときはその場に残る。 */
-  if(typeof go==='function'&&egPlanOfPage('aiplan'))go('aiplan');
+  /* ★採用したあと go('aiplan') で「AI保育計画」へ飛ばしていた。
+     「書類に入れる」ボタンは元の画面（月間カリキュラム・日案）にしか出ないので、
+     飛ばされた先にはそのボタンが無く、誰も入れられなかった。
+     画面は移さない。AI保育計画に下書きが残ることは、上の文でお伝えしている（2026-09-21）。 */
 }
 /* §12 却下。理由をふまえて作り直す。 */
 function aiActReject(idx){
@@ -8057,20 +8442,35 @@ function aipChatHTML(k){
    年度は4月はじまり。年度が変わったら、前の年度のぶんは
    自動では使わない（子どもが入れ替わるため）。使いたい年度は園が選ぶ。 */
 function actRepFY(date){ return fyOf(date); }
+/* ★1日=1行だったので、午前と午後の記録が1つにしか見えなかった。1コマ=1行にする（2026-09-21） */
 function actRepList(cls,fy){
   var a=actRepAll(),out=[],k;
   for(k in a){
     if(!Object.prototype.hasOwnProperty.call(a,k))continue;
-    var p=k.split('|');
-    if(p[0]!==cls)continue;
-    if(fy!=null&&actRepFY(p[1])!==fy)continue;
-    out.push({date:p[1], v:a[k]});
+    var cut=String(k).lastIndexOf('|');
+    if(cut<0)continue;
+    if(String(k).slice(0,cut)!==cls)continue;
+    var dt=String(k).slice(cut+1);
+    if(fy!=null&&actRepFY(dt)!==fy)continue;
+    ['am','pm'].forEach(function(h){
+      var v=actRepHalf(cls,dt,h);
+      if(!(v.done||v.free||v.muzu||v.jikan||v.tsugi||v.picks.length))return;
+      out.push({date:dt, half:h, halfLabel:(h==='pm'?'午後':'午前'), v:v});
+    });
   }
-  out.sort(function(x,y){return x.date<y.date?1:-1;});
+  out.sort(function(x,y){
+    if(x.date!==y.date)return x.date<y.date?1:-1;
+    return x.half<y.half?-1:1;
+  });
   return out;
 }
-function actRepDel(cls,date){
-  var a=actRepAll(); delete a[actRepKey(cls,date)]; stSet('act_reports',a);
+function actRepDel(cls,date,half){
+  var a=actRepAll(),k=actRepKey(cls,date);
+  if(half){
+    var r=a[k]||{}; delete r[half==='pm'?'pm':'am'];
+    if(!r.am&&!r.pm&&!r.dayDone)delete a[k]; else a[k]=r;
+  }else{ delete a[k]; }
+  stSet('act_reports',a);
 }
 /* その学級の記録がある年度の一覧 */
 function actRepYears(cls){
@@ -8427,7 +8827,7 @@ function aiActMemoryCard(k){
       ? '<div style="margin-bottom:11px;">'+keys.map(function(kk){
           var q=null,i; for(i=0;i<AIACT_Q.length;i++)if(AIACT_Q[i].k===kk)q=AIACT_Q[i];
           return '<div style="display:flex;gap:9px;align-items:center;border-top:1px solid var(--line2);padding:7px 0;font-size:12.5px;">'
-            +'<span style="flex:1;">'+esc(q?q.q.replace(/[？?]$/,''):kk)+'　→　<b>'+esc(pref[kk])+'</b></span>'
+            +'<span style="flex:1;">'+esc(q?q.q.replace(/[？?]$/,''):kk)+'　→　<b>'+esc(aiActAnsText(pref[kk]))+'</b></span>'
             +'<button type="button" class="btn btn-sm btn-ghost" data-aiforget="'+esc(kk)+'">忘れる</button></div>';
         }).join('')+'</div>'
       : '<div class="muted" style="font-size:12px;margin-bottom:11px;">まだ覚えていることはありません。'
@@ -8506,16 +8906,18 @@ function aipMemoHTML(k){
             +'<th>子どもの様子（先生が選んだもの）</th><th style="width:120px;">書いた人</th><th style="width:120px;"></th></tr></thead><tbody>'
             +ls.map(function(x){
               var v=x.v;
-              return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(fmt(x.date))+'</td>'
-                +'<td>'+esc(v.done||'')+'</td>'
+              return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(fmt(x.date))
+                +'<div class="row-sub">'+esc(x.halfLabel)+'</div></td>'
+                +'<td>'+esc(v.done||'')
+                +(v.done==='できなかった'&&(v.why||v.whyText)?'<div class="row-sub">'+esc([v.why,v.whyText].filter(Boolean).join('／'))+'</div>':'')+'</td>'
                 +'<td style="font-size:12.5px;">'+esc(actRepPickText(v))
                   +(v.free?'<div class="row-sub">'+esc(v.free)+'</div>':'')
                   +(v.muzu||v.jikan||v.tsugi?'<div class="row-sub">'+esc([v.muzu,v.jikan,v.tsugi].filter(Boolean).join('／'))+'</div>':'')
                 +'</td>'
                 +'<td class="row-sub">'+esc(v.by||'')+'<div class="row-sub">'+esc(lockFmt(v.at||''))+'</div></td>'
                 +'<td style="white-space:nowrap;text-align:right;">'
-                  +'<button class="btn btn-sm" data-mred="'+esc(x.date)+'">直す</button> '
-                  +'<button class="btn btn-sm btn-ghost" data-mrdel="'+esc(x.date)+'">'+ic('trash')+'</button></td></tr>';
+                  +'<button class="btn btn-sm" data-mred="'+esc(x.date)+'" data-mrh="'+esc(x.half)+'">直す</button> '
+                  +'<button class="btn btn-sm btn-ghost" data-mrdel="'+esc(x.date)+'" data-mrh="'+esc(x.half)+'">'+ic('trash')+'</button></td></tr>';
             }).join('')+'</tbody></table></div>'
             +'<button class="btn btn-sm" id="mrPrint" style="margin-top:10px;">'+ic('printer')+'この年度ぶんを印刷</button>'
           :'<div class="empty">この年度の記録はまだありません。カリキュラムの「実施」から書けます。</div>')
@@ -8867,23 +9269,25 @@ function aipWire(k){
   var mfy=$$('#mFy');
   if(mfy)mfy.onchange=function(){ AIMEM_FY=+mfy.value; renderAIPlan(); };
   s.querySelectorAll('[data-mred]').forEach(function(b){b.onclick=function(){
-    actRepModal(k,b.getAttribute('data-mred'));
+    actRepModal(k,b.getAttribute('data-mred'),b.getAttribute('data-mrh'));
   };});
   s.querySelectorAll('[data-mrdel]').forEach(function(b){b.onclick=function(){
-    var dt=b.getAttribute('data-mrdel');
-    if(!confirm(fmt(dt)+' の記録を消します。元に戻せません。よろしいですか。'))return;
-    actRepDel(k,dt); aiLog('覚えていることを1件消した',fmt(dt),k); renderAIPlan();
+    var dt=b.getAttribute('data-mrdel'),hh=b.getAttribute('data-mrh');
+    var hl=(hh==='pm')?'午後':'午前';
+    if(!confirm(fmt(dt)+' '+hl+' の記録を消します。元に戻せません。よろしいですか。'))return;
+    actRepDel(k,dt,hh); aiLog('覚えていることを1件消した',fmt(dt)+' '+hl,k); renderAIPlan();
   };});
   var mrp=$$('#mrPrint');
   if(mrp)mrp.onclick=function(){
     var fy=aiMemFY(k),ls=actRepList(k,fy);
-    var b5='<table><thead><tr><th>日</th><th>実施</th><th>子どもの様子（先生が選んだもの）</th><th>ふりかえり</th><th>書いた人</th></tr></thead><tbody>'
+    var b5='<table><thead><tr><th>日</th><th>時間帯</th><th>実施</th><th>できなかった理由</th><th>子どもの様子（先生が選んだもの）</th><th>ふりかえり</th><th>書いた人</th></tr></thead><tbody>'
       +(ls.length?ls.map(function(x){var v=x.v;
-        return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+esc(v.done||'')+'</td>'
+        return '<tr><td>'+esc(fmt(x.date))+'</td><td>'+esc(x.halfLabel)+'</td><td>'+esc(v.done||'')+'</td>'
+          +'<td style="font-size:10px;">'+esc([v.why,v.whyText].filter(Boolean).join('／'))+'</td>'
           +'<td>'+esc(actRepPickText(v))+(v.free?'<div style="font-size:10px;">'+esc(v.free)+'</div>':'')+'</td>'
           +'<td>'+esc([v.muzu,v.jikan,v.tsugi].filter(Boolean).join('／'))+'</td>'
           +'<td>'+esc(v.by||'')+'</td></tr>';}).join('')
-        :'<tr><td colspan="5">記録がありません</td></tr>')
+        :'<tr><td colspan="7">記録がありません</td></tr>')
       +'</tbody></table><p style="font-size:10px;">※「子どもの様子」は、日案の一日の流れから先生が選んだ項目と、先生が書いた文です。'
       +'（下書き）と付いた項目は、AIやひな型が書いた文から選ばれたものです。</p>';
     printDoc('活動の記録（'+esc(k)+'・'+fy+'年度）',b5);
@@ -9345,6 +9749,61 @@ function renderMenu(){
    先生が毎日つかう画面から順に埋めています。
    園長・管理者だけが使う画面（監査・請求・営業）は、まだ入れていません。 */
 var EN_DICT={
+/* ── 月間カリキュラム 作り直し（2026-09-21）───────────── */
+'午前':'Morning','午後':'Afternoon',
+'◀ 前の週':'◀ Previous week','次の週 ▶':'Next week ▶','この週を印刷':'Print this week',
+'週は月曜はじまりです。まだ何も書いていない週には「・」、その週の平日がぜんぶ書けたら「✓」が付きます。':
+  'Weeks start on Monday. A week with nothing written shows "・"; a week where every weekday is filled in shows "✓".',
+'第{0}週 {1}/{2}-{3}/{4}':'Week {0} {1}/{2}-{3}/{4}',
+'第{0}週 {1}/{2}-{3}/{4}　・':'Week {0} {1}/{2}-{3}/{4} ・',
+'第{0}週 {1}/{2}-{3}/{4}　✓':'Week {0} {1}/{2}-{3}/{4} ✓',
+'{0}/{1}（{2}月にあります）':'{0}/{1} (in month {2})',
+'この週に平日がありません。':'There are no weekdays in this week.',
+'＋ 活動内容を書く':'+ Write the activity',
+'活動を入れると、ここに「やった／できなかった」が出ます。':
+  'Once an activity is entered, "Done / Could not do" appears here.',
+'1日託児保育の日です。':'This is an all-day childcare day.',
+'ふりかえりを書く ▸':'Write the review ▸',
+'できなかった理由':'Reason it could not be done',
+'できなかった理由（書かなくても保存されます）':'Reason it could not be done (saved even if left blank)',
+'書かなくても保存できます':'You can save without writing this',
+'日案をつくる ✓':'Create daily plan ✓',
+'その日の記録（{0}より前のやり方）です。そのころは午前・午後に分けておらず、1日に1つでした。':
+  'This is a whole-day record (the way it was done before {0}). At that time records were not split into morning and afternoon; there was one per day.',
+'この記録は、午前・午後に分ける前に、その日の記録として付けられたものです。':
+  'This record was entered as a whole-day record, before records were split into morning and afternoon.',
+'活動の種類':'Activity type','活動の名前':'Activity name','内容（何をするか）':'Content (what you will do)',
+'気をつけること':'Points to watch',
+'未保存 ●':'Unsaved ●','保存して閉じる':'Save and close','保存せずに閉じる':'Close without saving',
+'書いたものを保存しますか？':'Save what you have written?',
+'押すと、この窓の下がAIの画面に差し替わります。別の窓は開きません。':
+  'Pressing this replaces the lower part of this window with the AI screen. No separate window opens.',
+'AIの下書き':'AI draft',
+'入れました：{0}か所':'Filled in: {0} field(s)','入れました：なし':'Filled in: none',
+'案を作っています…（15秒ほど）':'Creating ideas… (about 15 seconds)',
+'いま考えている条件':'Conditions being used now',
+'この案をここに入れる':'Put this idea here','書いていた欄に戻る':'Back to what you were writing',
+'AIの接続先（鍵）がまだ設定されていません。園では直せないので、運営にご連絡ください。':
+  'The AI connection key has not been set up yet. The school cannot fix this; please contact the operator.',
+'AIと活動を考える機能は、Standard プラン以上でご利用いただけます。運営にご相談ください。':
+  'Planning activities with AI is available on the Standard plan or above. Please contact the operator.',
+'AI側が混み合っています。1〜2分おいてから、もう一度お試しください。':
+  'The AI service is busy. Please wait a minute or two and try again.',
+'AIからの返事が空でした。条件（やりたいこと・時間・場所）を少し変えてお試しください。':
+  'The AI returned nothing. Please change the conditions (what to do, length, place) a little and try again.',
+'時間内にAIから返事が来ませんでした。もう一度お試しください。':
+  'The AI did not reply in time. Please try again.',
+'インターネットとの通信が切れました。つながってから、もう一度お試しください。':
+  'The internet connection was lost. Please reconnect and try again.',
+'いまサーバにつながっていないため、AIには聞けません。ネットワークにつながってから、もう一度お試しください。':
+  'Not connected to the server, so the AI cannot be asked. Please reconnect and try again.',
+'午前・午後から取り込む':'Bring in from morning and afternoon',
+'日案をひらく':'Open the daily plan',
+'先に午前・午後の活動内容を書くと、ここに下書きが入ります。':
+  'Write the morning and afternoon activities first, and a draft will appear here.',
+'時間帯':'Time of day','日ごとの記録から':'From a whole-day record',
+'きょうの午前の活動の「記録」がまだです':'The morning activity record for today is not written yet',
+'きょうの午後の活動の「記録」がまだです':'The afternoon activity record for today is not written yet',
 /* ── 枠（サイドバー・上の帯）───────────── */
 'ホーム':'Home','メニュー':'Menu','ダッシュボード':'Dashboard',
 '日常チェック':'Daily Check','生徒台帳':'Student Register',
@@ -19774,6 +20233,9 @@ function renderTemplates(){
 /* 「活動の名前|欄の名前」を切り分ける。園が付けた名前に「|」が入っていても壊れないよう、後ろの1個で切る */
 function actSplitKey(a){a=String(a||'');var i=a.lastIndexOf('|');return [a.slice(0,i),a.slice(i+1)];}
 var curClass='Pre',curWeek='W1',curTab='schedule';
+/* いま見ている週。画面の中だけで覚える（保存の鍵には使わない）。
+   月を変えたらその月の第1週、今月を開いたら今日を含む週から始める。 */
+var curWeekIdx=0,curWeekMonth='';
 var curActEdit=false; /* 「活動内容を編集」を開いているか。描き直しても開いたままにする */
 /* MTGで紙に配るため、表示中クラスのカリキュラムを1つの資料にまとめて印刷する */
 function curPrintDoc(){
@@ -19813,9 +20275,53 @@ function curPrintDoc(){
       +'<td style="font-size:10px;">'+tx(sc.teacher)+'</td>'
       +'<td style="text-align:center;">'+(sc.daycare?'●':'')+'</td><td style="font-size:10px;">'+tx(sc.memo)+'</td></tr>';
   }
-  body+='<h2>日別スケジュール</h2><table style="table-layout:fixed;"><thead><tr><th style="width:44px;">日付</th><th style="width:28px;">曜</th><th>活動内容（午前）</th><th>活動内容（午後）</th><th style="width:70px;">担当</th><th style="width:40px;">託児</th><th style="width:110px;">メモ</th></tr></thead><tbody>'
+  /* ★活動内容が長く書けるようになったので、午前・午後の列がつぶれていた。
+     担当・託児・メモを細くして、活動の列を広げる（2026-09-21）。 */
+  body+='<h2>日別スケジュール</h2><table style="table-layout:fixed;"><thead><tr><th style="width:38px;">日付</th><th style="width:24px;">曜</th><th>活動内容（午前）</th><th>活動内容（午後）</th><th style="width:54px;">担当</th><th style="width:30px;">託児</th><th style="width:70px;">メモ</th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="7">この月の予定はまだ登録されていません。</td></tr>')+'</tbody></table>';
+  /* 監査で「この文は誰が書いたか」を問われる。日案の紙と同じ書き方でここにも入れる */
+  var aiN=0,dd2;
+  for(dd2=1;dd2<=dim;dd2++){
+    var dk2=CUR.month+'-'+pad(dd2),s2=curSchedGet(cls,dk2);
+    aiN+=curBodyNorm(s2.amBody).aiFields.length+curBodyNorm(s2.pmBody).aiFields.length;
+  }
+  if(aiN)body+='<p style="font-size:10px;">※ 活動内容のうち '+aiN+'か所は、AIが書いた下書きです。先生が読んで直したうえで使っています。</p>';
   printDoc('カリキュラム（'+y+'年'+mo+'月・'+cls+'）',body);
+}
+/* 週案として提出を求められたときに、そのまま出せる紙（2026-09-21） */
+function curWeekPrint(cls,wk,n){
+  if(!wk||!wk.days.length){alert('この週に平日がありません。');return;}
+  var a0=wk.days[0],a1=wk.days[wk.days.length-1];
+  function tx(s){return s?esc(s).replace(/\n/g,'<br>'):'';}
+  function cell(date,half){
+    var sc=curSchedGet(cls,date),b=curBodyGet(cls,date,half);
+    var ty=(half==='pm')?sc.pm:sc.am;
+    var line=(half==='pm')?sc.pmText:sc.amText;
+    if(sc.daycare)return half==='am'?'1日託児保育':'';
+    var parts=[ty?('<b>'+esc(ty)+'</b>'):'',b.name?esc(b.name):'',b.text?tx(b.text):(line?tx(line):'')];
+    return parts.filter(Boolean).join('<br>')||'　';
+  }
+  function jis(date,half){
+    var r=actRepHalf(cls,date,half);
+    if(!r.done)return '';
+    return (half==='pm'?'午後':'午前')+' '+(r.done==='やった'?'○':'×')
+      +((r.done==='できなかった'&&r.why)?('（'+esc(r.why)+'）'):'');
+  }
+  var rows=wk.days.map(function(date){
+    var sc=curSchedGet(cls,date),dt=new Date(date+'T00:00:00');
+    return '<tr><td style="white-space:nowrap;">'+(+date.slice(5,7))+'/'+(+date.slice(8,10))+' '+WD[dt.getDay()]+'</td>'
+      +'<td style="font-size:10px;">'+cell(date,'am')+'</td>'
+      +'<td style="font-size:10px;">'+cell(date,'pm')+'</td>'
+      +'<td style="font-size:10px;">'+tx(sc.teacher)+'</td>'
+      +'<td style="font-size:10px;">'+[jis(date,'am'),jis(date,'pm')].filter(Boolean).join('<br>')+'</td></tr>';
+  }).join('');
+  var ttl=a0.slice(0,4)+'年'+(+a0.slice(5,7))+'月 第'+n+'週';
+  var body='<div style="font-size:12px;margin:0 0 10px;">'+ttl+'（'
+    +(+a0.slice(5,7))+'/'+(+a0.slice(8,10))+'〜'+(+a1.slice(5,7))+'/'+(+a1.slice(8,10))+'）　クラス：'+esc(cls)+'</div>'
+    +'<table style="table-layout:fixed;"><thead><tr><th style="width:56px;">日</th>'
+    +'<th>午前（種類・名前・内容）</th><th>午後（種類・名前・内容）</th>'
+    +'<th style="width:60px;">担当</th><th style="width:76px;">実施</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  printDoc('週案（'+esc(cls)+'・'+ttl+'）',body);
 }
 /* 園によって活動の呼び方が違うので、この画面で種類を足す・直す・消すができるようにする。
    何に対する編集かが分かるよう、「月間の活動内容」のカードの
@@ -19945,6 +20451,202 @@ function curLegacyWire(){
     $('#curLegClose').onclick=function(){m.remove();};
   };
 }
+/* ══ 活動内容のポップアップ（2026-09-21 安田さんのご判断）══════════
+   ★これまでは、プルダウンの下の高さ25pxほどの1行しか無く、
+     しかも「欄から離れたとき」にしか保存していなかったので、
+     打ったまま画面を切り替えると消えていた。
+   欄は6つ（名前・内容・ねらい・準備と材料・進め方・気をつけること）。
+   押し忘れを防ぐため、打つたびに下書きとして保存する。 */
+var CURACT={cls:'',date:'',half:'am',dirty:false,timer:null,aiFields:[]};
+var CURACT_FIELDS=[
+  {k:'name', id:'caName', l:'活動の名前', rows:0, ph:'例：サーキットあそび'},
+  {k:'text', id:'caText', l:'内容（何をするか）', rows:8, ph:'平均台・フープ・マットを並べて、順番に回る。'},
+  {k:'aim',  id:'caAim',  l:'ねらい', rows:0, ph:'体を動かす楽しさを味わう'},
+  {k:'prep', id:'caPrep', l:'準備・材料', rows:3, ph:'平均台2 / フープ6 / マット2'},
+  {k:'steps',id:'caSteps',l:'進め方', rows:4, ph:'1 並べる　2 順番に回る　3 片づけ'},
+  {k:'care', id:'caCare', l:'気をつけること', rows:2, ph:'平均台の下にマットを敷く'}
+];
+function curActHalfLabel(half){return (half==='pm')?'午後':'午前';}
+function curActFlagSet(on){
+  var f=$('#caFlag'); if(!f)return;
+  f.textContent=on?'未保存 ●':'';
+  f.style.display=on?'':'none';
+}
+function curActCollect(){
+  var o={aiFields:(CURACT.aiFields||[]).slice()},i,e;
+  for(i=0;i<CURACT_FIELDS.length;i++){
+    e=$('#'+CURACT_FIELDS[i].id);
+    o[CURACT_FIELDS[i].k]=e?e.value:'';
+  }
+  return o;
+}
+function curActSaveNow(){
+  if(!CURACT.cls)return;
+  if(!$('#caName'))return;
+  curBodySet(CURACT.cls,CURACT.date,CURACT.half,curActCollect());
+  CURACT.dirty=false; curActFlagSet(false);
+  var mg=$('#caMsg');
+  if(mg){mg.textContent='保存しました';setTimeout(function(){var m2=$('#caMsg');if(m2)m2.textContent='';},1200);}
+}
+/* 打つたびに下書きとして保存する。0.8秒止まったら書く。
+   ブラウザの×や戻るで閉じられても、この下書きが入っているので消えない。 */
+function curActTouch(){
+  CURACT.dirty=true; curActFlagSet(true);
+  if(CURACT.timer)clearTimeout(CURACT.timer);
+  CURACT.timer=setTimeout(function(){CURACT.timer=null;curActSaveNow();},800);
+}
+function curActClose(){
+  if(CURACT.timer){clearTimeout(CURACT.timer);CURACT.timer=null;}
+  CURACT.cls=''; CURACT.dirty=false;
+  var m=$('#curActBg'); if(m)m.remove();
+  /* 日案を左右に並べていたときは、日案の側を元の真ん中に戻す */
+  var n=$('#nichiBg'); if(n)n.className='modal-bg';
+  if(typeof renderCurriculum==='function')renderCurriculum();
+}
+/* 「閉じる」を押したとき、まだ下書きが入っていなければ聞く（3つの選び方） */
+function curActTryClose(){
+  if(!CURACT.dirty){curActClose();return;}
+  var box=$('#caAsk'); if(!box){curActSaveNow();curActClose();return;}
+  box.style.display='';
+}
+function curActAiFieldMark(k){
+  return ((CURACT.aiFields||[]).indexOf(k)>-1)
+    ?'<span class="t-own" style="background:#EEEDFE;color:#3C3489;margin-left:6px;">AIの下書き</span>':'';
+}
+function curActFieldsHTML(b){
+  return CURACT_FIELDS.map(function(f){
+    var v=b[f.k]||'';
+    return '<div class="field"><label>'+esc(f.l)+'<span data-cafm="'+esc(f.k)+'">'+curActAiFieldMark(f.k)+'</span></label>'
+      +(f.rows
+        ?'<textarea id="'+f.id+'" rows="'+f.rows+'" placeholder="'+esc(f.ph)+'">'+esc(v)+'</textarea>'
+        :'<input id="'+f.id+'" value="'+esc(v)+'" placeholder="'+esc(f.ph)+'">')
+      +'</div>';
+  }).join('');
+}
+function curActWireFields(){
+  CURACT_FIELDS.forEach(function(f){
+    var e=$('#'+f.id); if(!e)return;
+    e.oninput=function(){curActTouch();};
+  });
+}
+function curActRedrawMarks(){
+  var i,e;
+  for(i=0;i<CURACT_FIELDS.length;i++){
+    e=document.querySelector('[data-cafm="'+CURACT_FIELDS[i].k+'"]');
+    if(e)e.innerHTML=curActAiFieldMark(CURACT_FIELDS[i].k);
+  }
+}
+/* AIの案を、いま開いている窓の欄にその場で入れる */
+function curActPutIdea(x){
+  var map=[
+    ['name','活動の名前',x.name||''],
+    ['text','内容',[x.summary||''].filter(Boolean).join('\n')],
+    ['aim','ねらい',x.aim||''],
+    ['prep','準備・材料',(x.materials||[]).join('\n')+((x.prep&&x.prep.length)?('\n【準備】'+x.prep.join(' / ')):'')],
+    ['steps','進め方',(x.steps||[]).join('\n')],
+    ['care','気をつけること',((x.help||[]).concat(x.safe||[])).join('\n')]
+  ];
+  var filled=[],i;
+  for(i=0;i<map.length;i++){
+    var e=$('#'+CURACT_FIELDS[i].id);
+    if(e&&String(e.value||'').replace(/^\s+|\s+$/g,'')&&String(map[i][2]||'').replace(/^\s+|\s+$/g,''))filled.push(map[i][1]);
+  }
+  var over=true;
+  /* すでに書いてある欄は、1回だけ聞く */
+  if(filled.length)over=confirm(filled.join('・')+'にはすでに書かれています。上書きしますか？');
+  var put=[];
+  for(i=0;i<map.length;i++){
+    var el2=$('#'+CURACT_FIELDS[i].id); if(!el2)continue;
+    var val=String(map[i][2]||'').replace(/^\s+|\s+$/g,'');
+    if(!val)continue;
+    var has=!!String(el2.value||'').replace(/^\s+|\s+$/g,'');
+    if(has&&!over)continue;
+    el2.value=val; put.push(map[i][0]);
+    /* AIの下書きが入った欄に印を残す。監査で「誰が書いたか」を出せるようにするため */
+    if((CURACT.aiFields||[]).indexOf(map[i][0])<0)CURACT.aiFields.push(map[i][0]);
+  }
+  curActRedrawMarks();
+  curActSaveNow();
+  var mg=$('#caMsg');
+  if(mg)mg.textContent='入れました：'+(put.length?put.length+'か所':'なし');
+}
+function curActModal(cls,date,half){
+  half=(half==='pm')?'pm':'am';
+  var b=curBodyGet(cls,date,half),sc=curSchedGet(cls,date),types=actTypes(cls);
+  CURACT.cls=cls; CURACT.date=date; CURACT.half=half;
+  CURACT.dirty=false; CURACT.aiFields=b.aiFields.slice();
+  if(CURACT.timer){clearTimeout(CURACT.timer);CURACT.timer=null;}
+  var d=new Date(date+'T00:00:00');
+  var m=el('div',{class:'modal-bg',id:'curActBg'});
+  $('#modalRoot').appendChild(m);
+  m.innerHTML='<div class="modal curact-modal">'
+    +'<h2 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">'+ic('book')
+      +(d.getMonth()+1)+'月'+d.getDate()+'日（'+WD[d.getDay()]+'）　'+curActHalfLabel(half)+'の活動'
+      +'<span class="muted" style="font-size:12.5px;font-weight:400;">'+esc(cls)+'</span>'
+      +'<span style="flex:1;"></span>'
+      +'<span id="caFlag" class="muted" style="font-size:12px;color:#A32D2D;display:none;"></span>'
+      +'<span id="caMsg" class="muted" style="font-size:12px;"></span></h2>'
+    +'<div id="caFields">'
+      +'<div class="field"><label>活動の種類</label><select id="caType"><option value="">—</option>'
+        +types.map(function(t){return '<option'+(t===(half==='pm'?sc.pm:sc.am)?' selected':'')+'>'+esc(t)+'</option>';}).join('')
+        +'</select></div>'
+      +curActFieldsHTML(b)
+      +'<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px;">'
+        +(egPlanOfPage('aiplan')?'<button type="button" class="btn" id="caAI">'+ic('spark')+'AIと活動を考える</button>'
+          +'<div class="muted" style="font-size:11.5px;margin-top:6px;">押すと、この窓の下がAIの画面に差し替わります。別の窓は開きません。</div>':'')
+      +'</div>'
+    +'</div>'
+    +'<div id="curAiHost"></div>'
+    +'<div id="caAsk" style="display:none;margin-top:14px;padding:12px 14px;border-radius:9px;background:#FAEEDA;border:1px solid #EBD8AE;">'
+      +'<div style="font-size:13px;margin-bottom:9px;">書いたものを保存しますか？</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +'<button type="button" class="btn btn-sm btn-primary" id="caAskSave">保存して閉じる</button>'
+      +'<button type="button" class="btn btn-sm" id="caAskDrop">保存せずに閉じる</button>'
+      +'<button type="button" class="btn btn-sm btn-ghost" id="caAskStay">やめる</button></div></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;" id="caFoot">'
+      /* 広い画面では、この窓の右に日案を並べて開く。狭い画面では、この窓を閉じてから開く */
+      +'<button type="button" class="btn" id="caNichi">'+ic('book')+'日案をひらく</button>'
+      +'<span style="flex:1;"></span>'
+      +'<button type="button" class="btn" id="caClose">閉じる</button>'
+      +'<button type="button" class="btn btn-primary" id="caSave">保存して閉じる</button></div>'
+    +'</div>';
+  m.addEventListener('click',function(e){if(e.target===m)curActTryClose();});
+  curActWireFields();
+  var ty=$('#caType');
+  if(ty)ty.onchange=function(){
+    var s2=curSchedGet(cls,date);
+    if(half==='pm')s2.pm=ty.value; else s2.am=ty.value;
+    curSchedSet(cls,date,s2);
+  };
+  $('#caClose').onclick=function(){curActTryClose();};
+  $('#caNichi').onclick=function(){
+    curActSaveNow();
+    /* 狭い画面では1枚ずつ。右の窓は、左を閉じてから開く */
+    if(window.innerWidth<1024){curActClose();nichiModal(cls,date);return;}
+    nichiModal(cls,date);
+  };
+  $('#caSave').onclick=function(){curActSaveNow();curActClose();};
+  $('#caAskSave').onclick=function(){curActSaveNow();curActClose();};
+  $('#caAskDrop').onclick=function(){
+    if(CURACT.timer){clearTimeout(CURACT.timer);CURACT.timer=null;}
+    CURACT.dirty=false; curActClose();
+  };
+  $('#caAskStay').onclick=function(){var x=$('#caAsk');if(x)x.style.display='none';};
+  if($('#caAI'))$('#caAI').onclick=function(){
+    curActSaveNow();
+    var fl=$('#caFields'); if(fl)fl.style.display='none';
+    var ft=$('#caFoot'); if(ft)ft.style.display='none';
+    aiActOpenIn(cls,'curAiHost',function(x){
+      /* 案を選んだら、その場でこの窓の欄に入れて、書いていた欄に戻る */
+      aiActClose();
+      curActPutIdea(x);
+    },function(){
+      var f2=$('#caFields'); if(f2)f2.style.display='';
+      var f3=$('#caFoot'); if(f3)f3.style.display='';
+      curActWireFields();
+    });
+  };
+}
 function renderCurriculum(){
   var s=$('section[data-page="curriculum"]');
   /* ★クラス名を変えたあとも 'Pre' のまま開き、名札はどれも消灯、
@@ -19965,11 +20667,107 @@ function renderCurriculum(){
     '</div>';
   /* 週ごとの欄をやめる前に、いま書いてある内容を各日へ写す（1回だけ） */
   curMigrateWeekToDay();
+  /* 実施の記録を午前・午後に分ける引き継ぎ（1回だけ） */
+  actRepMigrateAmPm();
+  /* ══ 週をえらぶ ＋ 1日1枚のカード（2026-09-21 安田さんのご判断）══════
+     ★以前は、その月の平日22日ぶんが1本の表で縦に並び、1日が1行に7つ押し込まれていた。
+       スマホでは「担当」から右（日案・実施・託児・メモ）が画面の外にあり、
+       横に送れる合図も出ていなかったので、先生は日案と実施に気づけなかった。 */
+  var weeks=curWeeksOf(CUR.month);
+  if(curWeekMonth!==CUR.month){
+    curWeekMonth=CUR.month;
+    curWeekIdx=(CUR.month===curMonthKey())?curWeekIndexOf(CUR.month,todayISO()):0;
+  }
+  if(curWeekIdx<0)curWeekIdx=0;
+  if(curWeekIdx>=weeks.length)curWeekIdx=weeks.length?weeks.length-1:0;
+  var wk=weeks[curWeekIdx]||{days:[],before:[],after:[]};
+  function curDayHas(date){
+    var sc=curSchedGet(curClass,date);
+    return !!(sc.daycare||sc.amText||sc.pmText||curBodyHas(sc.amBody)||curBodyHas(sc.pmBody));
+  }
+  var weekBar='<div class="card curwk"><div class="curwk-row">'
+    +'<button class="btn btn-sm" id="curWkPrev">◀ 前の週</button>'
+    +'<div class="curwk-list">'
+    +weeks.map(function(w,i){
+      var done=w.days.filter(curDayHas).length;
+      var mark=(done===0)?'・':((done===w.days.length)?'✓':'');
+      return '<button class="btn btn-sm'+(i===curWeekIdx?' btn-primary':'')+' curwk-b" data-cwk="'+i+'">'
+        +'第'+(i+1)+'週 '+curWeekLabel(w)+(mark?'　'+mark:'')+'</button>';
+    }).join('')
+    +'</div>'
+    +'<button class="btn btn-sm" id="curWkNext">次の週 ▶</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">'
+    +'<span class="muted" style="font-size:11.5px;flex:1;min-width:200px;">週は月曜はじまりです。まだ何も書いていない週には「・」、その週の平日がぜんぶ書けたら「✓」が付きます。</span>'
+    +'<button class="btn btn-sm" id="curWkPrint">'+ic('printer')+'この週を印刷</button></div>'
+    +'</div>';
   var bodyHtml;
   {
-    var dim=new Date(y,mo,0).getDate(),rows='';
-    for(var dd=1;dd<=dim;dd++){var dwk=new Date(y,mo-1,dd).getDay();if(dwk===0||dwk===6)continue;var date=CUR.month+'-'+pad(dd);var sc=curSchedGet(curClass,date);rows+='<tr'+(sc.daycare?' style="background:#EEEDFE;"':'')+'><td class="row-name" style="white-space:nowrap;">'+mo+'/'+dd+'<div class="row-sub">'+WD[dwk]+'</div></td><td><select data-sam="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.am)+'</select><input data-samt="'+esc(date)+'" value="'+esc(v(sc.amText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><select data-spm="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(sc.pm)+'</select><input data-spmt="'+esc(date)+'" value="'+esc(v(sc.pmText))+'" placeholder="内容" style="margin-top:4px;font-size:12px;"'+(sc.daycare?' disabled':'')+'></td><td><input data-stea="'+esc(date)+'" value="'+esc(v(sc.teacher))+'" placeholder="担当"></td><td style="text-align:center;"><button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">詳細'+(curDailyHas(curClass,date)?'✓':'')+'</button></td><td style="text-align:center;"><button class="btn btn-sm'+(actRepGet(curClass,date).done==='やった'?' btn-primary':'')+'" data-rep="'+esc(date)+'">'+(actRepGet(curClass,date).done?esc(actRepGet(curClass,date).done):'記録')+'</button></td><td style="text-align:center;"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="checkbox" data-sdc="'+esc(date)+'" style="width:auto;"'+(sc.daycare?' checked':'')+'>1日託児</label></td><td><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></td></tr>';}
-    bodyHtml='<div class="card"><div class="scrollx"><table><thead><tr><th style="width:64px;">日付</th><th>活動内容（午前）</th><th>活動内容（午後）</th><th style="width:110px;">担当</th><th style="width:76px;">日案</th><th style="width:88px;">実施</th><th style="width:88px;">託児</th><th>メモ</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    var cards=wk.days.map(function(date){
+      var sc=curSchedGet(curClass,date),dt=new Date(date+'T00:00:00'),dwk=dt.getDay();
+      function slot(half){
+        var b=curBodyGet(curClass,date,half),ty=(half==='pm')?sc.pm:sc.am;
+        var line=curBodyHas(b)?curBodyLine(b):((half==='pm')?sc.pmText:sc.amText);
+        var has=!!(ty||line);
+        var r=actRepHalf(curClass,date,half);
+        var h='<div class="dc-slot"><div class="dc-slot-h">'+curActHalfLabel(half)+'</div>'
+          +'<select data-sl="'+esc(half)+'" data-d="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'+actOpts(ty)+'</select>'
+          +'<button type="button" class="dc-body'+(curBodyHas(b)?' on':'')+'" data-cab="'+esc(half)+'" data-d="'+esc(date)+'"'+(sc.daycare?' disabled':'')+'>'
+            +(line?('<b>'+esc(b.name||line)+'</b>'+(b.text?'<span>'+esc(String(b.text).split('\n')[0])+'</span>':''))
+                  :'<span class="dc-body-empty">＋ 活動内容を書く</span>')
+            +'</button>';
+        if(sc.daycare){
+          h+='<div class="muted" style="font-size:11.5px;">1日託児保育の日です。</div>';
+        }else if(!has){
+          h+='<div class="muted dc-nojis" style="font-size:11.5px;">活動を入れると、ここに「やった／できなかった」が出ます。</div>';
+        }else{
+          h+='<div class="dc-jis"><span class="muted" style="font-size:12px;">実施</span>'
+            +'<button type="button" class="btn btn-sm'+(r.done==='やった'?' btn-primary':'')+'" data-jis="やった" data-d="'+esc(date)+'" data-h="'+esc(half)+'">やった</button>'
+            +'<button type="button" class="btn btn-sm'+(r.done==='できなかった'?' btn-primary':'')+'" data-jis="できなかった" data-d="'+esc(date)+'" data-h="'+esc(half)+'">できなかった</button>'
+            +(r.done==='やった'?'<button type="button" class="btn btn-sm btn-ghost" data-rep="'+esc(date)+'" data-h="'+esc(half)+'">ふりかえりを書く ▸</button>':'')
+            +'</div>';
+          /* ★この記録は、午前・午後に分ける前に「その日の記録」として付けられたもの。
+             午前に寄せてあるが、古いことが分かる断りをそのまま添える。 */
+          if(r.movedFrom==='day')
+            h+='<div class="muted dc-old" style="font-size:11px;">'
+              +'その日の記録（'+esc(fmt(date))+'より前のやり方）です。'
+              +'そのころは午前・午後に分けておらず、1日に1つでした。</div>';
+          if(r.done==='できなかった'){
+            h+='<div class="dc-why"><div class="muted" style="font-size:11.5px;">できなかった理由（書かなくても保存されます）</div><div class="chips" style="margin:4px 0 0;">'
+              +ACTREP_WHY.map(function(x){
+                return '<span class="chip'+(x===r.why?' on':'')+'" data-jwhy="'+esc(x)+'" data-d="'+esc(date)+'" data-h="'+esc(half)+'">'+esc(x)+'</span>';
+              }).join('')
+              +'</div><input data-jwt="'+esc(date)+'" data-h="'+esc(half)+'" value="'+esc(v(r.whyText))+'" placeholder="ひとこと" style="margin-top:6px;font-size:12px;"></div>';
+          }
+        }
+        return h+'</div>';
+      }
+      return '<div class="daycard'+(sc.daycare?' dc-care':'')+'">'
+        +'<div class="dc-head">'
+          +'<div class="dc-date">'+(+date.slice(5,7))+'/'+(+date.slice(8,10))+'<span>'+WD[dwk]+'</span></div>'
+          +'<span style="flex:1;"></span>'
+          +'<span class="muted" style="font-size:12px;">担当</span>'
+          +'<input data-stea="'+esc(date)+'" value="'+esc(v(sc.teacher))+'" placeholder="担当" class="dc-tea">'
+          +'<label class="dc-care-l"><input type="checkbox" data-sdc="'+esc(date)+'"'+(sc.daycare?' checked':'')+'>1日託児</label>'
+        +'</div>'
+        +(sc.daycare
+          ?'<div class="dc-slots dc-slots-1">'+slot('am')+'</div>'
+          :'<div class="dc-slots">'+slot('am')+slot('pm')+'</div>')
+        +'<div class="dc-memo"><input data-smemo="'+esc(date)+'" value="'+esc(v(sc.memo))+'" placeholder="メモ"></div>'
+        +'<div class="dc-foot">'
+          +'<button class="btn btn-sm'+(curDailyHas(curClass,date)?' btn-primary':'')+'" data-nichi="'+esc(date)+'">日案をつくる'+(curDailyHas(curClass,date)?' ✓':'')+'</button>'
+          +(curDailyHas(curClass,date)?'<button class="btn btn-sm" data-nipr="'+esc(date)+'">'+ic('printer')+'印刷</button>':'')
+        +'</div></div>';
+    }).join('');
+    /* 月をまたぐ週は、その月の日だけ出す。足りない日は読むだけで出し、押すと隣の月へ移る */
+    function edge(list,where){
+      if(!list.length)return '';
+      return '<div class="dc-edge">'+list.map(function(k){
+        var lab=(+k.slice(5,7))+'/'+(+k.slice(8,10));
+        return '<button type="button" class="btn btn-sm btn-ghost" data-cmv="'+esc(k)+'">'+lab+'（'+(+k.slice(5,7))+'月にあります）</button>';
+      }).join('')+'</div>';
+    }
+    bodyHtml='<div class="curdays">'+edge(wk.before,'before')+(cards||'<div class="empty">この週に平日がありません。</div>')+edge(wk.after,'after')+'</div>';
   }
   /* 週ごとの欄はやめて、月間のねらいと日別を1つの画面にまとめた（2026-08-22）。
      いま書いてある週の内容は、上の curMigrateWeekToDay() で各日へ写してある。
@@ -19995,7 +20793,7 @@ function renderCurriculum(){
       types.map(function(t){var m=curActMGet(curClass,t);return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;"><span style="font-weight:600;min-width:110px;padding-top:9px;">'+esc(t)+'</span><input data-actm="'+esc(t)+'|goal" value="'+esc(v(m.goal))+'" placeholder="ねらい・目標" style="flex:1;min-width:200px;"><input data-actm="'+esc(t)+'|teacher" value="'+esc(v(m.teacher))+'" placeholder="担当" style="width:110px;"></div>';}).join('')+
       (types.length?'':'<div class="empty">まだ活動がありません。下の「活動内容を編集」から足すと、ここに入ります。</div>')+
       curActTypeBox(types)+'</div>';
-  bodyHtml=monthHtml+bodyHtml;
+  bodyHtml=monthHtml+weekBar+bodyHtml;
   s.innerHTML=header+bodyHtml+'<div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap;"><button class="btn btn-primary" id="curSave">'+ic('check')+'保存</button><button class="btn" id="curJissi">'+ic('printer')+'計画と実際を印刷</button><button class="btn" id="curPrint">'+ic('printer')+'印刷（MTG配布用）</button><button class="btn" id="curToAct">'+ic('cast')+'デイリーレポートを作成</button><span class="muted" id="curMsg"></span></div>';
   s.querySelectorAll('[data-cc]').forEach(function(b){b.onclick=function(){curClass=b.getAttribute('data-cc');renderCurriculum();};});
   /* 週のタブは無くなったが、古い呼び出しが残っていても落ちないよう配線だけ残す */
@@ -20012,18 +20810,70 @@ function renderCurriculum(){
     if(!/^[0-9]{4}-[0-9]{2}$/.test(v)||+v.slice(0,4)<2000||+v.slice(0,4)>2100){e.target.value=CUR.month;return;}
     CUR.month=v;DB.curriculum=CUR;renderCurriculum();};
   curLegacyWire();
-  s.querySelectorAll('[data-sam]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-sam'),sc=curSchedGet(curClass,d);sc.am=sl.value;curSchedSet(curClass,d,sc);};});
-  s.querySelectorAll('[data-spm]').forEach(function(sl){sl.onchange=function(){var d=sl.getAttribute('data-spm'),sc=curSchedGet(curClass,d);sc.pm=sl.value;curSchedSet(curClass,d,sc);};});
+  /* ── 週の切り替え。月の端で押したら、月も一緒に動かす ── */
+  function curWkShift(n){
+    var i=curWeekIdx+n;
+    if(i<0){
+      var pm=new Date(y,mo-2,1);
+      CUR.month=pm.getFullYear()+'-'+pad(pm.getMonth()+1); DB.curriculum=CUR;
+      curWeekMonth=CUR.month;
+      var pw=curWeeksOf(CUR.month); curWeekIdx=pw.length?pw.length-1:0;
+      renderCurriculum(); return;
+    }
+    if(i>=weeks.length){
+      var nm=new Date(y,mo,1);
+      CUR.month=nm.getFullYear()+'-'+pad(nm.getMonth()+1); DB.curriculum=CUR;
+      curWeekMonth=CUR.month; curWeekIdx=0;
+      renderCurriculum(); return;
+    }
+    curWeekIdx=i; renderCurriculum();
+  }
+  if($('#curWkPrev'))$('#curWkPrev').onclick=function(){curWkShift(-1);};
+  if($('#curWkNext'))$('#curWkNext').onclick=function(){curWkShift(1);};
+  s.querySelectorAll('[data-cwk]').forEach(function(b){b.onclick=function(){
+    curWeekIdx=+b.getAttribute('data-cwk'); renderCurriculum();};});
+  /* 月をまたぐ週の、隣の月の日。押すとその月へ移る */
+  s.querySelectorAll('[data-cmv]').forEach(function(b){b.onclick=function(){
+    var k=b.getAttribute('data-cmv');
+    CUR.month=k.slice(0,7); DB.curriculum=CUR;
+    curWeekMonth=CUR.month; curWeekIdx=curWeekIndexOf(CUR.month,k);
+    renderCurriculum();};});
+  if($('#curWkPrint'))$('#curWkPrint').onclick=function(){DB.curriculum=CUR;curWeekPrint(curClass,wk,curWeekIdx+1);};
+  /* ── カードの中 ── */
+  s.querySelectorAll('[data-sl]').forEach(function(sl){sl.onchange=function(){
+    var d=sl.getAttribute('data-d'),h=sl.getAttribute('data-sl'),sc=curSchedGet(curClass,d);
+    if(h==='pm')sc.pm=sl.value; else sc.am=sl.value;
+    curSchedSet(curClass,d,sc); renderCurriculum();};});
+  s.querySelectorAll('[data-cab]').forEach(function(b){b.onclick=function(){
+    curActModal(curClass,b.getAttribute('data-d'),b.getAttribute('data-cab'));};});
   s.querySelectorAll('[data-sdc]').forEach(function(cb){cb.onchange=function(){var d=cb.getAttribute('data-sdc'),sc=curSchedGet(curClass,d);sc.daycare=cb.checked;curSchedSet(curClass,d,sc);renderCurriculum();};});
   s.querySelectorAll('[data-smemo]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-smemo'),sc=curSchedGet(curClass,d);sc.memo=inp.value;curSchedSet(curClass,d,sc);};});
-  /* その日の活動の中身と担当。1日ごとに違うので、日ごとに持つ */
-  s.querySelectorAll('[data-samt]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-samt'),sc=curSchedGet(curClass,d);sc.amText=inp.value;curSchedSet(curClass,d,sc);};});
-  s.querySelectorAll('[data-spmt]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-spmt'),sc=curSchedGet(curClass,d);sc.pmText=inp.value;curSchedSet(curClass,d,sc);};});
+  /* その日の担当。1日ごとに違うので、日ごとに持つ */
   s.querySelectorAll('[data-stea]').forEach(function(inp){inp.onchange=function(){var d=inp.getAttribute('data-stea'),sc=curSchedGet(curClass,d);sc.teacher=inp.value;curSchedSet(curClass,d,sc);};});
-    s.querySelectorAll('[data-nichi]').forEach(function(b){b.onclick=function(){
-      nichiModal(curClass,b.getAttribute('data-nichi'));};});
-    s.querySelectorAll('[data-rep]').forEach(function(b){b.onclick=function(){
-      actRepModal(curClass,b.getAttribute('data-rep'));};});
+  /* 実施は、押した時点で保存する（ここがいちばん押される場所なので、窓を開かせない） */
+  s.querySelectorAll('[data-jis]').forEach(function(b){b.onclick=function(){
+    var d=b.getAttribute('data-d'),h=b.getAttribute('data-h'),vv=b.getAttribute('data-jis');
+    var r=actRepHalf(curClass,d,h);
+    r.done=(r.done===vv)?'':vv;
+    if(r.done!=='できなかった'){r.why='';r.whyText='';}
+    actRepHalfSet(curClass,d,h,r);
+    renderCurriculum();};});
+  s.querySelectorAll('[data-jwhy]').forEach(function(b){b.onclick=function(){
+    var d=b.getAttribute('data-d'),h=b.getAttribute('data-h'),vv=b.getAttribute('data-jwhy');
+    var r=actRepHalf(curClass,d,h);
+    r.why=(r.why===vv)?'':vv;
+    actRepHalfSet(curClass,d,h,r);
+    renderCurriculum();};});
+  s.querySelectorAll('[data-jwt]').forEach(function(inp){inp.onchange=function(){
+    var d=inp.getAttribute('data-jwt'),h=inp.getAttribute('data-h');
+    var r=actRepHalf(curClass,d,h);
+    r.whyText=inp.value; actRepHalfSet(curClass,d,h,r);};});
+  s.querySelectorAll('[data-nichi]').forEach(function(b){b.onclick=function(){
+    nichiModal(curClass,b.getAttribute('data-nichi'));};});
+  s.querySelectorAll('[data-nipr]').forEach(function(b){b.onclick=function(){
+    var d=b.getAttribute('data-nipr'); nichiPrint(curClass,d,curDailyGet(curClass,d));};});
+  s.querySelectorAll('[data-rep]').forEach(function(b){b.onclick=function(){
+    actRepModal(curClass,b.getAttribute('data-rep'),b.getAttribute('data-h'));};});
   s.querySelectorAll('[data-cont]').forEach(function(inp){inp.onchange=function(){var p=actSplitKey(inp.getAttribute('data-cont')),ct=curContGet(curClass,curWeek,p[0]);ct[p[1]]=inp.value;curContSet(curClass,curWeek,p[0],ct);renderCurriculum();};});
   /* ★ここで画面を作り直していたので、Tab で隣の欄へ移った瞬間に
      欄ごと作り直され、焦点が外れて、続けて打った文字がどこにも入らなかった。
@@ -30327,7 +31177,15 @@ function taskAutoDone(t,mk){
           if(cut<0)continue;
           if(String(ak).slice(cut+1).slice(0,7)!==mk)continue;
           var av=ar[ak]||{};
-          if(av.done||av.free||av.muzu||av.tsugi)return true;
+          /* ★記録を午前・午後（am/pm）に分けたので、以前の形だけを見ていると
+             新しく付けた記録が「無い」ことになり、去年の月まで済が外れる。
+             どちらの形でも見る。判定の結果は前と同じ（2026-09-21）。 */
+          if(av.done||av.free||av.muzu||av.tsugi||av.dayDone)return true;
+          var _h,_hv,_hi;
+          for(_hi=0;_hi<2;_hi++){
+            _h=_hi?'pm':'am'; _hv=av[_h]||null;
+            if(_hv&&(_hv.done||_hv.free||_hv.muzu||_hv.tsugi))return true;
+          }
         }
         return false;
       }
@@ -30346,7 +31204,8 @@ function taskAutoDone(t,mk){
         for(dk in dd){
           if(String(dk).slice(0,7)!==mk)continue;
           var rr=dd[dk]||{};
-          if(rr.am||rr.pm||rr.amText||rr.pmText){has=true;break;}
+          /* 活動内容を6つの欄で書いた日も「計画を立てた」に数える（2026-09-21） */
+          if(rr.am||rr.pm||rr.amText||rr.pmText||curBodyHas(rr.amBody)||curBodyHas(rr.pmBody)){has=true;break;}
         }
         if(has)break;
       }
