@@ -330,6 +330,16 @@
   .cal-banner{background:#f1faf6;border:1px dashed var(--teal-l);border-radius:var(--radius);padding:16px 18px;display:flex;align-items:center;gap:14px;}
   /* 年間スケジュールの月カレンダー：説明文が長くて何をやるか分かりにくかったので、
      日付の上にやることを出し、下は題名だけの一覧＋押したら開く説明、という形にした */
+  /* 年間スケジュールの月ごとの枠。
+     ★2つ並びのまま固定していたので、スマホでは1つの枠が150pxほどになり、
+       「2026年 4月」も「行事を足す」も1文字ずつ縦に割れて読めなくなっていた
+       （行事を足せるようにした 2026-09-21 に出た）。狭い画面では1つ並びにする。 */
+  .anmg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  @media(max-width:700px){.anmg{grid-template-columns:minmax(0,1fr);}}
+  .anmo{border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .anmh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .anmh .anmn{font-weight:800;font-size:13.5px;}
+  .anmr{display:flex;align-items:center;gap:6px;font-size:12.5px;line-height:1.8;}
   .tkcal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;min-width:620px;}
   .tkcal .hd{font-size:11px;font-weight:600;color:var(--tx3);text-align:center;padding:2px 0;}
   .tkcal .hd.sun{color:#C0392B;}
@@ -11238,8 +11248,6 @@ var EN_DICT={
 '保存しました':'Saved',
 /* 園名は運営が決める（2026-09-21 安田さんのご指示） */
 '園名は運営が設定します。変えるときは運営へご連絡ください。':'Your school name is set by head office. Contact them to change it.',
-/* 帯の中の「ほか◯件」。数字は langLookup が {0} に置き換えて引いてくれる */
-'ほか{0}件':'and {0} more',
 /* ホームの広告枠（2026-09-21 安田さんのご指示） */
 'ホームの広告枠':'Home ad panel','広告を足す':'Add an ad','この広告を消す':'Delete this ad',
 '見出し':'Headline','リンク先（https から）':'Link (must start with https)',
@@ -15022,6 +15030,16 @@ var EN_DICT={
 'このブラウザは体温計との接続に対応していません。Chrome か Edge をお使いください。':'This browser can’t connect to the thermometer. Please use Chrome or Edge.',
 '保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。':'Give parents the 4-digit number. The number itself isn’t stored on the device (set a new one if forgotten).',
 '月間スケジュールのカレンダーに入れた行事が、年度の順に並びます。行事を足す・消すのは月間スケジュールからです。':'Events entered on the Monthly Schedule calendar are listed in school-year order. Add or remove them on the Monthly Schedule.',
+/* ── 年間スケジュールから行事を足す・消す（2026-09-21 安田さんのご指示）── */
+'行事は、この画面で足す・消すことができます。月ごとの枠の「行事を足す」を押すと、その月の中の日にちで入れられます。消すときは、行事の右の × を押してください。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。':'You can add and remove events on this screen. Press “Add an event” in a month’s box to enter a date within that month. To remove one, press the × to the right of the event. Events you add also appear in “This month’s events” on Home and on the Monthly Schedule calendar.',
+'行事が、年度の順に並びます。行事を足す・消すには、月間スケジュールを開ける権限が要ります。':'Events are listed in school-year order. Adding and removing events requires permission to open the Monthly Schedule.',
+'ここは、毎月の作業（タスク）を見る画面です。行事は年間スケジュールで足します。このカレンダーからも足せて、足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。':'This screen shows the monthly tasks. Events are added on the Annual Schedule. You can also add them from this calendar, and events you add appear in “This month’s events” on Home and in the Annual Schedule.',
+'この行事を消す':'Remove this event',
+'日にち':'Date','行事の名前':'Event name','例：運動会':'e.g. Sports Day',
+'{0}年{1}月の行事を入れます。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。':'Add an event for {1}/{0}. Events you add also appear in “This month’s events” on Home and on the Monthly Schedule calendar.',
+'日にちを選んでください。':'Please pick a date.',
+'この月の中の日にちを選んでください。':'Please pick a date within this month.',
+'行事の名前を入れてください。':'Please enter the event name.',
 'よく聞かれている画面ほど、分かりにくい画面です。手引きや画面そのものを直す手がかりになります。':'The screens people ask about most are the hardest to understand. Use this to improve the guides or the screens themselves.',
 '消火器の使い方や避難の手順を月に1回たしかめ、実施した日・場所・かかった時間・様子を残します。':'Once a month, review how to use fire extinguishers and the evacuation steps, and record the date, place, time taken, and how it went.',
 '教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法':'Guidelines for Accident Prevention and Response at Education and Childcare Facilities / Child and Child-Rearing Support Act',
@@ -16270,34 +16288,69 @@ function pwAsk(done){
 }
 
 /* ══ 年間スケジュール（②カリキュラム 13行）═══════════
-   4月から3月までの12か月に、今月の行事（homeEvents）を並べる。紙にも出せる。 */
+   4月から3月までの12か月に、行事（homeEvents）を並べる。紙にも出せる。
+   ★これまでは並べて見るだけの画面で、行事を足せるのは月間スケジュールのカレンダーだけだった。
+     年間スケジュールは行事、月間スケジュールは毎月の作業（タスク）という役割分担にするため、
+     月ごとの枠から行事を足す・消すができるようにする（2026-09-21 安田さんのご指示）。 */
 function annualFY(){var d=new Date(),y=d.getFullYear();return (d.getMonth()+1)>=4?y:y-1;}
+/* 行事を足す・消すことができる人。
+   いま行事を足せるのは「月間スケジュールを開ける人」なので、そこにそろえる。
+   園が権限管理で月間スケジュールを外した役職からは、この画面でも足せない
+   （同じ行事なのに、入口によって足せる人が違う、という食い違いを作らないため）。 */
+function annualCanEdit(){return (typeof canView!=='function')||canView('tasks');}
 function annualHTML(fy,forPrint){
   var ev=(typeof homeEventsAll==='function')?homeEventsAll():[];
+  /* 紙に出すときは、押せないボタンが並ぶだけなので出さない */
+  var canEd=!forPrint&&annualCanEdit();
   var months=[],i;
   for(i=0;i<12;i++){var m=(i+3)%12+1,y=m>=4?fy:fy+1;months.push({y:y,m:m,key:y+'-'+('0'+m).slice(-2)});}
-  return '<div style="display:grid;grid-template-columns:repeat('+(forPrint?3:2)+',1fr);gap:10px;">'
+  /* 紙は3つ並びのまま。画面は .anmg にまかせる（狭い画面で1つ並びに落とすため） */
+  return (forPrint?'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">':'<div class="anmg">')
     +months.map(function(mo){
       var l=ev.filter(function(e){return String(e.date||'').slice(0,7)===mo.key;})
         .sort(function(a,b){return a.date<b.date?-1:1;});
-      return '<div style="border:1px solid #ddd;border-radius:10px;padding:10px 12px;'+(forPrint?'break-inside:avoid;':'')+'">'
-        +'<div style="font-weight:800;font-size:13.5px;margin-bottom:6px;">'+mo.y+'年 '+mo.m+'月</div>'
-        +(l.length?l.map(function(e){return '<div style="font-size:12.5px;line-height:1.8;">'+(+e.date.slice(8))+'日　'+esc(e.name)+'</div>';}).join('')
+      return (forPrint?'<div style="border:1px solid #ddd;border-radius:10px;padding:10px 12px;break-inside:avoid;">':'<div class="anmo">')
+        +(forPrint
+          ?'<div style="font-weight:800;font-size:13.5px;margin-bottom:6px;">'+mo.y+'年 '+mo.m+'月</div>'
+          :'<div class="anmh"><span class="anmn">'+mo.y+'年 '+mo.m+'月</span><span style="flex:1;"></span>'
+            +(canEd?'<button class="btn btn-sm" data-anevadd="'+esc(mo.key)+'">'+ic('plus')+'行事を足す</button>':'')
+            +'</div>')
+        +(l.length?l.map(function(e){
+            if(forPrint)return '<div style="font-size:12.5px;line-height:1.8;">'+(+e.date.slice(8))+'日　'+esc(e.name)+'</div>';
+            return '<div class="anmr"><span>'+(+e.date.slice(8))+'日　'+esc(e.name)+'</span><span style="flex:1;"></span>'
+              /* ×は記号なので、英語にするときに置きかえない（data-nolang）。
+                 何のボタンかは、マウスを乗せると出る ふきだし で伝える。 */
+              +(canEd?'<button class="btn btn-sm btn-ghost" data-anevdel="'+esc(e.id||'')+'" data-nolang="1"'
+                  +' title="この行事を消す" style="padding:0 8px;line-height:1.6;">×</button>':'')
+              +'</div>';
+          }).join('')
                   :'<div class="muted" style="font-size:12px;">—</div>')
         +'</div>';
     }).join('')+'</div>';
 }
 function renderAnnual(){
-  var s=$('section[data-page="annual"]'),fy=annualFY();
+  var s=$('section[data-page="annual"]'),fy=annualFY(),canEd=annualCanEdit();
   s.innerHTML='<div class="card">'+recHead('年間スケジュール（'+fy+'年度）',
       '<button class="btn btn-sm" id="anPrint">'+ic('printer')+'紙に出す（PDF）</button>')
     +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
-    /* ★行事はホームから足す形だったので「足す・消すのはホームからです」と書いていたが、
-       いまは月間スケジュールのカレンダーで足し引きする（2026-09-21 安田さんのご指示）。
-       ホームは見るだけになったので、案内も直す。 */
-    +'月間スケジュールのカレンダーに入れた行事が、年度の順に並びます。行事を足す・消すのは月間スケジュールからです。</div>'
+    /* ★行事はホームから足す形だったので「足す・消すのはホームからです」と書いていた。
+       そのあと月間スケジュールのカレンダーに移したので、案内もそちらへ書き直した。
+       いまは、行事はこの画面で足す・消すものになった（2026-09-21 安田さんのご指示）。
+       案内が実際の押しどころとずれると、先生が画面を行き来することになるので、ここも直す。 */
+    +(canEd
+      ?'行事は、この画面で足す・消すことができます。月ごとの枠の「行事を足す」を押すと、その月の中の日にちで入れられます。消すときは、行事の右の × を押してください。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。'
+      :'行事が、年度の順に並びます。行事を足す・消すには、月間スケジュールを開ける権限が要ります。')
+    +'</div>'
     +annualHTML(fy,false)+'</div>';
   $('#anPrint').onclick=function(){ printDoc('年間スケジュール（'+fy+'年度）',annualHTML(fy,true)); };
+  /* 行事の足す・消す。入れ物はホームの「今月の行事」と同じ（homeEvents）なので、
+     ここで足したものは、ホームにも月間スケジュールのカレンダーにも出る。 */
+  s.querySelectorAll('[data-anevadd]').forEach(function(b){b.onclick=function(){
+    annualEventAsk(b.getAttribute('data-anevadd'),renderAnnual);
+  };});
+  s.querySelectorAll('[data-anevdel]').forEach(function(b){b.onclick=function(){
+    homeEventDel(b.getAttribute('data-anevdel'),renderAnnual);
+  };});
 }
 
 /* ══ 売上チャート（⑤請求・経費管理 22行）═══════════
@@ -16856,15 +16909,16 @@ function homeSideHTML(en){
       +(rows.length>CAP?'<div class="hnm">ほか'+(rows.length-CAP)+'件</div>':'')+'</div>';
   }
   var evR=ev.map(function(x){
-    /* ★行事を消す「×」をここにも出していたが、行事は月間スケジュールで足し引きするもの。
-       ホームは見るだけでよい（2026-09-21 安田さんのご指示）。消すのは月間スケジュールで行う。 */
+    /* ★行事を消す「×」をここにも出していたが、ホームは見るだけでよい
+       （2026-09-21 安田さんのご指示）。足す・消すのは年間スケジュールで行う。 */
     return '<div class="hnr'+(x.date===t?' now':'')+'"><b>'+esc(mdJ(x.date.slice(5)))+'</b><span>'+esc(x.name)+'</span></div>';
   });
   var bdR=bd.map(function(x){
     return '<div class="hnr'+(x.md===md?' now':'')+'"><b>'+esc(mdJ(x.md))+'</b><span>'+esc(x.name)+(x.md===md?'　🎂':'')+'</span></div>';
   });
   /* ★もとはホームの左下に大きく2枚出していた。左下を広告枠にするため帯の中へ移した。
-     行事を足すのは月間スケジュールのカレンダー。ここからは消すだけ。 */
+     行事を足す・消すのは年間スケジュール（月間スケジュールのカレンダーからも足せる）。
+     ここは見るだけなので、足す・消すの押しどころは置かない。 */
   return '<div class="hnote">'
     +box('今月の行事',evR,'今月の行事は入っていません')
     +box('今月のBIRTHDAY',bdR,'今月が誕生日の園児・職員はいません')
@@ -16974,8 +17028,8 @@ function renderHomeAdSettings(sec){
   };
   draw();
 }
-/* 行事を1つ足す。ホームの「今月の行事」の＋と、月間スケジュール（カレンダー）の
-   「行事を足す」の、どちらからもここを通す。入れ物は1つ（homeEvents）なので、
+/* 行事を1つ足す。月間スケジュール（カレンダー）の「行事を足す」はここを通る。
+   年間スケジュールの月ごとの枠は annualEventAsk を通るが、入れ物は1つ（homeEvents）なので、
    どちらで足しても ホーム・月間カレンダー・年間スケジュールの3つに出る
    （image2・2026-09-16 安田さんのご依頼）。
    ym … 日付の欄に最初から入れておく年月（カレンダーで見ている月）。
@@ -17020,6 +17074,51 @@ function homeEventAsk(ym,done){
   var a=homeEventsAll(); a.push({id:'ev'+Date.now(),date:d,name:nm.slice(0,60)});
   stSet('homeEvents',a.slice(-200));
   if(typeof done==='function')done();
+}
+/* 年間スケジュールの月ごとの枠から、行事を1つ足す窓。
+   ★行事を足す口は prompt() しかなく、日付も名前も、端末の小さな窓で手打ちしていた。
+     ・スマホでは窓が小さく、日にちをカレンダーから選べなかった
+     ・打ち間違えた日付は、保存のときに断られて、また最初から入れ直しだった
+     この画面と同じ作りの窓にして、日にちは日付の欄から選ぶ。
+     年間スケジュールは「4月から翌年3月まで」の並びなので、押した月の中の日だけを選べるようにする。
+     こうすると、年度の外の日が入ることがない（2026-09-21 安田さんのご指示）。
+   ym … 「2026-04」の形。押した月。
+   done … 足したあとに描き直すもの。 */
+function annualEventAsk(ym,done){
+  if(!/^\d{4}-\d{2}$/.test(String(ym||'')))return;
+  var y=+String(ym).slice(0,4),mo=+String(ym).slice(5,7);
+  /* その月の終わりの日。翌月の「0日」が、その月の最後の日になる */
+  var last=new Date(y,mo,0).getDate();
+  var lo=ym+'-01',hi=ym+'-'+('0'+last).slice(-2);
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:420px;max-width:94vw;"><h2>行事を足す</h2>'
+    +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.8;">'
+    +y+'年'+mo+'月の行事を入れます。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。</div>'
+    +'<div class="field"><label>日にち</label>'
+    +'<input type="date" id="anEvDate" value="'+esc(lo)+'" min="'+esc(lo)+'" max="'+esc(hi)+'"></div>'
+    +'<div class="field"><label>行事の名前</label>'
+    +'<input id="anEvName" maxlength="60" placeholder="例：運動会"></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">'
+    +'<button class="btn" id="anEvCancel">やめる</button>'
+    +'<button class="btn btn-primary" id="anEvSave">足す</button></div></div>';
+  var nmBox=$('#anEvName');
+  if(nmBox)setTimeout(function(){try{nmBox.focus();}catch(e){}},0);
+  $('#anEvCancel').onclick=function(){m.remove();};
+  $('#anEvSave').onclick=function(){
+    var dEl=$('#anEvDate'),nEl=$('#anEvName');
+    var d=String(dEl&&dEl.value||'').replace(/\//g,'-');
+    var nm=String(nEl&&nEl.value||'').replace(/^\s+|\s+$/g,'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){alert('日にちを選んでください。');return;}
+    /* ★日付の欄の min・max は、端末によっては効かず、手で打ててしまう。
+       保存の前に、押した月の中かどうかをもう一度たしかめる。 */
+    if(d<lo||d>hi){alert('この月の中の日にちを選んでください。');return;}
+    if(!nm){alert('行事の名前を入れてください。');return;}
+    var a=homeEventsAll();a.push({id:'ev'+Date.now(),date:d,name:nm.slice(0,60)});
+    stSet('homeEvents',a.slice(-200));
+    m.remove();
+    if(typeof done==='function')done();
+  };
 }
 function homeEventDel(id,done){
   if(!id)return;
@@ -30218,9 +30317,11 @@ function renderTasks(){
     +'<h3 style="margin:0;">'+ic('cal')+mo+'月のカレンダー</h3><span style="flex:1;"></span>'
     +'<button class="btn btn-sm btn-primary" id="tkEvAdd">'+ic('plus')+'行事を足す</button></div>'
     +'<div class="muted" style="margin:-2px 0 10px;font-size:12.5px;">'
-    /* ★「どちらで足しても両方に出ます」と書いていたが、ホームからは足せなくなった
-       （2026-09-21 安田さんのご指示で、ホームの＋を外した）。足すのはここだけ。 */
-    +'ここで足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。</div>'
+    /* ★「ここで足した行事は…」とだけ書いていたので、この画面が行事の置き場に見えていた。
+       年間スケジュールは行事、月間スケジュールは毎月の作業（タスク）という役割分担にした
+       （2026-09-21 安田さんのご指示）。この画面が何を見る所なのかを先に書く。
+       足す道は、年間スケジュールとこのカレンダーの両方に残すので、そのとおりに書く。 */
+    +'ここは、毎月の作業（タスク）を見る画面です。行事は年間スケジュールで足します。このカレンダーからも足せて、足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。</div>'
     +'<div class="scrollx"><div class="tkcal">'+cells+'</div></div>'
     +'<div class="tklegend"><span class="tkchip tkev" style="display:inline-block;width:auto;">行事</span>'
     +'<span class="tkchip ok" style="display:inline-block;width:auto;">✓ 終わった</span>'
