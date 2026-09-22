@@ -18,6 +18,10 @@ const {chromium}=require('/Users/slimshady/cw-scrape/node_modules/playwright');
     const pages=await pg.evaluate(()=>Object.keys(TITLES).filter(function(p){
       if(p==='enroll')return false;                 /* billing の別名 */
       if(p==='kidsview')return false;               /* 生徒台帳のタブに畳んだ（2026-09-05） */
+      /* 連絡先（在園・退園）は生徒情報の「生徒一覧」に入れた（2026-09-21 安田さんのご判断）。
+         go('contacts') は roster へ振り替わるので、contacts の枠は開かないのが正しい。
+         画面も権限の表も残してある（roster の権限が無く contacts だけを持つ役職の受け皿）。 */
+      if(p==='contacts')return false;
       if(p==='kiosk')return false;                  /* 登降園キオスクはなくした。登園（出席）へ読み替える（2026-09-15） */
       if(p==='creator')return false;                /* 別ファイル（creator.html）を開くだけ。section を持たない */
       if(!document.querySelector('section[data-page="'+p+'"]'))return false;

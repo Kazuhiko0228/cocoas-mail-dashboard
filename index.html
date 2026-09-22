@@ -37,8 +37,18 @@
   #navToggle:hover span{background:var(--teal);}
   /* 閉じたとき。幅を0にして、中身をはみ出させない。 */
   .app.navoff .sidebar{width:0;min-width:0;overflow:hidden;border:none;}
+  /* ★せまい画面向けの手当ては、ぜんぶ 880px までで区切っていた（2026-09-21 安田さんのご判断で広げた）。
+     区切りが 880px だと、iPad Pro の縦（1024px）や iPad の縦（768〜834px を超える分割表示）が外れ、
+     指で触る端末なのに
+       ・入力の字が 11〜13.5px のままで、触れた瞬間に画面が拡大する
+       ・丸いボタン（AI）が押しどころの上に重なる
+       ・上の帯が2段になって、たてに使える所が 130px 取られる
+       ・押しどころが 33px しかなく、となりを押してしまう
+     が残っていた。指で触る端末の幅まで、まとめて 1024px へそろえる。
+     1025px 以上（パソコン）の見た目は1pxも変えていません（この決まりは下の @media すべてに同じく効きます）。
+     画面を描くときに幅で形を決めている所（matchMedia）も、同じ 1024px にそろえてあります。 */
   /* 狭い画面では、上からかぶせて出す（横に並べる場所がないため） */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     .sidebar{position:fixed;left:0;top:0;z-index:70;width:248px;box-shadow:4px 0 24px rgba(0,0,0,.28);}
     .app.navoff .sidebar{width:0;box-shadow:none;}
     #navShade{position:fixed;inset:0;background:rgba(6,32,48,.45);z-index:65;display:none;}
@@ -144,7 +154,7 @@
     .field input,.field select,.field textarea{font-size:16px;}
   }
   /* タブレットの縦持ちでは、4列以上だけ2列に落とす */
-  @media(min-width:561px) and (max-width:880px){
+  @media(min-width:561px) and (max-width:1024px){
     .grid[style*="1fr 1fr 1fr 1fr"],.grid[style*="repeat(4"]{
       grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;}
   }
@@ -154,7 +164,7 @@
      （日本語で 927px、英語では 1282px。画面の右はしが指で戻せなくなる）。
      表は .scrollx の中で横に動かして見られるので、箱のほうは列のはばまで縮んでよい。
      せまい画面だけに効かせます（広い画面は列が十分に長く、いまのままで収まっています）。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     .grid>*{min-width:0;}
   }
   /* 左右2段に分ける組み。せまい画面では横に並べきれず画面からはみ出すので1列に折り返す。
@@ -248,7 +258,7 @@
   .dpic svg{width:22px;height:22px;}
   .dpstat{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-size:12.5px;color:var(--tx2);}
   .dpstat b{font-size:19px;font-weight:800;color:var(--tx);}
-  @media(max-width:880px){.docpick+.docpick{margin-top:0;}}
+  @media(max-width:1024px){.docpick+.docpick{margin-top:0;}}
   /* スクールガイド */
   .gd-row{display:flex;gap:13px;align-items:center;}
   .gd-ic{width:42px;height:42px;border-radius:13px;background:#EFF1EE;display:flex;align-items:center;
@@ -277,6 +287,77 @@
      「山田 健」「太 様」と名前の途中で切れていた。名前は折り返さず、
      はばがたりないときは表ごと横に動かす（親は .scrollx）。 */
   table.cttbl .row-name{white-space:nowrap;}
+  /* 生徒一覧の表。台帳の一覧と連絡先を1つにしたので、パソコンでは列が10〜11あります
+     （2026-09-21 安田さんのご判断）。はばがたりないときは、親の .scrollx で表ごと横に動かします。 */
+  /* ★はじめ、はばの指定を何も置かなかったところ、列が11あるぶん一つひとつが細り、
+     「住所」や「生年月日」が1文字ずつ縦に割れて読めませんでした。
+     操作の「鉛筆・ゴミ箱」は表の外に切れて、押せなくなっていました。
+     「保育に必要なこと」の表（kvtbl）と同じやり方で、表に最低のはばを決めて、
+     たりないぶんは .scrollx で表の中だけを横に動かします。
+     住所は長いので、はばで切って「…」にします（全部は個別プロフィールで見られます）。 */
+  table.rltbl{min-width:940px;}
+  /* 園長・管理者は「連絡先」と「操作」の2列が増えるので、そのぶん広く取る。
+     先生・主任の9列では、この2列が無いぶん表が短く、横に送らずに全部見えます。 */
+  table.rltbl.rl-boss{min-width:1160px;}
+  table.rltbl th{white-space:nowrap;}
+  table.rltbl td{padding:11px 9px;}
+  table.rltbl .row-name{white-space:nowrap;}
+  table.rltbl td[data-rlab="ふりがな・英語"],table.rltbl td[data-rlab="生年月日"],
+  table.rltbl td[data-rlab="年齢"],table.rltbl td[data-rlab="クラス"],
+  table.rltbl td[data-rlab="契約書"],table.rltbl td[data-rlab="アレルギー"]{white-space:nowrap;}
+  table.rltbl td[data-rlab="連絡先"]{white-space:nowrap;}
+  table.rltbl td[data-rlab="住所"]{max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  table.rltbl td.rlact .btn{margin-left:4px;}
+  /* ★はばがたりないと、いちばん右の「開く・鉛筆・ゴミ箱」が表の外に隠れて押せませんでした。
+     操作の列だけを右に貼り付けて、横に送っても always 見えるようにします。 */
+  table.rltbl td.rlact,table.rltbl th.rlact{
+    position:sticky;right:0;z-index:2;background:var(--card);
+    box-shadow:inset 0 -1px 0 var(--line2),-6px 0 7px -4px rgba(31,41,55,.26);}
+  table.rltbl thead th.rlact{z-index:3;box-shadow:inset 0 -1px 0 var(--line),-6px 0 7px -4px rgba(31,41,55,.26);}
+  /* 横に送れることが分かる合図（右はしの影）。
+     いまの .scrollx.hint はせまい画面だけに効くので、この表のぶんだけ広い画面にも出す。
+     新しく足した名前なので、ほかの画面の見た目は1つも変わりません。 */
+  .rlwrap{
+    background:
+      linear-gradient(to right,var(--card) 30%,rgba(255,255,255,0)) left center,
+      linear-gradient(to left,var(--card) 30%,rgba(255,255,255,0)) right center,
+      radial-gradient(farthest-side at 0 50%,rgba(31,41,55,.20),rgba(31,41,55,0)) left center,
+      radial-gradient(farthest-side at 100% 50%,rgba(31,41,55,.20),rgba(31,41,55,0)) right center;
+    background-repeat:no-repeat;
+    background-size:28px 100%,28px 100%,13px 100%,13px 100%;
+    background-attachment:local,local,scroll,scroll;}
+  /* ★スマホでは10列が横に長くのび、指で送らないとお名前しか見えませんでした。
+     せまいときは、園児ひとりを1枚のカードにして、毎日見るものだけを残します。
+       いつも見える … お名前・保護者名・クラス・年齢・在園/退園の札・アレルギーの赤い札
+       畳む     … ふりがな・英語／生年月日／メール・電話／住所／契約書の済・未
+                  （畳んだものは、行を押して開く個別プロフィールで見られます）
+     「保育に必要なこと」の表は毎日使うので、これまでどおり横に動かす形のまま変えていません。 */
+  @media(max-width:560px){
+    table.rltbl{min-width:0;}
+    .rlwrap{background:none;}
+    /* ★さがす欄と「並べ替え」が同じ行に並びきらず、置き場所の文字が切れていた。
+       せまいときは、さがす欄を1行ぶん使う。 */
+    .rlsrch{flex:1 1 100% !important;}
+    table.rltbl td.rlact,table.rltbl th.rlact{position:static;box-shadow:none;background:none;}
+    table.rltbl td[data-rlab="住所"]{max-width:none;white-space:normal;overflow:visible;text-overflow:clip;}
+    table.rltbl,table.rltbl tbody,table.rltbl tr,table.rltbl td{display:block;width:auto;}
+    table.rltbl thead{display:none;}
+    table.rltbl tr{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;}
+    table.rltbl tr:last-child{margin-bottom:0;}
+    table.rltbl td{border:none;padding:1px 0;}
+    table.rltbl td[data-rlab="ふりがな・英語"],
+    table.rltbl td[data-rlab="生年月日"],
+    table.rltbl td[data-rlab="連絡先"],
+    table.rltbl td[data-rlab="住所"],
+    table.rltbl td[data-rlab="契約書"]{display:none;}
+    table.rltbl td[data-rlab="年齢"],table.rltbl td[data-rlab="クラス"]{
+      display:inline-block;font-size:12px;color:var(--tx3);margin-right:10px;}
+    table.rltbl td[data-rlab="区分"]{margin-top:6px;}
+    table.rltbl td[data-rlab="アレルギー"]{margin-top:4px;}
+    table.rltbl td.rlact{margin-top:8px;display:flex;gap:6px;text-align:left;white-space:normal;}
+    table.rltbl td.rlact .btn{margin-left:0;}
+    table.rltbl .row-name{white-space:normal;}
+  }
   .row-sub{font-size:12px;color:var(--tx3);}
   /* 生徒情報の表：単価はその列の見出しの下に小さく出す（文章で書くと説明が1行増えるため） */
   .enrunit{font-size:11px;font-weight:400;color:var(--tx3);margin-top:2px;}
@@ -351,8 +432,12 @@
   .tkchip{display:block;width:100%;text-align:left;border:none;border-radius:6px;padding:3px 6px;margin-bottom:3px;font-size:11px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .tkchip.ok{background:var(--green-b);color:var(--green-t);}
   .tkchip.ng{background:var(--amber-b);color:var(--amber-t);}
-  /* 園の行事の札。監査のやること（緑・黄）と見分けがつく色にする */
-  .tkchip.tkev{background:var(--blue-b);color:var(--blue-t);font-weight:700;}
+  /* 園の行事の札。監査のやること（緑・黄）と見分けがつく色にする。
+     ★この札は押すと消せるボタンだった。行事は年間スケジュールだけで足す・消すことにしたので
+       （2026-09-21 安田さんのご判断「年間オンリー」）、月間では見るだけの札にしている。
+       押せない札なので、指のかたちのカーソルにしない。 */
+  .tkchip.tkev{background:var(--blue-b);color:var(--blue-t);font-weight:700;cursor:default;}
+  span.tkchip{box-sizing:border-box;}
   .tklegend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
   /* 担当の色分け。赤＝先生、緑＝園長、黄＝本社。左の色の線を、カレンダーの札と同じ色にそろえている */
   .tkown{display:inline-block;flex-shrink:0;border-radius:999px;padding:1px 9px;font-size:11px;font-weight:700;line-height:1.75;}
@@ -399,12 +484,12 @@
   /* せまい画面では、.scrollx に包み忘れた表も横に動かして見られるようにする。
      包み忘れが1つでもあると、画面ごと横にずれて、指で戻せなくなるため。
      ここは受け皿。新しく表を作るときは、これまでどおり .scrollx に包むこと。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     .card>table,.card>div>table{display:block;overflow-x:auto;max-width:100%;}
   }
   /* 表の中のプルダウンが、列にはさまれて指で押せない細さ（24px）まで潰れていた。
      せまい画面では、押せる大きさを下限として決めておく。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     td select,th select,td input:not([type="checkbox"]):not([type="radio"]){min-width:96px;}
   }
   /* ★スマホで出席簿・午睡チェックの表を横に送ると、いちばん左の園児名まで一緒に流れて、
@@ -413,7 +498,7 @@
      いちばん左の列だけをその場に貼り付けて、名前がいつも見えるようにする。
      行の下の細い線は表がまとめて引いているので、貼り付けた列だけ線が消えてしまう。
      そこだけ内側の影で線を描き直している。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     /* ★ここで折り返しを止めると、貼り付けた列が画面いっぱいに広がって
        右の列が1つも見えなくなった（配信カレンダーの英語で 318px）。
        折り返すかどうかは、これまでどおり各画面の指定にまかせる。 */
@@ -427,7 +512,7 @@
      白い覆いを中身と一緒に動かし、影はその下に置いてある。
      中身が収まっているときは覆いがちょうど影に重なって見えなくなるので、
      送れる表のときだけ影が出る。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     .scrollx.hint{
       background:
         linear-gradient(to right,var(--card) 30%,rgba(255,255,255,0)) left center,
@@ -447,7 +532,7 @@
      表は列を1文字ぶんまで細らせてから折り返してしまう。
      字は折り返さず、はばがたりないときは表ごと横に動かす（親は .scrollx）。
      広い画面では割れていないので、せまい画面だけに効かせる。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     table.nwtbl th,table.nwtbl td{white-space:nowrap;}
     /* 見出しだけ折り返さない表。左の列に長い画面名が入るもの */
     table.nwhead th{white-space:nowrap;}
@@ -460,7 +545,7 @@
      スマホでは書類名の列に残るはばがほぼ 0 になり、
      どこに何を保管するかの説明文が右はしで切れて読めなかった。
      せまい画面では1件ずつ上下に並べ替えて、文章が折り返して読めるようにする。 */
-  @media(max-width:880px){
+  @media(max-width:1024px){
     .card>table.austack{display:block;overflow:visible;}
     table.austack tbody,table.austack tr,table.austack td{display:block;width:auto;}
     table.austack tr{padding:12px 0;border-bottom:1px solid var(--line2);}
@@ -656,7 +741,7 @@
   /* ★せまい画面では左右の余白を 18px に詰めているが、下の余白まで 18px に戻していたので、
      834px と 390px では丸いボタン（#aiFab）が最後の行にかぶったままだった
      （2026-09-19 安田さんのご指摘）。下だけは、丸1つぶんの 96px を残す。 */
-  @media(max-width:880px){.content{padding:18px 18px 96px;}.tiles{gap:10px;}
+  @media(max-width:1024px){.content{padding:18px 18px 96px;}.tiles{gap:10px;}
     .tile{padding:13px 7px 11px;}.tile .ti{width:46px;height:46px;border-radius:13px;}.tile .tl{font-size:11.5px;}}
   /* ===== 保育AIアシスタント ウィジェット ===== */
   #aiFab{position:fixed;right:22px;bottom:22px;z-index:900;width:58px;height:58px;border-radius:50%;background:var(--teal);color:#fff;border:none;box-shadow:0 8px 22px rgba(15,110,86,.42);display:flex;align-items:center;justify-content:center;font-size:25px;cursor:pointer;transition:transform .1s;}
@@ -940,7 +1025,7 @@ button.hpr:hover{background:#FAF9F5}
    メニューをかぶせて開いているときも、暗い幕の上に丸だけが残って押せていた。
    窓（#modalRoot の中身）があるあいだと、メニューが開いているあいだは、丸も板も出さない。
    ※窓は閉じると取り除かれるので、中身の有無で見分けられる。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   #modalRoot:not(:empty)~#aiFab,#modalRoot:not(:empty)~#aiPanel{display:none !important;}
   .app:not(.navoff)~#aiFab,.app:not(.navoff)~#aiPanel{display:none !important;}
 }
@@ -974,8 +1059,8 @@ button.hpr:hover{background:#FAF9F5}
    （2026-09-21 直したあとに、同じ数え方でもう一度数え直した結果です）。
    ★はじめ 820px までにしていたら、横向き（844×390）が外れて 28画面86件が残っていた。
      この通り道の計算は「左右の余白 18px」が前提で、それが効くのは 880px まで。
-     そこで 880px までを同じ扱いにする。881px 以上の見た目は1行も変わりません。 */
-@media(max-width:880px){
+     そこで 880px までを同じ扱いにする。1025px 以上の見た目は1行も変わりません。 */
+@media(max-width:1024px){
   #aiFab{width:38px;height:38px;right:3px;bottom:12px;font-size:18px;
     transition:transform .1s,opacity .18s;}
   #aiFab .dot{width:10px;height:10px;}
@@ -986,7 +1071,7 @@ button.hpr:hover{background:#FAF9F5}
 }
 /* 相談の板そのものは、手のひらの幅のときだけ画面いっぱいに広げる。
    タブレット（834px など）では、これまでどおり 384px の板のまま出す。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   #aiPanel{right:10px;left:10px;width:auto;max-width:none;bottom:60px;}
 }
 
@@ -997,7 +1082,7 @@ button.hpr:hover{background:#FAF9F5}
    「休憩」のことばも、はばが 11px まで押しつぶされて「休／憩」と縦に割れていた。
    せまい画面では、区分ごとに1行を使い、「休憩」とその欄はさらに次の行へ送る。
    時刻の欄は、その行の残りいっぱいまで広げる（360px で 240px ほど）。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   .shpat{flex:1 1 100%;flex-wrap:wrap;}
   .shpat>.shiftcell{flex:none;}
   .shbrk{flex:1 1 100%;}
@@ -1016,8 +1101,8 @@ button.hpr:hover{background:#FAF9F5}
      42画面すべてで帯が 129〜134px（横向きでは画面のたての3分の1）になっていた。
      せまい画面のほかの直しは 880px までを1つの区切りにしているので、ここも 880px にそろえる。
      実測：844×390 と 880×900 の日英とも、42画面の帯が 129/134px から 51px になった。
-     881px 以上は1行も変わりません。 */
-@media(max-width:880px){
+     1025px 以上は1行も変わりません。 */
+@media(max-width:1024px){
   /* ★すき間は 8px だった。見出しに配れるはばが 134px しかなく、
      英語の長い題（Inspection document storage など）が3〜4段に折り返して、
      帯が 74〜92px に伸びていた（360px・英語で9画面）。
@@ -1067,7 +1152,7 @@ button.hpr:hover{background:#FAF9F5}
    そこも上書きできるよう !important を付ける（ここはせまい画面の中だけ）。
    ★ここだけ 820px のままだったので、横向きのスマホ（844px）とタブレットの分割（821〜880px）で
      341か所が小さい字に戻り、触れた瞬間に画面が拡大していた。ほかのスマホ向けの手当てと同じ 880px にそろえる。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   input,select,textarea,
   .field input,.field select,.field textarea,
   .ai-foot input,#staffLogin input,
@@ -1084,7 +1169,7 @@ button.hpr:hover{background:#FAF9F5}
    せまい画面では、欄のはばの下限を「中身なり」にして、決め打ちのはばより中身を優先する。
    いちばん長い日時の欄でも 227px で、カードの中に残るはば（360px の画面で 274px）に収まるので、
    画面が横に動くことはありません。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   input[type="date"],input[type="month"],input[type="week"],
   input[type="time"],input[type="datetime-local"]{min-width:max-content;}
 }
@@ -1098,8 +1183,8 @@ button.hpr:hover{background:#FAF9F5}
      そのぶん、横向きでは上の帯が 51px から 61px になります（中のボタンが 44px になるため）。
      帯は1段のままで、縦に使える所は 10px 減るだけなので、押し間違いが減るほうを取りました。
      丸いボタンの下に押しどころが入らないことは、844×390 と 880×900 の日英・管理者/一般で
-     数え直して 0 件のままであることを確かめています。881px 以上は1行も変わりません。 */
-@media(max-width:880px){
+     数え直して 0 件のままであることを確かめています。1025px 以上は1行も変わりません。 */
+@media(max-width:1024px){
   .btn{min-height:44px;min-width:44px;}
   #navToggle{width:44px;height:44px;}
   /* 「?」（#helpBtn）と「ことばの切り替え」（.langtg）は、帯のはばの取り合いに関わるので
@@ -1165,7 +1250,7 @@ button.hpr:hover{background:#FAF9F5}
       中身が長くて送らないと見えない窓でも、保存はいつも見えている所に残ります。
    --vvh が無いブラウザ（visualViewport を持たない古い端末）では 100% のままで、
    これまでと同じ見え方になります。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   .modal-bg{top:var(--vvt,0px);height:var(--vvh,100%);}
   .modal{max-height:100%;padding-bottom:0;}
   .modal>.mfoot{position:sticky;bottom:0;z-index:2;background:var(--card);
@@ -1179,7 +1264,7 @@ button.hpr:hover{background:#FAF9F5}
    残りぜんぶが名前の欄に押し付けられていた。
    せまい画面では、ボタンの行をまるごと次の段へ送って右へ寄せる。
    名前の欄は1行のはばいっぱい（360px で 270px）になる。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   .task{flex-wrap:wrap;}
   /* ★はじめ「いちばん最後の子」とだけ書いたので、ボタンが1つだけの行
      （保護者からの連絡の「返信する」・本日のタスク・今週の配信予定）でも
@@ -1193,7 +1278,7 @@ button.hpr:hover{background:#FAF9F5}
    名前の列に 38px しか残らず、「佐藤 健一」が1文字ずつ縦に割れて
    1行の高さが 221〜265px（360px の画面のたての3分の1）になっていた。
    名前の列に 160px を約束して、足りないぶんは表ごと横に送る（表は .scrollx で包んだ）。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   table.dashlead td.row-name,table.dashlead thead th:first-child{min-width:160px;}
 }
 
@@ -1201,7 +1286,7 @@ button.hpr:hover{background:#FAF9F5}
    丸は 34px の正円のつもりだったが、横ならびの中で縮む決まりのままだったので、
    となりの名前に押されて 24.5px（英語では 19.5px）まで細っていた。
    丸は縮ませない。中の字も折り返さない。 */
-@media(max-width:880px){
+@media(max-width:1024px){
   .avatar{flex:none;white-space:nowrap;}
 }
 </style>
@@ -1531,7 +1616,10 @@ var ICONS={
   printer:'<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   idcard:'<rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="8.5" cy="10" r="2"/><path d="M14 9h4M14 13h4M5 16h9"/>',
   map:'<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>',
-  pin:'<path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z"/><circle cx="12" cy="11" r="2"/>'
+  pin:'<path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z"/><circle cx="12" cy="11" r="2"/>',
+  /* 左向きの矢印。生徒一覧から開いた個別プロフィールの「一覧へ戻る」に使う（2026-09-21）。
+     ここに無い名前で ic を呼ぶと、中身の無い四角が出るだけで絵が付かないので、足しておく。 */
+  back:'<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>'
 };
 function ic(n){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[n]||'')+'</svg>';}
 
@@ -2807,7 +2895,7 @@ var AUDIT_CATS=[
     {key:'kaigi',name:'職員会議・クラス議事録',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'}
   ]}
 ];
-var SYS_PAGE={contacts:'連絡先',roster:'生徒台帳',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
+var SYS_PAGE={contacts:'生徒情報',roster:'生徒情報',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
 
 /* generic store helpers */
 function stGet(key,def){try{var v=JSON.parse(localStorage.getItem('cocoas_'+key));return v==null?def:v;}catch(e){return def;}}
@@ -4399,7 +4487,7 @@ expandIcons(document.querySelector('.topbar'));
   shade.id='navShade';
   app.appendChild(shade);
 
-  function narrow(){ return window.matchMedia('(max-width:880px)').matches; }
+  function narrow(){ return window.matchMedia('(max-width:1024px)').matches; }
   function setOff(off){
     if(off)app.classList.add('navoff'); else app.classList.remove('navoff');
     try{localStorage.setItem('cocoas_navOff',off?'1':'0');}catch(e){}
@@ -4430,7 +4518,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['','ホーム'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],missing:['ホーム','未入力書類'],feed:['連絡・配信','デイリーレポート'],wastore:['配信','未来WA'],photosale:['配信','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メッセージ'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['スクール情報','監査書類の格納'],facility:['管理','施設管理'],contacts:['生徒情報','生徒情報一覧・連絡先'],roster:['生徒情報','生徒情報一覧・連絡先'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['請求・経費管理','請求書作成・管理'],templates:['管理','配信テンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','月間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析'],noaccess:['','見られる画面がありません']};
+var TITLES={home:['','ホーム'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],missing:['ホーム','未入力書類'],feed:['連絡・配信','デイリーレポート'],wastore:['配信','未来WA'],photosale:['配信','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メッセージ'],broadcast:['配信','全体周知・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['記録・書類','日常チェック（毎日）'],carerec:['記録・書類','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['スクール情報','監査書類の格納'],facility:['管理','施設管理'],contacts:['生徒情報','生徒情報'],roster:['生徒情報','生徒情報'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['請求・経費管理','請求書作成・管理'],templates:['管理','配信テンプレート'],curriculum:['記録・書類','カリキュラム'],deliveries:['配信','配信カレンダー'],staff:['管理','職員管理'],tasks:['管理','月間スケジュール'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['カリキュラム・スケジュール','AI保育計画'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析'],noaccess:['','見られる画面がありません']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -4631,6 +4719,15 @@ function go(page){
      読み替えてから確かめる。見られない画面では、パスワードを聞いてから断る順番にならないよう、先に聞かない（2026-09-14） */
   if(page==='enroll')page='billing';
   if(page==='kidsview'){page='roster';rosterTab='care';}
+  /* ★連絡先（在園・退園）は、生徒情報の「生徒一覧」に入れた（2026-09-21 安田さんのご判断）。
+     go('contacts') を呼んでいる所が画面じゅうにあるので、入口でこちらへ振り替える。
+     こうすると、呼んでいる側を1つも書き換えずに済む。
+     ・顧客リスト（リード）は同じ関数を使っているので、そちらは振り替えない。
+     ・「生徒情報」の権限が無く「連絡先」だけを持っている役職は、これまでどおり連絡先の画面へ行く
+       （その人たちの行き先を失わせないため。画面も権限の表も残してある）。 */
+  if(page==='contacts'&&CONTACT_SCOPE!=='lead'&&(typeof canView!=='function'||canView('roster'))){
+    page='roster';rosterTab='list';rosterView='list';
+  }
   /* 登降園キオスクはなくした（2026-09-15）。古い行き先から来たら登園（出席）を開く */
   if(page==='kiosk'){page='records';if(typeof recType!=='undefined')recType='登園（出席）';}
   if(typeof pwPages==='function'&&pwPages()[page]&&!pwOk()&&typeof currentStaff==='function'&&currentStaff()&&(typeof canView!=='function'||canView(page))){
@@ -4644,6 +4741,10 @@ function go(page){
      覚えている行き先や古い呼び出しで止まらないよう、入口で読み替える。
      TITLES と権限の表からは消さない（消すと画面が白いまま止まる）。 */
   if(page==='kidsview'){page='roster';rosterTab='care';}
+  /* 上と同じ振り替え。読み替えは2か所に書く決まりになっている（kidsview と同じ形）。 */
+  if(page==='contacts'&&CONTACT_SCOPE!=='lead'&&(typeof canView!=='function'||canView('roster'))){
+    page='roster';rosterTab='list';rosterView='list';
+  }
   if(typeof currentStaff==='function'&&currentStaff()&&!canView(page)){
     alert('この画面は、いまのアカウントでは開けません。園の管理者にご確認ください。');
     /* ★行き先をダッシュボードにしていた。ダッシュボードはサイドバーとメニューから外したので、
@@ -4674,8 +4775,10 @@ function go(page){
   if(page!=='compose')expMailDraft=null;   /* 経費書類の下書きは、画面を離れたら残さない */
   if(page!=='leads')CONTACT_SCOPE='member';
   /* 生徒台帳は、別の画面へ行って戻ったら最初のタブから始める。
-     先生は毎日「保育に必要なこと」を見るので、そこを最初にする。 */
-  if(page!=='roster')rosterTab='care';
+     先生は毎日「保育に必要なこと」を見るので、そこを最初にする。
+     ★1人ぶんの画面（個別プロフィール）を開いたまま別の画面へ行くと、
+       戻ったときに一覧ではなく、その園児の画面が出ていた。ここで一覧に戻す。 */
+  if(page!=='roster'){rosterTab='care';rosterView='list';}
   /* ★職員管理の「書類の確認ビュー」を、監査のボタンの中だけで解いていた。
      サイドバーから職員管理を開くと、資格証明書の保管状況が出続けていた。
      入口が増えても漏れないよう、ここで解く（監査のボタンは go の直前で立てる）。 */
@@ -5580,7 +5683,7 @@ var EG_NAV=[
      {p:'kenshu', l:'保育研修', navHide:true}]}
  ]},
  {cat:'生徒情報',items:[
-   {k:'roster',   l:'生徒情報一覧・連絡先', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'roster'}
+   {k:'roster',   l:'生徒情報', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'roster'}
  ]},
  {cat:'職員情報',boss:true,items:[
    {k:'staffg',  l:'職員情報', i:'ic:70',si:'staff', c:'#0B5F8F', bg:'#E3F1F9', p:'staff', pw:true},
@@ -8912,8 +9015,10 @@ var HOME_GROUPS=[
     {p:'tasks',i:'clipboard',l:'月間スケジュール',c:'#123E6B',bg:'#E6F1FB'}
   ]},
   {t:'園児・保護者',items:[
-    {p:'contacts',i:'users',l:'連絡先',c:'#0B5F8F',bg:'#E3F1F9'},
-    {p:'roster',i:'idcard',l:'生徒台帳',c:'#3C3489',bg:'#EEEDFE'},
+    /* ★「連絡先」と「生徒台帳」の2マスに分かれていた。中身は同じ園児なのに、
+       どちらを押せばよいのか分からない、というご指摘。1マスにまとめた（2026-09-21 安田さんのご判断）。
+       連絡先のマスは外し、名前も画面の中と同じ「生徒情報」にそろえた。 */
+    {p:'roster',i:'idcard',l:'生徒情報',c:'#3C3489',bg:'#EEEDFE'},
     {p:'billing',i:'yen',l:'請求書発行',c:'#27500A',bg:'#EAF3DE'},
     {p:'trial',i:'clipboard',l:'体験結果報告',c:'#A32D2D',bg:'#FCEBEB'},
     {p:'compose',i:'send',l:'個別メッセージ',c:'#123E6B',bg:'#E6F1FB'},
@@ -10870,6 +10975,16 @@ var EN_DICT={
 '国の目安は 0歳児 5分に1回／1〜2歳児 10分に1回／3歳以上 15〜30分に1回。':'National guideline: 0-year-olds every 5 minutes / 1–2-year-olds every 10 minutes / age 3 and up every 15–30 minutes.',
 '体験のあとの決定が 25% にとどまっています。体験後のフォローを見直す余地があります。':'Decisions after a trial are only at 25%. There is room to review your post-trial follow-up.',
 '内容を直すときは、園長・管理者に「生徒情報一覧・連絡先」または「請求書作成・管理」からお願いしてください。':'To make changes, please ask the Director or Administrator to do so from "Student Register" or "Issue Invoice".',
+/* ── 生徒情報を3つのタブにまとめた（2026-09-21 安田さんのご判断）── */
+'生徒一覧':'Student list','個別プロフィール':'Student profile','一覧へ戻る':'Back to the list',
+'この園児の連絡先を直す':'Edit this child’s contact details','この園児を消す':'Remove this child',
+'この園児を一覧から消します。よろしいですか。':'This will remove the child from the list. Are you sure?',
+'内容を直すときは、園長・管理者に「生徒一覧」または「請求書作成・管理」からお願いしてください。':'To make changes, please ask the Director or Administrator to do so from "Student list" or "Issue Invoice".',
+'アレルギーは赤で出しています。緊急連絡先が「未登録」の園児は、園長・管理者に「生徒一覧」からの登録をお願いしてください。':'Allergies are shown in red. For children whose emergency contact is "Not registered", please ask the Director or Administrator to register it from the Student list.',
+'園児の行を押すと個別プロフィールが開きます。いちばん下の「サインをいただいた書類」から、園児ひとりずつ入れられます。':'Press a child’s row to open their profile. You can add documents one child at a time from “Signed documents” at the bottom.',
+'書類を入れるのは、園長・管理者にお願いしてください。':'Please ask the Director or Administrator to add the documents.',
+'ここで直した内容は、監査で使う入退園の一覧にも関わります。直すときは、退園日と区分が合っているかもご確認ください。':'What you change here also affects the enrolment and withdrawal list used for inspections. Please also check that the withdrawal date and the status match.',
+'この園児は退園しています。':'This child has withdrawn.',
 '自治体ごとの様式・上乗せ要件や最新の制度改正は、必ず各自治体の公式情報でご確認ください。':'Always check your local government\'s official information for its own formats, additional requirements, and the latest regulatory changes.',
 '児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。':'Notification obligations under the Child Welfare Act (establishment, changes, closure). Confirm deadlines, formats, and where to submit with your local government.',
 '日付・支払先・内容・金額を入力し、科目を選びます。科目ごとの小計と合計は自動計算されます。':'Enter the date, payee, description, and amount, then select an account category. Subtotals by category and the total are calculated automatically.',
@@ -15033,7 +15148,8 @@ var EN_DICT={
 /* ── 年間スケジュールから行事を足す・消す（2026-09-21 安田さんのご指示）── */
 '行事は、この画面で足す・消すことができます。月ごとの枠の「行事を足す」を押すと、その月の中の日にちで入れられます。消すときは、行事の右の × を押してください。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。':'You can add and remove events on this screen. Press “Add an event” in a month’s box to enter a date within that month. To remove one, press the × to the right of the event. Events you add also appear in “This month’s events” on Home and on the Monthly Schedule calendar.',
 '行事が、年度の順に並びます。行事を足す・消すには、月間スケジュールを開ける権限が要ります。':'Events are listed in school-year order. Adding and removing events requires permission to open the Monthly Schedule.',
-'ここは、毎月の作業（タスク）を見る画面です。行事は年間スケジュールで足します。このカレンダーからも足せて、足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。':'This screen shows the monthly tasks. Events are added on the Annual Schedule. You can also add them from this calendar, and events you add appear in “This month’s events” on Home and in the Annual Schedule.',
+'ここは、毎月の作業（タスク）を見る画面です。行事は年間スケジュールで足します。':'This screen shows the monthly tasks. Events are added on the Annual Schedule.',
+'行事を直すときは年間スケジュールで':'To change an event, use the Annual Schedule',
 'この行事を消す':'Remove this event',
 '日にち':'Date','行事の名前':'Event name','例：運動会':'e.g. Sports Day',
 '{0}年{1}月の行事を入れます。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。':'Add an event for {1}/{0}. Events you add also appear in “This month’s events” on Home and on the Monthly Schedule calendar.',
@@ -16917,7 +17033,7 @@ function homeSideHTML(en){
     return '<div class="hnr'+(x.md===md?' now':'')+'"><b>'+esc(mdJ(x.md))+'</b><span>'+esc(x.name)+(x.md===md?'　🎂':'')+'</span></div>';
   });
   /* ★もとはホームの左下に大きく2枚出していた。左下を広告枠にするため帯の中へ移した。
-     行事を足す・消すのは年間スケジュール（月間スケジュールのカレンダーからも足せる）。
+     行事を足す・消すのは年間スケジュールだけです（2026-09-21 安田さんのご判断「年間オンリー」）。
      ここは見るだけなので、足す・消すの押しどころは置かない。 */
   return '<div class="hnote">'
     +box('今月の行事',evR,'今月の行事は入っていません')
@@ -17028,10 +17144,11 @@ function renderHomeAdSettings(sec){
   };
   draw();
 }
-/* 行事を1つ足す。月間スケジュール（カレンダー）の「行事を足す」はここを通る。
-   年間スケジュールの月ごとの枠は annualEventAsk を通るが、入れ物は1つ（homeEvents）なので、
-   どちらで足しても ホーム・月間カレンダー・年間スケジュールの3つに出る
-   （image2・2026-09-16 安田さんのご依頼）。
+/* 行事を1つ足す。
+   ★2026-09-21 の安田さんのご判断「年間オンリー」で、月間スケジュールのカレンダーから
+     この窓を開く口を外しました。いま行事を足すのは annualEventAsk（年間スケジュール）だけです。
+     この関数は、古い行き先や、あとで別の入口が要るときのために残してあります。
+     消さないでください（入れ物 homeEvents の出し入れの形が、ここにしか書かれていません）。
    ym … 日付の欄に最初から入れておく年月（カレンダーで見ている月）。
    done … 足したあとに描き直すもの。 */
 /* 行事を入れられる、いちばん前の日。
@@ -18240,26 +18357,22 @@ function renderContacts(){
     if(a.kind==='enrolled'&&b.kind==='enrolled'){var kl=String(a.klass||'').localeCompare(String(b.klass||''));if(kl)return kl;}
     return (a.name||'').localeCompare(b.name||'','ja');
   });
-  /* 生徒情報一覧・連絡先のタブの並び（顧客リストには出さない） */
-  var rTabs='';
-  if(CONTACT_SCOPE==='member'){
-    var _rt=[];
-    if(typeof canView!=='function'||canView('roster')){
-      _rt=[['care','保育に必要なこと','users'],['list','台帳の一覧','idcard']];
-      if(typeof isBoss!=='function'||isBoss())_rt=_rt.concat([['profile','個別プロフィール','idcard'],['map','自宅マップ','map']]);
-    }
-    if(_rt.length)_rt.push(['contacts','連絡先（在園・退園）','users']);
-    rTabs='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
-      +_rt.map(function(t){return '<button class="btn btn-sm'+(t[0]==='contacts'?' btn-primary':'')+'" data-rtab2="'+esc(t[0])+'">'+ic(t[2])+t[1]+'</button>';}).join('')+'</div>';
-  }
-  s.innerHTML=rTabs+'<div class="card">'+
+  /* ★ここに「生徒情報一覧・連絡先」のタブを出していた。
+     連絡先は生徒情報の「生徒一覧」に入れたので、このタブは外した（2026-09-21 安田さんのご判断）。
+     この関数そのものは消さないでください。顧客リスト（リード）が
+     renderLeads → CONTACT_SCOPE='lead' → renderContacts と、同じ関数を使っています。
+     消すと営業側の画面が丸ごと落ちます。
+     この画面が出るのは、いまは次の2つだけです。
+       ・顧客リスト（リード）
+       ・「生徒情報」の権限が無く「連絡先」だけを持っている役職 */
+  s.innerHTML='<div class="card">'+
     '<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">'+
       '<div style="position:relative;flex:1;min-width:200px;"><span style="position:absolute;left:11px;top:9px;color:#98A2AE;width:16px;height:16px;display:inline-block;">'+ic('search')+'</span><input id="cSearch" placeholder="名前・お子様・メールで検索" style="padding-left:34px;" value="'+esc(contactSearch)+'"></div>'+
       '<span class="muted" style="font-size:12px;">並べ替え</span><select id="cSort" style="width:190px;">'+SORTS.map(function(o){return '<option'+(o===contactSort?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
-      (CONTACT_SCOPE==='member'
-        ? '<button class="btn btn-sm" id="cPrint">'+ic('printer')+'監査用に出力</button>' : '')+
-      (CONTACT_SCOPE==='member'&&typeof isBoss==='function'&&isBoss()
-        ? '<button class="btn btn-sm" id="cImport">'+ic('folder')+'名簿を取り込む</button>' : '')+
+      /* ★「監査用に出力」と「名簿を取り込む」をここにも出していた。
+         同じボタンが2か所にあると、どちらで出した紙なのか分からなくなるので、
+         生徒情報の「生徒一覧」の1か所にまとめた（2026-09-21 安田さんのご判断）。
+         顧客リスト（リード）には、もともと出していません。 */
       '<button class="btn btn-primary" id="addContact">'+ic('plus')+'連絡先を追加</button>'+
     '</div>'+
     '<div class="chips">'+filters.map(function(f){return '<span class="chip'+(f===contactFilter?' on':'')+'" data-cf="'+esc(f)+'">'+f+'</span>';}).join('')+'</div>'+
@@ -18306,10 +18419,8 @@ function renderContacts(){
     var q=s.querySelector('#cSearch'); if(q)q.focus();});
   s.querySelectorAll('[data-cf]').forEach(function(b){b.addEventListener('click',function(){contactFilter=b.getAttribute('data-cf');renderContacts();});});
   var cso=s.querySelector('#cSort');if(cso)cso.onchange=function(e){contactSort=e.target.value;renderContacts();};
-  var cpb=s.querySelector('#cPrint');if(cpb)cpb.onclick=contactAuditPrintModal;
-  var cim=s.querySelector('#cImport');
-  if(cim)cim.onclick=function(){rosterImportModal();};
-  s.querySelectorAll('[data-rtab2]').forEach(function(b){b.onclick=function(){var t=b.getAttribute('data-rtab2');if(t==='contacts')return;rosterTab=t;go('roster');};});
+  /* ★「監査用に出力」と「名簿を取り込む」の結び先は、ボタンごと生徒一覧へ移した（2026-09-21）。
+     窓そのもの（contactAuditPrintModal / rosterImportModal）は消していません。 */
   var cab=s.querySelector('#addContact');
   if(cab)cab.addEventListener('click',function(){contactModal();});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){contactModal(+b.getAttribute('data-edit'));});});
@@ -20917,7 +21028,7 @@ function staffModal(id){
 var auWrapLast=null;
 function auditWrapWatch(){
   var now=false;
-  try{now=window.matchMedia('(max-width:880px)').matches;}catch(e){now=false;}
+  try{now=window.matchMedia('(max-width:1024px)').matches;}catch(e){now=false;}
   if(auWrapLast===null){auWrapLast=now;return;}
   if(now===auWrapLast)return;
   auWrapLast=now;
@@ -20926,7 +21037,7 @@ function auditWrapWatch(){
 }
 window.addEventListener('resize',auditWrapWatch);
 function renderAudit(){
-  try{auWrapLast=window.matchMedia('(max-width:880px)').matches;}catch(e){auWrapLast=false;}
+  try{auWrapLast=window.matchMedia('(max-width:1024px)').matches;}catch(e){auWrapLast=false;}
   var s=$('section[data-page="audit"]');
   var fy=auditFY(),isCur=(fy===curFY());
   var ph=auditPhase(),stt=auditState(fy),flat=auditItemsFlat();
@@ -20941,7 +21052,7 @@ function renderAudit(){
      せまい画面のときだけ、折り返せる欄（複数行）で出して、全部読めるようにする。
      広い画面は行が十分に長いので、これまでどおり1行の欄のまま出す。 */
   var auWrap=false;
-  try{auWrap=window.matchMedia('(max-width:880px)').matches;}catch(e){auWrap=false;}
+  try{auWrap=window.matchMedia('(max-width:1024px)').matches;}catch(e){auWrap=false;}
   function auPlaceHTML(it){
     var v=String(auditPlaceOf(it)),st='border:none;background:transparent;padding:1px 2px;font-size:12px;color:var(--tx2);';
     if(auWrap)return '<textarea class="autogrow auplw" data-place="'+esc(it.key)+'" rows="1" placeholder="保管先を入力（任意）" title="園ごとの保管場所を入力できます" style="'+st+'">\n'+esc(v)+'</textarea>';
@@ -26277,7 +26388,7 @@ var ACCESS_PAGES=[
   {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード（いまは入口から外しています）'},{p:'wastore',label:'未来WA'},{p:'guide',label:'スクールガイド'},{p:'compose',label:'個別メッセージ'},{p:'broadcast',label:'全体周知・お知らせ'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
   {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'kenshu',label:'保育研修'},{p:'bouka',label:'研修・訓練'},{p:'shift',label:'シフト表'},{p:'timecard',label:'打刻（タイムカード）'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'監査書類の格納'},
-  {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先（在園・退園）'},{p:'roster',label:'生徒情報一覧・連絡先'},
+  {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先（いまは生徒情報の中です）'},{p:'roster',label:'生徒情報'},
   {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（なくしました・未来WAで保護者が押します）'},{p:'annual',label:'年間スケジュール'},{p:'missing',label:'未入力書類'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'デイリーレポート'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'配信テンプレート'},
   {p:'curriculum',label:'カリキュラム'},{p:'deliveries',label:'配信カレンダー'},{p:'staff',label:'職員管理'},
   {p:'tasks',label:'月間スケジュール'},{p:'audit',label:'監査対応'},{p:'settings',label:'設定'},
@@ -27516,6 +27627,10 @@ function trialModal(id){
    拡張プロフィールは studentProfiles（この端末のブラウザ内のみ）に保存。
    ★実在の氏名・住所・口座番号などは公開ソースに入れない（サンプルのみ／口座欄は空）。将来は認証つきバックエンドで管理。 */
 var rosterSel=null, rosterTab='list', rosterMap=null, rosterPinSel=null;
+/* 「生徒一覧」のタブの中で、一覧を出すか、1人ぶん（個別プロフィール）を出すか。
+   ★個別プロフィールはタブの1つだった。タブが5つに増えて、どれを見ればよいか分からなくなったので、
+     一覧の行を押して開く形にした（2026-09-21 安田さんのご判断）。保存の処理は変えていない。 */
+var rosterView='list';
 /* 自宅マップの絞り込み。はじめは「在園生のみ」「クラス：すべて」。 */
 var rosterMapScope='enrolled', rosterMapKlass='すべて';
 function rosterMapKids(){
@@ -27673,7 +27788,13 @@ function spSeed(){
 }
 function spStore(){return stGet('studentProfiles',{});}
 function mapCfg(){return stGet('mapConfig',DEFAULT_MAP);}
-function spDefaults(c){var nm=(c.name||'').split(/[\s　]+/);return {klass:c.klass||'',grade:c.klass||'',lastName:nm[0]||'',firstName:childName(c),dob:c.dob||'',joinDate:c.admissionDate||'',schoolMail:c.email||'',mName:c.name||'',mTel:c.phone||'',mMail:c.email||'',history:'無',hospital:'無',febrile:'無',respiratory:'無'};}
+/* ★退園日（leaveDate）だけ、連絡先から読む道がなかった。
+   これまでは退園した子のプロフィールを開けなかったので気づけなかったが、
+   生徒一覧から開けるようにした（2026-09-21）ことで、一覧には「退園 6/30」と出ているのに
+   プロフィールの退園日が空、という食い違いが見えるようになった。
+   入園日（admissionDate→joinDate）と同じように、連絡先の退園日を初めの値にする。
+   台帳に入れた値があれば、これまでどおりそちらが勝つ（ここは初めの値だけ）。 */
+function spDefaults(c){var nm=(c.name||'').split(/[\s　]+/);return {klass:c.klass||'',grade:c.klass||'',lastName:nm[0]||'',firstName:childName(c),dob:c.dob||'',joinDate:c.admissionDate||'',leaveDate:c.withdrawDate||'',schoolMail:c.email||'',mName:c.name||'',mTel:c.phone||'',mMail:c.email||'',history:'無',hospital:'無',febrile:'無',respiratory:'無'};}
 /* 一覧や名簿に出す「ふりがな・英語表記」の1行。
    ふりがな（姓）・ふりがな（名）・英語表記から組み立てる。
    まだ1つの欄（kana）にまとめて入っている行も、そのまま読めるようにしておく。 */
@@ -27871,7 +27992,7 @@ function kidsCareHtml(){
     +'</div>'
     /* 画面の説明は2行だけ。残りは「?」（HELP_DATA.kidsview）へ移した */
     +'<div class="muted" style="font-size:12px;margin-top:10px;line-height:1.9;">'
-    +'内容を直すときは、園長・管理者に「生徒情報一覧・連絡先」または「請求書作成・管理」からお願いしてください。'
+    +'内容を直すときは、園長・管理者に「生徒一覧」または「請求書作成・管理」からお願いしてください。'
     +'</div></div>';
 
   if(!rows.length)return head+'<div class="card"><div class="empty">該当する園児がいません</div></div>';
@@ -27919,7 +28040,7 @@ function kidsCareHtml(){
     /* 安全に関わる行は「?」に隠さず、表のすぐ下に残す */
     +'<div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.8;">'
     +'アレルギーは赤で出しています。緊急連絡先が「未登録」の園児は、'
-    +'園長・管理者に生徒台帳への登録をお願いしてください。</div></div>';
+    +'園長・管理者に「生徒一覧」からの登録をお願いしてください。</div></div>';
 }
 /* 「保育に必要なこと」の配線。もとの生徒情報一覧と同じ。 */
 function wireKidsCare(){ if(typeof wireKidsView==='function')wireKidsView(); }
@@ -27961,30 +28082,65 @@ function wireKidsView(){
   };
 }
 
+/* 生徒一覧に出す園児を決める（2026-09-21 安田さんのご判断）。
+   ★これまで renderRoster は enrolled 、つまり在園児だけを作っていた。
+     そのため、退園した子の行を押しても中身が出ず、在園児の先頭に戻されていた。
+     上のチップ 在園児／退園児／すべて に合わせて作り直す。
+   ・先生・主任には在園児だけを返す。チップも出さないので、退園した子は見えない。
+   ・お問い合わせ中の方 kind が lead は、どの場合も入れない。まだ生徒ではないため。 */
+function rosterPeople(){
+  if(typeof isBoss==='function'&&!isBoss())return enrolled();
+  /* 顧客リストを見たあとは contactFilter に「リード」が残っていることがある。
+     生徒一覧には出せない値なので、ここで読み替える。 */
+  if(contactFilter!=='在園児'&&contactFilter!=='退園児')contactFilter='すべて';
+  return DB.contacts.filter(function(c){
+    if(contactFilter==='在園児')return c.kind==='enrolled';
+    if(contactFilter==='退園児')return c.kind==='withdrawn';
+    return c.kind==='enrolled'||c.kind==='withdrawn';
+  });
+}
+/* 生徒一覧に並べる行。さがす・並べ替えは、連絡先で使っていたものをそのまま使う。
+   同じはたらきの置き場を増やすと、片方だけ直したときに食い違うため。 */
+function rosterRows(){
+  var rows=rosterPeople().filter(function(c){
+    return (String(c.name||'')+String(c.child||'')+String(c.email||'')).indexOf(contactSearch)>-1;
+  });
+  return rows.sort(function(a,b){
+    if(contactSort==='名前')return String(a.name||'').localeCompare(String(b.name||''),'ja');
+    var k=(a.kind==='enrolled'?0:1)-(b.kind==='enrolled'?0:1);if(k)return k;
+    var kl=String(a.klass||'').localeCompare(String(b.klass||''));if(kl)return kl;
+    return String(a.name||'').localeCompare(String(b.name||''),'ja');
+  });
+}
 function renderRoster(){
   spSeed();
-  var kids=enrolled();
+  /* ★タブが5つあり、「台帳の一覧」と「連絡先（在園・退園）」に同じ園児が別々に並んでいた。
+     どちらを直せばよいのか分からない、というご指摘。3つにまとめた（2026-09-21 安田さんのご判断）。
+       保育に必要なこと … これまでのまま
+       生徒一覧     … 台帳の一覧と連絡先を1つにしたもの。上のチップで 在園児／退園児／すべて
+       自宅マップ    … これまでのまま
+     個別プロフィールはタブから外し、生徒一覧の行を押すと開く形にした。
+     覚えている行き先や、古い呼び出しが 'profile' 'contacts' のままでも止まらないよう、
+     ここで読み替える（この画面へ来る道は、ほかの画面にもいくつもあるため）。 */
+  if(rosterTab==='contacts')rosterTab='list';
+  if(rosterTab==='profile'){rosterTab='list';rosterView='profile';}
+  var boss=(typeof isBoss!=='function')||isBoss();
+  /* 個別プロフィールは園長・管理者だけに見せる（2026-09-21 安田さんのご判断）。
+     退園した子のプロフィールも同じで、園長・管理者は直せてよい、と決まっている。 */
+  if(!boss)rosterView='list';
+  if(rosterTab!=='list')rosterView='list';
+  var kids=rosterPeople();
   if(!rosterSel||!kids.filter(function(c){return c.id===rosterSel;}).length)rosterSel=kids.length?kids[0].id:null;
   var s=$('section[data-page="roster"]');
-  /* ★「生徒情報一覧」と「生徒台帳」を1つに畳んだ（2026-09-05）。
-     スプレッドシート「EduGrow システム概要」①③で、生徒まわりは2つと決まっている。
-       生徒台帳 … 保育記録の中（先生〜管理者）
-       生徒情報 … 顧客情報・料金管理（園長・管理者だけ／請求書発行の中）
-     中身は別物（台帳＝ふりがな・生年月日・契約書、
-     一覧＝通園曜日・給食・緊急連絡先・平熱）なので、どちらも消さずにタブで並べる。 */
-  var tabs=[['care','保育に必要なこと','users'],['list','台帳の一覧','idcard'],
-            ['profile','個別プロフィール','idcard'],['map','自宅マップ','map']];
-  /* 先生（一般）は、編集する画面を出さない。シートで「園長・管理者」と決まっている */
-  /* 個別プロフィールと自宅マップは顧客情報寄り。シートで 先生・主任・リーダー とも「―」。
-     園長・管理者だけに出す。 */
-  if(typeof isBoss==='function'&&!isBoss())
-    tabs=[['care','保育に必要なこと','users'],['list','台帳の一覧','idcard']];
-  /* 連絡先（在園・退園・休園・名簿の取り込み・監査用に出力）もこの画面のタブの1つにする（2026-09-14 安田さん「統合」）。
-     見られる人は、連絡先の権限がある人だけ */
-  if(typeof canView!=='function'||canView('contacts'))tabs.push(['contacts','連絡先（在園・退園）','users']);
+  var tabs=[['care','保育に必要なこと','users'],['list','生徒一覧','idcard'],['map','自宅マップ','map']];
+  /* 自宅マップは顧客情報寄り。シートで 先生・主任・リーダー とも「―」。園長・管理者だけに出す。 */
+  if(!boss)tabs=[['care','保育に必要なこと','users'],['list','生徒一覧','idcard']];
+  var nEn=enrolled().length;
+  var nWd=DB.contacts.filter(function(c){return c.kind==='withdrawn';}).length;
   var h='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
     +tabs.map(function(t){return '<button class="btn btn-sm'+(rosterTab===t[0]?' btn-primary':'')+'" data-rtab="'+esc(t[0])+'">'+ic(t[2])+t[1]+'</button>';}).join('')
-    +'<span style="flex:1;"></span><span class="muted" style="font-size:12px;">在園 '+kids.length+'名</span></div>'
+    /* 数は在園児のかず。チップで退園児を見ているあいだも、園の人数は在園児のかずなので変えない。 */
+    +'<span style="flex:1;"></span><span class="muted" style="font-size:12px;">在園 '+nEn+'名'+(boss?'・退園 '+nWd+'名':'')+'</span></div>'
     +'<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:10px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12px;color:#6b3f08;line-height:1.55;">'
     /* ★園の記録につながっているときも「この端末の中だけに保存されます。いま出ているのは見本です」と出していた。
        実際は園の記録として保存され、ほかの端末からも開ける（見本も入れていない）。事実と逆のことを伝えていた。
@@ -28000,39 +28156,147 @@ function renderRoster(){
         :'氏名・住所・健康などの生徒情報は<b>この端末の中だけ</b>に保存されます。ほかの端末には出ません。いま出ているのは見本です。'))
     +'</div></div>';
   if(rosterTab==='care')h+=kidsCareHtml();
-  else if(rosterTab==='list')h+=rosterList(kids);
-  else if(rosterTab==='profile')h+=rosterProfile(kids);
+  else if(rosterTab==='list')h+=(rosterView==='profile'?rosterProfile(kids):rosterList(kids));
   else h+=rosterMapHtml(rosterMapKids());
   s.innerHTML=h;
-  s.querySelectorAll('[data-rtab]').forEach(function(b){b.onclick=function(){var t=b.getAttribute('data-rtab');if(t==='contacts'){go('contacts');return;}rosterTab=t;renderRoster();};});
+  /* タブを押したら、1人ぶんの画面は閉じて一覧に戻す。
+     ★ここに「連絡先タブなら別の画面へ移る」という分かれ道があったが、
+       連絡先は生徒一覧に入れたので、その道ごと外した。 */
+  s.querySelectorAll('[data-rtab]').forEach(function(b){b.onclick=function(){
+    rosterTab=b.getAttribute('data-rtab');rosterView='list';renderRoster();};});
   if(rosterTab==='care')wireKidsCare();
-  else if(rosterTab==='list')wireRosterList();
-  else if(rosterTab==='profile')wireRosterProfile();
+  else if(rosterTab==='list'){ if(rosterView==='profile')wireRosterProfile(); else wireRosterList(); }
   else wireRosterMap(rosterMapKids());
 }
+/* ══ 生徒一覧（台帳の一覧＋連絡先を1つにしたもの）═══════════
+   ★同じ園児が「台帳の一覧」と「連絡先（在園・退園）」の2か所に並んでいて、
+     どちらを直せばよいのか分からなくなっていた。1つにまとめた（2026-09-21 安田さんのご判断）。
+   ・メール・電話の列は、園長・管理者だけに見せる（先生・主任には出さない）。
+   ・行を押すと個別プロフィールが開く。これも園長・管理者だけ。
+   ・入れる窓（contactModal）は連絡先と同じものを使う。窓を2つ作ると、片方だけ直したときに食い違うため。 */
 function rosterList(kids){
   var kc=kidDocCount('利用契約書');
-  return '<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><h3 style="margin:0;flex:1;">'+ic('idcard')+'生徒一覧</h3><button class="btn btn-sm btn-primary" id="rosterAdd">'+ic('plus')+'園児を追加</button><button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button></div>'
+  var boss=(typeof isBoss!=='function')||isBoss();
+  var SORTS=['区分','名前'];
+  if(SORTS.indexOf(contactSort)<0)contactSort=SORTS[0];
+  var CHIPS=['すべて','在園児','退園児'];
+  var rows=rosterRows();
+  var h='<div class="card">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;"><h3 style="margin:0;flex:1;min-width:120px;">'+ic('idcard')+'生徒一覧</h3>'
+    /* 上のボタンは園長・管理者だけ。先生・主任は見るだけの画面にする（2026-09-21 安田さんのご判断） */
+    +(boss
+      ?'<button class="btn btn-sm btn-primary" id="rosterAdd">'+ic('plus')+'園児を追加</button>'
+        +'<button class="btn btn-sm" id="rosterImport">'+ic('folder')+'名簿を取り込む</button>'
+        +'<button class="btn btn-sm" id="rosterAudit">'+ic('printer')+'監査用に出力</button>'
+        +'<button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button>'
+      :'')
+    +'</div>'
     +'<div style="display:flex;gap:10px;align-items:flex-start;background:'+(kc.done>=kc.total&&kc.total?'#EAF3DE':'#FAEEDA')+';border:1px solid '+(kc.done>=kc.total&&kc.total?'#639922':'#E9C88B')+';border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:12.5px;line-height:1.6;color:'+(kc.done>=kc.total&&kc.total?'#27500A':'#6b3f08')+';">'
       +'<div style="flex:1;">利用契約書（保護者がサインしたもの）　<b>在園 '+kc.total+'名のうち '+kc.done+'名ぶん登録済み</b>'
-      +'<div style="font-size:11.5px;margin-top:2px;">「開く」→ いちばん下の「サインをいただいた書類」から、園児ひとりずつ入れられます。</div></div></div>'
-    +'<table><thead><tr><th>お子様</th><th>ふりがな・英語</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>契約書</th><th>アレルギー</th><th>住所</th><th></th></tr></thead><tbody>'
-    +kids.map(function(c){var p=spGet(c.id);return '<tr><td class="row-name"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childFullNameHon(c))+'</span></td><td class="row-sub">'+esc(spKanaText(p)||'—')+'</td><td class="row-sub">'+(p.dob?pdMd(p.dob,true):'—')+'</td><td>'+spAge(p.dob)+(p.dob?' <span class="muted">（'+esc(ageClassOf({dob:p.dob,klass:p.klass||c.klass,ageClass:p.ageClass,id:c.id}))+'）</span>':'')+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(kidDocHas(c.id,'利用契約書')?'<span class="pill" style="background:#EAF3DE;color:#27500A;">済</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未</span>')+'</td><td>'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td><td class="row-sub" style="max-width:200px;">'+esc(p.address||'')+'</td><td style="text-align:right;"><button class="btn btn-sm" data-rprof="'+esc(c.id)+'">開く</button></td></tr>';}).join('')
-    +'</tbody></table></div>';
+      +'<div style="font-size:11.5px;margin-top:2px;">'+(boss?'園児の行を押すと個別プロフィールが開きます。いちばん下の「サインをいただいた書類」から、園児ひとりずつ入れられます。':'書類を入れるのは、園長・管理者にお願いしてください。')+'</div></div></div>'
+    +'<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">'
+      +'<div class="rlsrch" style="position:relative;flex:1;min-width:190px;"><span style="position:absolute;left:11px;top:9px;color:#98A2AE;width:16px;height:16px;display:inline-block;">'+ic('search')+'</span>'
+      +'<input id="rlSearch" placeholder="名前・お子様・メールで検索" style="padding-left:34px;" value="'+esc(contactSearch)+'"></div>'
+      +'<span class="muted" style="font-size:12px;">並べ替え</span>'
+      +'<select id="rlSort" style="width:140px;">'+SORTS.map(function(o){return '<option'+(o===contactSort?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'
+    +'</div>'
+    /* チップは園長・管理者だけ。先生・主任は在園児だけを見るので、切り替える所を出さない。 */
+    +(boss?'<div class="chips">'+CHIPS.map(function(f){return '<span class="chip'+(f===contactFilter?' on':'')+'" data-rlf="'+esc(f)+'">'+f+'</span>';}).join('')+'</div>':'')
+    +'<div class="scrollx hint rlwrap"><table class="rltbl'+(boss?' rl-boss':'')+'"><thead><tr>'
+      +'<th>お子様</th><th>ふりがな・英語</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>区分</th>'
+      +(boss?'<th>連絡先</th>':'')
+      +'<th>契約書</th><th>アレルギー</th><th>住所</th>'
+      +(boss?'<th class="rlact"></th>':'')
+    +'</tr></thead><tbody>';
+  if(!rows.length){
+    h+='<tr><td colspan="'+(boss?11:8)+'" class="empty">該当する園児がいません</td></tr>';
+  }else{
+    h+=rows.map(function(c){
+      var p=spGet(c.id),badge='',fi=null;
+      if(c.kind==='withdrawn'){
+        badge='<span class="pill st-退園">退園</span>'
+          +(c.withdrawDate?'<div class="row-sub" style="margin-top:3px;">'+esc(fmt(c.withdrawDate))+'</div>':'');
+      }else{
+        badge='<span class="pill st-在園">在園</span>'
+          +(c.paused?' <span class="tag" style="background:#F1EFE8;color:#5B6875;">休園中</span>':'');
+        /* 月額は請求書作成・管理の1か所に出す決まり。手で入れた古い金額が残っている子だけ、
+           消すための札をここに残す（2026-08-19 安田さん「重複しているものは消してよい」）。 */
+        fi=(typeof feeInfo==='function')?feeInfo(c):null;
+        if(boss&&fi&&fi.src==='old')badge+='<div style="margin-top:4px;white-space:nowrap;">'
+          +'<span class="tag" style="background:#FCEBEB;color:#A32D2D;">手入力のまま '+yen(fi.amount)+'</span>'
+          +'<button class="btn btn-sm btn-ghost" data-rlfee="'+esc(c.id)+'" title="手で入れた金額を消す" style="padding:0 6px;font-size:13px;color:#A32D2D;">×</button></div>';
+      }
+      return '<tr'+(boss?' data-rrow="'+esc(c.id)+'" style="cursor:pointer;"':'')+'>'
+        +'<td class="row-name" data-rlab="お子様"><span style="display:inline-flex;align-items:center;gap:8px;">'+avatarHTML(c,28)+esc(childFullNameHon(c))+'</span>'
+          +'<div class="row-sub">'+esc(c.name||'')+' 様</div></td>'
+        +'<td class="row-sub" data-rlab="ふりがな・英語">'+esc(spKanaText(p)||'—')+'</td>'
+        +'<td class="row-sub" data-rlab="生年月日">'+(p.dob?pdMd(p.dob,true):(c.dob?pdMd(c.dob,true):'—'))+'</td>'
+        +'<td data-rlab="年齢">'+spAge(p.dob||c.dob)+((p.dob||c.dob)?' <span class="muted">（'+esc(ageClassOf({dob:p.dob||c.dob,klass:p.klass||c.klass,ageClass:p.ageClass,id:c.id}))+'）</span>':'')+'</td>'
+        +'<td data-rlab="クラス">'+esc(p.klass||c.klass||'')+'</td>'
+        +'<td data-rlab="区分">'+badge+'</td>'
+        +(boss?'<td data-rlab="連絡先"><div>'+esc(c.email||'')+'</div><div class="row-sub">'+esc(c.phone||'')+'</div></td>':'')
+        +'<td data-rlab="契約書">'+(kidDocHas(c.id,'利用契約書')?'<span class="pill" style="background:#EAF3DE;color:#27500A;">済</span>':'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">未</span>')+'</td>'
+        +'<td data-rlab="アレルギー">'+(p.allergy&&p.allergy!=='なし'?'<span class="pill" style="background:#FBE4E4;color:#B00;">'+esc(p.allergy)+'</span>':'<span class="muted">なし</span>')+'</td>'
+        +'<td class="row-sub" data-rlab="住所" style="max-width:200px;">'+esc(p.address||c.address||'')+'</td>'
+        +(boss?'<td class="rlact" style="text-align:right;white-space:nowrap;">'
+          +'<button class="btn btn-sm" data-rprof="'+esc(c.id)+'">開く</button>'
+          +'<button class="btn btn-sm btn-ghost" data-rledit="'+esc(c.id)+'" title="この園児の連絡先を直す">'+ic('edit')+'</button>'
+          +'<button class="btn btn-sm btn-ghost" data-rldel="'+esc(c.id)+'" title="この園児を消す">'+ic('trash')+'</button></td>':'')
+        +'</tr>';
+    }).join('');
+  }
+  return h+'</tbody></table></div></div>';
 }
 function wireRosterList(){
+  var s=$('section[data-page="roster"]');
+  if(!s)return;
   /* ★安田さんのご依頼（2026-08-24）「生徒台帳で、登録などもできるようにして」。
      入れる窓は連絡先と同じものを使う。窓を2つ作ると、片方だけ直したときに食い違うため。 */
   if($('#rosterAdd'))$('#rosterAdd').onclick=function(){rosterAdding=true;contactModal(null,'enrolled');};
+  if($('#rosterImport'))$('#rosterImport').onclick=function(){rosterImportModal();};
+  if($('#rosterAudit'))$('#rosterAudit').onclick=contactAuditPrintModal;
   if($('#rosterPrint'))$('#rosterPrint').onclick=function(){
-    var kids=enrolled();
-    var body='<table><thead><tr><th>お子様</th><th>振りがな・英語表記</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
-      +kids.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(spKanaText(p))+'</td><td>'+(p.dob?pdMd(p.dob,true):'')+'</td><td>'+spAge(p.dob)+'</td><td>'+esc(p.klass||'')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    /* 紙に出すのは、いま画面に出ている人たち。チップで退園児を見ているなら、その人たちが出る。 */
+    var list=rosterRows();
+    var body='<table><thead><tr><th>お子様</th><th>振りがな・英語表記</th><th>生年月日</th><th>年齢</th><th>クラス</th><th>区分</th><th>緊急連絡先</th><th>アレルギー</th></tr></thead><tbody>'
+      +list.map(function(c){var p=spGet(c.id);return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(spKanaText(p))+'</td><td>'+((p.dob||c.dob)?pdMd(p.dob||c.dob,true):'')+'</td><td>'+spAge(p.dob||c.dob)+'</td><td>'+esc(p.klass||c.klass||'')+'</td><td>'+(c.kind==='withdrawn'?'退園':'在園')+'</td><td>'+esc(p.emg1||'')+' '+esc(p.emg1rel||'')+'</td><td>'+esc(p.allergy||'')+'</td></tr>';}).join('')+'</tbody></table>';
     printDoc('生徒名簿',body);
   };
-  document.querySelectorAll('[data-rprof]').forEach(function(b){b.onclick=function(){rosterSel=+b.getAttribute('data-rprof');rosterTab='profile';renderRoster();};});
+  /* さがす・並べ替え・区分のチップ。入れ物は連絡先と同じ（contactSearch / contactSort / contactFilter）。 */
+  var q=s.querySelector('#rlSearch');
+  if(q)q.addEventListener('input',function(e){
+    contactSearch=e.target.value;renderRoster();
+    var n=$('#rlSearch'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}
+  });
+  var so=s.querySelector('#rlSort');
+  if(so)so.onchange=function(e){contactSort=e.target.value;renderRoster();};
+  s.querySelectorAll('[data-rlf]').forEach(function(b){b.onclick=function(){
+    contactFilter=b.getAttribute('data-rlf');renderRoster();};});
+  /* 行のどこを押しても個別プロフィールが開く。操作の列を押したときは開かない
+     （鉛筆やゴミ箱を押したつもりで、別の画面に移ってしまうのを防ぐ）。 */
+  s.querySelectorAll('[data-rrow]').forEach(function(tr){tr.onclick=function(e){
+    var t=e.target;
+    while(t&&t!==tr){ if(t.tagName==='BUTTON'||t.tagName==='A'||(t.className&&String(t.className).indexOf('rlact')>-1))return; t=t.parentNode; }
+    rosterSel=+tr.getAttribute('data-rrow');rosterView='profile';renderRoster();
+  };});
+  s.querySelectorAll('[data-rprof]').forEach(function(b){b.onclick=function(){
+    rosterSel=+b.getAttribute('data-rprof');rosterView='profile';renderRoster();};});
+  s.querySelectorAll('[data-rledit]').forEach(function(b){b.onclick=function(){
+    contactModal(+b.getAttribute('data-rledit'));};});
+  s.querySelectorAll('[data-rldel]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この園児を一覧から消します。よろしいですか。'))return;
+    DB.contacts=DB.contacts.filter(function(x){return x.id!==+b.getAttribute('data-rldel');});
+    renderRoster();};});
+  /* 「手入力のまま◯円」の札を消す。前に手で入れていた額を捨てて、自動計算に戻す。 */
+  s.querySelectorAll('[data-rlfee]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-rlfee');
+    var c=DB.contacts.filter(function(x){return x.id===id;})[0];
+    if(!c)return;
+    if(!confirm('手で入れた金額（'+yen(feeInfo(c).amount)+'）を消します。\n\nこのあとは、料金設定からの通常料金になります。\n料金設定がまだ空のときは、この子の請求は 0円 になります。\n\nよろしいですか？'))return;
+    var arr=DB.contacts,fc=arr.filter(function(x){return x.id===id;})[0];
+    if(!fc)return;
+    fc.feeAmount=0;fc.feeChecked=false;DB.contacts=arr;renderRoster();};});
 }
-/* 入力欄1つ分。生徒台帳と、移した先のお支払いで同じ作りを使う。 */
 function spFieldHTML(f,p){
   var v=p[f.k]==null?'':p[f.k];
   var inp;
@@ -28127,12 +28391,27 @@ function rpHealthCard(p){
     +'<div class="field" style="margin:14px 0 0;"><label style="font-size:11.5px;">その他の診断</label>'
     +'<textarea data-rp="otherDx" rows="2">'+esc(p.otherDx||'')+'</textarea></div></div>';
 }
+/* 個別プロフィール。★タブの1つだったが、生徒一覧の行を押して開く形にした（2026-09-21 安田さんのご判断）。
+   ・引数の kids は rosterPeople の結果。退園した子も入るので、退園した子のプロフィールも開ける。
+     ★これまでは在園児だけを渡していたので、退園した子は選んでも在園児の先頭に戻されていた。
+   ・中身のカードと保存の処理は1行も変えていない。書き戻し（クラス・生年月日・入園日・退園日・
+     通園曜日）は、この画面に入力欄があることが前提なので、まとめて移してある。 */
 function rosterProfile(kids){
-  if(!rosterSel)return '<div class="empty">在園の生徒がいません</div>';
+  if(!rosterSel)return '<div class="card"><div class="empty">生徒がいません</div>'
+    +'<button class="btn btn-sm" id="rpBack">'+ic('back')+'一覧へ戻る</button></div>';
   var p=spKanaSplit(spGet(rosterSel));
+  var cur=DB.contacts.filter(function(x){return x.id===rosterSel;})[0]||{};
   rpGuards=spGuardians(p);
   var sel='<select id="rpSel" style="width:200px;">'+kids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===rosterSel?' selected':'')+'>'+esc(childFullName(c))+'（'+esc(c.klass)+'）</option>';}).join('')+'</select>';
-  var h='<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;"><h3 style="margin:0;">'+ic('idcard')+'個別プロフィール</h3>'+sel+'<span style="flex:1;"></span><button class="btn btn-sm" id="rpMapBtn">'+ic('pin')+'この子を地図で見る</button><button class="btn btn-primary btn-sm" id="rpSave">'+ic('check')+'保存</button> <span class="muted" id="rpMsg"></span></div>';
+  var h='<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">'
+    +'<button class="btn btn-sm" id="rpBack">'+ic('back')+'一覧へ戻る</button>'
+    +'<h3 style="margin:0;">'+ic('idcard')+'個別プロフィール</h3>'+sel+'<span style="flex:1;"></span><button class="btn btn-sm" id="rpMapBtn">'+ic('pin')+'この子を地図で見る</button><button class="btn btn-primary btn-sm" id="rpSave">'+ic('check')+'保存</button> <span class="muted" id="rpMsg"></span></div>';
+  /* 退園した子を開いていることが、ひと目で分かるようにする。
+     直せてよい、と決まっている（2026-09-21 安田さんのご判断）ので、保存のボタンはそのまま出す。 */
+  if(cur.kind==='withdrawn')h+='<div class="card" style="margin-bottom:14px;background:#FAEEDA;border-color:#E9C88B;padding:10px 14px;font-size:12.5px;color:#6b3f08;line-height:1.7;">'
+    /* 日づけは訳す相手が無いので、ことばと分けて出す（そうしないと、英語にしたときに1行まるごと日本語のまま残る） */
+    +'<b>この園児は退園しています。</b>'+(cur.withdrawDate?'<span data-nolang="1">　'+esc(fmt(cur.withdrawDate))+'</span>':'')+'<br>'
+    +'ここで直した内容は、監査で使う入退園の一覧にも関わります。直すときは、退園日と区分が合っているかもご確認ください。</div>';
   h+=spCardHTML(SP_GROUPS[0],p);
   h+=rpDayCard(rosterSel);
   h+=spCardHTML(SP_GROUPS[1],p);
@@ -28223,7 +28502,11 @@ function wireRpDocs(id){
       msg('登録しました。');
       rpDocsRender(id);
       /* 一覧の「契約書」の印もその場で変わるようにする */
-      try{if(typeof renderRoster==='function'&&rosterTab==='list')renderRoster();}catch(e3){}
+      /* ★書類を足したときに一覧の「契約書」の印を描き直していた。
+         個別プロフィールは「生徒一覧」タブの中に入ったので、そのまま描き直すと
+         いま書きかけの入力欄まで作り直され、保存していない中身が消える。
+         一覧が出ているときだけ描き直す（1人ぶんの画面は、この下の rpDocsRender が直す）。 */
+      try{if(typeof renderRoster==='function'&&rosterTab==='list'&&rosterView==='list')renderRoster();}catch(e3){}
     }
     if(!pend){push(null);return;}
     var fl=pend;
@@ -28243,9 +28526,13 @@ function wireRpGuards(){
   };});
 }
 function wireRosterProfile(){
+  /* 一覧へ戻る。戻るときに一覧を作り直すので、ここで直したクラス・生年月日がすぐ一覧に出る。 */
+  if($('#rpBack'))$('#rpBack').onclick=function(){rosterView='list';renderRoster();};
   if($('#rpSel'))$('#rpSel').onchange=function(){rosterSel=+this.value;renderRoster();};
   wireRpDocs(rosterSel);
-  if($('#rpMapBtn'))$('#rpMapBtn').onclick=function(){rosterTab='map';renderRoster();};
+  /* 地図へ移るときは、1人ぶんの画面を閉じておく。閉じないと、地図から生徒一覧に戻ったときに
+     一覧ではなく、さっき開いていた園児の画面が出る。 */
+  if($('#rpMapBtn'))$('#rpMapBtn').onclick=function(){rosterTab='map';rosterView='list';renderRoster();};
   /* 「通園」を外したら、その曜日の給食・延長も外す（連絡先の窓と同じ動き） */
   document.querySelectorAll('[data-rday]').forEach(function(cb){
     if(!/\|go$/.test(cb.getAttribute('data-rday')))return;
@@ -30209,10 +30496,14 @@ function renderTasks(){
       evDay[dd].push(e);
     });
   }catch(e){}
-  /* 行事の札。×が付いているので、押すと消せることが見て分かる */
+  /* 行事の札。ここは見るだけです。
+     ★以前は札に × が付いていて、このカレンダーから行事を消せました。
+       行事は年間スケジュールだけで足す・消す、という役割分担になった（2026-09-21 安田さんのご判断「年間オンリー」）ので、
+       消す口をここから外しました。表示は残します（その月に何があるかは、ここで見たいため）。
+       押せない札なので button ではなく span にします（押しても何も起きないボタンは、壊れて見えるため）。 */
   function evChip(e){
-    return '<button class="tkchip tkev" data-hevdel="'+esc(e.id)+'" data-nolang="1"'
-      +' title="'+esc(e.name)+'／押すと消せます">'+esc(taskShort(e.name))+' ×</button>';
+    return '<span class="tkchip tkev" data-nolang="1"'
+      +' title="'+esc(e.name)+'／行事を直すときは年間スケジュールで">'+esc(taskShort(e.name))+'</span>';
   }
   var cells='';
   for(var w=0;w<7;w++)cells+='<div class="hd'+(w===0?' sun':(w===6?' sat':''))+'">'+WD[w]+'</div>';
@@ -30315,13 +30606,16 @@ function renderTasks(){
     +'<div class="card" style="margin-bottom:14px;">'
     +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;">'
     +'<h3 style="margin:0;">'+ic('cal')+mo+'月のカレンダー</h3><span style="flex:1;"></span>'
-    +'<button class="btn btn-sm btn-primary" id="tkEvAdd">'+ic('plus')+'行事を足す</button></div>'
+    /* ★ここに「行事を足す」のボタンを置いていた（prompt() で日付と名前を手打ちする形）。
+       行事を足す口が2つあると、園の中で「どちらが本物か」が分からなくなるので、
+       年間スケジュールだけにそろえました（2026-09-21 安田さんのご判断「年間オンリー」）。 */
+    +'</div>'
     +'<div class="muted" style="margin:-2px 0 10px;font-size:12.5px;">'
     /* ★「ここで足した行事は…」とだけ書いていたので、この画面が行事の置き場に見えていた。
        年間スケジュールは行事、月間スケジュールは毎月の作業（タスク）という役割分担にした
        （2026-09-21 安田さんのご指示）。この画面が何を見る所なのかを先に書く。
-       足す道は、年間スケジュールとこのカレンダーの両方に残すので、そのとおりに書く。 */
-    +'ここは、毎月の作業（タスク）を見る画面です。行事は年間スケジュールで足します。このカレンダーからも足せて、足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。</div>'
+       ★足す道を両方に残していたが、行事は年間スケジュールだけになったので、案内もそのとおりに直す。 */
+    +'ここは、毎月の作業（タスク）を見る画面です。行事は年間スケジュールで足します。</div>'
     +'<div class="scrollx"><div class="tkcal">'+cells+'</div></div>'
     +'<div class="tklegend"><span class="tkchip tkev" style="display:inline-block;width:auto;">行事</span>'
     +'<span class="tkchip ok" style="display:inline-block;width:auto;">✓ 終わった</span>'
@@ -30369,12 +30663,9 @@ function renderTasks(){
         +'</td><td class="row-sub">'+esc(t.when||'')+'</td><td class="row-sub">'+esc(t.page||'—')+'</td></tr>';}).join('')
     +'</tbody></table></div></div>';
   $('#tkMonth').onchange=function(e){taskMonth=e.target.value;renderTasks();};
-  /* 行事を足す・消す。入れ物はホームの「今月の行事」と同じなので、両方に出る */
-  var tkEv=$('#tkEvAdd');
-  if(tkEv)tkEv.onclick=function(){ homeEventAsk(mk,renderTasks); };
-  s.querySelectorAll('[data-hevdel]').forEach(function(x){x.onclick=function(){
-    homeEventDel(x.getAttribute('data-hevdel'),renderTasks);
-  };});
+  /* ★ここで「行事を足す」と「行事の札の×」を結んでいた。
+     行事は年間スケジュールだけで足す・消すことにしたので、どちらも外した
+     （2026-09-21 安田さんのご判断「年間オンリー」）。この画面の行事は見るだけです。 */
   s.querySelectorAll('[data-tkdone]').forEach(function(b){b.onclick=function(){
     var nm=ANNUAL_TASKS[+b.getAttribute('data-tkdone')].name;
     taskSetDone(mk,nm,!taskIsDone(mk,nm));renderTasks();};});
