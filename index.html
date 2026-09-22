@@ -956,8 +956,8 @@ button.row-miss:hover{background:#FAF9F5}
 /* ── 左下の広告枠 ──────────────────────
    今月の行事とBIRTHDAY を帯へ移して空いた枠を、縦に積んだ帯の形にする
    （2026-09-21 安田さんのご指示・ルクミーの画面の左下と同じ見え方）。
-   ★次はここを運営（BIM JAPAN）からの配信に差し替える。
-     いまは園の記録に入れたものを出しているが、配る口ができたら homeAdsAll() を差し替える。 */
+   ★ここは運営（BIM JAPAN）からの配信に差し替えた（2026-09-21 安田さんのご判断）。
+     園の記録（cocoas_homeAds）ではなく、GET /home-ads で配られたものを出す。 */
 .hads{display:flex;flex-direction:column;gap:10px}
 .had{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;
   padding:12px 14px;text-decoration:none;color:inherit;transition:border-color .15s,transform .12s}
@@ -9540,6 +9540,10 @@ var egOpen=null;   /* ホームで、いまひらいているマス */
 function absAtTime(s){var m=String(s||'').match(/(\d{1,2}):(\d{2})/);return m?(('0'+m[1]).slice(-2)+':'+m[2]):'';}
 function renderHome(){
   var s=$('section[data-page="home"]'),en=enrolled();
+  /* ★左下の広告は、運営（BIM JAPAN）から配られる。ホームを描く前に一度だけ取りに行く。
+     取れるまでは枠を出さず、そろったところで描き直す（空の箱も壊れた絵も見せないため）。
+     つないでいないときは取りに行かず、枠ごと出ない。 */
+  if(!HOME_ADS.loaded&&typeof API!=='undefined'&&API.online())homeAdsLoad(function(){renderHome();});
   var unread=0;try{unread=dmUnreadTotal();}catch(e){}
   var wd=WD[new Date().getDay()];
   var pT=todayISO().split('-');   /* きょうの日付。年・月・日をそのまま出すために分けておく */
@@ -16207,6 +16211,27 @@ var EN_DICT={
 '園の管理者に、設定 → 権限管理 で この役職に見せる画面を選んでもらってください。選び直してもらったあとは、下の「もう一度ひらく」を押すと開けるようになります。':'Ask your school administrator to choose the screens for your position under Settings → Access Permissions. Once they have, press “Open again” below.',
 'もう一度ひらく':'Open again',
 'まだ、開いてよい画面が選ばれていません。':'No screens have been selected for you yet.',
+/* ── リード宛てのメール（2026-09-21 安田さんのご判断）───────── */
+'メールで送った記録':'Emails sent',
+'体験・見学のお問い合わせの方（リード）へ、園のシステムからお送りしたものです。園の記録ではなくサーバが書いているので、あとから書き換えられません。':'Emails sent from EduGrow to trial/tour inquiries (leads). These are written by the server, not by this device, so they cannot be edited afterwards.',
+'まだメールでお送りした記録はありません':'No emails have been sent yet',
+'送った人':'Sent by',
+'止まっている宛先':'Blocked addresses',
+'止まっている宛先はありません':'No blocked addresses',
+'止まった日':'Blocked on',
+'解除する':'Unblock',
+'メールが戻ってきた方・迷惑と報告された方です。このままお送りし続けると、園の本物のメールまで届かなくなるので、送らないようにしています。お電話などでご連絡ください。アドレスの打ちまちがいが直ったときは、園の管理者が解除できます。':'Addresses whose mail bounced or was reported as spam. Sending to them again would put the school\u2019s real email at risk of being blocked, so we stop. Please contact them by phone. Once a mistyped address is corrected, a school administrator can unblock it.',
+'メールが戻ってきた方・迷惑と報告された方です。このままお送りし続けると、園の本物のメールまで届かなくなるので、送らないようにしています。お電話などでご連絡ください。解除できるのは園の管理者だけです。':'Addresses whose mail bounced or was reported as spam. Sending to them again would put the school\u2019s real email at risk of being blocked, so we stop. Please contact them by phone. Only a school administrator can unblock them.',
+'この宛先の「止まっている」を解除します。よろしいですか。':'Unblock this address? It will be able to receive email again.',
+'解除できませんでした。':'Could not unblock.',
+'メールをお送りできるのは、園の管理者とマネージャーです。':'Only school administrators and managers can send email.',
+'お問い合わせの方（リード）へは、いまメールをお送りできません。':'Email cannot be sent to inquiries (leads) right now.',
+'お問い合わせの方（リード）{0}件は、園のメールでお送りします（今日あと {1} 通）。在園のご家庭は未来WA へ送付します。':'{0} inquiry contacts (leads) will be emailed from the school (email remaining today: {1}). Enrolled families are sent via MiraiWA.',
+'サーバにつないでいないあいだは、メールをお送りできません。':'Email cannot be sent while you are not connected to the server.',
+'メールの状態を確かめられませんでした。':'Could not check the email status.',
+'{0}件をメールでお送りしました。記録は「メールで送った記録」に残ります。':'{0} email(s) sent. A record is kept under “Emails sent”.',
+'メールでお送りしました':'Sent by email',
+'お送りできません':'Could not send',
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -17503,22 +17528,75 @@ function homeSideHTML(en){
 /* ══ ホームの広告枠 ══════════════════════════
    今月の行事とBIRTHDAY を帯へ移して空いた左下を、縦に積んだ帯にする
    （2026-09-21 安田さんのご指示・ルクミーの画面の左下と同じ見え方）。
-   ★次はここを運営（BIM JAPAN）からの配信に差し替える。
-     いまは園のシステムから配る口がまだ無いので、園の記録（cocoas_homeAds）に入れたものを出している。
-     配る口ができたら、差し替えるのは homeAdsAll() の中だけで済むようにしてある。
-     押した回数は、いまは数えていない（配信に差し替えるときに、数え方も運営側で決めるため）。
+   ★ここは運営（BIM JAPAN）からの配信に差し替えた（2026-09-21 安田さんのご判断
+     「運営（BIMJAPAN側）からのみここは触れるようにファネル作ってほしい」）。
+     以前は園の記録（cocoas_homeAds）に入れたものを出し、園の管理者が設定から足せた。
+     そのため、運営が出したものと園が足したものが混ざって見分けがつかなかった。
+     いまは GET /home-ads で配られたものだけを出す。園から入れる口は無い
+     （設定の入稿欄 renderHomeAdSettings は外した。cocoas_homeAds に入っている分は消していないが、読まない）。
+     押した回数は、いまは数えていない（数え方は運営側で決めるため）。
    入れ物の1件：{id, title 見出し, text ひとこと, url リンク先, img 画像, from 出しはじめ, to 出しおわり}
    何も入っていないときは枠ごと出さない（空の箱を見せない）。 */
-function homeAdsRaw(){var a=stGet('homeAds',[]);return (a&&a.length)?a:[];}
+/* 配られた広告の控え。ホームは何度も描き直すので、取りに行くのは一度だけにする。
+   busy … いま取りに行っている最中かどうか（同じ問い合わせを重ねて出さないため）。 */
+var HOME_ADS={list:[],loaded:false,busy:false};
+/* 取りに行った画像の、その場かぎりの置き場。同じ鍵を何度も取りに行かないため */
+var HOME_AD_IMG={};
 /* リンクは http と https だけ。ほかの書き方は、押したときに何が起きるか分からないので出さない */
 function homeAdUrlOk(u){return /^https?:\/\//i.test(String(u||''));}
-function homeAdsAll(){
-  var t=todayISO();
-  return homeAdsRaw().filter(function(x){
-    if(!x||!x.title)return false;
-    if(x.from&&t<x.from)return false;   /* 出しはじめの前 */
-    if(x.to&&t>x.to)return false;       /* 出しおわりの後 */
-    return true;
+/* 出す期間（from・to）と出す先の判断は、サーバ側で済んでいる。画面では絞り直さない。
+   ★画面でもう一度絞ると、どちらが本当かが分からなくなり、
+     「運営は出したつもりなのに園に出ない」を2か所で探すことになる。 */
+function homeAdsAll(){return HOME_ADS.list;}
+/* 広告の画像を、出せる形にしてから返す。
+   ★`/home-ads/…` で始まるものは、ログインの札が要るので <img src> に直接は置けない。
+     いったん取ってきて、その場かぎりの URL にしてから入れる（顔写真と同じやり方）。
+   ★取りに行けなかったもの・読めなかったものは、その広告ごと落とす。
+     壊れた絵の枠だけがホームに残るのを避けるため。 */
+function homeAdImgReady(ad,done){
+  var src=String((ad&&ad.img)||'');
+  if(!src){done(ad);return;}
+  if(src.indexOf('/home-ads/')===0){
+    if(HOME_AD_IMG[src]){ad.img=HOME_AD_IMG[src];done(ad);return;}
+    if(typeof API==='undefined'||!API.online()){done(null);return;}
+    API.blob(src).then(function(b){
+      var u=URL.createObjectURL(b);
+      HOME_AD_IMG[src]=u;ad.img=u;done(ad);
+    }).catch(function(){done(null);});
+    return;
+  }
+  if(!/^https:\/\//i.test(src)){done(null);return;}
+  /* 外の画像は、出す前に一度読めるかどうかだけ確かめる */
+  var im=new Image();
+  im.onload=function(){done(ad);};
+  im.onerror=function(){done(null);};
+  im.src=src;
+}
+/* 1件ずつ順に画像をそろえる。そろったものだけを cb に渡す */
+function homeAdsImgsReady(ads,cb){
+  var out=[],i=0;
+  function step(){
+    if(i>=ads.length){cb(out);return;}
+    homeAdImgReady(ads[i++],function(ok){if(ok)out.push(ok);step();});
+  }
+  step();
+}
+/* 運営から配られた広告を取りに行く。
+   つないでいないとき・取りに行けなかったときは、何も持たない（＝枠ごと出ない）。 */
+function homeAdsLoad(cb){
+  cb=cb||function(){};
+  if(HOME_ADS.busy){cb();return;}
+  if(typeof API==='undefined'||!API.online()){
+    HOME_ADS.list=[];HOME_ADS.loaded=true;cb();return;
+  }
+  HOME_ADS.busy=true;
+  API.call('GET','/home-ads').then(function(j){
+    var ads=((j&&j.ads)||[]).filter(function(x){return x&&x.title;});
+    homeAdsImgsReady(ads,function(ready){
+      HOME_ADS.list=ready;HOME_ADS.loaded=true;HOME_ADS.busy=false;cb();
+    });
+  }).catch(function(){
+    HOME_ADS.list=[];HOME_ADS.loaded=true;HOME_ADS.busy=false;cb();
   });
 }
 function homeAdsHTML(){
@@ -17535,74 +17613,10 @@ function homeAdsHTML(){
       : '<div class="had">'+inner+'</div>';
   }).join('')+'</div>';
 }
-/* 設定の画面から、運営（管理者）が手で足す・消す。
-   ★この端末だけに残る形にはしない。stSet で園の記録に入れるので、ほかの端末にも出る
-   （2026-09-21 安田さんのご指示）。 */
-function renderHomeAdSettings(sec){
-  var card=document.createElement('div');
-  card.className='card';
-  card.style.maxWidth='820px';card.style.marginBottom='16px';
-  card.innerHTML='<h3>'+ic('photo')+'ホームの広告枠</h3>'
-    +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.8;">'
-    +'ホームの左下に、上から順に出ます。何も入っていないときは枠ごと出ません。'
-    +'出す期間を空にすると、いつでも出ます。リンクは新しいタブで開きます。</div>'
-    +'<div id="hadList"></div>'
-    +'<button class="btn btn-sm" id="hadAdd" style="margin-top:10px;">'+ic('plus')+'広告を足す</button>';
-  sec.appendChild(card);
-  function save(list){stSet('homeAds',list);}
-  function draw(){
-    var list=homeAdsRaw();
-    var box=card.querySelector('#hadList');
-    box.innerHTML=list.map(function(x,i){
-      return '<div style="border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:10px;">'
-        +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
-        +'<div class="field"><label>見出し</label><input data-hadf="title|'+i+'" value="'+esc(x.title||'')+'"></div>'
-        +'<div class="field"><label>ひとこと</label><input data-hadf="text|'+i+'" value="'+esc(x.text||'')+'"></div></div>'
-        +'<div class="field"><label>リンク先（https から）</label><input data-hadf="url|'+i+'" value="'+esc(x.url||'')+'" placeholder="例：https://（案内のページ）"></div>'
-        +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
-        +'<div class="field"><label>出しはじめ</label><input type="date" data-hadf="from|'+i+'" value="'+esc(x.from||'')+'"></div>'
-        +'<div class="field"><label>出しおわり</label><input type="date" data-hadf="to|'+i+'" value="'+esc(x.to||'')+'"></div></div>'
-        +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
-        +(x.img?'<img src="'+esc(x.img)+'" style="width:74px;height:56px;object-fit:cover;border-radius:10px;">':'<span class="muted" style="font-size:11.5px;">画像なし</span>')
-        +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'画像を選ぶ<input type="file" data-hadimg="'+i+'" accept="image/*" style="display:none;"></label>'
-        +'<button class="btn btn-sm btn-ghost" data-hadimgdel="'+i+'">画像を消す</button>'
-        +'<button class="btn btn-sm btn-ghost" data-haddel="'+i+'" style="margin-left:auto;">'+ic('trash')+'この広告を消す</button>'
-        +'</div></div>';
-    }).join('')||'<div class="empty">まだ広告がありません。下の「広告を足す」から入れてください。</div>';
-    box.querySelectorAll('[data-hadf]').forEach(function(el){el.onchange=function(){
-      var q=el.getAttribute('data-hadf').split('|'),l=homeAdsRaw();
-      if(!l[+q[1]])return;
-      l[+q[1]][q[0]]=el.value;save(l);
-    };});
-    box.querySelectorAll('[data-hadimg]').forEach(function(el){el.onchange=function(e){
-      var fl=e.target.files[0];if(!fl)return;
-      /* ロゴと同じ縮め方を通す。大きな写真をそのまま持つと、園の記録が重くなる */
-      logoResize(fl,function(err,uri){
-        if(err){alert(err.message);return;}
-        var l=homeAdsRaw(),i=+el.getAttribute('data-hadimg');
-        if(!l[i])return;
-        l[i].img=uri;save(l);draw();
-      });
-    };});
-    box.querySelectorAll('[data-hadimgdel]').forEach(function(b){b.onclick=function(){
-      var l=homeAdsRaw(),i=+b.getAttribute('data-hadimgdel');
-      if(!l[i])return;
-      l[i].img='';save(l);draw();
-    };});
-    box.querySelectorAll('[data-haddel]').forEach(function(b){b.onclick=function(){
-      var l=homeAdsRaw(),i=+b.getAttribute('data-haddel');
-      if(!l[i])return;
-      if(!confirm('この広告を消します。よろしいですか。'))return;
-      l.splice(i,1);save(l);draw();
-    };});
-  }
-  card.querySelector('#hadAdd').onclick=function(){
-    var l=homeAdsRaw();
-    l.push({id:'ad'+Date.now(),title:'',text:'',url:'',img:'',from:'',to:''});
-    save(l);draw();
-  };
-  draw();
-}
+/* ★設定にあった「ホームの広告枠」の入稿欄（renderHomeAdSettings）は、まるごと外した
+   （2026-09-21 安田さんのご判断）。入稿できるのは運営（BIM JAPAN）だけで、園は読むだけになった。
+   残しておくと、運営が出したものと園が足したものが混ざって、どちらが配られたものか分からなくなる。
+   いま cocoas_homeAds に入っている園の分は消していない（読まなくなるだけ）。 */
 /* 行事を1つ足す。
    ★2026-09-21 の安田さんのご判断「年間オンリー」で、月間スケジュールのカレンダーから
      この窓を開く口を外しました。いま行事を足すのは annualEventAsk（年間スケジュール）だけです。
@@ -19433,6 +19447,9 @@ function renderCompose(){
          設定に入れてある値（SET.sender・SET.bcc）は消していない。 */
       '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="cmpSend">'+ic('send')+'未来WAへ送る</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="cmpSchedAt" style="width:200px;"><button class="btn" id="cmpSched">'+ic('clock')+'予約</button><span class="muted" id="cmpCount"></span></div>'+
       '<div id="cmpSchedMsg" style="color:#A32D2D;font-size:12.5px;margin-top:8px;"></div>'+
+      /* 体験・見学のお問い合わせの方（リード）は未来WA をお持ちでないので、メールでお送りする。
+         送れるかどうかと、今日あと何通お送りできるかを、押す前にここへ出す */
+      '<div id="cmpMailNote" style="font-size:12.5px;margin-top:8px;line-height:1.7;"></div>'+
       '<div class="pbar"><div id="cmpBar"></div></div><div class="send-log" id="cmpLog"></div></div>';
   /* 園が書き直した分・作った分も含めて出す */
   var _mall=mailTplAll();
@@ -19451,7 +19468,35 @@ function renderCompose(){
     $('#cmpList').querySelectorAll('[data-id]').forEach(function(r){r.onclick=function(){var id=+r.getAttribute('data-id');composeSel[id]=!composeSel[id];list();preview();syncAll();};});
     syncAll();preview();
   }
-  function syncAll(){var sh=shown();$('#cmpAll').checked=sh.length>0&&sh.every(function(c){return composeSel[c.id];});var n=Object.keys(composeSel).filter(function(k){return composeSel[k];}).length;$('#cmpCount').textContent=n?n+' 件を選択中':'送信先を選択してください';}
+  function syncAll(){var sh=shown();$('#cmpAll').checked=sh.length>0&&sh.every(function(c){return composeSel[c.id];});var n=Object.keys(composeSel).filter(function(k){return composeSel[k];}).length;$('#cmpCount').textContent=n?n+' 件を選択中':'送信先を選択してください';mailNote();}
+  /* 選んだ相手に合わせて、送るボタンと下の1行を出し分ける。
+     ★リードの方だけを選んでいて、まだメールをお送りできないときは、送るボタンを出さない。
+       出したままにすると、押しても断られるだけで、先生は理由の分からないまま何度も押すことになる。 */
+  function mailNote(){
+    var nt=$('#cmpMailNote'),sb=$('#cmpSend');
+    if(!nt)return;
+    var sel=selC(),lead=0,other=0;
+    sel.forEach(function(c){if(c&&c.kind==='lead')lead++;else other++;});
+    var show=true,msg='';
+    if(lead){
+      if(!leadMailRoleOk()){
+        msg='<span style="color:#A32D2D;">メールをお送りできるのは、園の管理者とマネージャーです。</span>';
+        show=!!other;
+      }else if(!leadMailCanSend()){
+        /* ★理由（why）はサーバが返す1文なので、そのまま別の節に置く。
+           前の文とつなげて1つの文字にすると、英語の画面で前半まで日本語のままになる */
+        msg='<span style="color:#A32D2D;">お問い合わせの方（リード）へは、いまメールをお送りできません。</span>'
+          +'<span style="color:#A32D2D;"> '+esc(LMAIL.why||'')+'</span>';
+        show=!!other;
+      }else{
+        msg='<span style="color:var(--tx2);">お問い合わせの方（リード）'+lead+'件は、園のメールでお送りします'
+          +'（今日あと '+LMAIL.left+' 通）。在園のご家庭は未来WA へ送付します。</span>';
+      }
+    }
+    nt.innerHTML=msg;
+    if(sb)sb.style.display=show?'':'none';
+    if(typeof langApply==='function')langApply(nt);
+  }
   function selC(){return cs.filter(function(c){return composeSel[c.id];});}
   function preview(){var sc=selC();var c=sc.length?sc[0]:cs[0];$('#cmpPreview').textContent=(sc.length?langMsg('宛先')+': '+c.name+' 様（プレビュー）\n':'')+langMsg('件名')+': '+fillTokens($('#cmpSubject').value,c,ctx())+'\n\n'+fillTokens($('#cmpBody').value,c,ctx());}
   $('#cmpTpl').onchange=function(e){
@@ -19485,7 +19530,14 @@ function renderCompose(){
     var gd2=$('#cmpGoDeliv');if(gd2)gd2.onclick=function(){go('deliveries');};
   };
   chips();loadTpl();list();
+  /* 送る前に、メールがいま使えるかをサーバに聞く。
+     聞き終わってから、送るボタンと下の1行を出し直す（押しても断られるボタンを出さないため） */
+  leadMailStatusLoad(function(){try{mailNote();}catch(e){}});
   var _cs=$('section[data-page="compose"]');_cs.insertAdjacentHTML('beforeend',sentMailCard('未来WAで送付した記録（個別）',sentFromSchool));wireSentMail(_cs);
+  /* 未来WAで送付した記録（端末の控え）の隣に、メールで送った記録（サーバの記録）を並べる。
+     一般の先生・つないでいない端末では、この枠ごと出ない */
+  _cs.insertAdjacentHTML('beforeend','<div id="cmpLeadMail"></div>');
+  leadMailPanelRender(_cs);
   wireTokenHelp(_cs);
   if(typeof expMailDraftRender==='function')expMailDraftRender(_cs);
 }
@@ -19516,19 +19568,233 @@ function waDeliverPersonal(c,subject,body){
   dmPost(c.id,'staff',schoolNameFixed()||'園',(subject?subject+'\n\n':'')+String(body||''));
   return true;
 }
+/* ══ リード宛てのメール ══════════════════════════
+   2026-09-21 安田さんのご判断「体験・見学のリード宛てはメールで送る仕組みを作る」。
+   ★体験・見学のお問い合わせをくださった方（リード）には、未来WA のアカウントがない。
+     それなのに個別メッセージから送ると未来WA に入れようとして、
+     「届きません：◯◯ 様（未来WAをお使いではありません）」と出るだけだった。
+     控え（未来WAで送付した記録）だけが積み上がり、園は送ったつもりで1通も届いていなかった。
+     リードの方には、園のシステムからメールでお送りする。
+   在園のご家庭は、これまでどおり未来WA。ここをリード以外にも使わない
+   （連絡の口が2つになると、どちらに届いたのかを園が追えなくなる）。
+   ★この口は園の管理者・マネージャーだけ。園の看板で園の外の人へ出るものなので、
+     一般の先生には送るボタンも記録も出さない（押しても断られるだけになるため）。 */
+var LMAIL={ready:false,why:'',left:0,max:0,loaded:false,busy:false,log:null,blocks:null};
+/* 送れる役職か。ログインしていない端末（商談のデモなど）は、これまでどおり止めない */
+function leadMailRoleOk(){
+  var r=(typeof currentRole==='function')?currentRole():null;
+  if(!r)return true;
+  return r==='管理者'||r==='マネージャー';
+}
+/* 止めた宛先を解けるのは園の管理者だけ。
+   相手が拒んだ結果を「もう一度送ってよい」と園として決める操作なので、マネージャーには開かない */
+function leadMailAdminOk(){
+  var r=(typeof currentRole==='function')?currentRole():null;
+  if(!r)return true;
+  return r==='管理者';
+}
+/* この画面でメールの話を出してよいか（役職・つないでいるか） */
+function leadMailOn(){
+  return leadMailRoleOk()&&typeof API!=='undefined'&&API.online();
+}
+/* いま送れるか・今日あと何通か。送るボタンを出す前に、必ずこれを見る */
+function leadMailStatusLoad(cb){
+  cb=cb||function(){};
+  if(LMAIL.busy){cb();return;}
+  if(!leadMailOn()){
+    LMAIL.ready=false;LMAIL.left=0;LMAIL.max=0;LMAIL.loaded=true;
+    LMAIL.why=leadMailRoleOk()?'サーバにつないでいないあいだは、メールをお送りできません。':'';
+    cb();return;
+  }
+  LMAIL.busy=true;
+  API.call('GET','/school/lead-mail/status').then(function(j){
+    LMAIL.ready=!!(j&&j.ready);
+    LMAIL.why=(j&&j.why)||'';
+    LMAIL.left=(j&&j.left)||0;
+    LMAIL.max=(j&&j.dailyMax)||0;
+    LMAIL.loaded=true;LMAIL.busy=false;cb();
+  }).catch(function(e){
+    LMAIL.ready=false;LMAIL.left=0;
+    /* サーバが返す1文は、そのまま先生に見せられる形にしてある。作り直さない */
+    LMAIL.why=(e&&e.message)||'メールの状態を確かめられませんでした。';
+    LMAIL.loaded=true;LMAIL.busy=false;cb();
+  });
+}
+function leadMailCanSend(){return leadMailOn()&&LMAIL.ready;}
+/* 1通ずつ順にお送りする。
+   ★サーバは1回の呼び出しで1通だけを受ける。まとめて送ると、途中で上限に当たったときに
+     どこまで送れたかが画面にも記録にも残らないため。 */
+function leadMailSendSeq(q,tplLabel,log,bar){
+  var i=0,ok=0,ng=[];
+  function step(){
+    if(i>=q.length){
+      if(bar)bar.style.width='100%';
+      if(ok)log.appendChild(el('div',{class:'li'},
+        '<span style="color:#0F6E56;font-weight:600;">'+ok+'件をメールでお送りしました。'
+        +'記録は「メールで送った記録」に残ります。</span>'));
+      if(ng.length)log.appendChild(el('div',{class:'li'},
+        '<span style="color:#A32D2D;font-weight:600;">'+ng.length+'件はお送りできませんでした：'
+        +esc(ng.join('・'))+'</span>'));
+      /* 送ったぶんを記録と残り通数に映す */
+      LMAIL.log=null;LMAIL.blocks=null;
+      leadMailStatusLoad(function(){leadMailPanelRender();});
+      return;
+    }
+    var it=q[i++];
+    if(bar)bar.style.width=Math.round(i*100/q.length)+'%';
+    API.call('POST','/school/lead-mail',
+      {leadId:it.c.id,subject:it.subject,body:it.body,tpl:tplLabel||''})
+      .then(function(){
+        ok++;
+        log.appendChild(el('div',{class:'li'},'メールでお送りしました：'+esc(it.c.name)+' 様'));
+        step();
+      })
+      .catch(function(e){
+        ng.push(it.c.name);
+        /* ★サーバが返す1文は、そのまま先生に見せられる言い方にしてある。書き直さない */
+        log.appendChild(el('div',{class:'li'},
+          '<span style="color:#A32D2D;">お送りできません：'+esc(it.c.name)+' 様'
+          +'（'+esc((e&&e.message)||'')+'）</span>'));
+        step();
+      });
+  }
+  step();
+}
+/* 送った記録（サーバが書いたもの）。
+   ★未来WAで送付した記録（端末の控え）とは別のもの。あちらは園の端末が書くので書き換えられる。
+     外の方に何をお送りしたかの証拠になるのは、こちらだけ。 */
+function leadMailLogHTML(){
+  var rows=LMAIL.log||[];
+  var color={'送信':'#0B5F8F','届いた':'#0F6E56','失敗':'#A32D2D','宛先不明':'#A32D2D','迷惑扱い':'#A32D2D'};
+  return '<div class="card" style="margin-top:16px;"><h3>'+ic('mail')+'メールで送った記録</h3>'
+    +'<div class="muted" style="margin-bottom:8px;">体験・見学のお問い合わせの方（リード）へ、園のシステムからお送りしたものです。'
+    +'園の記録ではなくサーバが書いているので、あとから書き換えられません。</div>'
+    +(rows.length
+      ? '<table><thead><tr><th style="width:150px;">日時</th><th>宛先</th><th>件名</th>'
+        +'<th style="width:90px;">状態</th><th style="width:90px;">送った人</th></tr></thead><tbody>'
+        +rows.map(function(r,i){
+          return '<tr style="cursor:pointer;" data-lmrow="'+esc(i)+'">'
+            +'<td class="row-sub">'+esc(leadMailWhen(r.at))+'</td>'
+            +'<td class="row-name">'+esc(r.toName||r.to||'')+' 様</td>'
+            +'<td class="row-sub" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;">'+esc(r.subject||'')+'</td>'
+            +'<td style="color:'+(color[r.status]||'var(--tx2)')+';font-weight:600;" data-nolang="1">'+esc(leadMailStatusLabel(r.status))+'</td>'
+            +'<td class="row-sub">'+esc(r.by||'')+'</td></tr>';
+        }).join('')
+        +'</tbody></table>'
+      : '<div class="empty">まだメールでお送りした記録はありません</div>')
+    +'</div>';
+}
+/* 状態の言い方（送信・失敗・宛先不明・迷惑扱い・届いた）。
+   ★辞書にある「送信＝Send」はボタンの言葉なので、英語の画面で状態まで「Send」と出ていた。
+     ここだけは自分で言い換え、data-nolang を付けて辞書に当てさせない。 */
+function leadMailStatusLabel(s){
+  var en={'送信':'Sent','失敗':'Failed','宛先不明':'Bounced','迷惑扱い':'Reported as spam','届いた':'Delivered'};
+  return (typeof langNow==='function'&&langNow()==='en'&&en[s])?en[s]:String(s||'');
+}
+/* 記録の日時。サーバは世界標準時の形で返すので、園の時計に直して出す */
+function leadMailWhen(at){
+  if(!at)return '';
+  var d=new Date(at);
+  if(isNaN(d.getTime()))return String(at).slice(0,16).replace('T',' ');
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+/* 止まっている宛先。
+   ★戻ってきた・迷惑と報告されたアドレスに送り続けると、事業者から止められ、
+     園の本物のメールまで届かなくなる。だから止まっているあいだは送らない。 */
+function leadMailBlocksHTML(){
+  var rows=LMAIL.blocks||[];
+  var kan=leadMailAdminOk();
+  return '<div class="card" style="margin-top:16px;"><h3>'+ic('alert')+'止まっている宛先</h3>'
+    +'<div class="muted" style="margin-bottom:8px;">メールが戻ってきた方・迷惑と報告された方です。'
+    +'このままお送りし続けると、園の本物のメールまで届かなくなるので、送らないようにしています。'
+    +'お電話などでご連絡ください。'
+    +(kan?'アドレスの打ちまちがいが直ったときは、園の管理者が解除できます。'
+         :'解除できるのは園の管理者だけです。')+'</div>'
+    +(rows.length
+      ? '<table><thead><tr><th>メールアドレス</th><th style="width:100px;">理由</th>'
+        +'<th style="width:120px;">止まった日</th>'+(kan?'<th style="width:90px;"></th>':'')
+        +'</tr></thead><tbody>'
+        +rows.map(function(r){
+          return '<tr><td class="row-name">'+esc(r.email||'')+'</td>'
+            +'<td data-nolang="1">'+esc(leadMailStatusLabel(r.reason))+'</td>'
+            +'<td class="row-sub">'+esc(leadMailWhen(r.at))+'</td>'
+            +(kan?'<td style="text-align:right;"><button class="btn btn-sm" data-lmrel="'+esc(r.id)+'">解除する</button></td>':'')
+            +'</tr>';
+        }).join('')
+        +'</tbody></table>'
+      : '<div class="empty">止まっている宛先はありません</div>')
+    +'</div>';
+}
+/* 1通の中身を見る窓 */
+function leadMailModal(r){
+  if(!r)return;
+  var m=el('div',{class:'modal-bg'});
+  m.innerHTML='<div class="modal" style="width:600px;"><h2>メールで送った記録</h2>'
+    +'<div class="muted" style="margin-bottom:10px;">'+esc(leadMailWhen(r.at))+' ・ '+esc(langMsg(r.tpl||''))+'</div>'
+    +'<table style="width:100%;font-size:13px;margin-bottom:10px;"><tbody>'
+    +'<tr><td style="color:var(--tx2);width:64px;">宛先</td><td>'+esc((r.toName||'')+' 様')+'</td></tr>'
+    +'<tr><td style="color:var(--tx2);">件名</td><td>'+esc(r.subject||'')+'</td></tr>'
+    +'<tr><td style="color:var(--tx2);">状態</td><td><span data-nolang="1">'+esc(leadMailStatusLabel(r.status))+'</span>'+(r.error?'　'+esc(r.error):'')+'</td></tr>'
+    +'<tr><td style="color:var(--tx2);">送った人</td><td>'+esc(r.by||'')+'</td></tr></tbody></table>'
+    +'<div class="preview" style="max-height:360px;">'+esc(r.body||'')+'</div>'
+    +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">'
+    +'<button class="btn btn-primary" id="lm_close">閉じる</button></div></div>';
+  $('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  $('#lm_close').onclick=function(){m.remove();};
+  if(typeof langApply==='function')langApply(m);
+}
+/* 記録と止まっている宛先を取りに行って、個別メッセージの画面の下へ出す。
+   一般の先生・つないでいない端末には、何も出さない（押しても断られるものを見せないため）。 */
+function leadMailPanelRender(root){
+  var box=(root||document).querySelector('#cmpLeadMail');
+  if(!box)return;
+  if(!leadMailOn()){box.innerHTML='';return;}
+  function draw(){
+    box.innerHTML=leadMailLogHTML()+leadMailBlocksHTML();
+    leadMailPanelWire(box);
+    if(typeof langApply==='function')langApply(box);
+  }
+  if(LMAIL.log&&LMAIL.blocks){draw();return;}
+  API.call('GET','/school/lead-mail?limit=50').then(function(j){
+    LMAIL.log=(j&&j.list)||[];
+    return API.call('GET','/school/lead-mail/blocks');
+  }).then(function(j2){
+    LMAIL.blocks=(j2&&j2.list)||[];
+    draw();
+  }).catch(function(){box.innerHTML='';});
+}
+function leadMailPanelWire(box){
+  box.querySelectorAll('[data-lmrow]').forEach(function(r){r.onclick=function(){
+    leadMailModal((LMAIL.log||[])[+r.getAttribute('data-lmrow')]);
+  };});
+  box.querySelectorAll('[data-lmrel]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この宛先の「止まっている」を解除します。よろしいですか。'))return;
+    API.call('POST','/school/lead-mail/blocks/'+encodeURIComponent(b.getAttribute('data-lmrel'))+'/release',{})
+      .then(function(){LMAIL.blocks=null;LMAIL.log=null;leadMailPanelRender();})
+      .catch(function(e){alert((e&&e.message)||'解除できませんでした。');});
+  };});
+}
 function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind,bcc){
   /* bcc は、その1回だけの控えの送り先。空なら設定のBCCを使う */
   var useBcc=String(bcc||SET.bcc||'');
   if(!list.length){log.innerHTML='<div class="li" style="color:#A32D2D;">宛先が選択されていません。</div>';return;}
   log.innerHTML='';
   var now=new Date(),stamp=pad(now.getHours())+':'+pad(now.getMinutes());
-  var h=DB.history,isB=(kind==='broadcast'),okN=0,ng=[];
+  var h=DB.history,isB=(kind==='broadcast'),okN=0,ng=[],mailQ=[];
   list.forEach(function(c){
     var subj=perPerson?fillTokens(subjectTpl,c,ctx):subjectTpl;
     var body=perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl;
     h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,
       tpl:tplLabel,kind:(kind||'personal'),to:c.name+' 様',email:c.email,from:SET.sender,bcc:useBcc,
       subject:subj,body:body});
+    /* ★体験・見学のお問い合わせの方（リード）は、未来WA のアカウントをお持ちでない。
+       これまでは「届きません：◯◯ 様（未来WAをお使いではありません）」と出して終わりで、
+       控えだけが積み上がり、園は送ったつもりで1通も届いていなかった。
+       個別のときは、この方たちにメールでお送りする（あとで1通ずつ順に出す）。 */
+    if(!isB&&c&&c.kind==='lead'&&leadMailCanSend()){
+      mailQ.push({c:c,subject:subj,body:body});return;
+    }
     /* 一斉配信は history をそのまま「おたより」が読む。個別はメッセージへ積む */
     var ok=isB?waHasApp(c):waDeliverPersonal(c,subj,body);
     if(ok){okN++;
@@ -19539,13 +19805,16 @@ function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind
     }
   });
   DB.history=h;
-  bar.style.width='100%';
-  log.appendChild(el('div',{class:'li'},
+  bar.style.width=mailQ.length?'0%':'100%';
+  /* 未来WA へ出す相手が1人もいないとき（リードだけを選んだとき）は、
+     「0件を未来WAへ送りました」と出さない。何もしていないのに送ったように読めるため */
+  if(okN||ng.length)log.appendChild(el('div',{class:'li'},
     '<span style="color:#0F6E56;font-weight:600;">'+okN+'件を保護者の未来WAへ送りました'
     +'（'+(isB?'ホームの「おたより」':'「園からの個人メッセージ」')+'に出ます）。</span>'));
   if(ng.length)log.appendChild(el('div',{class:'li'},
     '<span style="color:#A32D2D;font-weight:600;">'+ng.length+'件は届いていません：'+esc(ng.join('・'))
     +'。未来WAは在園のご家庭のものです。控えは「未来WAで送付した記録」に残しました。</span>'));
+  if(mailQ.length)leadMailSendSeq(mailQ,tplLabel,log,bar);
 }
 
 
@@ -21544,9 +21813,8 @@ function renderSettings(){
      && (typeof currentRole!=='function'||currentRole()==='管理者'))renderFileMoveSettings(s);
   /* バックアップは全園児のデータを丸ごと持ち出せる。
      シート41行のとおり管理者だけにする。 */
-  /* ホームの広告枠。運営（BIM JAPAN）が入れるものなので、管理者だけに出す */
-  if(typeof renderHomeAdSettings==='function'
-     && (typeof currentRole!=='function'||currentRole()==='管理者'))renderHomeAdSettings(s);
+  /* ★ホームの広告枠の入稿欄は、ここから外した（2026-09-21 安田さんのご判断）。
+     入れられるのは運営（BIM JAPAN）だけで、園は配られたものを読むだけになったため。 */
   if(typeof renderBackupSettings==='function'
      && (typeof currentRole!=='function'||currentRole()==='管理者'))renderBackupSettings(s);
   /* ★「すべて保存」は renderSettings が作るので、あとから足されるカード（経費・権限・広告枠など）の
