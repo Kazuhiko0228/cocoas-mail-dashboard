@@ -180,6 +180,10 @@
   .setNavI.on{background:#EEEDFE;color:#3C3489;font-weight:700;}
   .setNavQ{width:100%;margin-bottom:8px;}
   .setBody{min-width:0;}
+  /* ★カードごとに幅の指定（max-width:820px）が付いていたり付いていなかったりで、
+     大項目の右はしがガタガタに見えていた（2026-09-21 安田さんのご指摘）。
+     設定の中のカードは、幅をそろえて左右の線を合わせる。 */
+  .setBody>.card,section[data-page="settings"]>.card{max-width:none !important;width:100% !important;box-sizing:border-box;}
   /* 開いているか閉じているかの印。文字として入れると、英語に直すときに巻き込まれるので CSS で出す */
   .card h3[data-setfold]{cursor:pointer;}
   .card h3[data-setfold]::after{content:'\25B8';margin-left:auto;font-size:13px;opacity:.55;}
@@ -603,7 +607,11 @@
     display:flex;flex-direction:column;gap:1px;}
   /* 左右にならぶ広さがあるときは、左を日付が1行で収まるぶんにとどめ、
      残りを右の「きょう見ておくこと」に回す */
-  @media(min-width:1180px){.hhero .hhl{flex:0 1 300px;}.htoday{flex:1 1 340px;}.hhero .hnote{flex:1 1 380px;}}
+  /* ★3つの幅を広くとりすぎていたので、1280px の画面では行事と誕生日だけが下の段へ折り返し、
+     帯の高さが 174px から 323px へ倍近くまで伸びていた。
+     1280px の帯の内側は 944px しかないので、3つの合計がそこに収まる幅にする
+     （280+300+300+すき間32＝912px）。広い画面では、余ったぶんを3つで分け合う。 */
+  @media(min-width:1180px){.hhero .hhl{flex:0 1 280px;}.htoday{flex:1 1 300px;}.hhero .hnote{flex:1 1 300px;}}
   .htoday .ht{font-size:11.5px;font-weight:700;letter-spacing:.03em;color:rgba(255,255,255,.9);margin:0 0 3px 3px;}
   .htoday .row{display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;
     background:none;border:none;color:#fff;font:inherit;font-size:12.5px;line-height:1.45;
@@ -5538,7 +5546,9 @@ var EG_NAV=[
      {p:'templates', l:'配信テンプレート'}]},
    {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', p:'wastore'},
    {k:'photo',   l:'写真販売',   i:'photo', si:'photo', c:'#B4560C', bg:'#FBEFE3', p:'photosale'},
-   {k:'miss_home', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true}
+   /* ★サイドバーには出ているのにメニューには出ていなかった（2026-09-21 安田さんのご指摘）。
+      menuShow を付けたものは、homeHide が付いていてもメニューのマスには出す。 */
+   {k:'miss_home', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true, menuShow:true}
  ]},
  {cat:'カリキュラム',items:[
    {k:'annual',     l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'annual'},
@@ -8265,10 +8275,13 @@ function aiEnvSchoolCard(){
   var canEdit=(typeof isBoss==='function')?isBoss():true;
   return '<div class="card"><h3 style="margin-top:0;">'+ic('gear')+'園の環境（AIが参照します）</h3>'
     +'<div class="muted" style="font-size:11.5px;margin-bottom:11px;line-height:1.9;">'
-    +'ここに入れたものは、活動を考えるときに毎回そのまま使われます。'
-    +'園にある道具を入れておくと、<b>その中でできる活動だけ</b>が出ます。'
-    +'空のままでも活動は作れます（その項目を聞かないだけです）。'
-    +'クラス1つぶんではなく、園ぜんたいの設定です。</div>'
+    /* ★「空のままでも活動は作れます（その項目を聞かないだけです）」など、
+       読んでも何をすればよいか分からない書き方だった（2026-09-21 安田さんのご指摘）。
+       何のために入れるのか・入れなくてよいのか、の2つに分けて書く。 */
+    +'AIが活動を考えるときに使う、園の環境です。クラスごとではなく、<b>園全体</b>の設定です。</div>'
+    +'<div class="muted" style="font-size:11.5px;margin-bottom:11px;line-height:1.9;">'
+    +'・場所と道具を入れると、<b>それでできる活動だけ</b>を出します。<br>'
+    +'・空のままでも活動は作れます。</div>'
     +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'
     +AI_ENV_FIELDS.map(function(f){
       return '<div class="field" style="margin:0;'+(f.wide?'grid-column:1/-1;':'')+'">'
@@ -9159,8 +9172,9 @@ function renderMenu(){
   egNav().forEach(function(g){
     var items=g.items.filter(function(x){
       /* homeHide が付いているものは、ホームのマスに出さない。
-         行き先が別のマスの中にあるもの（スクールガイド＝書類格納の中）に使う。 */
-      if(x.homeHide)return false;
+         行き先が別のマスの中にあるもの（スクールガイド＝書類格納の中）に使う。
+         ★ただし menuShow が付いているものは、メニューには出す（未入力書類）。 */
+      if(x.homeHide&&!x.menuShow)return false;
       if(x.p&&typeof canView==='function'&&!canView(x.p))return false;
       if(x.sub)return egSubHome(x).length>0;
       return true;
@@ -9255,7 +9269,7 @@ var EN_DICT={
 '今月が誕生日の園児・職員はいません':'No birthdays this month',
 '職員':'Staff','きょう':'today','行事を足す':'Add an event',
 '月間スケジュールのカレンダーと同じものです':'Same as the Monthly Schedule calendar',
-'行事は、ホームの「今月の行事」と同じものです。どちらで足しても両方に出ます。':'Events here are the same as Monthly Event on Home. Add one in either place and it shows in both.',
+'ここで足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。':'Events you add here also appear in “This month’s events” on Home and in the Annual Schedule.',
 /* ── 連絡ボード・保護者からの連絡（2026-09-16）── */
 '書いたものは、ほかの端末・ほかの先生の画面にもすぐ出ます。時刻は日本時間です。':'What you write appears right away on other devices and for other staff. Times are shown in Japan time.',
 '書いた人の記録がありません':'No author recorded',
@@ -11224,6 +11238,8 @@ var EN_DICT={
 '保存しました':'Saved',
 /* 園名は運営が決める（2026-09-21 安田さんのご指示） */
 '園名は運営が設定します。変えるときは運営へご連絡ください。':'Your school name is set by head office. Contact them to change it.',
+/* 帯の中の「ほか◯件」。数字は langLookup が {0} に置き換えて引いてくれる */
+'ほか{0}件':'and {0} more',
 /* ホームの広告枠（2026-09-21 安田さんのご指示） */
 'ホームの広告枠':'Home ad panel','広告を足す':'Add an ad','この広告を消す':'Delete this ad',
 '見出し':'Headline','リンク先（https から）':'Link (must start with https)',
@@ -11812,7 +11828,6 @@ var EN_DICT={
 '個別の配慮':'Individual support',
 'いまの内容':'Current content',
 '入れる内容':'Content to add',
-'ここに入れたものは、活動を考えるときに毎回そのまま使われます。園にある道具を入れておくと、その中でできる活動だけが出ます。空のままでも活動は作れます（その項目を聞かないだけです）。クラス1つぶんではなく、園ぜんたいの設定です。':'Everything here is used each time AI plans an activity. List the equipment your school has, and only activities you can do with it will appear. You can still create activities if this is empty (AI just won’t ask about those items). This applies to the whole school, not just one class.',
 '忘れる':'Forget',
 'これまでに':'So far,',
 '件を採用、':'adopted,',
@@ -12968,7 +12983,6 @@ var EN_DICT={
 'AIがまとめたクラス像':'Class profile by AI',
 '11月の制作を提案して':'Suggest November crafts',
 'やってみた様子を残した':'Recorded how it went',
-'園にある道具を入れておくと、その中でできる活動だけが出ます。':'Enter the tools your school has, and only activities you can do with them will appear.',
 'AIが覚えていること（':'What AI remembers (',
 'スクールとクラスの設定':'School & Class Settings',
 'まだ承認されていません':'Not approved yet',
@@ -13308,6 +13322,9 @@ var EN_DICT={
 '新しい活動に安心して参加する':'Joins new activities with confidence',
 '入れたあと、画面の下に出る帯から取り消せます（帯を閉じるまで残ります）。':'After adding, you can undo from the bar at the bottom of the screen (it stays until you close it).',
 '日案に入れたものを取り消した':'Removed items added to the daily plan',
+'AIが活動を考えるときに使う、園の環境です。クラスごとではなく、園全体の設定です。':'The school-wide setting AI uses when it plans activities. It applies to the whole school, not one class.',
+'・場所と道具を入れると、それでできる活動だけを出します。':'\u30fb Enter your spaces and materials, and AI suggests only activities you can actually run.',
+'・空のままでも活動は作れます。':'\u30fb You can leave this empty and still create activities.',
 '園の環境（AIが参照します）':'School environment (used by AI)',
 '年度が変わると、前の年度のぶんは自動では使いません（子どもが入れ替わるため）。':'When the school year changes, last year’s records aren’t used automatically (the children change).',
 '売上チャート（直近12か月）':'Revenue (last 12 months)',
@@ -13950,7 +13967,6 @@ var EN_DICT={
 '自分で身の回りのことをしようとするようになった':'Started trying to do everyday tasks on their own',
 '想像したことを遊びや制作で表現するようになった':'Started expressing their imagination through play and crafts',
 'この案には、日案に入れられる項目がありません。':'This plan has nothing that can be added to the daily plan.',
-'ここに入れたものは、活動を考えるときに毎回そのまま使われます。園にある道具を入れておくと、その中でできる活動だけが出ます。空のままでも活動は作れます（その項目を聞かないだけです）。クラス{0}つぶんではなく、園ぜんたいの設定です。':'What you enter here is used every time activities are planned. If you list the materials the school has, only activities possible with them are suggested. You can still create activities if this is empty (those questions are just skipped). This setting is for the whole school, not just {0} class.',
 'クラス像を承認しました。計画づくりに使われます':'Class profile approved. It will be used for planning',
 'いまは{0}つのイベントに{1}枚まであずけられます（写真の置き場を移すまでの、試しの上限です）。':'Currently, {0} event can hold up to {1} photos (a trial limit until photo storage is moved).',
 '毎日 {0}:{1} ・ 保護者へ本日の様子を配信':'Daily at {0}:{1} · Send today’s updates to parents',
@@ -14306,7 +14322,6 @@ var EN_DICT={
 '年間発達マップがまだありません。月案のもとになるものです。':'No annual development map yet. It’s the basis for monthly plans.',
 '・AI保育計画 → AI記録管理 にも下書きとして残ります':'・Also saved as a draft in AI Care Plan → AI Record Management',
 'ここに残したことが、次に活動を考えるときの材料になります。':'What you note here helps plan the next activities.',
-'空のままでも活動は作れます（その項目を聞かないだけです）。':'You can create activities with this blank (that item just won’t be asked).',
 '先生が入れたものは書き換えません（違うときは印が出ます）。':'Teacher entries are never overwritten (a mark shows if they differ).',
 '保護者アカウントの発行・停止は、園の管理者だけが行えます。':'Only school administrators can create or suspend parent accounts.',
 'お渡しするのは、園コード・メールアドレス・パスワードの3つ':'Give them 3 things: school code, email address and password',
@@ -14440,7 +14455,6 @@ var EN_DICT={
 '（この中から選んでください。無いものは代用品を書いてください）':'(Choose from these. Suggest substitutes for anything not listed)',
 '答えられないものは空のままで大丈夫です。空の項目は聞きません。':'It’s fine to leave anything you can’t answer blank. Blank items won’t be asked.',
 '「入れ替える」を選んでいます。先生が書いた文も差し替わります。':'“Replace” is selected. Text written by teachers will also be replaced.',
-'ここに入れたものは、活動を考えるときに毎回そのまま使われます。':'What you enter here is used as is every time activities are planned.',
 '自分で選び、試す経験を大切にする':'Value experiences of choosing and trying things on their own',
 'ここに出ているのは、EduGrow に記録されている事実です。':'What’s shown here are facts recorded in EduGrow.',
 'この下書きは、園の記録から作りました（AIは使っていません）。':'This draft was created from school records (no AI used).',
@@ -15007,7 +15021,7 @@ var EN_DICT={
 'きょうの時点で、まだ入っていない記録・書類を組ごとに出しています。押すとその画面がひらきます。':'Records and documents not yet entered today, by group. Tap one to open its screen.',
 'このブラウザは体温計との接続に対応していません。Chrome か Edge をお使いください。':'This browser can’t connect to the thermometer. Please use Chrome or Edge.',
 '保護者に4けたの番号をお伝えください。番号そのものは端末に残りません（忘れたら決め直します）。':'Give parents the 4-digit number. The number itself isn’t stored on the device (set a new one if forgotten).',
-'ホームの「今月の行事」に入れた行事が、年度の順に並びます。行事を足す・消すのはホームからです。':'Events added under “Monthly Event” on Home are listed in school-year order. Add or remove events from Home.',
+'月間スケジュールのカレンダーに入れた行事が、年度の順に並びます。行事を足す・消すのは月間スケジュールからです。':'Events entered on the Monthly Schedule calendar are listed in school-year order. Add or remove them on the Monthly Schedule.',
 'よく聞かれている画面ほど、分かりにくい画面です。手引きや画面そのものを直す手がかりになります。':'The screens people ask about most are the hardest to understand. Use this to improve the guides or the screens themselves.',
 '消火器の使い方や避難の手順を月に1回たしかめ、実施した日・場所・かかった時間・様子を残します。':'Once a month, review how to use fire extinguishers and the evacuation steps, and record the date, place, time taken, and how it went.',
 '教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法':'Guidelines for Accident Prevention and Response at Education and Childcare Facilities / Child and Child-Rearing Support Act',
@@ -16278,7 +16292,10 @@ function renderAnnual(){
   s.innerHTML='<div class="card">'+recHead('年間スケジュール（'+fy+'年度）',
       '<button class="btn btn-sm" id="anPrint">'+ic('printer')+'紙に出す（PDF）</button>')
     +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
-    +'ホームの「今月の行事」に入れた行事が、年度の順に並びます。行事を足す・消すのはホームからです。</div>'
+    /* ★行事はホームから足す形だったので「足す・消すのはホームからです」と書いていたが、
+       いまは月間スケジュールのカレンダーで足し引きする（2026-09-21 安田さんのご指示）。
+       ホームは見るだけになったので、案内も直す。 */
+    +'月間スケジュールのカレンダーに入れた行事が、年度の順に並びます。行事を足す・消すのは月間スケジュールからです。</div>'
     +annualHTML(fy,false)+'</div>';
   $('#anPrint').onclick=function(){ printDoc('年間スケジュール（'+fy+'年度）',annualHTML(fy,true)); };
 }
@@ -16839,8 +16856,9 @@ function homeSideHTML(en){
       +(rows.length>CAP?'<div class="hnm">ほか'+(rows.length-CAP)+'件</div>':'')+'</div>';
   }
   var evR=ev.map(function(x){
-    return '<div class="hnr'+(x.date===t?' now':'')+'"><b>'+esc(mdJ(x.date.slice(5)))+'</b><span>'+esc(x.name)+'</span>'
-      +'<button class="hbd" data-hevdel="'+esc(x.id)+'" title="消す">×</button></div>';
+    /* ★行事を消す「×」をここにも出していたが、行事は月間スケジュールで足し引きするもの。
+       ホームは見るだけでよい（2026-09-21 安田さんのご指示）。消すのは月間スケジュールで行う。 */
+    return '<div class="hnr'+(x.date===t?' now':'')+'"><b>'+esc(mdJ(x.date.slice(5)))+'</b><span>'+esc(x.name)+'</span></div>';
   });
   var bdR=bd.map(function(x){
     return '<div class="hnr'+(x.md===md?' now':'')+'"><b>'+esc(mdJ(x.md))+'</b><span>'+esc(x.name)+(x.md===md?'　🎂':'')+'</span></div>';
@@ -30200,7 +30218,9 @@ function renderTasks(){
     +'<h3 style="margin:0;">'+ic('cal')+mo+'月のカレンダー</h3><span style="flex:1;"></span>'
     +'<button class="btn btn-sm btn-primary" id="tkEvAdd">'+ic('plus')+'行事を足す</button></div>'
     +'<div class="muted" style="margin:-2px 0 10px;font-size:12.5px;">'
-    +'行事は、ホームの「今月の行事」と同じものです。どちらで足しても両方に出ます。</div>'
+    /* ★「どちらで足しても両方に出ます」と書いていたが、ホームからは足せなくなった
+       （2026-09-21 安田さんのご指示で、ホームの＋を外した）。足すのはここだけ。 */
+    +'ここで足した行事は、ホームの「今月の行事」と年間スケジュールにも出ます。</div>'
     +'<div class="scrollx"><div class="tkcal">'+cells+'</div></div>'
     +'<div class="tklegend"><span class="tkchip tkev" style="display:inline-block;width:auto;">行事</span>'
     +'<span class="tkchip ok" style="display:inline-block;width:auto;">✓ 終わった</span>'
