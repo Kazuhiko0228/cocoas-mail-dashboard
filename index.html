@@ -3653,9 +3653,61 @@ var DOC_FILE_MAX=20*1024*1024;
    つないでいないとき・サーバが断ったときは、これまでどおり端末の中に置く
    （置き場が無いよりまし）。どちらに入ったかは記録に残し、画面にも出す。 */
 var FILE_KIND_KID='園児の書類',FILE_KIND_DOC='書類格納',
-    FILE_KIND_STAFF='職員の書類',FILE_KIND_PHOTO='顔写真',FILE_KIND_SCAN='紙の記録';
-/* 見出し（ヘッダ）に日本語はそのまま置けないので、URLの形にしてから送る。 */
-function apiFileUpload(blob,meta,cb){
+    FILE_KIND_STAFF='職員の書類',FILE_KIND_PHOTO='顔写真',FILE_KIND_SCAN='紙の記録',
+    /* ★スクールガイドだけ、預ける種類が画面に無かった（2026-09-19 のご判断で足した）。
+       サーバ側の受け口（/files の スクールガイド）は先にできていたのに、
+       画面が送らないので、保護者の未来WAのスクールガイドは永久に空だった。 */
+    FILE_KIND_GUIDE='スクールガイド';
+/* 受け付ける形の名前を、先生に読める言い方にする。
+   サーバは accept に image/jpeg のような形の名前を並べて返すが、
+   そのまま出しても どれを選べばよいか分からない。 */
+var FILE_MIME_LABEL={'image/jpeg':'JPEG','image/png':'PNG','image/webp':'WebP','image/heic':'HEIC',
+  'image/heif':'HEIF','image/gif':'GIF','image/bmp':'BMP','image/tiff':'TIFF','application/pdf':'PDF',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'Excel','application/vnd.ms-excel':'Excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'Word','application/msword':'Word',
+  'text/csv':'CSV'};
+function fileAcceptText(accept){
+  var seen={},out=[];
+  (accept||[]).forEach(function(m){
+    var n=FILE_MIME_LABEL[String(m).toLowerCase()];
+    if(!n||seen[n])return;
+    seen[n]=1;out.push(n);
+  });
+  return out.join('・');
+}
+/* 預けられなかった理由を、押した先生にそのまま見せてよい1文にする。
+   ★サーバの返す error は、もう形の名前が入っていない短い1文（2026-09-20 に直っている）。
+     ここで作り直さず、そのまま出す。足すのは「次にどうすればよいか」だけ。
+   ★415 は「形が合わない」だけではない。名乗った形と中身が違う・中身がHTMLやSVG・
+     端末が形を言えず中身からも決まらない、でも同じ415が返る。
+     「拡張子を変えてください」と書くと、直しようのない案内になる。 */
+function fileErr(status,j){
+  var msg=(j&&j.error)?String(j.error):'';
+  var code=(j&&j.code)?String(j.code):'';
+  if(status===415){
+    if(!msg)msg='このファイルは預かれません。';
+    var ac=fileAcceptText(j&&j.accept);
+    if(ac)msg+='（受け付ける形：'+ac+'）';
+    msg+=' 別のファイルでお試しください。写真は撮り直し、書類はPDFに書き出してからだと入ることがあります。';
+  }else if(status===413&&code==='quota'){
+    if(!msg)msg='園の預かり容量がいっぱいです。';
+    msg+=' 設定の「書類・写真の預け先」で、いらないものを消してからお試しください。';
+  }else if(status===413){
+    if(!msg)msg='ファイルが大きすぎます（1つ 20MB まで）。';
+  }else if(status===403){
+    if(!msg)msg='この種類の書類を預ける権限がありません。園長・管理者にお願いしてください。';
+  }else if(!msg){
+    msg='預けられませんでした（'+status+'）';
+  }
+  var e=new Error(msg);
+  e.status=status;e.code=code;e.accept=(j&&j.accept)||null;e.quota=(j&&j.quota)||null;
+  return e;
+}
+/* 見出し（ヘッダ）に日本語はそのまま置けないので、URLの形にしてから送る。
+   ★503 busy は「同じ園で同時に預かり中」。1〜2秒おいて1回だけ送り直す
+     （何度も送り直すと、順番待ちの列が伸びるだけで誰も入れなくなる）。 */
+function apiFileUpload(blob,meta,cb){apiFileUploadTry(blob,meta,cb,0);}
+function apiFileUploadTry(blob,meta,cb,tried){
   var h={'Content-Type':(blob.type||'application/octet-stream'),
          'x-file-kind':encodeURIComponent(meta.kind||FILE_KIND_DOC),
          'x-file-name':encodeURIComponent(meta.name||'file'),
@@ -3663,8 +3715,27 @@ function apiFileUpload(blob,meta,cb){
   if(API.token())h.Authorization='Bearer '+API.token();
   fetch(API.base()+'/files',{method:'POST',headers:h,body:blob})
     .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
-      if(!r.ok)throw new Error(j.error||('預けられませんでした（'+r.status+'）'));
+      if(r.status===503&&(j.code==='busy')&&!tried){
+        setTimeout(function(){apiFileUploadTry(blob,meta,cb,1);},1500);return;
+      }
+      if(!r.ok)throw fileErr(r.status,j);
+      /* ★deduped:true は失敗ではない。同じ置き場に同じ中身がすでにあったということ。
+         返ってきた key を記録に書く（name・size は もとからある行のもので、送った名前と違うことがある）。 */
+      if(j&&j.quota)fileQuotaNote(j.quota);
       cb(null,j);});})
+    .catch(function(e){cb(e);});
+}
+/* 園の預かり容量。設定の画面に「あと◯MB」を出すために覚えておく。 */
+var FILE_QUOTA=null;
+function fileQuotaNote(q){if(q&&typeof q==='object')FILE_QUOTA=q;}
+function apiFileQuota(cb){
+  if(!API.online()){cb(new Error('いまサーバにつないでいません'));return;}
+  var h={};
+  if(API.token())h.Authorization='Bearer '+API.token();
+  fetch(API.base()+'/files/quota',{headers:h})
+    .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+      if(!r.ok)throw new Error(j.error||'容量を確かめられませんでした');
+      fileQuotaNote(j);cb(null,j);});})
     .catch(function(e){cb(e);});
 }
 function apiFileGet(key,cb){
@@ -3690,23 +3761,37 @@ function apiFileDel(key,cb){
    サーバへ移したものは「srv:鍵」の短い文字列だけを持つ。
    画面では、どちらの形でも同じように出せるようにする。 */
 var FILE_SRV='srv:';
+/* ★園の記録へまだ送れていないものの目印（2026-09-19 のご判断で足した）。
+   つないでいないときに登録した写真・書類は、中身をこの端末の別の入れ物に置き、
+   帳簿には この「loc:鍵」を置く。srv: と分けているのは、
+   ・画面に「まだ園の記録に届いていません」と出すため
+   ・つながったときに、どれを送り直せばよいかが分かるため
+   ほかの端末には loc: の目印が渡る。黙って空欄になるより、
+   「ほかの端末にあります」と出るほうが園は困らない。 */
+var FILE_LOC='loc:';
 function isSrvRef(v){return String(v||'').indexOf(FILE_SRV)===0;}
 function srvKeyOf(v){return String(v||'').slice(FILE_SRV.length);}
+function isLocRef(v){return String(v||'').indexOf(FILE_LOC)===0;}
+function locKeyOf(v){return String(v||'').slice(FILE_LOC.length);}
+function isFileRef(v){return isSrvRef(v)||isLocRef(v);}
+function fileRefKey(v){return isSrvRef(v)?srvKeyOf(v):(isLocRef(v)?locKeyOf(v):'');}
 /* 一度取り出したものは覚えておく。画面を描き直すたびに取りに行かないため。 */
 var FIMG_CACHE={};
 /* <img data-fsrc="…"> を、あとから埋める。
-   データURIならそのまま、サーバの鍵なら取りに行ってから入れる。 */
+   データURIならそのまま、目印なら取りに行ってから入れる。 */
 function wireFileImgs(root){
   var box=root||document;
   box.querySelectorAll('img[data-fsrc]').forEach(function(im){
     var v=im.getAttribute('data-fsrc');
     im.removeAttribute('data-fsrc');
     if(!v)return;
-    if(!isSrvRef(v)){im.src=v;return;}
-    var k=srvKeyOf(v);
+    if(!isFileRef(v)){im.src=v;return;}
+    var k=fileRefKey(v),loc=isLocRef(v);
     if(FIMG_CACHE[k]){im.src=FIMG_CACHE[k];return;}
-    docFileFetch(k,function(err,blob){
-      if(err||!blob){im.alt='この写真は見つかりませんでした';return;}
+    /* まだ園の記録に届いていないものは、この端末の中しか見ない。
+       サーバに聞いても無いので、聞くだけ待たせることになる。 */
+    (loc?docFileGet:docFileFetch)(k,function(err,blob){
+      if(err||!blob){im.alt=loc?'この写真は、ほかの端末にあります':'この写真は見つかりませんでした';return;}
       var u=URL.createObjectURL(blob);
       FIMG_CACHE[k]=u;im.src=u;
     });
@@ -3729,7 +3814,10 @@ function docFileStore(blob,meta,cb){
     apiFileUpload(blob,meta||{},function(err,r){
       if(!err&&r&&r.key){cb(null,r.key,'server');return;}
       var k1=docFileKey();
-      docFilePut(k1,blob,function(e2){cb(e2,k1,'local');});
+      /* ★預けられなかった理由を落としていたので、画面は「この端末に入れました」としか出せず、
+         受け付けられない形なのか、つながらなかっただけなのかが園に分からなかった。
+         中身は端末に残したうえで、理由を返す。 */
+      docFilePut(k1,blob,function(e2){cb(e2||err,k1,'local');});
     });
     return;
   }
@@ -3737,13 +3825,51 @@ function docFileStore(blob,meta,cb){
   docFilePut(k,blob,function(e){cb(e,k,'local');});
 }
 /* 取り出す。端末の中を先に見て、無ければサーバに聞く。
-   この順にすると、前に端末へ入れたものも、サーバへ移したものも、同じように開ける。 */
+   この順にすると、前に端末へ入れたものも、サーバへ移したものも、同じように開ける。
+   ★サーバから取ったものは、この端末の別の入れ物に控えを置く（2026-09-19）。
+     置かないと、中身を園の記録へ移したあとにつながらなくなった日に、
+     園児の一覧の顔写真が1枚も出なくなる。2回目からは端末から出るので、通信も減る。
+     写真を差し替えると鍵が変わるので、古い控えが出てしまうことはない。 */
 function docFileFetch(key,cb){
   docFileGet(key,function(err,blob){
     if(!err&&blob){cb(null,blob);return;}
-    if(typeof API!=='undefined'&&API.online()){apiFileGet(key,cb);return;}
+    if(typeof API!=='undefined'&&API.online()){
+      apiFileGet(key,function(e2,b2){
+        if(!e2&&b2)docFilePut(key,b2,function(){});
+        cb(e2,b2);
+      });
+      return;
+    }
     cb(err||new Error('この端末に書類が見つかりませんでした'));
   });
+}
+/* ══ 中身は園の記録へ、端末には目印だけ ══════════════
+   顔写真・職員の資格証・スクールガイドも、園児のサイン済み書類と同じ形にそろえる
+   （2026-09-19 安田さんのご判断「園のデータは全部クラウドに残す。そうでないと復元できない」）。
+   cb(err, ref, where)
+     ref   … 帳簿に置く目印。'srv:鍵'（園の記録にある）か 'loc:鍵'（まだこの端末だけ）
+     where … 'server' か 'local'
+     err   … 預けられなかった理由。**ref は返る**（端末には残してある）。
+             ★預けられていない中身を、端末から消してはいけない。消すと取り返せない。 */
+function fileKeep(blob,meta,cb){
+  function local(reason){
+    var k=docFileKey();
+    docFilePut(k,blob,function(e){
+      if(e){cb(e,'','');return;}
+      cb(reason||null,FILE_LOC+k,'local');
+    });
+  }
+  if(typeof API==='undefined'||!API.online()){local(null);return;}
+  apiFileUpload(blob,meta||{},function(err,r){
+    if(!err&&r&&r.key){cb(null,FILE_SRV+r.key,'server');return;}
+    local(err||new Error('預けられませんでした'));
+  });
+}
+/* データURI（文字列）のまま持っているものを、園の記録へ預ける。 */
+function fileKeepUri(uri,meta,cb){
+  var b=dataUriToBlob(uri);
+  if(!b){cb(new Error('中身を読み取れませんでした'),'','');return;}
+  fileKeep(b,meta,cb);
 }
 /* 消す。端末とサーバの両方から消す。
    片方だけ消すと、画面から見えないのに中身が残り続ける。 */
@@ -4034,7 +4160,7 @@ function auditDataInfo(key,fy){
         /* ★URLかどうかを見ずに「格納済み」と言っていた。
            「あとで入れます」とメモを書いただけで格納済みに変わっていた。 */
         var d=stGet('docs',{})[slot];
-        if(d&&d.file&&d.file.key)return '格納済み（この端末に取り込み）';
+        if(d&&d.file&&d.file.key)return '格納済み';
         return docStateLabel(d&&d.url);
       }
       return '';
@@ -4430,10 +4556,50 @@ function dayOptsOf(c){
 function daysStrOf(o){return WEEK5.filter(function(d){return o[d]&&o[d].go;}).join('・');}
 function dayCount(o,key){return WEEK5.filter(function(d){return o[d]&&o[d].go&&(key?o[d][key]:true);}).length;}
 function initials(n){var p=n.replace('　',' ').split(' ');return (p[0]||'')[0]+((p[1]||'')[0]||'');}
-/* ---- 顔写真（この端末内にのみ保存。公開ソースには含めない） ---- */
+/* ---- 顔写真（中身は園の記録へ預け、ここには目印だけを置く） ---- */
+/* 「どこに保存されるか」の案内。つないでいるかどうかで出し分ける。
+   ★つないでいるのに「この端末にのみ保存されます」「外部には送信されません」と
+     画面に書いていた。書いてあるとおりにサーバへ送るのをやめていたが、
+     そのせいで端末が壊れると写真が戻せなくなっていた。
+     2026-09-19 安田さんのご判断で、文言のほうを直して園の記録に載せる。 */
+function fileHereNote(){
+  return (typeof API!=='undefined'&&API.online())
+    ?'園の記録として保存され、ほかの端末からも開けます'
+    :'この端末の中だけに残り、つながったときに自動で園の記録へお預けします';
+}
 function photoStore(){return stGet('contactPhotos',{});}
 function photoOf(id){return photoStore()[id]||'';}
 function photoSet(id,dataUri){var p=photoStore();if(dataUri)p[id]=dataUri;else delete p[id];stSet('contactPhotos',p);}
+/* 園の預かり容量の残り。上限（既定2GB）に近づいたら分かるように出す。
+   ★上限が無いと、1つの園が入れすぎたときに置き場が埋まり、全部の園が止まる。
+     サーバが預けた返事と一覧に quota を付けて返すので、それを覚えて出す。 */
+function fileQuotaMini(){
+  var q=FILE_QUOTA;
+  if(!q||typeof q.remain!=='number')return '';
+  return '<div class="mini"'+(q.near?' style="color:#A32D2D;font-weight:700;"':'')+'>園の預かり残り '
+    +docSizeText(q.remain)+' ／ '+docSizeText(q.limit)+'</div>';
+}
+function fileQuotaLine(){
+  var q=FILE_QUOTA;
+  if(!q||typeof q.remain!=='number')return '園の預かり容量は、サーバにつなぐと出ます。';
+  return (q.near?'<b style="color:#A32D2D;">':'<b>')
+    +'園の預かり残り '+docSizeText(q.remain)+'</b>'
+    +'（'+docSizeText(q.used)+' ／ '+docSizeText(q.limit)+' を使用'
+    +(q.count!=null?('・'+q.count+'件'):'')+'）'
+    +(q.near?'　いっぱいに近づいています。いらないものを消してください。':'');
+}
+/* 1件ごとの札。園児のサイン済み書類が、すでにこの出し分けをしている。
+   黙って空欄にせず、まだ届いていないことを出す（ほかの端末から見たときに理由が分かる）。 */
+function fileMarkLabel(ref){
+  if(isSrvRef(ref))return '園の記録に保管ずみ';
+  if(isLocRef(ref))return 'まだ園の記録に届いていません（この端末にだけあります）';
+  return 'この端末にだけあります（つながったときに自動でお預けします）';
+}
+/* 前に使っていた1枚を片づける。目印のときだけ（古い形のデータURIは、消すものが無い）。 */
+function photoFileDrop(ref){
+  if(!isFileRef(ref))return;
+  try{docFileRemove(fileRefKey(ref),function(){});}catch(e){}
+}
 function avatarHTML(c,size){
   var s=size||34,ph=photoOf(c.id);
   /* 写真は「データURI」か「srv:鍵」のどちらか。src には入れず data-fsrc に置き、
@@ -9753,6 +9919,41 @@ function renderMenu(){
    先生が毎日つかう画面から順に埋めています。
    園長・管理者だけが使う画面（監査・請求・営業）は、まだ入れていません。 */
 var EN_DICT={
+/* ★4つの入れ物（顔写真・職員の資格証・園児のサイン済み書類・スクールガイド）を
+   園の記録に載せたときの対訳（2026-09-19 安田さんのご判断）。
+   日本語だけ直すと、英語表示にしている園に古い約束が残る。 */
+'園の記録として保存され、ほかの端末からも開けます':'Saved as school records and can be opened from other devices',
+'この端末の中だけに残り、つながったときに自動で園の記録へお預けします':'Stays on this device for now and is uploaded to the school records automatically once you are connected',
+'顔写真（園の記録として保存され、ほかの端末からも開けます）':'Photo (saved as school records; can be opened from other devices)',
+'顔写真（この端末の中だけに残り、つながったときに自動で園の記録へお預けします）':'Photo (stays on this device for now; uploaded to the school records automatically once connected)',
+'画像は園の記録として保存され、ほかの端末からも開けます（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。見られるのは園長・管理者だけです。':'Images are saved as school records and can be opened from other devices (resized automatically). Register copies of qualification certificates and ID to show at inspections. Only the Director and Administrators can see them.',
+'画像はこの端末の中だけに残り、つながったときに自動で園の記録へお預けします（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。見られるのは園長・管理者だけです。':'Images stay on this device for now and are uploaded to the school records automatically once connected (resized automatically). Register copies of qualification certificates and ID to show at inspections. Only the Director and Administrators can see them.',
+'監査で確認される職員名簿の項目に対応しています。氏名・住所・連絡先は園の記録として保存され、サーバに接続しているときは他の端末とも共有されます。資格証・身分証の画像も、園の記録として保存されます。':'Covers the staff roster items checked at inspections. Names, addresses and contacts are saved as school records and shared with other devices while connected. Images of certificates and ID are saved as school records too.',
+'氏名・住所・健康などの生徒情報は園の記録として保存され、園のアカウントでログインしたほかの端末からも開けます。':'Student information such as name, address and health is saved as school records and can be opened from other devices signed in with the school account.',
+'園の記録に預けている量':'Stored in the school records',
+'ファイルは園の記録として保存され、どの端末からでも開けます。登録すると、保護者は未来WAのマイページからいつでも見られます。（PDF・PNG・JPEG・WebP、{0}ファイル{1} MBまで）':'Files are saved as school records and can be opened from any device. Once registered, guardians can view them any time from their MiraiWA page. (PDF, PNG, JPEG, WebP; up to {1} MB per file)',
+'いまサーバにつないでいないため、入れた原本はこの端末の中だけに残ります。つながったときに自動で園の記録へお預けします。（PDF・PNG・JPEG・WebP、{0}ファイル{1} MBまで）':'You are not connected to the server, so originals added here stay on this device and are uploaded to the school records automatically once connected. (PDF, PNG, JPEG, WebP; up to {1} MB per file)',
+'園の記録に保管ずみ':'Kept in the school records',
+'まだ園の記録に届いていません（この端末にだけあります）':'Not in the school records yet (on this device only)',
+'この端末にだけあります（つながったときに自動でお預けします）':'On this device only (uploaded automatically once connected)',
+'取り込んだ中身は園の記録として保管され、ほかの端末からも開けます。':'Imported files are kept as school records and can be opened from other devices.',
+'いまサーバにつないでいないため、取り込んだ中身はこの端末の中だけに残ります。つながったときに自動で園の記録へお預けします。':'You are not connected to the server, so imported files stay on this device and are uploaded to the school records automatically once connected.',
+'ファイルは園の記録として保存され、どの端末からでも開けます。登録すると、保護者は未来WAのマイページからいつでも見られます。':'Files are saved as school records and can be opened from any device. Once registered, guardians can view them any time from their MiraiWA page.',
+'PDF・PNG・JPEG・WebP の{0}つだけです。{1}ファイル{2}MBまでです。':'PDF, PNG, JPEG and WebP only. Up to {2}MB per file.',
+'上の「原本を登録ずみ」の数と、園の記録に預けている量が出ます。園ごとの預かり容量に近づくと、設定に残りが出ます。':'Shows the “Original on file” count above and how much is stored in the school records. As the school storage limit gets close, the remaining space appears in Settings.',
+'園の記録に預ける前のものは、登録した端末にだけあります。つながったときに自動でお預けするので、しばらくするとほかの端末でも出ます。':'Anything not yet uploaded stays on the device it was added from. It is uploaded automatically once connected, so it appears on other devices after a while.',
+'できません。PDF・PNG・JPEG・WebP のみです。PDFに書き出してから登録してください。':'No. Only PDF, PNG, JPEG and WebP. Please export to PDF first.',
+'園の預かり容量は、サーバにつなぐと出ます。':'School storage usage appears once you connect to the server.',
+'園の預かり残り {0} MB（{1} KB ／ {2} MB を使用・{3}件）':'{0} MB left of school storage ({1} KB of {2} MB used, {3} files)',
+'園の預かり残り {0} MB（{1} MB ／ {2} MB を使用・{3}件）':'{0} MB left of school storage ({1} MB of {2} MB used, {3} files)',
+'園の預かり残り {0} MB ／ {1} MB':'{0} MB left of {1} MB',
+'いっぱいに近づいています。いらないものを消してください。':'Storage is nearly full. Please delete what you no longer need.',
+'園でしていただくことはありません。終わると、この案内は消えます。':'Nothing to do at the school. This notice disappears when it finishes.',
+'この端末にだけあります。この端末のブラウザの記録を消すと失われます。':'These are on this device only. Clearing this browser\u2019s data will lose them.',
+'もう一度ためす':'Try again',
+'園の記録へお預け中：あと {0}件。':'Uploading to the school records: {0} left.',
+'{0}件を園の記録へお預けしました。':'{0} items uploaded to the school records.',
+'{0}件は預けられませんでした。':'{0} items could not be uploaded.',
 /* ── 月間カリキュラム 作り直し（2026-09-21）───────────── */
 '午前':'Morning','午後':'Afternoon',
 '◀ 前の週':'◀ Previous week','次の週 ▶':'Next week ▶','この週を印刷':'Print this week',
@@ -10706,7 +10907,6 @@ var EN_DICT={
 '引き継ぎ・特記事項':'Handover & Special Notes',
 'この表の権限を保存':'Save Permissions for This Table',
 '熱性けいれんの既往':'History of febrile seizures',
-'この端末での保存量':'Storage used on this device',
 'いま開いているのは':'Currently viewing:',
 '園と避難場所の地図':'Map of School & Evacuation Sites',
 '＋ 資料を追加する':'＋ Add Document',
@@ -11526,7 +11726,6 @@ var EN_DICT={
 '午睡の国の目安は 0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回。5分にすると午睡チェック表の列が増えるので、紙に出すときは横向きでお使いください。':'The national nap guideline is every 5 minutes for 0-year-olds / 10 minutes for 1–2-year-olds / 15–30 minutes for age 3 and up. Setting 5 minutes adds columns to the Nap Check table, so print in landscape.',
 '押すと、いま書いている欄のカーソルの位置に入ります。送るときに、その方の情報や設定の内容へ入れ替わります。「設定」と付いたものは、設定 → 学校情報 などから入ります。':'Press to insert at the cursor position in the field you are editing. When sent, it is replaced with that person\'s information or settings. Items marked "Settings" are filled from Settings → School Information, etc.',
 'この記録は文字の量が多く、写真からの読み取りがうまくいかないことが多いため、紙の取り込みには対応していません。紙に書いたあとは、お手数ですがこの画面から入力してください。':'This record contains a lot of text and photo scanning often fails, so paper import is not supported. After writing on paper, please enter it from this screen.',
-'ファイルはこの端末のブラウザにだけ保存され、外部には送信されません。園の共有パソコンなど、いつも同じ端末でご登録ください。（PDF・PNG・JPEG、1ファイル4MBまで）':'Files are stored only in this device\'s browser and are not sent externally. Please always register from the same device, such as the school\'s shared computer. (PDF, PNG, JPEG; up to 4MB per file)',
 '記入用紙は1ヶ月分の月間表です。1ヶ月分の記録が終わったらまとめて取り込みます。上の日付で選んでいる月の分として保管されますので、前の月の紙を取り込むときは、日付をその月に変えてください。':'The form is a one-month table. Import it all at once after the month\'s records are complete. It is stored as the month selected in the date above, so when importing a previous month\'s sheet, change the date to that month.',
 'で働く職員全員が、火災・災害・事故・事件といった危機に、もれなく素早く備え、対応できるようにするために必要な事柄を定めたものである。園児・保護者・職員の命と健康を守ることを、その目的とする。':'— this sets out what all staff working at the school need in order to prepare for and respond promptly and thoroughly to crises such as fires, disasters, accidents, and incidents. Its purpose is to protect the lives and health of children, parents, and staff.',
 '様式は市区町村や消防署でほぼ決まっています。所管の市区町村の保育担当課、または管轄の消防署のホームページで配布されている様式をお使いください。書き上げたものは「監査書類の格納」に置き場所を登録します。':'The format is largely set by the municipality or fire department. Use the form provided on the website of your municipality\'s childcare division or your local fire department. Once completed, register its location under inspection documents in "Document Storage".',
@@ -13842,8 +14041,6 @@ var EN_DICT={
 '第4章 散歩と園外での活動':'Chapter 4: Walks and activities outside school',
 '第7章 家庭への説明と協力':'Chapter 7: Explaining to and working with families',
 '避難訓練（地震）・防犯訓練':'Evacuation drill (earthquake) & security drill',
-'置き場所はこの端末の中だけです。':'Files are stored on this device only.',
-'書類（この端末に取り込み）':'Document (imported to this device)',
 'この端末に取り込んだ書類（':'The document imported to this device (',
 'ログインIDにメールアドレスは使えません。':'You can’t use an email address as your login ID.',
 'メールアドレスは使えません':'Email addresses can’t be used',
@@ -13981,7 +14178,6 @@ var EN_DICT={
 '書類の読み書きに失敗しました。':'Couldn’t read or save the document.',
 'この書類は見つかりませんでした':'Document not found',
 'この写真は見つかりませんでした':'Photo not found',
-'格納済み（この端末に取り込み）':'Stored (imported to this device)',
 'ファイルを読み込めませんでした':'Couldn’t load the file',
 '文の署名に入る、園の代表アドレスです':'The school address that appears in the signature',
 '件。安全上の配慮に反映します。':'. Reflected in safety precautions.',
@@ -14202,7 +14398,6 @@ var EN_DICT={
 'この児童を外す':'Remove this child',
 'ご契約のプランには含まれていません':'Not included in your plan',
 'いつも同じ端末で登録してください。':'Always register from the same device.',
-'画像はこの端末のブラウザにだけ保存され、外部には送信されません（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。いつも同じ端末で登録してください。ほかの端末では出ません。':'Images are saved only in this device’s browser and aren’t sent anywhere (resized automatically). Register copies of qualification certificates and ID to show at inspections. Always use the same device. They won’t appear on other devices.',
 'に確定ずみの日があると止まります）':'has a finalized day)',
 '寝る向きを矢印で記録します：仰向け':'Record sleep position with arrows: on back',
 '名は、いま出していないクラスです）':'in classes not shown now)',
@@ -14284,7 +14479,6 @@ var EN_DICT={
 '前年度からの変更点（設備・体制など）':'Changes from last year (facilities, staffing, etc.)',
 '第{0}章 この計画のねらいと適用の範囲':'Chapter {0}: Purpose & scope of this plan',
 'プール用具の安全確認・冷房設備の点検':'Pool equipment safety check & air conditioner inspection',
-'監査書類の格納（この端末に取り込み）':'Inspection document storage (import to this device)',
 'パスワードがログインIDと同じ文字列':'the password is the same as the login ID',
 'お試し用のアカウントは、パスワードがログインIDと同じ文字列です。（例：ID が admin ならパスワードも admin）':'For trial accounts, the password is the same as the login ID. (e.g. if the ID is admin, the password is admin)',
 'この書類を消す':'Delete this document',
@@ -15180,7 +15374,6 @@ var EN_DICT={
 '実際にやったかどうかは、行ごとに選んでください（監査で見られます）。':'Select for each row whether it was actually done (checked at inspection).',
 '基本賃金と諸手当は「書類作成 → 労働条件通知書」から写しています。':'Base pay and allowances are copied from “Document Creation → Notice of working conditions”.',
 'この端末はサーバにつないでいないため、保護者アカウントは扱えません。':'Parent accounts aren’t available because this device isn’t connected to the server.',
-'ファイルはこの端末のブラウザにだけ保存され、外部には送信されません。':'Files are saved only in this device’s browser and are never sent anywhere.',
 '生年月日を読み取れません（2022-06-18 の形でお願いします）':'Can’t read the date of birth (use the format 2022-06-18)',
 '数は目安です。実際の扱いは園の自治体にご確認ください。子ども何人につき保育士1人かは、設定 → 保育士の配置 で直せます。':'Numbers are a guide. Check with your local government for how they apply. You can change the children-per-teacher ratio in Settings → Teacher staffing.',
 '{0}年度に、すべて陰性でそろった月はまだありません（対象 最大{1}名）':'No month in the {0} school year with all-negative results yet (up to {1} staff)',
@@ -15209,7 +15402,6 @@ var EN_DICT={
 '「本日のタスク」のボタンを押すと、その記録の画面へそのまま移れます。':'Press a button in “Today’s tasks” to jump straight to that record’s screen.',
 '一覧の「名前でさがす」に名前を入れると、その名前の子だけが残ります。':'Type a name into “Search by name” to show only children with that name.',
 'クラス像を読んで、違うところを直し、「確認して承認する」を押します。':'Read the class profile, fix anything that’s off, then press “Review & Approve”.',
-'PDF・PNG・JPEG の3つだけです。1ファイル4MBまでです。':'PDF, PNG, and JPEG only. Up to 4MB per file.',
 '1歳以上には背部叩打法と腹部突き上げ法（ハイムリック法）を交互に行う':'For children 1 year and older, alternate back blows and abdominal thrusts (Heimlich maneuver)',
 '吐いたときは顔を横に向け、見える範囲の吐物を取り除いて気道を確保する':'If the child vomits, turn their face to the side, clear any visible vomit, and keep the airway open',
 '相手の特徴・言動・時刻・逃げた方向を記録し、警察や関係機関へ提供する':'Note the person’s appearance, behavior, the time, and which way they fled, and give it to the police and relevant authorities',
@@ -15520,7 +15712,6 @@ var EN_DICT={
 '園でおこなった研修と、外部の研修に参加した記録を残せます。「研修を追加」で行が増えます。':'Record training held at school and external training attended. “Add Training” adds a row.',
 '支払い方法は、園長・マネージャー・管理者だけが見られます。一般の先生の画面には出ません。':'Payment methods are visible only to the Director, Manager and Administrator. They don’t appear for Teacher accounts.',
 '「その他のオプション」に登録した金額の項目は、請求書作成の「その他の項目」から選べます。':'Amount items registered in “Other options” can be selected from “Other items” when creating invoices.',
-'できません。PDF・PNG・JPEG のみです。PDFに書き出してから登録してください。':'No. Only PDF, PNG, and JPEG. Export to PDF first, then register it.',
 '「連絡先を追加」を押して登録します。この画面から追加した方は、リード（営業）になります。':'Press “Add contact” to register. People added from this screen become leads (sales).',
 '「離脱の理由」を見て、理由が残っていない件は、顧客リストの「共有事項」に理由を書きます。':'Check “Reason for Leaving”, and for cases with no reason, write it in “Shared notes” in Leads.',
 '何を・いつ・どれだけ飲んだのかを確かめ、残りや包装・容器は成分を確認するために取っておく':'Find out what, when, and how much was swallowed, and keep any leftovers, packaging, or containers to check the ingredients',
@@ -15537,7 +15728,6 @@ var EN_DICT={
 '内容を確かめて、直すところがあれば書き換えてください。承認すると、計画づくりに使われます。':'Check the content and edit anything that needs fixing. Once approved, it’s used for planning.',
 '直近15件を出しています（残しているのは600件まで。全部は設定の書き出しから取れます）。':'Showing the latest 15 (up to 600 are kept; export everything from Settings).',
 'この用紙には、保護者とお子様のお名前が入ります。園の外に置き忘れないよう、ご注意ください。':'This form includes parent and child names. Be careful not to leave it outside the school.',
-'顔写真（この端末のブラウザにだけ保存され、外部には送信されません。ほかの端末では出ません）':'Photo (saved only in this device’s browser; not sent externally and not shown on other devices)',
 'メールでも送付したいときは、控えを開いて内容をコピーし、園のメールソフトから送ってください。':'To also send it by email, open the copy, copy the content, and send it from the school’s email app.',
 '配置基準はクラス単位ではなく園ぜんぶで見るので、この帯の数はクラスを分けずに数えています。':'Staffing standards apply to the whole school, not each class, so this bar counts across all classes.',
 '出勤の記録の人数です。保育士の資格までは見ていません。数は目安なので自治体にご確認ください':'Headcount from attendance records. Qualifications aren’t checked. Numbers are a guide; confirm with your municipality',
@@ -15587,7 +15777,6 @@ var EN_DICT={
 'それでも取り消しますか。':'Undo anyway?',
 '保護者には認証キーをお配りします。キーを入れた方だけが、そのイベントの写真を見られます。':'Parents receive an access key. Only those who enter the key can see that event’s photos.',
 'これは下書きです。労働基準法 第15条で書面に示すことが決まっている項目を並べています。園の就業規則と合っているかを確かめてから渡してください。':'This is a draft. It lists the items that Article 15 of the Labor Standards Act requires in writing. Check it against your school’s work rules before handing it out.',
-'置き場所はこの端末の中だけです。外へは送りません。ほかの端末や、ブラウザの記録を消したあとには出ません。':'Files are stored on this device only. They aren’t sent anywhere, and won’t appear on other devices or after clearing browser data.',
 '「通園」にチェックした曜日だけ 給食 / 延長保育 を選べます。登園シートの初期値と、まだ発行していない請求書の給食・延長保育の回数に反映されます。発行ずみの月は、請求書発行の「明細」から直してください。':'Lunch / Extended care can be chosen only on days checked as attending. This sets the attendance sheet defaults and the lunch/extended care counts on invoices not yet issued. For months already issued, edit via “Breakdown” in Invoicing.',
 '上で決めた内容は、下の請求書にそのまま入ります。単価は「設定 → 料金設定」で変えられます。':'What you set above goes straight into the invoices below. Change unit prices in Settings → Fee Settings.',
 '流れは、①内容を確認 → ②発行 → ③送付（未来WAの保護者ページ） → ④入金確認 です。':'The flow: ① Check details → ② Issue → ③ Send (parent page in MiraiWA) → ④ Confirm payment.',
@@ -15634,7 +15823,6 @@ var EN_DICT={
 '売上・申込の名簿・保護者にお渡しするファイルは、園の職員としてログインしているときだけ出ます。':'Sales, registration lists, and files for parents only appear when signed in as school staff.',
 '身体測定は、クラスを選ぶとその園児が並びます。身長・体重を入れると、カウプ指数が自動で出ます。':'In Physical Measurement, choose a class to list its children. Enter height and weight and the Kaup index is calculated automatically.',
 '取り込んだ紙の画像は1枚あたり数百KBあります。もう使わないものを消すと、動きが軽くなります。':'Each imported paper image is several hundred KB. Deleting ones you no longer need keeps things running smoothly.',
-'上の「原本を登録ずみ」の数と、この端末での保存量が出ます。保存量が増えると動きが重くなります。':'Shows the “Original on file” count above and storage used on this device. More storage use can slow things down.',
 '別室で静かに休ませ、脱水に気をつけて水分を少しずつ与える（吐き気が強いときは無理に飲ませない）':'Let the child rest quietly in a separate room and give small sips of fluid to prevent dehydration (don’t force drinks if they feel very sick).',
 '「イヤ」は育っている証。困った行動ではなく、自分でやりたい気持ちの芽ばえとして受けとめてみる。':'“No!” is a sign of growth. Try seeing it not as a problem, but as their wish to do things themselves.',
 '苦手な食材は調理法や見た目を変えてみる。友だちや保育者がおいしそうに食べる姿を見せるのもよい。':'Try changing how disliked foods are cooked or presented. Seeing friends and teachers enjoy them can help too.',
@@ -15784,7 +15972,6 @@ var EN_DICT={
 '一番下の「虐待防止チェックシート」は3ヶ月に1回。監査でも確認されるので、実施日と実施者まで入れておきましょう':'The “Abuse Prevention Checklist” at the bottom is done once every 3 months. Inspectors check it, so include the date and who did it.',
 '身体測定や避難訓練など、システムに記録があるものは自動で「記録あり」になります。手作業でのチェックは不要です。':'Items with records in the system, like physical measurements and evacuation drills, are marked “Recorded” automatically. No need to check them by hand.',
 '「アイディア自動生成」で、制作物アイディア・年間発達マップ・活動計画（月案・週案・日案）のどれかをつくります。':'Use “Auto-Generate Ideas” to create craft ideas, an annual development map, or an activity plan (monthly, weekly, or daily).',
-'ファイルは登録した端末のブラウザに保存されています。ほかの端末では出ません。いつも同じ端末で登録してください。':'Files are saved in the browser of the device used to add them and won’t appear on other devices. Always use the same device.',
 '声が出ない・咳ができない・顔色が悪いときは完全に詰まっている。1歳未満は背部叩打法と胸部突き上げ法を交互に行う':'If the child can’t speak, can’t cough, or looks pale, the airway is fully blocked. For infants under 1, alternate back blows and chest thrusts.',
 '落ち着いた声かけで子どもを安心させ、ほかの子から離して様子をみる。必要に応じて保護者と嘱託医（園医）へ連絡する':'Reassure the child calmly and watch them away from other children. Contact the parents and school doctor as needed.',
 '指示は一度に一つ、短く具体的に。「片付けてね」より「積み木を箱に入れようね」など、その子に届く言い方をさがす。':'Give one short, specific instruction at a time. Find words that reach the child, like “Let’s put the blocks in the box” instead of “Tidy up.”',
@@ -15924,7 +16111,6 @@ var EN_DICT={
 '無理に吐かせないこと（石油製品、強い酸やアルカリの洗剤、とがった物を飲んだとき、意識がはっきりしないときは、吐かせるとかえって危ない）':'Don’t induce vomiting (it’s more dangerous if they swallowed petroleum products, strong acid or alkaline cleaners, or sharp objects, or if they’re not fully conscious).',
 '手当ての方法は園の救命講習と危機管理マニュアルに沿って行い、職員の判断だけで薬剤を使わない（個別の薬は主治医の指示と個別対応票に従う）':'Give first aid according to the school’s life-saving training and Crisis Management Manual. Don’t use medication on staff judgment alone (follow the doctor’s instructions and individual care plan for any personal medicine).',
 '発達記録は園児と月を選び、項目を選んでいきます。「前回の記録を反映」を押すと、いちばん近い前の記録を写せます（写す前に確認が出ます）。':'For development records, choose a child and month, then select each item. Tap “Apply Previous Record” to copy the most recent earlier record (you’ll be asked to confirm).',
-'画像はこの端末のブラウザにだけ保存され、外部には送信されません（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。':'Images are saved only in this device’s browser and aren’t sent anywhere (resized automatically). Register copies of qualification certificates and ID to show at inspections.',
 '開所している間はいつでも、年齢ごとの職員配置基準を満たす必要があります。シフト表は、翌月それを満たせるかを事前に確かめるための資料です。':'Staffing ratios for each age must be met at all times while open. The shift table lets you confirm in advance that next month meets them.',
 '同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。':'The same standards require evacuation and firefighting drills at least once a month, and drill records are checked in inspections. Supported by this system’s evacuation drill records.',
 'おわびと正しい内容を、あらためて対象のクラスへ配信してください。送信済みのお知らせの取り扱いについては、園の管理担当者にご確認ください。':'Send an apology with the correct information to the class again. Ask your school administrator how to handle the announcement already sent.',
@@ -16045,7 +16231,6 @@ var EN_DICT={
 '管理者＝すべて／園長＝運営全般（職員アカウントと権限管理を除く）／主任・リーダー＝先生と同じ画面＋クラス方針とクラスプロフィールを直せる／先生＝記録・デイリーレポート・保護者DMなど日々の業務。':'Administrator = everything / Director = all operations (except staff accounts and permissions) / Lead Teacher = same screens as Teacher, plus editing class policy and class profile / Teacher = daily work such as records, Daily Reports and Parent Messages.',
 '月ごとの保育料の請求書を、内容の確認から発行・保護者への送付・入金の確認まで、この画面だけで進められます。金額は「生徒情報（契約・オプション）」と「設定 → 料金設定」から自動で計算されます。':'Handle monthly tuition invoices on this one screen, from checking and issuing to sending them to parents and confirming payment. Amounts are calculated automatically from “Enrollment & Contracts” and “Settings → Fee Settings”.',
 '月額の手入力はできません（同じ子で、画面によって違う額が出ていたため）。その月だけ額を変えたいときは、請求書の「明細」から「この月だけの金額」に入れてください。入れると、そちらの額を使います。':'The monthly fee can’t be entered by hand (the same child used to show different amounts on different screens). To change the amount for one month, enter it in “One-off amount this month” under “Breakdown” on the invoice. That amount is then used.',
-'監査で確認される職員名簿の項目に対応しています。氏名・住所・連絡先は園の記録として保存され、サーバに接続しているときは他の端末とも共有されます（資格証・身分証の画像は、この端末にだけ残ります）。':'Covers the staff roster items checked at inspections. Names, addresses and contact details are saved as school records and shared with other devices when connected to the server (images of certificates and IDs stay on this device only).',
 '「基本シフト一括反映」を押すと、平日は各職員の基本シフト、土日は休で一度に埋まります。すでに入れた内容は上書きされるので、細かい調整をする前に押してください（基本シフトは職員管理で設定します）。':'“Apply Base Shifts to All” fills weekdays with each staff member’s base shift and weekends with days off in one go. Existing entries are overwritten, so use it before fine-tuning (base shifts are set in Staff).',
 '園児一人ひとりの情報（基本情報・ご家族・緊急連絡先・健康情報・お支払い）を1か所にまとめて登録・確認できる画面です。地図上に園児のご自宅と園・避難場所を表示でき、一覧は名簿として印刷もできます。':'Register and view each child’s information (basic info, family, emergency contacts, health, payment) in one place. Show children’s homes, the school and evacuation sites on a map, and print the list as a roster.',
 'この画面では「あり」「なし」だけを決めます。回数は「連絡先」の曜日ごとの設定と、その月の曜日の数から自動で計算されます。今月だけ回数を変えたいときは、「請求書」ボタンから開く請求書の画面で直せます。':'Here you only choose “Yes” or “None”. Counts are calculated automatically from the weekday settings in “Contacts” and the number of those weekdays in the month. To change the count for this month only, edit it on the invoice screen opened from the “Invoice” button.',
@@ -16177,7 +16362,6 @@ var EN_DICT={
 '冬（12〜2月）の製作とあそび':'Winter (Dec–Feb) crafts & play',
 '秋（9〜11月）の製作と自然あそび':'Autumn (Sep–Nov) crafts & nature play',
 '次の年度前準備（3月〜）に向けて随時整備':'Prepare as needed for next year’s setup (from March)',
-'氏名・住所・健康などの生徒情報は園の記録として保存され、園のアカウントでログインしたほかの端末からも開けます（顔写真だけは、この端末の中に残ります）。':'Student information such as name, address and health is saved as school records and can be opened on other devices signed in with the school account (only face photos stay on this device).',
 'いま園の記録につながっていません。ここで直した生徒情報はこの端末の中だけに残り、園の記録には保存されません。':'Not connected to the school records right now. Student information you edit here stays on this device only and is not saved to the school records.',
 'ただし、戻した内容はまだ園の記録に送れていません。園の記録につながっているときに、もう一度戻してください。':'However, the restored data has not been sent to the school records yet. Please restore again while connected to the school records.',
 'ただし、ログインが切れているか園の記録につながっていないため、戻した内容は園の記録に送れていません。このあとログインすると、園の記録の内容に置き換わります。ログインし直してから、もう一度戻してください。':'However, your sign-in has expired or the school records cannot be reached, so the restored data was not sent to the school records. Signing in will replace it with the school records. Please sign in again, then restore once more.',
@@ -18390,7 +18574,10 @@ function psSheet(e){
 /* ---------- スクールガイド（入園時にお渡しする一式） ----------
    紙で配っているものを園がここに入れておくと、保護者は未来WAでいつでも見られる。
    中身は園ごとにちがうので、ひな型の上に園の原本を重ねる形にしている。
-   ファイルはこの端末のブラウザにだけ置き、外には送らない。 */
+   ★原本（PDF）そのものを端末の棚（localStorage）に入れていた。棚は5MBほどなので、
+     4MBのPDFを1件入れただけで園児の記録も請求も保存できなくなっていた。
+     しかも送らないので、保護者の未来WAのスクールガイドは永久に空だった。
+     中身は園の記録へ預け、ここには目印だけを置く（2026-09-19 安田さんのご判断）。 */
 var GUIDE_CATS=['はじめに','毎日のこと','健康・お薬','安全・災害','手続き','園の情報'];
 var GUIDE_BASE=[
   {id:'g_cover',cat:'はじめに',t:'入園のご案内（お手引き）',kind:'read'},
@@ -18413,9 +18600,14 @@ function guideExtra(){return stGet('guide_extra',[])||[];}
 function guideAll(){
   return GUIDE_BASE.concat(guideExtra().map(function(x){var m={};for(var k in x)m[k]=x[k];m.custom=true;return m;}));
 }
+/* ★中身の文字の長さを足していた。中身は園の記録へ移したので、
+     ここに無い＝0 になってしまう。預けた大きさ（size）を足す。 */
 function guideBytes(){
   var f=guideFiles(),n=0;
-  for(var k in f)n+=String(f[k].data||'').length;
+  for(var k in f){
+    if(!Object.prototype.hasOwnProperty.call(f,k))continue;
+    n+=(+((f[k]||{}).size)||String((f[k]||{}).data||'').length);
+  }
   return n;
 }
 function fmtBytes(n){
@@ -18428,31 +18620,46 @@ function fmtBytes(n){
 function guideBoss(){
   try{ return (typeof currentStaff==='function'&&currentStaff())?(typeof isBoss==='function'?isBoss():true):true; }catch(e){ return true; }
 }
+/* ★1ファイル4MBで止めていた。原本のPDFは5MBを超えるものがあり、
+     園は登録そのものができなかった。ほかの書類と同じ20MBにそろえる
+     （サーバも種類を問わず20MBで受ける）。 */
 function guidePick(id){
   var inp=document.createElement('input');
-  inp.type='file';inp.accept='application/pdf,image/png,image/jpeg';
+  inp.type='file';inp.accept='application/pdf,image/png,image/jpeg,image/webp';
   inp.onchange=function(){
     var f=inp.files&&inp.files[0];if(!f)return;
-    if(f.size>4*1024*1024){alert('ファイルが大きすぎます（4MBまで）。\nPDFを軽くしてからお試しください。');return;}
-    var rd=new FileReader();
-    rd.onload=function(){
-      var d=String(rd.result||'');
-      if(!/^data:(application\/pdf|image\/(png|jpe?g));base64,/i.test(d)){
-        alert('PDF・PNG・JPEG のみ登録できます。');return;}
+    if(f.size>DOC_FILE_MAX){alert('ファイルが大きすぎます（'+docSizeText(DOC_FILE_MAX)+'まで）。\nPDFを軽くしてからお試しください。');return;}
+    if(!/^(application\/pdf|image\/(png|jpeg|webp))$/i.test(String(f.type||''))){
+      alert('PDF・PNG・JPEG・WebP のみ登録できます。');return;}
+    /* 中身は園の記録へ預け、ここには目印（key）だけを置く。
+       預けられるのは園長・管理者だけ。預けると、保護者は未来WAからいつでも見られる。 */
+    var prev=guideFiles()[id]||null;
+    fileKeep(f,{kind:FILE_KIND_GUIDE,name:f.name,ref:id},function(er,ref){
+      if(!ref){alert('登録できませんでした。'+((er&&er.message)||''));return;}
       var all=guideFiles();
-      all[id]={data:d,name:f.name,type:f.type,at:todayISO(),size:f.size};
+      all[id]={key:fileRefKey(ref),where:(isSrvRef(ref)?'server':'local'),
+               name:f.name,type:f.type,at:todayISO(),size:f.size};
       try{stSet('guide_files',all);}
       catch(e){alert('保存できませんでした。ブラウザの保存容量がいっぱいです。\n不要な資料を削除してからお試しください。');return;}
+      /* 差し替えたときは、前の原本を片づける（スクールガイドは入れ替えるものなので、いつでも消せる）。
+         ★預け終わってから消す。先に消すと、預けに失敗したときに戻せない。 */
+      if(prev)guideFileDrop(prev);
+      if(er)alert('この端末には入れました。園の記録へは、つながったときに自動でお預けします。\n'+(er.message||''));
       renderGuide();
-    };
-    rd.onerror=function(){alert('ファイルを読み込めませんでした。');};
-    rd.readAsDataURL(f);
+    });
   };
   inp.click();
 }
+/* 1件ぶんの中身を片づける。古い形（中身がそのまま入っている）のときは、消すものが無い。 */
+function guideFileDrop(rec){
+  if(!rec||!rec.key)return;
+  try{docFileRemove(rec.key,function(){});}catch(e){}
+}
 function guideDrop(id){
   if(!confirm('登録した原本を削除しますか？（ひな型の説明は残ります）'))return;
-  var all=guideFiles();delete all[id];stSet('guide_files',all);renderGuide();
+  var all=guideFiles(),gone=all[id];delete all[id];stSet('guide_files',all);
+  guideFileDrop(gone);
+  renderGuide();
 }
 function guideAddCustom(){
   var t=prompt('資料の名前を入力してください（例：年間行事予定）');
@@ -18476,11 +18683,12 @@ function renderGuide(){
       +'<div><div style="font-size:22px;font-weight:800;">'+done+' <span style="font-size:14px;color:var(--tx2);font-weight:600;">/ '+list.length+' 件</span></div>'
       +'<div class="mini">原本を登録ずみ</div></div>'
       +'<div style="margin-left:auto;text-align:right;"><div style="font-size:15px;font-weight:700;">'+fmtBytes(guideBytes())+'</div>'
-      +'<div class="mini">この端末での保存量</div></div></div>'
+      +'<div class="mini">園の記録に預けている量</div>'+fileQuotaMini()+'</div></div>'
       +'<div class="note-b" style="margin-top:13px;">'
-      +'ファイルはこの端末のブラウザにだけ保存され、外部には送信されません。'
-      +'園の共有パソコンなど、いつも同じ端末でご登録ください。'
-      +'（PDF・PNG・JPEG、1ファイル4MBまで）</div></div>';
+      +((typeof API!=='undefined'&&API.online())
+        ?'ファイルは園の記録として保存され、どの端末からでも開けます。登録すると、保護者は未来WAのマイページからいつでも見られます。'
+        :'いまサーバにつないでいないため、入れた原本はこの端末の中だけに残ります。つながったときに自動で園の記録へお預けします。')
+      +'（PDF・PNG・JPEG・WebP、1ファイル'+docSizeText(DOC_FILE_MAX)+'まで）</div></div>';
   cats.forEach(function(k){
     html+='<h2 class="sec">'+esc(k)+'</h2>';
     byCat[k].forEach(function(g){
@@ -18491,7 +18699,10 @@ function renderGuide(){
           +'<div style="font-weight:700;font-size:14px;">'+esc(g.t)
             +(g.custom?' <span class="pill">追加</span>':'')+'</div>'
           +'<div class="mini" style="margin-top:3px;">'
-            +(f?'✅ '+esc(f.name)+'（'+fmtBytes(f.size||String(f.data).length)+'・'+esc(f.at)+' 登録）'
+            +(f?'✅ '+esc(f.name)+'（'+fmtBytes(f.size||String(f.data||'').length)+'・'+esc(f.at)+' 登録）'
+               +'<br><span'+((f.key&&f.where!=='server')?' style="color:#A32D2D;"':'')+'>'
+               +esc(f.key?(f.where==='server'?'園の記録に保管ずみ':'まだ園の記録に届いていません（この端末にだけあります）')
+                         :'この端末にだけあります（つながったときに自動でお預けします）')+'</span>'
                :'原本は未登録。保護者には、ひな型の説明'+(g.kind==='form'?'と記入用紙':'')+'だけが表示されます。')
           +'</div></div>'
         /* 先生（一般）は見るだけ。原本を消すと、保護者の未来WAに出ているものが消えるため、
@@ -19225,7 +19436,7 @@ function contactModal(id,forceKind){
   var _fromLead=(CONTACT_SCOPE==='lead');
   m.innerHTML='<div class="modal"><h2>'+(id?'連絡先を編集':'連絡先を追加')+'</h2>'+
     (_fromLead?'':'<div class="field"><label>区分</label><div class="seg" id="kindSeg">'+(_showLead?'<button data-kind="lead"'+(kind==='lead'?' class="on"':'')+'>リード（営業）</button>':'')+'<button data-kind="enrolled"'+(kind==='enrolled'?' class="on"':'')+'>在園児</button><button data-kind="withdrawn"'+(kind==='withdrawn'?' class="on"':'')+'>退園児</button></div></div>')+
-    '<div class="field"><label>顔写真（この端末のブラウザにだけ保存され、外部には送信されません。ほかの端末では出ません）</label><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span id="f_photoPrev">'+(id?avatarHTML(c,56):'<span class="avatar" style="width:56px;height:56px;font-size:20px;">?</span>')+'</span>'
+    '<div class="field"><label>顔写真（'+fileHereNote()+'）</label><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span id="f_photoPrev">'+(id?avatarHTML(c,56):'<span class="avatar" style="width:56px;height:56px;font-size:20px;">?</span>')+'</span>'
       +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'写真を選ぶ<input type="file" id="f_photo" accept="image/*" style="display:none;"></label>'
       +'<button type="button" class="btn btn-sm btn-ghost" id="f_photoDel">'+ic('trash')+'削除</button>'
       +'<span class="muted" style="font-size:11.5px;" id="f_photoMsg">正方形に自動で縮小して保存します</span></div></div>'+
@@ -19394,12 +19605,37 @@ function contactModal(id,forceKind){
         if(String(_se.value||'')!==String(_sp.sex||'')){ _sp.sex=_se.value; spSet(nc.id,_sp); }
       }
     }catch(e){}
-    try{if(pendingPhoto)photoSet(nc.id,pendingPhoto);else if(photoCleared)photoSet(nc.id,'');}catch(e){alert('写真を保存できませんでした（保存容量が不足している可能性があります）');}
-    m.remove();
     /* 生徒台帳から足したときは、そのままその子のプロフィールを開く。
        連絡先の一覧に戻すと「入れたのに見当たらない」ように見えるため。 */
-    if(rosterAdding){rosterAdding=false;rosterSel=nc.id;rosterTab='profile';renderRoster();}
-    else renderContacts();
+    function _finish(){
+      m.remove();
+      if(rosterAdding){rosterAdding=false;rosterSel=nc.id;rosterTab='profile';renderRoster();}
+      else renderContacts();
+    }
+    /* ★写真の中身そのもの（data:…の長い文字）を、端末の棚（localStorage）に入れていた。
+       1枚は小さくても100〜200枚で棚のほとんどを占め、毎日の控えが作れなくなっていた。
+       しかも端末のブラウザの記録を消すと、写真ごと消えていた。
+       中身は園の記録へ預け、棚には目印だけを置く
+       （2026-09-19 安田さんのご判断「園のデータは全部クラウドに残す。そうでないと復元できない」）。
+       預けられないときは、この端末の別の入れ物に置いて「loc:鍵」を残し、つながったら自動で送る。 */
+    var _old=photoOf(nc.id);
+    if(photoCleared){
+      try{photoSet(nc.id,'');}catch(e){}
+      photoFileDrop(_old);
+      _finish();return;
+    }
+    if(!pendingPhoto){_finish();return;}
+    var _pm=$('#f_photoMsg');if(_pm)_pm.textContent='写真を園の記録へ預けています…';
+    fileKeepUri(pendingPhoto,{kind:FILE_KIND_PHOTO,name:'顔写真.jpg',ref:nc.id},function(er,ref){
+      if(!ref){alert('写真を保存できませんでした。'+((er&&er.message)||''));_finish();return;}
+      try{photoSet(nc.id,ref);}
+      catch(e){alert('写真を保存できませんでした（保存容量が不足している可能性があります）');_finish();return;}
+      /* 差し替えたときは、前の1枚を片づける（顔写真は監査の保存年数が付かないので消せる）。
+         ★預け終わってから消す。先に消すと、預けに失敗したときに戻せない。 */
+      if(_old&&_old!==ref)photoFileDrop(_old);
+      if(er)alert('写真はこの端末に入れました。園の記録へは、つながったときに自動でお預けします。\n'+(er.message||''));
+      _finish();
+    });
   };
 }
 
@@ -22054,7 +22290,9 @@ function tenureText(joinDate,leaveDate){
   return r.y+'年'+r.m+'ヶ月';
 }
 function ageOf(dob){var r=yearsBetween(dob);return r?r.y+'歳':'';}
-/* 職員の身分証・証明書の保管（この端末内にのみ保存） */
+/* 職員の身分証・証明書の保管。
+   中身は園の記録へ預け、ここには目印（srv:鍵・loc:鍵）だけを置く。
+   見られるのは園長・管理者だけ（サーバの FILE_KIND_RULES が同じ線を持っている）。 */
 function staffDocs(){return stGet('staffDocs',{});}
 function staffDocsOf(id){return staffDocs()[id]||[];}
 function staffDocsSet(id,list){var a=staffDocs();if(list&&list.length)a[id]=list;else delete a[id];stSet('staffDocs',a);}
@@ -22083,8 +22321,8 @@ function staffModal(id){
       +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('photo')+'画像を選ぶ<input type="file" id="st_docFile" accept="image/*" style="display:none;"></label>'
       +'<input id="st_docUrl" placeholder="またはDriveのURLを貼り付け" style="flex:1;min-width:180px;">'
       +'<button type="button" class="btn btn-sm" id="st_docAdd">'+ic('plus')+'追加</button></div>'
-      +'<div class="muted" style="font-size:11px;margin-top:6px;">画像はこの端末のブラウザにだけ保存され、外部には送信されません（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。<b>いつも同じ端末で登録してください。</b>ほかの端末では出ません。</div></div>':'')+
-    '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">監査で確認される職員名簿の項目に対応しています。氏名・住所・連絡先は園の記録として保存され、サーバに接続しているときは他の端末とも共有されます（資格証・身分証の画像は、この端末にだけ残ります）。</div>'+
+      +'<div class="muted" style="font-size:11px;margin-top:6px;">画像は'+fileHereNote()+'（自動で縮小）。監査で提示できるよう、資格証・身分証の控えを登録できます。<b>見られるのは園長・管理者だけです。</b></div></div>':'')+
+    '<div class="muted" style="font-size:11.5px;margin-bottom:8px;">監査で確認される職員名簿の項目に対応しています。氏名・住所・連絡先は園の記録として保存され、サーバに接続しているときは他の端末とも共有されます。資格証・身分証の画像も、園の記録として保存されます。</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn" id="st_cancel">キャンセル</button><button class="btn btn-primary" id="st_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
   function renderStDocs(){
@@ -22095,11 +22333,16 @@ function staffModal(id){
       return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;">'
         +(d.img?'<img data-fsrc="'+esc(d.img)+'" style="width:52px;height:36px;object-fit:cover;border-radius:4px;">':'<span style="width:52px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:4px;">'+ic('doc')+'</span>')
         +'<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">'+esc(d.kind||'')+'</div>'
-        +(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener" class="row-sub" style="color:var(--teal);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap;">'+esc(d.url)+'</a>':'<div class="row-sub">'+(d.img?'画像を保管':'')+'　'+esc(d.at||'')+'</div>')
+        +(d.url?'<a href="'+esc(d.url)+'" target="_blank" rel="noopener" class="row-sub" style="color:var(--teal);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap;">'+esc(d.url)+'</a>':'<div class="row-sub">'+(d.img?fileMarkLabel(d.img):'')+'　'+esc(d.at||'')+'</div>')
         +'</div><button type="button" class="btn btn-sm btn-ghost" data-stdocdel="'+esc(i)+'">'+ic('trash')+'</button></div>';
     }).join(''):'<div class="muted" style="font-size:12px;">まだ登録がありません。</div>';
     box.querySelectorAll('[data-stdocdel]').forEach(function(b){b.onclick=function(){
-      var l=staffDocsOf(id);l.splice(+b.getAttribute('data-stdocdel'),1);staffDocsSet(id,l);renderStDocs();
+      var l=staffDocsOf(id),i=+b.getAttribute('data-stdocdel'),gone=l[i];
+      l.splice(i,1);staffDocsSet(id,l);
+      /* 行を消したら、預けてある中身も片づける。片方だけ消すと、
+         画面から見えないのに園の預かり量だけがふさがり続ける。 */
+      if(gone)photoFileDrop(gone.img);
+      renderStDocs();
     };});
   }
   if(id){
@@ -22107,17 +22350,33 @@ function staffModal(id){
     var pendingImg=null;
     $('#st_docFile').onchange=function(e){
       var fl=e.target.files[0];if(!fl)return;
-      logoResize(fl,function(err,uri){if(err){alert(err.message);return;}pendingImg=uri;alert('画像を読み込みました。「追加」を押すと保管されます。');});
+      /* ★ロゴ用の縮小（幅420pxのPNG）を使い回していた。PNGは写真の圧縮が効かないので
+         1枚270〜530KBになり、顔写真の20〜40倍あった。画面には「自動で縮小」と書いてあるのに、
+         ほとんど縮んでいなかった。しかも幅420pxでは、A4の資格証は文字がつぶれて監査で読めない。
+         紙の記録の取り込みと同じ設定（長辺1400pxのJPEG）にそろえる。読めるようになって、なお小さい。 */
+      scanResize(fl,function(err,uri){if(err){alert(err.message);return;}pendingImg=uri;alert('画像を読み込みました。「追加」を押すと保管されます。');});
     };
     $('#st_docAdd').onclick=function(){
       var kind=$('#st_docKind').value,url=$('#st_docUrl').value.trim();
       if(!pendingImg&&!url){alert('画像を選ぶか、URLを入力してください');return;}
-      var l=staffDocsOf(id);
-      try{
-        l.push({kind:kind,img:pendingImg||'',url:url,at:todayISO()});
-        staffDocsSet(id,l);
-      }catch(e){alert('保存できませんでした（保存容量が不足している可能性があります）');return;}
-      pendingImg=null;$('#st_docUrl').value='';renderStDocs();
+      function add(ref,note){
+        var l=staffDocsOf(id);
+        try{
+          l.push({kind:kind,img:ref||'',url:url,at:todayISO()});
+          staffDocsSet(id,l);
+        }catch(e){alert('保存できませんでした（保存容量が不足している可能性があります）');return;}
+        pendingImg=null;$('#st_docUrl').value='';renderStDocs();
+        if(note)alert(note);
+      }
+      if(!pendingImg){add('',null);return;}
+      /* 中身は園の記録へ預け、ここには目印だけを置く（2026-09-19 のご判断）。
+         預けられるのは園長・管理者だけ。先生の端末からは 403 が返る。 */
+      var b=$('#st_docAdd');b.disabled=true;
+      fileKeepUri(pendingImg,{kind:FILE_KIND_STAFF,name:kind+'.jpg',ref:id},function(er,ref){
+        b.disabled=false;
+        if(!ref){alert('保存できませんでした。'+((er&&er.message)||''));return;}
+        add(ref,er?('この端末には入れました。園の記録へは、つながったときに自動でお預けします。\n'+(er.message||'')):null);
+      });
     };
   }
   function updLabels(){
@@ -26220,11 +26479,15 @@ function renderDocsHub(){
 function renderDocsAudit(){
   var docs=stGet('docs',{}),hosp=stGet('hospitals',HOSP_DEFAULT),s=$('section[data-page="docs"]');
   s.innerHTML='<div style="margin-bottom:14px;"><button class="btn btn-sm" id="dcBack">‹ 書類格納にもどる</button></div>'
-    +'<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納（この端末に取り込み）</h3>'+
+    +'<div class="card" style="margin-bottom:16px;"><h3>'+ic('folder')+'監査書類の格納</h3>'+
     '<div class="muted" style="margin-bottom:12px;">PDFや写真を、そのままこの画面に取り込めます。取り込むと、監査チェックリスト・最終チェックリストに「格納済み」として出ます。<br>'
-    +'<b>置き場所はこの端末の中だけ</b>です。外へは送りません。ほかの端末や、ブラウザの記録を消したあとには出ません。<br>'
+    /* ★この1行は、書いた時点ですでに事実と違っていた。docFileStore は、つないでいるとき
+       サーバへ預けている。サインをいただいた書類と同じ出し分けにする。 */
+    +((typeof API!=='undefined'&&API.online())
+      ?'<b>取り込んだ中身は園の記録として保管され、ほかの端末からも開けます。</b><br>'
+      :'<b>いまサーバにつないでいないため、取り込んだ中身はこの端末の中だけに残ります。つながったときに自動で園の記録へお預けします。</b><br>')
     +'控え（設定 → データの持ち出し）には、ファイルの中身は入りません。原本は園でも保管してください。1つ '+docSizeText(DOC_FILE_MAX)+' までです。</div>'+
-    '<div class="scrollx"><table><thead><tr><th>書類名</th><th style="min-width:280px;">書類（この端末に取り込み）</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
+    '<div class="scrollx"><table><thead><tr><th>書類名</th><th style="min-width:280px;">書類</th><th>メモ</th><th style="width:90px;">状態</th><th style="width:44px;"></th></tr></thead><tbody>'+
     docSlotsAll().map(function(name){
       var r=docs[name]||{},f=r.file||null;
       var isCustom=docSlotsCustom().indexOf(name)>-1;
@@ -26301,7 +26564,11 @@ function renderDocsAudit(){
       inp.value='';return;
     }
     docFileStore(fl,{kind:FILE_KIND_DOC,name:fl.name,ref:name},function(err,key,where){
-      if(err){alert('取り込めませんでした。\n'+(err.message||err));return;}
+      /* ★鍵が返っていれば、この端末には入っている。err は「園の記録へは預けられなかった」理由。
+         ここで捨てると、取り込めた中身まで無かったことになる。 */
+      if(!key){alert('取り込めませんでした。\n'+((err&&err.message)||err||''));return;}
+      if(err)alert('この端末には取り込みました。ただし園の記録へは預けられませんでした。\n'+(err.message||err)
+        +'\n\nつながったときに、自動でもう一度お預けします。');
       var d=stGet('docs',{}),prev=d[name]||{};
       /* 前に入れてあった中身は、置きかえたら消す。残すと置き場が太るだけになる。 */
       if(prev.file&&prev.file.key)docFileRemove(prev.file.key);
@@ -26548,15 +26815,23 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
     if(key.indexOf('cocoas_')!==0)return false;
     if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(key))return false;
     /* ★画面が「この端末内にのみ保存されます」「外部には送信されません」と
-       書いているのに、サーバへ中身ごと送っていた。書いてあるとおり留める。
+       書いているのに、サーバへ中身ごと送っていた。書いてあるとおり留める、としていた。
        - guide_files … スクールガイドの原本
        - contactPhotos … 園児・保護者の顔写真
        - staffDocs … 職員の資格証・身分証の控え（画像）
        - kidDocs … 園児ごとのサイン済み書類（中身はこの端末の別の入れ物にある）
-       いずれも別の鍵に分けてあるので、記録そのものの同期は止まらない。
-       ★kidDocs は、この端末の中にしか無いファイルの置き場所を指している。
-         ほかの端末へ送ると、開けない行だけが並んでしまう。 */
-    if(/^cocoas_(guide_files|contactPhotos|staffDocs|kidDocs)$/.test(key))return false;
+       ★2026-09-19 安田さんのご判断で、文言のほうを直して園の記録に載せることにした。
+         「園のデータは全部クラウドに残す。そうでないと復元できない」。
+         留めていたせいで、預けたときの目印が端末から一歩も出ず、
+         ほかの端末からは開けない・ブラウザの記録を消すと誰からも開けない迷子になっていた。
+         守りは、送らないことではなく、サーバ側の役職の縛り（FILE_KIND_RULES）と
+         園ごとの預かり上限に置き替えてある。**この4行を消さないでください。**
+         次の人が「また端末に留めよう」と戻さないための記録です。
+       ★ただし、中身そのものが残っているあいだは、まだ送らない。
+         先に送ると、端末にある数MBがそのまま1回の PUT /state に乗り、
+         通信の細い園で固まる（受け取り上限は25MB）。
+         中身を移し終わった鍵から、自動で送られるようにしてある（fileKeyHeld）。 */
+    if(fileKeyHeld(key.replace(/^cocoas_/,'')))return false;
     if(/^cocoas_pstate_/.test(key))return false;   /* 保護者から届いた控え。園の帳簿ではないので送り返さない */
     if(WA_DEVICE_KEY.test(key))return false;       /* 未来WA がこの端末にだけ置く鍵（上の WA_DEVICE_KEY） */
     /* 共用の入れ物が、ほかの園の中身になっている（SYNC.foreign）。この園の記録へ送らない */
@@ -26905,6 +27180,10 @@ var SYNC={queue:{},timer:null,busy:false,lastPull:null,status:'',
              中身で比べる。 */
           if(!syncSameValue(L,j.data[k]))SYNC.stale=true;
         }
+        /* ★中身の目印を持つ4つの鍵は、丸ごと書き替えない。
+           まだ園の記録へ移せていない中身（この端末にしか無い写真・原本）が、
+           ほかの端末の目印で上書きされて消えていた。取り返せないので、届いていない分は残す。 */
+        if(FILE_STATE_KEYS[k]&&L)nv=JSON.stringify(fileStateKeep(j.data[k],L));
         /* __rawSet は送り待ちに載らない。読み込んだだけの中身を園の記録へ送り返さない */
         try{window.__rawSet(fk,nv);}catch(e3){fail=true;return;}
         if(SYNC.CACHED_KEYS[k])SYNC.aligned(k,nv,j.data[k]);
@@ -27043,13 +27322,68 @@ function syncParse(raw){
   if(raw===null||raw===undefined)return undefined;
   try{ return JSON.parse(raw); }catch(e){ return undefined; }
 }
+/* ══ 中身の目印を持つ4つの鍵 ═══════════════════
+   サーバ側の FILE_STATE_KEY_KIND と同じ組み合わせ。
+   中身（写真・PDF）は園の記録に預け、ここには目印（srv:鍵・loc:鍵・{key:…}）だけを置く。 */
+var FILE_STATE_KEYS={contactPhotos:1,staffDocs:1,kidDocs:1,guide_files:1};
+/* その鍵に、まだ中身そのもの（data:… の長い文字）が残っているか。
+   ★「中身を移してから、送り止めを外す」を、端末ごとに自動でやるための判定。
+     順番を入れ替えると、端末にある数MBがそのまま1回の通信に乗って園の同期がまるごと止まる。
+     移し終われば data: が1つも無くなり、その鍵はふつうに園の記録へ載る。 */
+function fileKeyHeld(name){
+  if(!FILE_STATE_KEYS[name])return false;
+  var raw=null;
+  try{raw=localStorage.getItem('cocoas_'+name);}catch(e){return true;}
+  if(!raw)return false;
+  return raw.indexOf('data:')>-1;
+}
+/* 中身がまだこの端末にしか無い行か（目印だけの行と見分ける） */
+function fileHasBody(v){
+  var s;
+  try{s=JSON.stringify(v);}catch(e){return false;}
+  if(!s)return false;
+  return s.indexOf('data:')>-1||s.indexOf('loc:')>-1||s.indexOf('"where":"local"')>-1;
+}
+function fileRowId(x){
+  if(!x||typeof x!=='object')return String(x);
+  return String(x.kind||'')+'|'+String(x.at||'')+'|'+String(x.url||'');
+}
+function fileRowsKeep(rv,lv){
+  var isArr=function(a){return Object.prototype.toString.call(a)==='[object Array]';};
+  if(!isArr(rv)||!isArr(lv))return rv;
+  var out=rv.slice(),seen={};
+  rv.forEach(function(x){seen[fileRowId(x)]=1;});
+  lv.forEach(function(x){if(fileHasBody(x)&&!seen[fileRowId(x)])out.push(x);});
+  return out;
+}
+/* 園の記録から届いた目印を、この端末に書くとき。
+   ★丸ごと書き替えると、まだ移せていない中身（この端末にしか無い写真・原本）が消える。
+     端末からもサーバからも無くなるので、取り返せない。届いていない分だけ手元を残す。
+     両方にあるものは園の記録に従う（同じ人の同じ写真なので、二重に預からない）。 */
+function fileStateKeep(remote,localRaw){
+  var loc,p,out={},hop=Object.prototype.hasOwnProperty;
+  try{loc=JSON.parse(localRaw);}catch(e){return remote;}
+  if(!loc||typeof loc!=='object'||!remote||typeof remote!=='object')return remote;
+  if(Object.prototype.toString.call(loc)==='[object Array]')return remote;
+  if(Object.prototype.toString.call(remote)==='[object Array]')return remote;
+  for(p in remote)if(hop.call(remote,p))out[p]=remote[p];
+  for(p in loc){
+    if(!hop.call(loc,p))continue;
+    if(hop.call(out,p)){out[p]=fileRowsKeep(out[p],loc[p]);continue;}
+    if(fileHasBody(loc[p]))out[p]=loc[p];
+  }
+  return out;
+}
 /* 園の記録とそろえた中身を覚えておく鍵か（SYNC.snap）。
-   送らない鍵（SYNC.mark で留めているもの）は覚えない。スナップショット・変更ログ・顔写真など大きな控えがあり、
+   送らない鍵（SYNC.mark で留めているもの）は覚えない。スナップショット・変更ログなど大きな控えがあり、
    覚えるとタブの中にもう1つ同じ大きさの写しを持つことになるため。 */
 function syncTracked(n){
   n=String(n||'');
   if(n.indexOf('cocoas_')!==0)return false;
-  if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts|guide_files|contactPhotos|staffDocs|kidDocs)$/.test(n))return false;
+  if(/^cocoas_(apiToken|apiBase|apiTenant|psession|staffSession|eventLog|snapshots|lastSnap|staffAccounts|parentAccounts)$/.test(n))return false;
+  /* ★4つの鍵は、中身が残っているあいだだけ覚えない（そのあいだは数MBあるため）。
+     移し終わったら目印だけの数十KBになるので、ふつうに覚えて、行ごとに重ねられるようにする。 */
+  if(fileKeyHeld(n.replace(/^cocoas_/,'')))return false;
   if(/^cocoas_pstate_/.test(n))return false;
   if(WA_DEVICE_KEY.test(n))return false;
   return true;
@@ -28209,6 +28543,9 @@ function staffBoot(){
         try{ if(typeof page!=='undefined'&&page)go(page); }catch(e){}
       }
       try{ SYNC.pollStart(); }catch(e){}
+      /* 端末にだけ残っている写真・書類を、園の手をわずらわせずに少しずつ園の記録へ移す。
+         読み込みが終わってから始める（同じ通信を取り合わないため）。 */
+      try{ fileMoveStart(); }catch(e){}
       return PSTATE.pull();
     }).catch(function(){});
   }
@@ -29268,7 +29605,9 @@ function renderRoster(){
        見本ではないが、直した内容は園の記録に送られない。そのとおりに出す。
        はじめからつないでいない端末（商談のデモなど）は、これまでどおりの文。 */
     +(API.online()
-      ?'氏名・住所・健康などの生徒情報は<b>園の記録として保存</b>され、園のアカウントでログインしたほかの端末からも開けます（顔写真だけは、この端末の中に残ります）。'
+      /* ★「顔写真だけは、この端末の中に残ります」と書いていた。
+         顔写真も園の記録に載せるようになったので（2026-09-19 のご判断）、かっこ書きを外す。 */
+      ?'氏名・住所・健康などの生徒情報は<b>園の記録として保存</b>され、園のアカウントでログインしたほかの端末からも開けます。'
       :(serverBound()
         ?'いま園の記録につながっていません。ここで直した生徒情報は<b>この端末の中だけ</b>に残り、園の記録には保存されません。'
         :'氏名・住所・健康などの生徒情報は<b>この端末の中だけ</b>に保存されます。ほかの端末には出ません。いま出ているのは見本です。'))
@@ -29630,8 +29969,10 @@ function wireRpDocs(id){
     var fl=pend;
     msg('取り込んでいます…');
     docFileStore(fl,{kind:FILE_KIND_KID,name:fl.name,ref:id},function(err,key,where){
-      if(err){msg('取り込めませんでした。'+((err&&err.message)||err||''));return;}
+      /* ★鍵が返っていれば、この端末には入っている。err は「園の記録へは預けられなかった」理由。 */
+      if(!key){msg('取り込めませんでした。'+((err&&err.message)||err||''));return;}
       push({key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO(),where:where});
+      if(err)msg('この端末に入れました。園の記録へは、つながったときに自動でお預けします。');
     });
   };
 }
@@ -32378,22 +32719,45 @@ function localFileList(){
         out.push({t:'doc',id:k,kind:FILE_KIND_DOC,name:f.name||'書類',size:f.size||0,ref:k,key:f.key});
     }
   }catch(e){}
-  /* 中身が文字列（データURI）で入っているもの */
+  /* スクールガイドの原本。
+     ★ここに入っていなかったので、スクールガイドだけ移す道がどこにも無かった。
+       中身が端末にあるかぎり保護者の未来WAは空のままなので、必ず入れる。 */
+  try{
+    var gf=guideFiles();
+    for(k in gf){ if(!Object.prototype.hasOwnProperty.call(gf,k))continue;
+      var g=gf[k]||{};
+      if(String(g.data||'').indexOf('data:')===0)
+        out.push({t:'guide',id:k,kind:FILE_KIND_GUIDE,name:g.name||'原本',
+                  size:g.size||Math.round(String(g.data).length*0.75),ref:k,uri:g.data});
+      else if(g.key&&g.where!=='server')
+        out.push({t:'guide',id:k,kind:FILE_KIND_GUIDE,name:g.name||'原本',
+                  size:g.size||0,ref:k,key:g.key});
+    }
+  }catch(e){}
+  /* 中身が文字列（データURI）で入っているもの と、
+     つないでいないときに端末の別の入れ物へ置いたもの（loc:鍵）。 */
   try{
     var ph=photoStore();
     for(k in ph){ if(!Object.prototype.hasOwnProperty.call(ph,k))continue;
       if(String(ph[k]).indexOf('data:')===0)
-        out.push({t:'photo',id:k,kind:FILE_KIND_PHOTO,name:'顔写真.png',
+        out.push({t:'photo',id:k,kind:FILE_KIND_PHOTO,name:'顔写真.jpg',
                   size:Math.round(String(ph[k]).length*0.75),ref:k,uri:ph[k]});
+      else if(isLocRef(ph[k]))
+        out.push({t:'photo',id:k,kind:FILE_KIND_PHOTO,name:'顔写真.jpg',
+                  size:0,ref:k,key:locKeyOf(ph[k])});
     }
   }catch(e){}
   try{
     var sd=staffDocs();
     for(k in sd){ if(!Object.prototype.hasOwnProperty.call(sd,k))continue;
       (sd[k]||[]).forEach(function(d,ix){
-        if(d&&String(d.img||'').indexOf('data:')===0)
-          out.push({t:'staff',id:k,i:ix,kind:FILE_KIND_STAFF,name:(d.kind||'書類')+'.png',
+        if(!d)return;
+        if(String(d.img||'').indexOf('data:')===0)
+          out.push({t:'staff',id:k,i:ix,kind:FILE_KIND_STAFF,name:(d.kind||'書類')+'.jpg',
                     size:Math.round(String(d.img).length*0.75),ref:k,uri:d.img});
+        else if(isLocRef(d.img))
+          out.push({t:'staff',id:k,i:ix,kind:FILE_KIND_STAFF,name:(d.kind||'書類')+'.jpg',
+                    size:0,ref:k,key:locKeyOf(d.img)});
       });
     }
   }catch(e){}
@@ -32426,6 +32790,13 @@ function localFilePush(x,cb){
       }else if(x.t==='staff'){
         var sl=staffDocsOf(x.id);
         if(sl[x.i]){sl[x.i].img=FILE_SRV+key;staffDocsSet(x.id,sl);}
+      }else if(x.t==='guide'){
+        var gg=guideFiles();
+        if(gg[x.id]){
+          delete gg[x.id].data;
+          gg[x.id].key=key;gg[x.id].where='server';
+          stSet('guide_files',gg);
+        }
       }else if(x.t==='scan'){
         var a=scansAll(),arr=(a[x.id]||[]).slice();
         if(arr[x.i]){arr[x.i].img=FILE_SRV+key;a[x.id]=arr;stSet('recScans',a);}
@@ -32454,6 +32825,103 @@ function localFilePush(x,cb){
     });
   });
 }
+/* ★園の記録に、すでに目印が入っていたら、そちらに従う。
+   園の共用パソコンと園長のノートに、同じ園児の写真が別々に入っていることがある。
+   あとから移そうとした端末は、自分の中身を送らず、目印に従う
+   （同じ人の同じ写真なので、二重に預からないし、写真が入れ替わることもない）。 */
+function localFileStale(x){
+  try{
+    if(x.t==='photo'){var v=photoOf(x.id);
+      return x.uri?(v!==x.uri):(!isLocRef(v)||locKeyOf(v)!==x.key);}
+    if(x.t==='staff'){var d=staffDocsOf(x.id)[x.i];if(!d)return true;
+      return x.uri?(d.img!==x.uri):(!isLocRef(d.img)||locKeyOf(d.img)!==x.key);}
+    if(x.t==='guide'){var g=guideFiles()[x.id];if(!g)return true;
+      return x.uri?(g.data!==x.uri):(g.key!==x.key||g.where==='server');}
+    if(x.t==='kid'){var f=(kidDocsOf(x.id)[x.i]||{}).file;
+      return !f||f.key!==x.key||f.where==='server';}
+    if(x.t==='doc'){var r=(stGet('docs',{})[x.id]||{}).file;
+      return !r||r.key!==x.key||r.where==='server';}
+    if(x.t==='scan'){var a=(scansAll()[x.id]||[])[x.i];return !a||a.img!==x.uri;}
+  }catch(e){return true;}
+  return false;
+}
+/* ══ 自動お預け ═══════════════════════════════
+   端末にだけ残っているものを、園に何もしていただかずに、少しずつ園の記録へ移す。
+   ★「園ごとに設定のボタンを1回押していただく」は採らない。園は100あり、
+     押していない園が必ず残る。その園は端末が壊れたら中身が戻せず、
+     「全部クラウドに残す」というご判断が達成できない。
+   ・つないでいて、園の記録の読み書きが動いていないときに、1件ずつ
+   ・1件ごとに間を置く（通信の細い園で固まらないため）
+   ・受け付けられない形・読み取れないものは、端末にそのまま残して一覧に出す。
+     ★預けられていない中身を、端末から消してはいけない。消すと取り返せない。 */
+var FMOVE={busy:false,timer:null,ok:0,fail:[],left:0,started:false,skip:{}};
+var FMOVE_GAP=4000;
+function fileMoveId(x){return [x.t,x.id,(x.i==null?'':x.i),(x.key||'')].join('|');}
+function fileMoveStart(){
+  if(FMOVE.started)return;
+  FMOVE.started=true;
+  fileMoveLater(8000);
+}
+function fileMoveLater(ms){
+  if(FMOVE.timer)return;
+  FMOVE.timer=setTimeout(function(){FMOVE.timer=null;fileMoveTick();},ms);
+}
+function fileMoveTick(){
+  if(FMOVE.busy)return;
+  if(typeof API==='undefined'||!API.online()){fileMoveLater(30000);return;}
+  /* 園の記録の読み書きの最中は、そちらを先に通す（同じ通信を取り合わない） */
+  try{if(typeof SYNC!=='undefined'&&(SYNC.busy||SYNC.pulling())){fileMoveLater(4000);return;}}catch(e){}
+  var list=localFileList().filter(function(x){return !FMOVE.skip[fileMoveId(x)];});
+  FMOVE.left=list.length;
+  fileMoveRefresh();
+  if(!list.length)return;
+  var x=list[0];
+  if(localFileStale(x)){FMOVE.skip[fileMoveId(x)]=1;fileMoveLater(300);return;}
+  FMOVE.busy=true;
+  localFilePush(x,function(err){
+    FMOVE.busy=false;
+    if(err){
+      FMOVE.skip[fileMoveId(x)]=1;
+      FMOVE.fail.push({name:x.name,kind:x.kind,why:(err.message||'預けられませんでした')});
+    }else FMOVE.ok++;
+    fileMoveRefresh();
+    fileMoveLater(FMOVE_GAP);
+  });
+}
+function fileMoveRefresh(){
+  try{
+    var b=document.getElementById('fmAuto');
+    if(b){b.innerHTML=fileMoveNoteHTML();fileMoveWire();}
+  }catch(e){}
+}
+function fileMoveNoteHTML(){
+  var h='';
+  if(FMOVE.left>0){
+    h+='<div style="padding:9px 12px;border-radius:9px;background:#EDF3FA;border:1px solid #C3D6EA;color:#1B4A77;font-size:12.5px;line-height:1.8;">'
+      +'<b>園の記録へお預け中：あと '+FMOVE.left+'件。</b>'
+      +'園でしていただくことはありません。終わると、この案内は消えます。</div>';
+  }else if(FMOVE.ok>0){
+    h+='<div style="padding:9px 12px;border-radius:9px;background:#EAF3DE;border:1px solid #B7D48A;color:#27500A;font-size:12.5px;">'
+      +'<b>'+FMOVE.ok+'件を園の記録へお預けしました。</b></div>';
+  }
+  if(FMOVE.fail.length){
+    h+='<div style="margin-top:9px;padding:9px 12px;border-radius:9px;background:#FCEBEB;border:1px solid #E8C9C9;color:#A32D2D;font-size:12.5px;line-height:1.8;">'
+      +'<b>'+FMOVE.fail.length+'件は預けられませんでした。</b><br>'
+      +'この端末にだけあります。この端末のブラウザの記録を消すと失われます。<br>'
+      +FMOVE.fail.slice(0,20).map(function(f){
+        return esc(f.kind)+'　'+esc(f.name)+'：'+esc(f.why);}).join('<br>')
+      +'<div style="margin-top:8px;"><button class="btn btn-sm" id="fmRetry">もう一度ためす</button></div></div>';
+  }
+  return h;
+}
+function fileMoveWire(){
+  var r=document.getElementById('fmRetry');
+  if(r)r.onclick=function(){
+    FMOVE.skip={};FMOVE.fail=[];
+    fileMoveRefresh();fileMoveWire();
+    clearTimeout(FMOVE.timer);FMOVE.timer=null;fileMoveLater(200);
+  };
+}
 /* 設定ページ用カード */
 function renderFileMoveSettings(s){
   var list=localFileList(),tot=0;
@@ -32465,7 +32933,11 @@ function renderFileMoveSettings(s){
     +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.75;">'
     +'書類や写真の中身は、園の記録としてサーバへ預けます。'
     +'<b>端末の中だけに置いたままだと、ブラウザの空きが足りなくなったときに断りなく消えます。</b>'
-    +'端末を買い替えたときも引き継がれません。</div>';
+    +'端末を買い替えたときも引き継がれません。</div>'
+    /* 園ごとの預かり容量。上限に近づいたら分かるように出す */
+    +'<div id="fmQuota" class="muted" style="font-size:12px;margin-bottom:10px;">'+fileQuotaLine()+'</div>'
+    /* 自動お預けの進み具合と、移せなかった一覧。押していただく必要はない */
+    +'<div id="fmAuto" style="margin-bottom:10px;">'+fileMoveNoteHTML()+'</div>';
   if(!list.length){
     html+='<div style="padding:10px 13px;border-radius:9px;background:#EAF3DE;border:1px solid #B7D48A;color:#27500A;font-size:12.5px;">'
       +'端末の中だけに残っているものはありません。</div>';
@@ -32482,6 +32954,13 @@ function renderFileMoveSettings(s){
   }
   html+='</div>';
   s.insertAdjacentHTML('beforeend',html);
+  fileMoveWire();
+  /* 残り容量は、開いたときに園の記録へ聞き直す（ほかの端末が預けた分も入るため） */
+  if(on)apiFileQuota(function(err){
+    if(err)return;
+    var q=document.getElementById('fmQuota');
+    if(q)q.innerHTML=fileQuotaLine();
+  });
   var b=document.getElementById('fmGo');
   if(b)b.onclick=function(){
     if(!confirm(list.length+'件（約'+docSizeText(tot)+'）をサーバへ預けます。\n\n'
@@ -32745,16 +33224,16 @@ var HELP_NEW={
    '「原本を登録」を押して、園のファイルを選びます。',
    '登録できると、ファイル名と登録日が出ます。中身を変えるときは「差し替え」を押します。',
    '一覧にない資料は、いちばん下の「＋ 資料を追加する」で足せます。'],
-  tips:['ファイルはこの端末のブラウザにだけ保存されます。外部には送信されません。園の共有パソコンなど、いつも同じ端末で登録してください。',
-   'PDF・PNG・JPEG の3つだけです。1ファイル4MBまでです。',
+  tips:['ファイルは園の記録として保存され、どの端末からでも開けます。登録すると、保護者は未来WAのマイページからいつでも見られます。',
+   'PDF・PNG・JPEG・WebP の4つだけです。1ファイル20MBまでです。',
    '原本が未登録のものは、保護者にはひな型の説明だけが出ます（記入用紙のものは、記入用紙も出ます）。',
    '「削除」を押すと、保護者の未来WAから園の原本が見えなくなります。ひな型の説明は残ります。',
    '先生（一般）の画面は見るだけです。登録・差し替え・削除は、園長・管理者が行います。',
-   '上の「原本を登録ずみ」の数と、この端末での保存量が出ます。保存量が増えると動きが重くなります。'],
+   '上の「原本を登録ずみ」の数と、園の記録に預けている量が出ます。園ごとの預かり容量に近づくと、設定に残りが出ます。'],
   faq:[{q:'ほかのパソコンで開いたら、登録したものが出てきません。',
-    a:'ファイルは登録した端末のブラウザに保存されています。ほかの端末では出ません。いつも同じ端末で登録してください。'},
+    a:'園の記録に預ける前のものは、登録した端末にだけあります。つながったときに自動でお預けするので、しばらくするとほかの端末でも出ます。'},
    {q:'Word や Excel のファイルは登録できますか。',
-    a:'できません。PDF・PNG・JPEG のみです。PDFに書き出してから登録してください。'},
+    a:'できません。PDF・PNG・JPEG・WebP のみです。PDFに書き出してから登録してください。'},
    {q:'「保存できませんでした」と出ます。',
     a:'ブラウザの保存容量がいっぱいです。もう使わない資料を削除してから、もう一度お試しください。'},
    {q:'一覧にない書類を保護者に渡したいのですが。',

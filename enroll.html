@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<!-- 招待の印が入った URL を、リンク先のサイトへ渡さないため -->
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" href="img/icon_miraiwa.png">
+<title>入園のご相談・お手続き｜未来WA</title>
+<!--
+  ★★★ apply.html とは別物です ★★★
+  apply.html  … 園が Miralink／未来WA を契約するための「導入申込」。届くと運営（BIM JAPAN）にメールが飛ぶ。
+  enroll.html … 入園を考えているご家庭のための入口。
+                ・?s=園コード … 問い合わせ・見学・体験の申し込み
+                ・?i=招待の印 … 園から届いた招待で、入園手続き用の未来WAアカウントを作る
+  園児やご家庭の情報を apply.html の口へ流さないでください。運営の受信箱に個人情報が届きます。
+  決まりごとは cocoas-api/README.md の「入園の手続き（API の約束）」です。形を変えるときは、あちらを先に直します。
+-->
+<style>
+  /* 未来WA（parent.html）と同じ色と形にそろえています。直すときは両方を見てください。 */
+  :root{
+    color-scheme:light;
+    --teal:#EB4E9B;--teal-d:#C43478;--teal-l:#F27BB4;
+    --o:#F59A2E;--p:#EB4E9B;--b:#2D9CDB;--g:#6FBE44;--c:#3FC1E0;
+    --bg:#FFF7EF;--card:#ffffff;--line:#F2E7DA;--line2:#FBF3EA;
+    --tx:#23262E;--tx2:#6E6A72;--tx3:#A9A3AB;
+    --radius:20px;--shadow:0 3px 16px rgba(120,80,40,.10);
+    --ng:#A32D2D;--ngbg:#FCEBEB;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased;}
+  .phone{max-width:520px;margin:0 auto;min-height:100vh;background:var(--bg);display:flex;flex-direction:column;box-shadow:0 0 40px rgba(0,0,0,.06);}
+  .scroll{flex:1;padding:18px 15px 30px;}
+  a{color:var(--teal-d);}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;font-size:16px;width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--tx);}
+  input[type=radio],input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--teal);}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal-l);box-shadow:0 0 0 3px rgba(235,78,155,.14);}
+  :focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+  textarea{resize:vertical;line-height:1.6;}
+  label{font-size:12.5px;color:var(--tx2);font-weight:600;display:block;margin-bottom:5px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(96deg,var(--o),var(--p));color:#fff;border:none;border-radius:12px;padding:14px 18px;font-size:15.5px;font-weight:700;width:100%;transition:transform .05s;text-decoration:none;}
+  .btn:active{transform:scale(.98);}
+  .btn[disabled]{opacity:.55;cursor:default;}
+  .btn.sec{background:#fff;color:var(--teal);border:1.5px solid var(--teal);}
+  .btn + .btn{margin-top:10px;}
+  .card{background:var(--card);border-radius:22px 22px 22px 7px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px;}
+  .card.petal-o{border-left:3px solid var(--o);}
+  .card.petal-p{border-left:3px solid var(--p);}
+  .card.petal-b{border-left:3px solid var(--b);}
+  .card.petal-g{border-left:3px solid var(--g);}
+  .card.petal-c{border-left:3px solid var(--c);}
+  h2.sec{font-size:15px;font-weight:700;margin:0 0 11px;display:flex;align-items:center;gap:8px;}
+  h2.sec::before{content:"";width:12px;height:15px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;background:var(--secc,var(--p));flex-shrink:0;transform:rotate(-12deg);}
+  .petal-o h2.sec{--secc:var(--o);} .petal-b h2.sec{--secc:var(--b);} .petal-g h2.sec{--secc:var(--g);} .petal-c h2.sec{--secc:var(--c);}
+  .muted{color:var(--tx2);font-size:12.5px;}
+  .pre{white-space:pre-wrap;word-break:break-word;}
+  .ribbon{background:#2c2c2c;color:#fff;font-size:12px;text-align:center;padding:6px 10px;letter-spacing:.03em;}
+  .apinote{background:#FFF3CD;color:#7A5B00;font-size:12px;text-align:center;padding:6px 10px;word-break:break-all;}
+
+  .brand{display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px 0 18px;text-align:center;}
+  .brand .logo{width:170px;max-width:56vw;height:auto;display:block;}
+  .brand h1{font-size:19px;margin:6px 0 0;font-weight:700;line-height:1.4;}
+  .brand .sub{font-size:13px;color:var(--tx2);}
+
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  .req,.opt{display:inline-block;font-size:10.5px;font-weight:700;border-radius:99px;padding:0 7px;margin-left:4px;vertical-align:1px;}
+  .req{background:var(--teal);color:#fff;}
+  .opt{background:var(--line2);color:var(--tx2);border:1px solid var(--line);}
+  .hint{font-size:12px;color:var(--tx2);margin-top:5px;line-height:1.55;}
+  .bad{font-size:12.5px;color:var(--ng);margin-top:5px;font-weight:600;}
+  .field.ng input,.field.ng select,.field.ng textarea{border-color:#E08A8A;background:#FFFBFB;}
+  .row2{display:flex;gap:10px;}
+  .row2 > .field{flex:1;min-width:0;}
+  @media(max-width:380px){ .row2{display:block;} }
+
+  .msg{border-radius:12px;padding:11px 13px;font-size:13.5px;margin-bottom:14px;line-height:1.6;}
+  .msg.ng{background:var(--ngbg);color:var(--ng);}
+  .msg.info{background:#EAF5FC;color:#1F5E86;}
+
+  /* 選ぶ欄（ご用件・日程・続柄） */
+  .opts{display:flex;flex-direction:column;gap:8px;}
+  .opts.inline{flex-direction:row;flex-wrap:wrap;}
+  .opt-l{display:flex;align-items:flex-start;gap:10px;background:#fff;border:1.5px solid var(--line);border-radius:13px;padding:11px 13px;margin:0;color:var(--tx);font-size:14.5px;font-weight:500;cursor:pointer;}
+  .opts.inline .opt-l{align-items:center;padding:9px 14px;}
+  .opt-l input{margin-top:4px;flex-shrink:0;}
+  .opts.inline .opt-l input{margin-top:0;}
+  .opt-l .ot{font-weight:700;}
+  .opt-l .oh{display:block;font-size:12px;color:var(--tx2);font-weight:500;}
+  .opt-l.on{border-color:var(--teal);background:#FFF3F8;}
+  .opt-l.off{opacity:.5;cursor:default;}
+  .left{margin-left:auto;font-size:11.5px;font-weight:700;border-radius:99px;padding:1px 9px;white-space:nowrap;background:var(--line2);color:var(--tx2);}
+  .left.full{background:#eee;color:#888;}
+
+  .school div{font-size:13.5px;margin:2px 0;}
+  .privacy{max-height:220px;overflow-y:auto;background:var(--line2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.7;margin-bottom:12px;}
+  .agree{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--tx);font-weight:600;margin:0;cursor:pointer;}
+  .agree input{margin-top:4px;flex-shrink:0;}
+  .note{background:var(--line2);border-radius:12px;padding:10px 12px;font-size:12.5px;color:var(--tx2);line-height:1.65;}
+
+  /* ボットだけが入力する見えない欄。人には見えず、読み上げにも出さない */
+  .hp{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;}
+
+  .kid{display:flex;gap:12px;align-items:flex-start;}
+  .kid .av{width:44px;height:44px;border-radius:50%;background:var(--teal-l);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;flex-shrink:0;}
+  ol.steps{margin:0;padding:0;list-style:none;counter-reset:st;}
+  ol.steps li{position:relative;padding:0 0 12px 36px;font-size:13.5px;line-height:1.6;counter-increment:st;}
+  ol.steps li:last-child{padding-bottom:0;}
+  ol.steps li::before{content:counter(st);position:absolute;left:0;top:0;width:25px;height:25px;border-radius:50%;background:var(--line2);border:1px solid var(--line);color:var(--tx2);font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+  ol.steps li.now::before{background:var(--teal);border-color:var(--teal);color:#fff;}
+  ol.steps li span{display:block;font-size:12px;color:var(--tx2);}
+  .echo div{font-size:13.5px;padding:6px 0;border-top:1px solid var(--line2);word-break:break-word;}
+  .echo div:first-child{border-top:none;}
+  .echo b{display:inline-block;min-width:7.5em;color:var(--tx2);font-weight:600;font-size:12.5px;}
+  .big{font-size:40px;text-align:center;line-height:1;margin:6px 0 4px;}
+  .divider{display:flex;align-items:center;gap:12px;color:var(--tx3);font-size:12px;margin:20px 0 12px;}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  footer{padding:14px 18px 26px;text-align:center;font-size:11.5px;color:var(--tx3);line-height:1.8;}
+  footer a{color:var(--tx2);}
+  .spin{display:inline-block;width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-4px;margin-right:8px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div id="ribbon"></div>
+  <main class="scroll" id="app" aria-live="polite">
+    <noscript><div class="card">このページを使うには、ブラウザの JavaScript を有効にしてください。</div></noscript>
+  </main>
+  <footer>
+    入園のご相談・お手続きは、園とご家庭をつなぐアプリ「未来WA」で受け付けています。<br>
+    <a href="terms.html" target="_blank" rel="noopener">未来WA 利用規約</a>　／　<a href="privacy.html" target="_blank" rel="noopener">未来WA プライバシーポリシー</a>
+  </footer>
+</div>
+
+<script>
+/* ══ 入園のご相談・お手続き（enroll.html） ══════════════════════
+   ★ apply.html（園が Miralink を契約する導入申込）とは別物。ここは入園を考えているご家庭の入口。
+
+   開き方は3つ。
+   ・enroll.html?s=園コード … 問い合わせ・見学・体験の申し込み。ログインは要らない
+   ・enroll.html?i=招待の印 … 園から届いた招待で、入園手続き用の未来WAアカウントを作る
+   ・どちらも無い         … ご案内と、練習として画面を試す入口
+   ・&demo=1 を付ける      … 練習。どこにも送らず、画面の中だけで最後まで進む
+   ・&api=… を付ける       … 開発用。このページも接続先も自分のパソコン（localhost）のときだけ効く
+
+   受け取らないもの（2026-09-15 の決まり。安田さんに確認中のため安全側）
+   ・健康のこと（アレルギー・既往症）とお写真は、このページでは一切受け取らない。
+     ログインの前の入口は、なりすましや送り間違いの入口にもなるため。
+     証明写真・お迎えの方のお写真は、入園の手続きでも預からず、園に来たときに撮る。
+   ・お金はこのページでは扱わない。入園金などは、園が請求書を作って未来WAに届けるところまで。
+   ・未来WAの規約への同意は、ここでは取らない。ログインのあとの未来WAの同意画面で、
+     全文を読んでいただいてから取る（API の約束 10-1）。ここで形だけ同意させると、
+     台帳に残らない「同意したつもり」ができてしまうため。 */
+
+var ENR_API_DEFAULT='https://cocoas-api-production.up.railway.app';
+/* 開いた時刻。約束どおり elapsedMs として添えるが、受け口はこの値を見ない（送り手が書き換えられるため）。
+   開いてすぐ送ってくるボットの見分けは、受け口が署名した札（formToken）の時刻で行う */
+var ENR_OPENED=+new Date();
+/* 札を受け取ってから、送るまでに待つ時間。
+   受け口は、札を渡してから3秒たたない送信をボットとみなし、「受け付けました」と同じ応答を返して黙って捨てる（API の約束 10-1）。
+   日程が満席で選び直した直後などに、ご家庭が3秒以内に押しても届くよう、足りない分だけこちらで待ってから送る。
+   この端末の時計で「受け取ってから」を測れば、受け口の時計では必ずそれ以上たっているので、ずれの心配はない */
+var ENR_FORM_WAIT_MS=3300;
+/* 招待の印は、このタブの中だけに置く（再読み込みで迷子にしないため）。端末には残さない */
+var ENR_INVITE_KEY='cocoas_enroll_invite';
+/* 招待を開いたときに分かった園コード。このタブの中だけに置く。
+   使い終わった招待を開き直したとき、未来WAのログインへ園コードを添えて案内するのに使う */
+var ENR_SCHOOL_KEY='cocoas_enroll_school';
+/* 未来WAのログイン画面に、いま決めたメールアドレスを入れておくための受け渡し。
+   URL に載せると履歴やアクセスの記録に残るので、このタブの中だけで渡す（API の約束 11） */
+var ENR_LOGIN_EMAIL_KEY='cocoas_wa_login_email';
+/* 続柄の保存値。受け口がこの3つだけを受け付ける（API の約束 10-1） */
+var ENR_RELATIONS=['父','母','その他の保護者'];
+/* ご用件の補足。種類そのものは受け口から届いた一覧を使い、ここは説明の添え物だけ */
+var ENR_KIND_HINT={'問い合わせ':'まずはお話を聞きたい・資料がほしい','見学':'園の様子を見に行きたい','体験':'お子さまと一緒に体験してみたい'};
+var ENR_EMAIL_RX=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+var ENR={
+  api:ENR_API_DEFAULT, apiNote:'', practice:false,
+  view:'loading',      /* loading／landing／closed／down／inquiry／inquiryDone／invite／inviteBad／inviteDone */
+  mode:'',             /* inquiry か invite。つながらなかったとき、どちらを練習するかに使う */
+  downKind:'',         /* network（つながらない）か notready（受け口がまだ無い） */
+  code:'', token:'',
+  pub:null, inv:null,
+  vals:{}, bad:{}, msg:'', msgKind:'ng',
+  busy:false, done:null, moveTimer:null,
+  pubAt:0,             /* いまの札（pub.formToken）を受け取った時刻（この端末の時計） */
+  expired:false,       /* 札が古くて送れなかった。次に送るときは札を取り直してから送る */
+  graceToken:''        /* 409 form_expired に添えて返された、待たずに送れる札 */
+};
+
+function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function enrEl(id){return document.getElementById(id);}
+function enrVal(id){var e=enrEl(id);return e?String(e.value||'').replace(/^\s+|\s+$/g,''):'';}
+function enrHas(o){for(var k in o){if(Object.prototype.hasOwnProperty.call(o,k))return true;}return false;}
+
+/* ?api=… で接続先を差し替えてよいのは、開発中の自分のパソコンで、このページも自分のパソコンから開いているときだけ。
+   いつもの接続先は ENR_API_DEFAULT に決め打ちしてあり、ご家庭が使う道はそれしかない。
+   ★以前は parent.html の WAPI.allowBase と同じく *.up.railway.app も認め、何も聞かずに切り替えて上に小さな帯を出すだけだった。
+     *.up.railway.app は誰でも自分のアプリを置ける場所なので、偽の招待リンク（enroll.html?i=…&api=https://だれか.up.railway.app）を
+     渡すだけで、本物の園のページのまま、お名前・メールアドレス・パスワードや、問い合わせのお子さまの氏名・生年月日・電話番号を
+     他人のところへ送らせることができた。ここはログインの前のご家庭が最初に開くページなので、差し替えの道そのものを閉じる。 */
+function enrAllowBase(v){
+  var u; try{ u=new URL(String(v||'')); }catch(e){ return false; }
+  if(u.protocol!=='http:'&&u.protocol!=='https:')return false;
+  if(u.username||u.password)return false;
+  return enrIsLocalHost(u.hostname)&&enrIsLocalHost(location.hostname);
+}
+function enrIsLocalHost(h){ return h==='localhost'||h==='127.0.0.1'; }
+
+/* ── 日付と時刻（園の予定は日本時間で見せる。端末の時計の地域に左右されないように） ── */
+function enrJst(iso){
+  var t=Date.parse(iso); if(isNaN(t))return null;
+  var d=new Date(t+9*3600000);
+  return {y:d.getUTCFullYear(),mo:d.getUTCMonth()+1,d:d.getUTCDate(),w:d.getUTCDay(),h:d.getUTCHours(),mi:d.getUTCMinutes()};
+}
+function enrWhen(iso){
+  var p=enrJst(iso); if(!p)return '';
+  return p.mo+'月'+p.d+'日（'+'日月火水木金土'.charAt(p.w)+'）'+p.h+':'+(p.mi<10?'0':'')+p.mi;
+}
+function enrTodayJst(){
+  var d=new Date(+new Date()+9*3600000);
+  function z(n){return (n<10?'0':'')+n;}
+  return d.getUTCFullYear()+'-'+z(d.getUTCMonth()+1)+'-'+z(d.getUTCDate());
+}
+/* 練習の枠を「今日から n 日後の h:m（日本時間）」で作る */
+function enrJstAt(days,h,m){
+  var d=new Date(+new Date()+9*3600000);
+  return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+days,h-9,m)).toISOString();
+}
+
+/* ── 受け口とのやりとり ──
+   応答は {status, ok, j, json} にそろえる。つながらないときだけ network の印を付けて失敗にする。
+   ★「受け口がまだ用意されていない」（JSON でない404）と「園が受け付けを止めている」（code 付きの404）を
+     分けないと、準備中の園でご家庭に「このURLは間違い」と出してしまう。 */
+function enrCall(method,path,body){
+  var ctl=null,timer=null;
+  try{ ctl=new AbortController(); }catch(e){ ctl=null; }
+  var opt={method:method,headers:{'Accept':'application/json'},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer'};
+  if(body){ opt.headers['Content-Type']='application/json'; opt.body=JSON.stringify(body); }
+  if(ctl){ opt.signal=ctl.signal; timer=setTimeout(function(){ try{ctl.abort();}catch(e){} },20000); }
+  return fetch(ENR.api+path,opt).then(function(r){
+    if(timer)clearTimeout(timer);
+    return r.text().then(function(t){
+      var j=null; try{ j=JSON.parse(t); }catch(e){ j=null; }
+      return {status:r.status,ok:r.ok,j:(j&&typeof j==='object')?j:{},json:!!(j&&typeof j==='object')};
+    });
+  },function(){
+    if(timer)clearTimeout(timer);
+    var er=new Error('network'); er.network=true; throw er;
+  });
+}
+
+/* ══ はじめに ══════════════════════════════ */
+function enrBoot(){
+  var q=null;
+  try{ q=new URLSearchParams(location.search); }catch(e){ q=null; }
+  function qg(k){ return q?q.get(k):null; }
+
+  var a=qg('api');
+  if(a!==null&&a!==''){
+    if(enrAllowBase(a))ENR.api=String(a).replace(/\/+$/,'');
+    else ENR.apiNote='指定された接続先は使えないため、いつもの接続先につなぎます。';
+  }
+  ENR.practice=(qg('demo')==='1');
+  var s=qg('s'), i=qg('i');
+
+  if(i!==null){
+    /* ★招待の印は、読んだらすぐ URL から消す（API の約束 11）。
+       残したままだと、履歴・ブックマーク・画面の写真から、他人がアカウントを作れてしまう。 */
+    try{
+      q.delete('i');
+      history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():'')+location.hash);
+    }catch(e){}
+    try{ sessionStorage.setItem(ENR_INVITE_KEY,i); }catch(e){}
+  }else if(s===null){
+    try{ i=sessionStorage.getItem(ENR_INVITE_KEY); }catch(e){ i=null; }
+  }
+
+  enrRibbonPaint();
+  if(i){ ENR.token=String(i); enrInviteLoad(); return; }
+  if(s!==null&&s!==''){ ENR.code=String(s); enrPublicLoad(); return; }
+  ENR.view='landing'; enrRender();
+}
+
+function enrRibbonPaint(){
+  var h='';
+  if(ENR.practice)h+='<div class="ribbon">練習モード｜入力した内容は、どこにも送られません</div>';
+  if(ENR.apiNote)h+='<div class="apinote">'+esc(ENR.apiNote)+'</div>';
+  else if(ENR.api!==ENR_API_DEFAULT&&!ENR.practice)h+='<div class="apinote">ためし用の接続先：'+esc(ENR.api)+'</div>';
+  enrEl('ribbon').innerHTML=h;
+}
+
+/* ══ 画面の組み立て ══════════════════════════ */
+function enrRender(){
+  var v=ENR.view, h='';
+  if(v==='loading')h=enrLoadingHTML();
+  else if(v==='landing')h=enrLandingHTML();
+  else if(v==='closed')h=enrClosedHTML();
+  else if(v==='down')h=enrDownHTML();
+  else if(v==='inquiry')h=enrInquiryHTML();
+  else if(v==='inquiryDone')h=enrInquiryDoneHTML();
+  else if(v==='invite')h=enrInviteHTML();
+  else if(v==='inviteBad')h=enrInviteBadHTML();
+  else if(v==='inviteDone')h=enrInviteDoneHTML();
+  enrEl('app').innerHTML=h;
+  enrRibbonPaint();
+}
+
+function enrHeadHTML(title,sub){
+  return '<div class="brand"><img class="logo" src="img/logo_miraiwa.png" alt="未来WA">'
+    +(title?'<h1>'+esc(title)+'</h1>':'')
+    +(sub?'<div class="sub">'+esc(sub)+'</div>':'')+'</div>';
+}
+function enrMsgHTML(){
+  return ENR.msg?'<div class="msg '+(ENR.msgKind||'ng')+'" role="alert">'+esc(ENR.msg)+'</div>':'';
+}
+function enrLoadingHTML(){
+  return enrHeadHTML('','')+'<div class="card" style="text-align:center;"><span class="spin"></span>読み込んでいます…</div>';
+}
+
+function enrLandingHTML(){
+  return enrHeadHTML('入園のご相談・お手続き','')
+    +'<div class="card petal-b"><h2 class="sec">このページの開き方</h2>'
+    +'<div style="font-size:14px;">園からお知らせしたURL（またはQRコード）から開いてください。</div>'
+    +'<ul style="margin:10px 0 0;padding-left:1.2em;font-size:13.5px;line-height:1.8;">'
+    +'<li><b>見学・体験のお申し込み</b>…園のホームページやチラシにあるURL</li>'
+    +'<li><b>入園のお手続き</b>…園から届いた招待のリンク</li></ul>'
+    +'<div class="muted" style="margin-top:10px;">URLの一部が切れていると、このご案内が出ます。お手数ですが、もう一度リンクを開き直してください。</div></div>'
+    +'<div class="divider">画面を試してみる（練習）</div>'
+    +'<button class="btn sec" data-act="practiceInquiry">問い合わせフォームを試す</button>'
+    +'<button class="btn sec" data-act="practiceInvite">招待の受け取りを試す</button>'
+    +'<div class="muted" style="text-align:center;margin-top:10px;">練習では、入力した内容はどこにも送られません。</div>';
+}
+
+function enrClosedHTML(){
+  return enrHeadHTML('','')
+    +'<div class="card petal-o" style="text-align:center;"><div class="big">📭</div>'
+    +'<h2 class="sec" style="justify-content:center;">このフォームは、いま受け付けていません</h2>'
+    +'<div style="font-size:14px;">URLが正しいかお確かめのうえ、恐れ入りますが園へ直接お問い合わせください。</div></div>';
+}
+
+function enrDownHTML(){
+  var notready=(ENR.downKind==='notready');
+  return enrHeadHTML('','')
+    +'<div class="card petal-o"><div class="big">'+(notready?'🛠️':'📶')+'</div>'
+    +'<h2 class="sec">'+(notready?'ただいま受け付けの準備中です':'つながりませんでした')+'</h2>'
+    +'<div style="font-size:14px;">'+(notready
+      ?'恐れ入りますが、しばらくたってから開き直すか、園へ直接お問い合わせください。'
+      :'通信の状態をお確かめのうえ、もう一度お試しください。続くときは、園へ直接お問い合わせください。')+'</div>'
+    +'<div style="margin-top:14px;"><button class="btn" data-act="retry">もう一度読み込む</button>'
+    +'<button class="btn sec" data-act="practiceHere">練習として画面だけ試す</button></div>'
+    +'<div class="muted" style="margin-top:8px;">練習では、入力した内容はどこにも送られず、園にも届きません。</div></div>';
+}
+
+/* ══ 問い合わせ・見学・体験（?s=園コード） ══════════════ */
+function enrPracticePub(){
+  return {
+    school:{name:'れんしゅう保育園（見本）',tel:'00-0000-0000',addr:'〇〇市〇〇町1-2-3（見本）'},
+    kinds:['問い合わせ','見学','体験'],
+    klasses:['Pre','Kinder','未定'],
+    slots:[
+      {id:'p1',kind:'見学',startsAt:enrJstAt(3,10,0),minutes:45,place:'園舎1階',left:3},
+      {id:'p2',kind:'体験',startsAt:enrJstAt(5,10,0),minutes:60,place:'ひよこ組のお部屋',left:2},
+      {id:'p3',kind:'体験',startsAt:enrJstAt(8,15,30),minutes:60,place:'ひよこ組のお部屋',left:0}
+    ],
+    notice:'見本の園です。見学・体験は平日の午前が中心です。お気軽にお問い合わせください。',
+    privacy:{text:'（見本）ご記入いただいた内容は、お問い合わせへのご連絡と、見学・体験のご案内にだけ使います。\nほかの目的には使わず、ご本人の同意なく第三者に渡しません。',sha256:''}
+  };
+}
+
+function enrPublicLoad(keep){
+  ENR.mode='inquiry';
+  if(ENR.practice){
+    ENR.pub=enrPracticePub(); ENR.view='inquiry';
+    if(!keep){ ENR.vals={}; ENR.bad={}; ENR.msg=''; }
+    enrRender(); return;
+  }
+  if(!keep){ ENR.view='loading'; enrRender(); }
+  enrCall('GET','/enroll/public/'+encodeURIComponent(ENR.code)).then(function(x){
+    if(x.ok&&x.j&&x.j.school){
+      ENR.pub=x.j; ENR.pubAt=+new Date(); ENR.expired=false; ENR.graceToken='';
+      if(!x.j.kinds||!x.j.kinds.length){ ENR.view='closed'; enrRender(); return; }
+      if(!keep){ ENR.vals={}; ENR.bad={}; ENR.msg=''; }
+      ENR.view='inquiry'; enrRender(); return;
+    }
+    if(x.status===404&&x.j.code){ ENR.view='closed'; enrRender(); return; }
+    ENR.downKind=(x.status===404)?'notready':'network';
+    ENR.view='down'; enrRender();
+  },function(){
+    ENR.downKind='network'; ENR.view='down'; enrRender();
+  });
+}
+
+function enrFieldHTML(key,label,req,inner,hint){
+  var b=ENR.bad[key];
+  return '<div class="field'+(b?' ng':'')+'" data-f="'+key+'">'
+    +(label?'<label for="q_'+key+'">'+esc(label)+(req?'<span class="req">必須</span>':'<span class="opt">任意</span>')+'</label>':'')
+    +inner
+    +(hint?'<div class="hint">'+hint+'</div>':'')
+    +(b?'<div class="bad">'+esc(b)+'</div>':'')+'</div>';
+}
+function enrInputHTML(key,type,attrs){
+  return '<input id="q_'+key+'" name="'+key+'" type="'+type+'" value="'+esc(ENR.vals[key]||'')+'" '+(attrs||'')+'>';
+}
+
+function enrSlotsHTML(kind,slotId){
+  var p=ENR.pub||{};
+  if(!kind||kind==='問い合わせ')return '';
+  var list=(p.slots||[]).filter(function(s){ return s&&s.kind===kind; });
+  var b=ENR.bad.slotId;
+  var h='<div class="field'+(b?' ng':'')+'" data-f="slotId" style="margin-top:14px;"><label>ご希望の日程<span class="opt">任意</span></label>';
+  if(!list.length){
+    h+='<div class="note">いまお選びいただける'+esc(kind)+'の日程はありません。下の「ご質問・ご希望」に、ご都合のよい日時をお書きください。園からご連絡します。</div>';
+  }else{
+    h+='<div class="opts">';
+    list.forEach(function(s){
+      var id=String(s.id), full=!(Number(s.left)>0), on=(!full&&String(slotId||'')===id);
+      h+='<label class="opt-l'+(on?' on':'')+(full?' off':'')+'">'
+        +'<input type="radio" name="slotId" value="'+esc(id)+'"'+(on?' checked':'')+(full?' disabled':'')+'>'
+        +'<span><span class="ot">'+esc(enrWhen(s.startsAt))+'〜</span>'
+        +'<span class="oh">'+(s.minutes?esc(s.minutes)+'分':'')+(s.place?'　'+esc(s.place):'')+'</span></span>'
+        +'<span class="left'+(full?' full':'')+'">'+(full?'満席':'残り'+esc(s.left))+'</span></label>';
+    });
+    var none=!String(slotId||'');
+    h+='<label class="opt-l'+(none?' on':'')+'"><input type="radio" name="slotId" value=""'+(none?' checked':'')+'>'
+      +'<span><span class="ot">ほかの日を園と相談したい</span><span class="oh">ご都合のよい日時を、下の「ご質問・ご希望」にお書きください</span></span></label>';
+    h+='</div>';
+  }
+  h+=(b?'<div class="bad">'+esc(b)+'</div>':'')+'</div>';
+  return h;
+}
+
+function enrInquiryHTML(){
+  var p=ENR.pub||{}, sc=p.school||{}, v=ENR.vals, bad=ENR.bad;
+  var kinds=p.kinds||[];
+  if(!v.kind&&kinds.length===1)v.kind=kinds[0];
+  var h=enrHeadHTML(sc.name||'','入園のご相談・見学・体験のお申し込み');
+
+  if(sc.addr||sc.tel){
+    h+='<div class="card petal-b school">'
+      +(sc.addr?'<div>📍 '+esc(sc.addr)+'</div>':'')
+      +(sc.tel?'<div>📞 <a href="tel:'+esc(String(sc.tel).replace(/[^0-9+]/g,''))+'">'+esc(sc.tel)+'</a>（お電話でも承ります）</div>':'')
+      +'</div>';
+  }
+  if(p.notice)h+='<div class="card petal-o pre" style="font-size:14px;">'+esc(p.notice)+'</div>';
+  h+=enrMsgHTML();
+  /* 札が古くて送れなかったときだけ出す。押すと札を取り直して、入力はそのまま送り直す */
+  if(ENR.expired&&!ENR.busy)h+='<button type="button" class="btn" data-act="resendInquiry" style="margin:0 0 14px;">もう一度送る</button>';
+  h+='<form id="fq" novalidate>';
+
+  /* ご用件 */
+  h+='<div class="card petal-p"><h2 class="sec">ご用件</h2>';
+  h+='<div class="field'+(bad.kind?' ng':'')+'" data-f="kind"><div class="opts">';
+  kinds.forEach(function(k){
+    var on=(v.kind===k);
+    h+='<label class="opt-l'+(on?' on':'')+'"><input type="radio" name="kind" value="'+esc(k)+'"'+(on?' checked':'')+'>'
+      +'<span><span class="ot">'+esc(k)+'</span>'+(ENR_KIND_HINT[k]?'<span class="oh">'+esc(ENR_KIND_HINT[k])+'</span>':'')+'</span></label>';
+  });
+  h+='</div>'+(bad.kind?'<div class="bad">'+esc(bad.kind)+'</div>':'')+'</div>';
+  h+='<div id="slotBox">'+enrSlotsHTML(v.kind,v.slotId)+'</div></div>';
+
+  /* 保護者 */
+  h+='<div class="card petal-o"><h2 class="sec">保護者の方</h2><div class="row2">'
+    +enrFieldHTML('parentName','お名前',true,enrInputHTML('parentName','text','maxlength="60" autocomplete="name" placeholder="山田 花子"'))
+    +enrFieldHTML('parentKana','ふりがな',false,enrInputHTML('parentKana','text','maxlength="60" autocomplete="off" placeholder="やまだ はなこ"'))
+    +'</div>';
+  h+='<div class="field'+(bad.contact?' ng':'')+'" data-f="contact" style="margin:0 0 8px;"><div class="hint" style="margin:0;">ご連絡先は、<b>メールアドレスか電話番号のどちらか1つ</b>を必ずご記入ください。</div>'
+    +(bad.contact?'<div class="bad">'+esc(bad.contact)+'</div>':'')+'</div>';
+  h+=enrFieldHTML('email','メールアドレス',false,enrInputHTML('email','email','maxlength="160" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com"'));
+  h+=enrFieldHTML('tel','電話番号',false,enrInputHTML('tel','tel','maxlength="20" autocomplete="tel" inputmode="tel" placeholder="090-1234-5678"'),'日中につながりやすい番号をお書きください。');
+  h+='</div>';
+
+  /* お子さま */
+  h+='<div class="card petal-g"><h2 class="sec">お子さま</h2><div class="row2">'
+    +enrFieldHTML('childName','お名前',true,enrInputHTML('childName','text','maxlength="60" autocomplete="off" placeholder="山田 さくら"'))
+    +enrFieldHTML('childKana','ふりがな',false,enrInputHTML('childKana','text','maxlength="60" autocomplete="off" placeholder="やまだ さくら"'))
+    +'</div>';
+  h+=enrFieldHTML('dob','生年月日',false,enrInputHTML('dob','date','max="'+enrTodayJst()+'" autocomplete="off"'));
+  var kl=p.klasses||[];
+  if(kl.length){
+    h+=enrFieldHTML('wishKlass','ご希望のクラス',false,'<select id="q_wishKlass" name="wishKlass"><option value="">選んでください</option>'
+      +kl.map(function(k){ return '<option value="'+esc(k)+'"'+(v.wishKlass===k?' selected':'')+'>'+esc(k)+'</option>'; }).join('')+'</select>');
+  }
+  h+='<div class="note">アレルギーなど健康のことや、お子さまのお写真は、このフォームでは伺いません。入園のお手続きのときに、あらためてお願いします。</div>';
+  h+='</div>';
+
+  /* ご質問 */
+  h+='<div class="card petal-c"><h2 class="sec">ご質問・ご希望</h2>'
+    +enrFieldHTML('message','',false,'<textarea id="q_message" name="message" rows="4" maxlength="1000" placeholder="'+esc(enrMsgPlaceholder(v.kind))+'">'+esc(v.message||'')+'</textarea>','1000文字まで')
+    +'</div>';
+
+  /* 個人情報の取り扱い */
+  var pv=p.privacy||{};
+  h+='<div class="card petal-p"><h2 class="sec">個人情報の取り扱い</h2>'
+    +'<div class="privacy pre" tabindex="0">'+esc(pv.text||'')+'</div>'
+    +'<div class="field'+(bad.agreePrivacy?' ng':'')+'" data-f="agreePrivacy">'
+    +'<label class="agree"><input type="checkbox" id="q_agreePrivacy" name="agreePrivacy"'+(v.agreePrivacy?' checked':'')+'><span>上の「個人情報の取り扱い」を読み、同意します</span></label>'
+    +(bad.agreePrivacy?'<div class="bad">'+esc(bad.agreePrivacy)+'</div>':'')+'</div></div>';
+
+  /* ★ボットだけが入れる見えない欄（API の約束 11）。人の目にも読み上げにも出さない */
+  h+='<div class="hp" aria-hidden="true"><label for="q_website">website</label><input id="q_website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" value="'+esc(v.website||'')+'"></div>';
+
+  h+='<button type="submit" class="btn" id="q_go"'+(ENR.busy?' disabled':'')+'>'+(ENR.busy?'<span class="spin"></span>送っています…':'この内容で送る')+'</button>';
+  h+='<div class="muted" style="text-align:center;margin-top:8px;">送ったあと、園からご記入の連絡先へご連絡します。</div>';
+  h+='</form>';
+  return h;
+}
+
+function enrMsgPlaceholder(kind){
+  if(kind==='見学'||kind==='体験')return 'ご希望の日時（第2希望まで）、お子さまのご様子、ご質問など';
+  return 'ご質問、ご希望の入園の時期など';
+}
+
+/* 入力欄の中身を読み取る。画面を描き直しても消えないよう ENR.vals に写す */
+function enrInquiryRead(){
+  var f=enrEl('fq'), v={};
+  if(!f)return ENR.vals;
+  var k=f.querySelector('input[name="kind"]:checked'); v.kind=k?k.value:'';
+  var s=f.querySelector('input[name="slotId"]:checked'); v.slotId=s?s.value:'';
+  ['parentName','parentKana','childName','childKana','dob','email','tel','wishKlass','message'].forEach(function(key){ v[key]=enrVal('q_'+key); });
+  var a=enrEl('q_agreePrivacy'); v.agreePrivacy=!!(a&&a.checked);
+  v.website=enrEl('q_website')?String(enrEl('q_website').value||''):'';
+  return v;
+}
+
+/* 電話番号は、全角の数字やいろいろなハイフンを半角にそろえ、空白やかっこを落とす。
+   受け口は「数字とハイフンだけ・20文字まで」しか受け付けないため */
+function enrTelNorm(t){
+  t=String(t||'').replace(/[\uFF10-\uFF19]/g,function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); });
+  t=t.replace(/[\u2010\uFF0D\u30FC\u2212\u2015\u2013\u2014]/g,'-').replace(/[\s()\uFF08\uFF09]/g,'');
+  return t;
+}
+
+function enrInquiryCheck(v){
+  var bad={}, p=ENR.pub||{};
+  if((p.kinds||[]).indexOf(v.kind)<0)bad.kind='ご用件をお選びください。';
+  if(!v.parentName)bad.parentName='保護者の方のお名前をご記入ください。';
+  else if(v.parentName.length>60)bad.parentName='60文字までです。';
+  if(v.parentKana.length>60)bad.parentKana='60文字までです。';
+  if(!v.childName)bad.childName='お子さまのお名前をご記入ください。';
+  else if(v.childName.length>60)bad.childName='60文字までです。';
+  if(v.childKana.length>60)bad.childKana='60文字までです。';
+  if(v.dob){
+    var ok=/^\d{4}-\d{2}-\d{2}$/.test(v.dob)&&!isNaN(Date.parse(v.dob+'T00:00:00Z'));
+    if(!ok)bad.dob='生年月日の形をご確認ください。';
+    else if(v.dob>enrTodayJst())bad.dob='生年月日が、今日より後になっています。';
+  }
+  if(!v.email&&!v.tel)bad.contact='メールアドレスか電話番号の、どちらか1つをご記入ください。';
+  if(v.email&&(!ENR_EMAIL_RX.test(v.email)||v.email.length>160))bad.email='メールアドレスの形をご確認ください。';
+  if(v.tel){
+    var t=enrTelNorm(v.tel);
+    if(!/^[0-9-]{1,20}$/.test(t)||t.replace(/-/g,'').length<10)bad.tel='電話番号の形をご確認ください（数字10桁以上）。';
+  }
+  if(v.wishKlass&&(p.klasses||[]).indexOf(v.wishKlass)<0)bad.wishKlass='クラスを選び直してください。';
+  if(v.message.length>1000)bad.message='1000文字までです。';
+  if(v.slotId){
+    var sl=null;
+    (p.slots||[]).forEach(function(s){ if(String(s.id)===v.slotId)sl=s; });
+    if(!sl||sl.kind!==v.kind)bad.slotId='日程を選び直してください。';
+    else if(!(Number(sl.left)>0))bad.slotId='この日程は満席です。ほかの日程をお選びください。';
+  }
+  if(!v.agreePrivacy)bad.agreePrivacy='お読みいただき、同意の印を付けてください。';
+  return bad;
+}
+
+function enrFocusBad(){
+  var order=['kind','slotId','parentName','parentKana','contact','email','tel','childName','childKana','dob','wishKlass','message','agreePrivacy'];
+  for(var i=0;i<order.length;i++){
+    if(ENR.bad[order[i]]){
+      var box=document.querySelector('[data-f="'+order[i]+'"]');
+      if(box){
+        try{ box.scrollIntoView({block:'center'}); }catch(e){ box.scrollIntoView(); }
+        var inp=box.querySelector('input:not([disabled]),select,textarea');
+        if(!inp&&order[i]==='contact')inp=enrEl('q_email');
+        if(inp){ try{ inp.focus({preventScroll:true}); }catch(e){ inp.focus(); } }
+      }
+      return;
+    }
+  }
+  window.scrollTo(0,0);
+}
+
+/* 受け口が「形が違う」と返した欄の名前を、画面の欄に写す */
+var ENR_BAD_LABEL={kind:'ご用件をお選び直しください。',parentName:'お名前をご確認ください。',parentKana:'ふりがなをご確認ください。',
+  childName:'お子さまのお名前をご確認ください。',childKana:'ふりがなをご確認ください。',dob:'生年月日をご確認ください。',
+  email:'メールアドレスをご確認ください。',tel:'電話番号をご確認ください。',wishKlass:'クラスを選び直してください。',
+  slotId:'日程を選び直してください。',message:'ご質問・ご希望をご確認ください。',agreePrivacy:'同意の印を付けてください。'};
+
+function enrInquirySend(){
+  if(ENR.busy)return;
+  var v=enrInquiryRead();
+  ENR.vals=v;
+  ENR.bad=enrInquiryCheck(v);
+  if(enrHas(ENR.bad)){
+    ENR.msg='入力内容をご確認ください。赤い欄があります。'; ENR.msgKind='ng';
+    enrRender(); enrFocusBad(); return;
+  }
+  var slot=null;
+  (ENR.pub.slots||[]).forEach(function(s){ if(v.slotId&&String(s.id)===v.slotId)slot=s; });
+  if(ENR.practice){
+    ENR.done={v:v,slot:slot}; ENR.msg=''; ENR.view='inquiryDone'; enrRender(); window.scrollTo(0,0); return;
+  }
+  /* 札が古くて一度断られたあとは、同じ札でもう一度送っても断られるだけなので、先に取り直す。
+     「もう一度送る」でも「この内容で送る」でも、ここを通る */
+  if(ENR.expired){
+    ENR.busy=true; ENR.msg=''; enrRender();
+    enrFormTokenRenew();
+    return;
+  }
+  var body={
+    kind:v.kind, parentName:v.parentName, parentKana:v.parentKana,
+    childName:v.childName, childKana:v.childKana, dob:v.dob,
+    email:v.email, tel:v.tel?enrTelNorm(v.tel):'',
+    wishKlass:v.wishKlass, slotId:v.slotId||null, message:v.message,
+    agreePrivacy:true, privacySha256:(ENR.pub.privacy&&ENR.pub.privacy.sha256)||'',
+    /* ★開いたときに受け取った札を、そのまま返す（API の約束 10-1）。
+       以前は札を入れずに送っていたので、受け口は毎回「札が無い」として 409 form_expired を返し、
+       どのご家庭が何度送っても、問い合わせ・見学・体験の申し込みが一件も園に届かなかった */
+    formToken:String(ENR.pub.formToken||''),
+    website:v.website, elapsedMs:(+new Date())-ENR_OPENED
+  };
+  ENR.busy=true; ENR.msg=''; enrRender();
+  /* 札を受け取ってから3秒たっていなければ、足りない分だけ待ってから送る（ENR_FORM_WAIT_MS の説明） */
+  var wait=ENR_FORM_WAIT_MS-((+new Date())-ENR.pubAt);
+  if(wait>0)setTimeout(function(){ enrInquiryPost(body,v,slot); },wait);
+  else enrInquiryPost(body,v,slot);
+}
+
+function enrInquiryPost(body,v,slot){
+  enrCall('POST','/enroll/public/'+encodeURIComponent(ENR.code)+'/inquiry',body).then(function(x){
+    ENR.busy=false;
+    var c=x.j.code||'';
+    if(x.ok&&x.j.ok){
+      ENR.done={v:v,slot:slot}; ENR.view='inquiryDone'; enrRender(); window.scrollTo(0,0); return;
+    }
+    if(c==='bad_input'){
+      ENR.bad={};
+      (x.j.fields||[]).forEach(function(f){
+        var key=(f==='tel'||f==='email')&&!v.email&&!v.tel?'contact':f;
+        ENR.bad[key]=ENR_BAD_LABEL[f]||'ご確認ください。';
+      });
+      ENR.msg=x.j.error||'入力内容をご確認ください。'; ENR.msgKind='ng';
+      enrRender(); enrFocusBad(); return;
+    }
+    if(c==='privacy_changed'){
+      /* ★取り扱いの文が書き換わった。古い文への同意のまま送らせないよう、印を外して読み直してもらう */
+      ENR.vals.agreePrivacy=false; ENR.bad={agreePrivacy:'新しい文をお読みのうえ、あらためて同意の印を付けてください。'};
+      ENR.msg='「個人情報の取り扱い」の文が更新されました。お読みのうえ、もう一度お送りください。'; ENR.msgKind='ng';
+      enrPublicLoad(true); setTimeout(enrFocusBad,600); return;
+    }
+    if(c==='full'){
+      ENR.vals.slotId=''; ENR.bad={slotId:'この日程は満席になりました。ほかの日程をお選びください。'};
+      ENR.msg='お選びの日程が満席になりました。ほかの日程をお選びください。'; ENR.msgKind='ng';
+      enrPublicLoad(true); setTimeout(enrFocusBad,600); return;
+    }
+    if(c==='form_expired'){
+      /* 開いてから1日以上たった・札が読めない。入力は消さずに、「もう一度送る」で札を取り直して送り直してもらう。
+         1日より前の本物の札のときは、待たずに送れる札が添えてあるので、取り直しのときにそれを使う */
+      ENR.expired=true;
+      ENR.graceToken=(x.j&&typeof x.j.formToken==='string')?x.j.formToken:'';
+      ENR.msg='ページを開いてから時間がたったため、まだ送れていません。入力した内容は残っています。下の「もう一度送る」を押してください。';
+      ENR.msgKind='ng'; enrRender(); window.scrollTo(0,0); return;
+    }
+    if(c==='not_open'||(x.status===404&&c)){ ENR.view='closed'; enrRender(); window.scrollTo(0,0); return; }
+    if(c==='rate')ENR.msg='送信が続いたため、しばらく受け付けを止めています。時間をおいてお試しいただくか、園へお電話ください。';
+    else if(c==='busy')ENR.msg='本日のフォームでの受け付けがいっぱいになりました。明日以降にお試しいただくか、園へお電話ください。';
+    else ENR.msg=x.j.error||'送れませんでした。時間をおいて、もう一度お試しください。';
+    ENR.msgKind='ng'; enrRender(); window.scrollTo(0,0);
+  },function(){
+    ENR.busy=false;
+    ENR.msg='送れませんでした。通信の状態をお確かめのうえ、もう一度「この内容で送る」を押してください。入力した内容は残っています。';
+    ENR.msgKind='ng'; enrRender(); window.scrollTo(0,0);
+  });
+}
+
+/* 札を取り直してから、同じ入力で送り直す。
+   取り直すときに園の案内（日程の残り・個人情報の取り扱いの文）も新しくなるので、それで確かめ直してから送る */
+function enrFormTokenRenew(){
+  var oldSha=(ENR.pub&&ENR.pub.privacy&&ENR.pub.privacy.sha256)||'';
+  enrCall('GET','/enroll/public/'+encodeURIComponent(ENR.code)).then(function(x){
+    ENR.busy=false;
+    if(x.ok&&x.j&&x.j.school){
+      var grace=ENR.graceToken;
+      ENR.pub=x.j; ENR.pubAt=+new Date(); ENR.expired=false; ENR.graceToken='';
+      if(grace){ ENR.pub.formToken=grace; ENR.pubAt=(+new Date())-ENR_FORM_WAIT_MS; }
+      if(!x.j.kinds||!x.j.kinds.length){ ENR.view='closed'; enrRender(); window.scrollTo(0,0); return; }
+      if(((x.j.privacy&&x.j.privacy.sha256)||'')!==oldSha){
+        /* ★取り扱いの文が書き換わっていた。前の文への同意のまま送らないよう、印を外して読み直してもらう */
+        ENR.vals.agreePrivacy=false; ENR.bad={agreePrivacy:'新しい文をお読みのうえ、あらためて同意の印を付けてください。'};
+        ENR.msg='「個人情報の取り扱い」の文が更新されました。お読みのうえ、もう一度お送りください。'; ENR.msgKind='ng';
+        enrRender(); enrFocusBad(); return;
+      }
+      enrRender();
+      enrInquirySend();
+      return;
+    }
+    if(x.status===404&&x.j.code){ ENR.view='closed'; enrRender(); window.scrollTo(0,0); return; }
+    ENR.msg='送れませんでした。通信の状態をお確かめのうえ、もう一度「もう一度送る」を押してください。入力した内容は残っています。';
+    ENR.msgKind='ng'; enrRender(); window.scrollTo(0,0);
+  },function(){
+    ENR.busy=false;
+    ENR.msg='送れませんでした。通信の状態をお確かめのうえ、もう一度「もう一度送る」を押してください。入力した内容は残っています。';
+    ENR.msgKind='ng'; enrRender(); window.scrollTo(0,0);
+  });
+}
+
+function enrInquiryDoneHTML(){
+  var d=ENR.done||{}, v=d.v||{}, sc=(ENR.pub&&ENR.pub.school)||{};
+  var rows=[['ご用件',v.kind]];
+  if(d.slot)rows.push(['ご希望の日程',enrWhen(d.slot.startsAt)+'〜'+(d.slot.place?'　'+d.slot.place:'')]);
+  rows.push(['保護者の方',v.parentName+(v.parentKana?'（'+v.parentKana+'）':'')]);
+  if(v.email)rows.push(['メールアドレス',v.email]);
+  if(v.tel)rows.push(['電話番号',v.tel]);
+  rows.push(['お子さま',v.childName+(v.childKana?'（'+v.childKana+'）':'')]);
+  if(v.dob)rows.push(['生年月日',v.dob]);
+  if(v.wishKlass)rows.push(['ご希望のクラス',v.wishKlass]);
+  if(v.message)rows.push(['ご質問・ご希望',v.message]);
+  return enrHeadHTML(sc.name||'','')
+    +'<div class="card petal-g" style="text-align:center;"><div class="big">🌷</div>'
+    +'<h2 class="sec" style="justify-content:center;">'+(ENR.practice?'練習：送ったときの画面です':'お申し込みを受け付けました')+'</h2>'
+    +'<div style="font-size:14px;">'+(ENR.practice
+      ?'練習のため、どこにも送っていません。園にも届いていません。'
+      :'園から、ご記入の連絡先へご連絡します。<br>同じ内容を送り直していただく必要はありません。')+'</div>'
+    +(d.slot?'<div class="note" style="margin-top:12px;text-align:left;">日程は、園からのご連絡で確定します。それまでは仮のご予約です。</div>':'')
+    +'</div>'
+    +'<div class="card"><h2 class="sec">お送りした内容</h2><div class="echo">'
+    +rows.map(function(r){ return '<div class="pre"><b>'+esc(r[0])+'</b>'+esc(r[1])+'</div>'; }).join('')
+    +'</div></div>'
+    +(sc.tel?'<div class="muted" style="text-align:center;">お急ぎの場合は、園へお電話ください（<a href="tel:'+esc(String(sc.tel).replace(/[^0-9+]/g,''))+'">'+esc(sc.tel)+'</a>）。</div>':'')
+    +(ENR.practice?'<div style="margin-top:14px;"><button class="btn sec" data-act="againInquiry">もう一度試す</button></div>':'');
+}
+
+/* ══ 招待を受け取る（?i=招待の印） ══════════════════ */
+function enrPracticeInvite(){
+  return {school:{name:'れんしゅう保育園（見本）',code:'demo'},childInitial:'み',emailRequired:false,emailHint:null,
+    expiresAt:new Date(+new Date()+7*86400000).toISOString()};
+}
+
+function enrInviteForget(){ try{ sessionStorage.removeItem(ENR_INVITE_KEY); }catch(e){} }
+
+/* 園コードの形を確かめる。練習の「demo」や、形のおかしいものは使わない */
+function enrSchoolCode(c){
+  c=(c==null)?'':String(c);
+  return (c!=='demo'&&/^[A-Za-z0-9_-]{1,64}$/.test(c))?c:'';
+}
+function enrSchoolKeep(c){
+  c=enrSchoolCode(c); if(!c||ENR.practice)return;
+  try{ sessionStorage.setItem(ENR_SCHOOL_KEY,c); }catch(e){}
+}
+function enrSchoolGet(){
+  var c=''; try{ c=sessionStorage.getItem(ENR_SCHOOL_KEY)||''; }catch(e){ c=''; }
+  return enrSchoolCode(c);
+}
+
+function enrInviteLoad(){
+  ENR.mode='invite';
+  if(ENR.practice){
+    ENR.inv=enrPracticeInvite(); ENR.vals={}; ENR.bad={}; ENR.msg=''; ENR.view='invite'; enrRender(); return;
+  }
+  /* 形のおかしい印は、受け口に問い合わせるまでもなく使えない */
+  if(!/^[A-Za-z0-9_.~-]{8,256}$/.test(ENR.token)){ enrInviteForget(); ENR.view='inviteBad'; enrRender(); return; }
+  ENR.view='loading'; enrRender();
+  enrCall('GET','/enroll/invite/'+encodeURIComponent(ENR.token)).then(function(x){
+    if(x.ok&&x.j&&x.j.school){
+      enrSchoolKeep(x.j.school.code);
+      ENR.inv=x.j; ENR.vals={}; ENR.bad={}; ENR.msg=''; ENR.view='invite'; enrRender(); return;
+    }
+    if(x.status===404&&x.j.code){ enrInviteForget(); ENR.view='inviteBad'; enrRender(); return; }
+    ENR.downKind=(x.status===404)?'notready':'network';
+    ENR.view='down'; enrRender();
+  },function(){
+    ENR.downKind='network'; ENR.view='down'; enrRender();
+  });
+}
+
+function enrInviteBadHTML(){
+  return enrHeadHTML('','')
+    +'<div class="card petal-o"><div class="big">🔗</div>'
+    +'<h2 class="sec">このリンクはお使いいただけません</h2>'
+    +'<div style="font-size:14px;">次のような場合に、この画面が出ます。</div>'
+    +'<ul style="margin:8px 0 0;padding-left:1.2em;font-size:13.5px;line-height:1.8;">'
+    +'<li>有効期限（お送りしてから7日）が過ぎた</li>'
+    +'<li>すでにアカウントを作った（リンクは1回かぎりです）</li>'
+    +'<li>園がリンクを取り消した・作り直した</li>'
+    +'<li>リンクの一部が切れている</li></ul>'
+    +'<div style="font-size:14px;margin-top:10px;">すでにアカウントをお作りの方は、下のボタンから未来WAを開いてログインしてください。<br>そうでない方は、お手数ですが園にあらためてご案内をお願いしてください。</div>'
+    /* ★以前はここにボタンもリンクも無く、行き止まりだった。ご家庭の手元にある入口は招待のメールと印刷したQRだけで、
+       どちらにも未来WAの場所は書いていない。招待の印はタブを閉じると消えるので、翌日に同じリンクを開き直すと必ずここに来る。 */
+    +'<button class="btn" data-act="openParent" style="margin-top:14px;">未来WAを開く（ログイン）</button>'
+    +'<div class="muted" style="margin-top:8px;">ほかのスマートフォンでアカウントをお作りになった場合など、ログインできないときは園にご連絡ください。</div>'
+    +'</div>';
+}
+
+function enrInviteHTML(){
+  var inv=ENR.inv||{}, sc=inv.school||{}, v=ENR.vals, bad=ENR.bad;
+  var h=enrHeadHTML(sc.name||'','入園のお手続きのはじめに');
+
+  h+='<div class="card petal-p">';
+  if(inv.childInitial){
+    h+='<div class="kid"><span class="av">'+esc(inv.childInitial)+'</span><div style="font-size:14px;">'
+      +'「'+esc(inv.childInitial)+'」から始まるお名前のお子さまの、入園のお手続きへのご招待です。'
+      +'<div class="muted" style="margin-top:4px;">お心当たりがない場合は、何も入力せずにこのページを閉じてください。</div></div></div>';
+  }else{
+    h+='<div style="font-size:14px;">入園のお手続きへのご招待です。</div>';
+  }
+  if(inv.expiresAt)h+='<div class="muted" style="margin-top:10px;">このリンクの有効期限：'+esc(enrWhen(inv.expiresAt))+' まで（1回かぎり）</div>';
+  h+='</div>';
+
+  h+='<div class="card petal-b"><h2 class="sec">お手続きの流れ</h2><ol class="steps">'
+    +'<li class="now"><b>アカウントを作る（いまここ）</b><span>ログインに使うメールアドレスとパスワードを、ご自身で決めていただきます。</span></li>'
+    +'<li><b>未来WAにログイン</b><span>作ったあと、未来WAのログイン画面に移ります。</span></li>'
+    +'<li><b>入園申込書の入力・書類の提出</b><span>紙の申込書の控えやアレルギー調査表などは、写真かPDFでお出しいただけます。</span></li>'
+    +'<li><b>規約などへの同意</b><span>利用契約書・重要事項説明書・健康情報の取り扱いなどを、全文をお読みいただいてから1つずつ伺います。</span></li>'
+    +'<li><b>説明会の日程・請求書の確認</b></li>'
+    +'</ol>'
+    +'<div class="note" style="margin-top:12px;">お子さまの証明写真・お迎えの方のお写真は、このアプリではお預かりしません。園にお越しいただいたときに撮ります。<br>'
+    +'入園金などは、園からの請求書でご案内します。このアプリでのカード払いはありません。</div></div>';
+
+  h+=enrMsgHTML();
+  h+='<form id="fi" novalidate><div class="card petal-o"><h2 class="sec">アカウントを作る</h2>';
+  h+=enrFieldHTML('name','保護者の方のお名前',true,enrInputHTML('name','text','maxlength="60" autocomplete="name" placeholder="山田 花子"'));
+  h+='<div class="field'+(bad.relation?' ng':'')+'" data-f="relation"><label>お子さまとのご関係<span class="req">必須</span></label><div class="opts inline">';
+  ENR_RELATIONS.forEach(function(r){
+    var on=(v.relation===r);
+    h+='<label class="opt-l'+(on?' on':'')+'"><input type="radio" name="relation" value="'+esc(r)+'"'+(on?' checked':'')+'><span class="ot">'+esc(r)+'</span></label>';
+  });
+  h+='</div>'+(bad.relation?'<div class="bad">'+esc(bad.relation)+'</div>':'')+'</div>';
+
+  var hint='ログインと、園からのご連絡に使います。';
+  if(inv.emailRequired)hint='園にお知らせいただいたメールアドレス'+(inv.emailHint?'（<b>'+esc(inv.emailHint)+'</b>）':'')+'をお使いください。ほかのメールアドレスでは作れません。';
+  h+=enrFieldHTML('email','メールアドレス',true,enrInputHTML('email','email','maxlength="160" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="you@example.com"'),hint);
+  h+=enrFieldHTML('email2','メールアドレス（確認のため、もう一度）',true,enrInputHTML('email2','email','maxlength="160" autocomplete="off" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false"'));
+  var pwType=v.showPw?'text':'password';
+  /* パスワードは描き直しても ENR.vals から戻さない。画面の文字列に残さないため */
+  h+=enrFieldHTML('password','パスワード',true,'<input id="q_password" name="password" type="'+pwType+'" maxlength="200" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="8文字以上">','8文字以上。ほかのサービスと同じものは避けてください。園の先生にもお伝えにならないでください。');
+  h+=enrFieldHTML('password2','パスワード（確認のため、もう一度）',true,'<input id="q_password2" name="password2" type="'+pwType+'" maxlength="200" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false">');
+  h+='<label class="agree" style="font-weight:500;font-size:13px;"><input type="checkbox" id="q_showPw"'+(v.showPw?' checked':'')+'><span>パスワードを表示する</span></label>';
+  h+='</div>';
+
+  h+='<div class="note" style="margin-bottom:14px;">「アカウントを作る」を押しても、まだ何にも同意したことにはなりません。未来WAの利用規約と、園の規約・重要事項説明書などへの同意は、ログインのあとに全文をお見せしてから伺います。'
+    +'先にお読みになる場合は <a href="terms.html" target="_blank" rel="noopener">未来WA 利用規約</a>・<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a> をご覧ください。</div>';
+  h+='<button type="submit" class="btn" id="q_go"'+(ENR.busy?' disabled':'')+'>'+(ENR.busy?'<span class="spin"></span>作っています…':'アカウントを作る')+'</button>';
+  h+='</form>';
+  return h;
+}
+
+function enrInviteRead(){
+  var v={}, r=document.querySelector('#fi input[name="relation"]:checked');
+  v.name=enrVal('q_name'); v.relation=r?r.value:'';
+  v.email=enrVal('q_email'); v.email2=enrVal('q_email2');
+  var sp=enrEl('q_showPw'); v.showPw=!!(sp&&sp.checked);
+  return v;
+}
+
+function enrInviteCheck(v,pw,pw2){
+  var bad={};
+  if(!v.name)bad.name='お名前をご記入ください。';
+  else if(v.name.length>60)bad.name='60文字までです。';
+  if(ENR_RELATIONS.indexOf(v.relation)<0)bad.relation='ご関係をお選びください。';
+  if(!v.email)bad.email='メールアドレスをご記入ください。';
+  else if(!ENR_EMAIL_RX.test(v.email)||v.email.length>160)bad.email='メールアドレスの形をご確認ください。';
+  if(!bad.email&&v.email.toLowerCase()!==v.email2.toLowerCase())bad.email2='上のメールアドレスと同じものをご記入ください。';
+  if(pw.length<8)bad.password='パスワードは8文字以上にしてください。';
+  else if(pw.length>200)bad.password='パスワードは200文字までです。';
+  else if(pw!==pw2)bad.password2='上のパスワードと同じものをご記入ください。';
+  return bad;
+}
+
+function enrInviteSend(){
+  if(ENR.busy)return;
+  var v=enrInviteRead();
+  var pw=enrEl('q_password')?String(enrEl('q_password').value||''):'';
+  var pw2=enrEl('q_password2')?String(enrEl('q_password2').value||''):'';
+  ENR.vals=v;
+  ENR.bad=enrInviteCheck(v,pw,pw2);
+  if(enrHas(ENR.bad)){
+    ENR.msg='入力内容をご確認ください。赤い欄があります。'; ENR.msgKind='ng';
+    /* ★描き直すとパスワードの欄が空になる。形の誤りがパスワード以外だけなら、打ち直しの手間を増やさないよう戻す */
+    enrRender(); enrPwRestore(pw,pw2); enrFocusInviteBad(); return;
+  }
+  var email=v.email.toLowerCase();
+  if(ENR.practice){
+    ENR.done={email:email,tenant:ENR.inv.school||{}}; ENR.msg=''; ENR.view='inviteDone'; enrRender(); window.scrollTo(0,0); return;
+  }
+  ENR.busy=true; ENR.msg=''; enrPwKeep(pw,pw2);
+  enrCall('POST','/enroll/invite/'+encodeURIComponent(ENR.token)+'/accept',{email:email,password:pw,name:v.name,relation:v.relation}).then(function(x){
+    ENR.busy=false;
+    var c=x.j.code||'';
+    if(x.ok&&x.j.ok){
+      pw=''; pw2='';
+      var tn=x.j.tenant||ENR.inv.school||{};
+      enrInviteForget();
+      enrSchoolKeep(tn.code);
+      /* 移る前にタブを閉じられても、次に未来WAを開いたときにこの園につながるよう、ここで先に覚えておく */
+      enrParentRemember(tn.code);
+      try{ sessionStorage.setItem(ENR_LOGIN_EMAIL_KEY,x.j.email||email); }catch(e){}
+      ENR.done={email:x.j.email||email,tenant:tn};
+      ENR.view='inviteDone'; enrRender(); window.scrollTo(0,0);
+      /* 少しだけ「できました」を見せてから、未来WAのログインへ移る */
+      ENR.moveTimer=setTimeout(enrGoParent,2500);
+      return;
+    }
+    if(c==='bad_invite'||(x.status===404&&c)){ enrInviteForget(); ENR.view='inviteBad'; enrRender(); window.scrollTo(0,0); return; }
+    ENR.bad={};
+    if(c==='email_mismatch'){
+      ENR.bad.email='園にお知らせいただいたメールアドレス'+(ENR.inv.emailHint?'（'+ENR.inv.emailHint+'）':'')+'と違います。';
+      ENR.msg='園にお知らせいただいたメールアドレスでお作りください。';
+    }else if(c==='email_in_use'){
+      ENR.bad.email='このメールアドレスは、この園ですでに使われています。';
+      ENR.msg='このメールアドレスは、この園ですでに使われています（ごきょうだいのアカウントなど）。別のメールアドレスでお作りいただくか、園にご相談ください。';
+    }else if(c==='bad_input'){
+      (x.j.fields||[]).forEach(function(f){ ENR.bad[f]='ご確認ください。'; });
+      ENR.msg=x.j.error||'入力内容をご確認ください。';
+    }else if(x.status===429){
+      ENR.msg='続けて何度もお試しになったため、しばらく受け付けを止めています。時間をおいてから、もう一度お試しください。';
+    }else{
+      ENR.msg=x.j.error||'アカウントを作れませんでした。時間をおいて、もう一度お試しください。';
+    }
+    ENR.msgKind='ng'; enrRender(); enrPwRestore(enrPwKept.pw,enrPwKept.pw2); enrPwKeep('','');
+    if(enrHas(ENR.bad))enrFocusInviteBad(); else window.scrollTo(0,0);
+  },function(){
+    ENR.busy=false;
+    ENR.msg='つながりませんでした。通信の状態をお確かめのうえ、もう一度「アカウントを作る」を押してください。';
+    ENR.msgKind='ng'; enrRender(); enrPwRestore(enrPwKept.pw,enrPwKept.pw2); enrPwKeep('',''); window.scrollTo(0,0);
+  });
+  /* 送っているあいだの見た目。パスワードの欄は描き直さず、ボタンだけ変える */
+  var go=enrEl('q_go'); if(go){ go.disabled=true; go.innerHTML='<span class="spin"></span>作っています…'; }
+}
+
+/* 送っているあいだだけ、打ったパスワードを手元に置く（失敗したときに打ち直させないため）。
+   終わったらすぐ空にする。端末にもタブにも保存しない */
+var enrPwKept={pw:'',pw2:''};
+function enrPwKeep(a,b){ enrPwKept.pw=a; enrPwKept.pw2=b; }
+function enrPwRestore(a,b){
+  var bad=ENR.bad;
+  if(bad.password||bad.password2)return;
+  if(enrEl('q_password'))enrEl('q_password').value=a||'';
+  if(enrEl('q_password2'))enrEl('q_password2').value=b||'';
+}
+function enrFocusInviteBad(){
+  var order=['name','relation','email','email2','password','password2'];
+  for(var i=0;i<order.length;i++){
+    if(ENR.bad[order[i]]){
+      var box=document.querySelector('[data-f="'+order[i]+'"]');
+      if(box){
+        try{ box.scrollIntoView({block:'center'}); }catch(e){ box.scrollIntoView(); }
+        var inp=box.querySelector('input');
+        if(inp){ try{ inp.focus({preventScroll:true}); }catch(e){ inp.focus(); } }
+      }
+      return;
+    }
+  }
+}
+
+/* 未来WAが覚える接続先と園コードを、この端末に先に書いておく。
+   このページは未来WAと同じ場所から配っているので、端末の覚え（localStorage）も同じものを見る。
+   書き方は未来WAの stSet と同じ（'cocoas_'+鍵 に JSON の文字列）。
+   いつもの接続先（ENR_API_DEFAULT）につないでいるときだけ書く。開発で ?api= を差し替えたときは、
+   未来WAの側で「この接続先に変えてよいか」を確かめてもらうため、ここでは書かない。 */
+function enrParentRemember(code){
+  if(ENR.practice||ENR.api!==ENR_API_DEFAULT)return;
+  code=enrSchoolCode(code);
+  try{
+    localStorage.setItem('cocoas_wa_apiBase',JSON.stringify(ENR_API_DEFAULT));
+    if(code)localStorage.setItem('cocoas_wa_apiTenant',JSON.stringify(code));
+  }catch(e){}
+}
+
+/* 未来WAのログイン画面への行き先。
+   ★以前は、端末が接続先を覚えていないと &api= を添えて移していた。未来WAはそれを「開発と検証のための道」として
+     「データの接続先を、次のサーバに変更します」と必ず確かめるので、入園前のご家庭（ほぼ全員がはじめての端末）が全員この確認を通り、
+     用心して「キャンセル」を押すと接続先が入らず、練習用のログイン画面のまま、作ったばかりのアカウントで入れなかった。
+   いまは、いつもの接続先なら先に端末へ書いておき、?tenant= だけで移る。
+   書けなかった（端末の保存が使えない）ときと、開発で ?api= を差し替えたときだけ、&api= を添えて未来WAの確認を通す。 */
+function enrParentUrl(code){
+  code=enrSchoolCode(code);
+  var u='parent.html'+(code?'?tenant='+encodeURIComponent(code):'');
+  enrParentRemember(code);
+  var cur='';
+  try{ cur=JSON.parse(localStorage.getItem('cocoas_wa_apiBase')||'null')||''; }catch(e){ cur=''; }
+  if(String(cur).replace(/\/+$/,'')!==ENR.api)u+=(code?'&':'?')+'api='+encodeURIComponent(ENR.api);
+  return u;
+}
+function enrGoParent(){
+  if(ENR.practice)return;
+  if(ENR.moveTimer){ clearTimeout(ENR.moveTimer); ENR.moveTimer=null; }
+  var tn=(ENR.done&&ENR.done.tenant)||{};
+  /* replace にするのは、戻るボタンで使い終わった招待の画面に戻らないようにするため */
+  location.replace(enrParentUrl(tn.code||enrSchoolGet()));
+}
+/* 使い終わった招待の画面から、未来WAのログインを開く。
+   園コードは、このタブで招待を開けていれば控えがある。無ければ、端末が覚えている園コードで未来WAが開く */
+function enrOpenParent(){
+  location.href=enrParentUrl(enrSchoolGet());
+}
+
+function enrInviteDoneHTML(){
+  var d=ENR.done||{}, tn=d.tenant||{};
+  if(ENR.practice){
+    return enrHeadHTML(tn.name||'','')
+      +'<div class="card petal-g" style="text-align:center;"><div class="big">🌱</div>'
+      +'<h2 class="sec" style="justify-content:center;">練習：アカウントができたときの画面です</h2>'
+      +'<div style="font-size:14px;">練習のため、アカウントは作っていません。<br>本番では、このあと未来WAのログイン画面に移り、<b>'+esc(d.email)+'</b> とお決めのパスワードでログインします。</div>'
+      +'<div style="margin-top:14px;"><button class="btn sec" data-act="againInvite">もう一度試す</button></div></div>';
+  }
+  return enrHeadHTML(tn.name||'','')
+    +'<div class="card petal-g" style="text-align:center;"><div class="big">🌱</div>'
+    +'<h2 class="sec" style="justify-content:center;">アカウントができました</h2>'
+    +'<div style="font-size:14px;">このあと未来WAのログイン画面に移ります。<br>次のメールアドレスと、いまお決めのパスワードでログインしてください。</div>'
+    +'<div class="note" style="margin:12px 0;font-size:15px;color:var(--tx);word-break:break-all;"><b>'+esc(d.email)+'</b></div>'
+    +'<button class="btn" data-act="goParent">未来WAを開く</button>'
+    +'<div class="muted" style="margin-top:8px;">自動で移らないときは、上のボタンを押してください。</div></div>';
+}
+
+/* ══ 押したとき・変えたとき ══════════════════════ */
+enrEl('app').addEventListener('click',function(ev){
+  var t=ev.target&&ev.target.closest?ev.target.closest('[data-act]'):null;
+  if(!t)return;
+  var a=t.getAttribute('data-act');
+  if(a==='practiceInquiry'){ ENR.practice=true; ENR.code='demo'; enrPublicLoad(); window.scrollTo(0,0); }
+  else if(a==='practiceInvite'){ ENR.practice=true; ENR.token='demo'; enrInviteLoad(); window.scrollTo(0,0); }
+  else if(a==='practiceHere'){
+    ENR.practice=true;
+    if(ENR.mode==='invite')enrInviteLoad(); else enrPublicLoad();
+    window.scrollTo(0,0);
+  }
+  else if(a==='retry'){ if(ENR.mode==='invite')enrInviteLoad(); else enrPublicLoad(); }
+  else if(a==='againInquiry'){ ENR.vals={}; ENR.bad={}; ENR.done=null; ENR.expired=false; ENR.graceToken=''; enrPublicLoad(); window.scrollTo(0,0); }
+  else if(a==='resendInquiry'){ enrInquirySend(); }
+  else if(a==='againInvite'){ ENR.vals={}; ENR.bad={}; ENR.done=null; enrInviteLoad(); window.scrollTo(0,0); }
+  else if(a==='goParent'){ enrGoParent(); }
+  else if(a==='openParent'){ enrOpenParent(); }
+});
+
+enrEl('app').addEventListener('change',function(ev){
+  var t=ev.target; if(!t)return;
+  if(t.name==='kind'&&enrEl('fq')){
+    /* ご用件を変えたら、日程の欄をその種類の枠に入れ替える。ほかの欄の入力は残す */
+    var v=enrInquiryRead(); v.slotId='';
+    ENR.vals=v; delete ENR.bad.kind; delete ENR.bad.slotId;
+    enrEl('slotBox').innerHTML=enrSlotsHTML(v.kind,'');
+    var msg=enrEl('q_message'); if(msg)msg.placeholder=enrMsgPlaceholder(v.kind);
+  }
+  if(t.type==='radio'){
+    /* 選んだ札に色を付ける（同じ name の札だけ） */
+    var f=t.form||document;
+    var all=f.querySelectorAll('input[type="radio"][name="'+t.name+'"]');
+    for(var i=0;i<all.length;i++){
+      var l=all[i].closest('.opt-l'); if(l){ if(all[i].checked)l.className=l.className.replace(/\s*\bon\b/g,'')+' on'; else l.className=l.className.replace(/\s*\bon\b/g,''); }
+    }
+  }
+  if(t.id==='q_showPw'){
+    var ty=t.checked?'text':'password';
+    if(enrEl('q_password'))enrEl('q_password').type=ty;
+    if(enrEl('q_password2'))enrEl('q_password2').type=ty;
+  }
+});
+
+/* 直した欄の赤い印は、打ち始めたところで外す。
+   ★change（欄を離れたとき）で外していたら、次の欄を押した瞬間に説明の行が消えて画面が上にずれ、
+     押したつもりの選択肢に当たらなかった。打っている最中に外せば、押す前にずれ終わっている。 */
+enrEl('app').addEventListener('input',function(ev){
+  var t=ev.target;
+  var box=(t&&t.closest)?t.closest('.field.ng'):null;
+  if(!box)return;
+  box.className=box.className.replace(/\s*\bng\b/g,'');
+  var b=box.querySelector('.bad'); if(b)b.parentNode.removeChild(b);
+});
+
+enrEl('app').addEventListener('submit',function(ev){
+  ev.preventDefault();
+  if(ev.target&&ev.target.id==='fq')enrInquirySend();
+  else if(ev.target&&ev.target.id==='fi')enrInviteSend();
+});
+
+enrBoot();
+</script>
+</body>
+</html>
