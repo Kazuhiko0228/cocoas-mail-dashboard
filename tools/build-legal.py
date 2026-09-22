@@ -89,7 +89,7 @@ footer a:hover{color:#fff}
 <div class="mockbar">これは公開前のモックです。本文は法務レビュー版のままですが、【要確定】の箇所が残っています。</div>
 <header><div class="hbar">
   <a href="hp.html" style="display:flex;align-items:center;gap:12px">
-    <img src="img/logo_edugrow.png" alt="EduGrow"><span class="sep"></span>
+    <img src="img/logo_miralink.png" alt="Miralink"><span class="sep"></span>
     <img src="img/logo_miraiwa.png" alt="未来WA"></a>
   <a class="back" href="hp.html">← サービス紹介にもどる</a>
 </div></header>

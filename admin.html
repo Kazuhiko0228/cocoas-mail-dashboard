@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<link rel="icon" type="image/png" href="img/icon_edugrow.png">
-<title>未来WA／EduGrow 運営管理</title>
+<link rel="icon" type="image/png" href="img/icon_miralink.png">
+<title>未来WA／Miralink 運営管理</title>
 <style>
 :root{
   --bg:#F4F5F7; --card:#FFF; --ink:#131A22; --ink2:#3C4654; --mute:#6C7686;
@@ -186,7 +186,7 @@ td.r,th.r{text-align:right}
 
 <script>
 /* ══════════════════════════════════════════
-   未来WA／EduGrow 運営管理
+   未来WA／Miralink 運営管理
 
    園をまたいで見られる唯一の画面。園の職員も保護者もここには入れない。
    お金の計算はすべてサーバ側（src/admin.js）で行い、ここでは表示だけ。
@@ -239,7 +239,7 @@ function planTag(p){
 /* ── ログイン ────────────────────────── */
 function loginHTML(){
   return '<div class="login"><div class="card">'
-    +'<h1>運営管理</h1><div class="s">未来WA ／ EduGrow</div>'
+    +'<h1>運営管理</h1><div class="s">未来WA ／ Miralink</div>'
     +'<div class="err" id="e"></div>'
     +'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>'
     +'<div class="f"><label>メールアドレス</label><input id="em" type="email" autocomplete="username"></div>'
@@ -272,9 +272,9 @@ function wireLogin(){
 
 /* ── 全体の骨組み ───────────────────── */
 function shell(inner){
-  var tabs=[['home','ホーム'],['apply','申込'],['tenants','園の一覧'],['bill','請求'],['pay','決済'],['docs','書類'],['me','設定']];
+  var tabs=[['home','ホーム'],['apply','申込'],['tenants','園の一覧'],['bill','請求'],['pay','決済'],['docs','書類'],['ads','広告'],['me','設定']];
   return '<div class="top"><div><div class="lg">運営管理</div>'
-    +'<div class="sub">未来WA ／ EduGrow</div></div>'
+    +'<div class="sub">未来WA ／ Miralink</div></div>'
     +'<div class="sp"></div><button id="out">ログアウト</button></div>'
     +'<div class="nav">'+tabs.map(function(t){
       return '<button data-v="'+t[0]+'" class="'+(view===t[0]?'on':'')+'">'+t[1]+'</button>';
@@ -745,6 +745,23 @@ function tenantHTML(){
     +'同じログインIDがすでにあるときは作りません（いま使っている方のパスワードが変わらないようにするため）。</div>'
     +'</div>'
 
+    /* ══ 園名を直す（2026-09-21 安田さんのご判断）══════
+       園名は「運営がアカウントを渡すときの設定」。園の設定画面に入れた学校名ではなく、
+       ここに登録された名前を正とする。園の側では直せないので、運営の入口に置く。
+       園コードは出すだけ（ログインに使われていて、変えると園が入れなくなる）。 */
+    +'<div class="card"><h3>園名を直す</h3>'
+    +'<div class="note">ここで直した名前が、園の画面にも請求書にも出ます。'
+      +'園の設定画面に入れた学校名ではなく、<b>この名前が正</b>です。</div>'
+    +'<div class="row" style="margin-top:10px;">'
+    +'<input id="tn_nm" style="min-width:260px;" maxlength="80" value="'+esc(d.tenant.name)+'">'
+    +'<input id="tn_nr" style="min-width:220px;" maxlength="200" placeholder="直す理由（園の変更ログに残ります）">'
+    +'<button class="btn sm" id="tn_nsave">この名前にする</button>'
+    +'<span class="msg" id="tn_nmsg"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
+    +'園コード（'+esc(d.tenant.code)+'）は変わりません。'
+    +'直したことは、園が読む変更ログに「誰が・なぜ」まで残ります。</div>'
+    +'</div>'
+
     +'<div class="card"><h3>この園の利用</h3>'
     +(d.tenant.active===false
       ? '<div class="note">いまこの園は<b>利用停止中</b>です。職員も保護者もログインできません。'
@@ -841,7 +858,7 @@ function tenantHTML(){
     +'</div>'
     +'<div class="row"><button class="btn sec sm" id="padd">発行する</button><span class="msg" id="pm"></span></div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.7;">'
-    +'お子さまのIDは、EduGrow の「生徒情報一覧・連絡先」で確認できます。'
+    +'お子さまのIDは、Miralink の「生徒情報一覧・連絡先」で確認できます。'
     +'発行したパスワードは、保護者の方が最初のログインのあとに変更できます。</div>'
     +'</div>';
 }
@@ -940,6 +957,300 @@ function docsHTML(){
   if(!DATA.docs)return '<div class="empty">読み込んでいます…</div>';
   return '<h2>書類</h2><div class="lead">園ごとの契約書・同意書。新しい順</div>'
     +'<div class="card">'+docListHTML(DATA.docs,true)+'</div>';
+}
+
+/* ══ ホームの広告枠（運営からの配信）════════════════
+   2026-09-21 安田さんのご判断
+   「運営（BIMJAPAN側）からのみここは触れるようにファネル作ってほしい」。
+
+   それまで広告は園の記録（cocoas_homeAds）に入っていて、園の管理者が設定から足せました。
+   園ごとに中身がばらばらになるうえ、運営が「いまどの園に何を出しているか」を
+   どこからも確かめられませんでした。入稿の口は、この画面だけです。
+
+   ★園の画面（index.html）には入稿の欄を残さないこと。
+     残すと、運営が出したものと園が足したものが混ざって、見分けがつかなくなります。 */
+var adsDraft=null;     /* いま書きかけの1件（null なら欄を閉じている） */
+var adsMsg='';         /* 保存したときの一言 */
+
+/* 出す先を、1行の日本語にする。数えるのはサーバ（showingCount）で、ここでは数えない。 */
+function adsTargetText(a){
+  if(a.target==='tenants'){
+    var ns=(DATA.ads&&DATA.ads.tenants||[]).filter(function(t){
+      return a.tenantIds.indexOf(t.id)>-1;}).map(function(t){return t.name;});
+    return '選んだ園（'+ns.length+'園）：'+esc(ns.join('・')||'—');
+  }
+  if(a.target==='plans'){
+    return 'プラン：'+esc(a.plans.map(function(p){
+      return (PLANS[p]&&PLANS[p].name)||p;}).join('・'));
+  }
+  return 'すべての園';
+}
+function adsPeriodText(a){
+  if(!a.from&&!a.to)return 'いつでも';
+  return (a.from||'（はじめから）')+' 〜 '+(a.to||'（おわりなし）');
+}
+
+/* 入稿の欄。新しく入れるときも、直すときも同じ形を使う
+   （2つ書くと、片方だけ項目が古くなります）。 */
+function adsFormHTML(){
+  var d=adsDraft; if(!d)return '';
+  var ts=(DATA.ads&&DATA.ads.tenants)||[];
+  var isNew=!d.id;
+  return '<div class="card" style="border-color:var(--eg);">'
+    +'<h3>'+(isNew?'新しい広告を入れる':'広告を直す（#'+d.id+'）')+'</h3>'
+    +'<div class="grid2">'
+    +'<div class="f"><label>見出し（60文字まで・必須）</label>'
+      +'<input id="ad_title" value="'+esc(d.title||'')+'" placeholder="例：園むけ研修のご案内"></div>'
+    +'<div class="f"><label>ひとこと（120文字まで）</label>'
+      +'<input id="ad_text" value="'+esc(d.text||'')+'" placeholder="例：10月の回はまだ空きがあります"></div>'
+    +'</div>'
+    +'<div class="f"><label>リンク先（https からはじまるもの。空でもかまいません）</label>'
+      +'<input id="ad_url" value="'+esc(d.url||'')+'" placeholder="https://…"></div>'
+    /* 画像は、ここから上げるか、外の https の URL を入れるかのどちらか片方。
+       両方入れると、どちらが出るのか画面ごとに変わるので、サーバが断ります。 */
+    +'<div class="f"><label>画像</label>'
+      +'<div class="row" style="align-items:center;">'
+      +(d.imgKey?'<img data-adimg="'+esc(d.imgKey)+'" alt="" '
+          +'style="width:96px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">'
+        :(d.imgUrl?'<img src="'+esc(d.imgUrl)+'" alt="" '
+          +'style="width:96px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">'
+        :'<span class="msg">画像なし</span>'))
+      +'<label class="btn sec sm" style="cursor:pointer;">画像を選ぶ'
+        +'<input type="file" id="ad_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;"></label>'
+      +((d.imgKey||d.imgUrl)?'<button class="btn warn sm" id="ad_imgdel">画像を外す</button>':'')
+      +'<span class="msg" id="ad_imgm"></span></div></div>'
+    +'<div class="f"><label>画像を URL で入れるとき（上げた画像とは同時に使えません）</label>'
+      +'<input id="ad_imgurl" value="'+esc(d.imgUrl||'')+'" placeholder="https://…（空でかまいません）"'
+      +(d.imgKey?' disabled':'')+'></div>'
+    +'<div class="grid2">'
+    +'<div class="f"><label>出しはじめ（空ならすぐ）</label>'
+      +'<input type="date" id="ad_from" value="'+esc(d.from||'')+'"></div>'
+    +'<div class="f"><label>出しおわり（空ならずっと）</label>'
+      +'<input type="date" id="ad_to" value="'+esc(d.to||'')+'"></div>'
+    +'</div>'
+    +'<div class="f"><label>出す先</label>'
+      +'<div class="row">'
+      +['all','tenants','plans'].map(function(k,i){
+        var lab=['すべての園','選んだ園だけ','プラン別'][i];
+        return '<label style="font-size:12.5px;font-weight:700;cursor:pointer;">'
+          +'<input type="radio" name="ad_tg" value="'+k+'"'+((d.target||'all')===k?' checked':'')+'> '+lab+'</label>';
+      }).join('')+'</div></div>'
+    /* 園の選び・プランの選びは、出す先に合わせて片方だけ出す。
+       両方を出しておくと、選んだはずのものが効いていない、という見まちがいが起きます。 */
+    +'<div class="f" id="ad_tenbox" style="'+((d.target==='tenants')?'':'display:none;')+'">'
+      +'<label>出す園（1つ以上）</label>'
+      +'<div style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:9px 11px;">'
+      +(ts.length?ts.map(function(t){
+        return '<label style="display:block;font-size:12.5px;padding:2px 0;cursor:pointer;">'
+          +'<input type="checkbox" class="ad_ten" value="'+t.id+'"'
+          +(d.tenantIds&&d.tenantIds.indexOf(t.id)>-1?' checked':'')+'> '
+          +esc(t.name)+' <span class="msg">'+esc(t.code)+'・'
+          +esc((PLANS[t.plan]&&PLANS[t.plan].name)||t.plan)+(t.active?'':'・停止中')+'</span></label>';
+      }).join(''):'<span class="msg">園がありません</span>')
+      +'</div></div>'
+    +'<div class="f" id="ad_planbox" style="'+((d.target==='plans')?'':'display:none;')+'">'
+      +'<label>出すプラン（1つ以上）</label><div class="row">'
+      +Object.keys(PLANS).map(function(k){
+        return '<label style="font-size:12.5px;font-weight:700;cursor:pointer;">'
+          +'<input type="checkbox" class="ad_plan" value="'+k+'"'
+          +(d.plans&&d.plans.indexOf(k)>-1?' checked':'')+'> '+esc(PLANS[k].name)+'</label>';
+      }).join('')+'</div></div>'
+    +'<div class="f"><label>出す・止める</label>'
+      +'<label style="font-size:12.5px;font-weight:700;cursor:pointer;">'
+      +'<input type="checkbox" id="ad_active"'+(d.active===false?'':' checked')+'> いま出す</label></div>'
+    +'<div class="row" style="margin-top:4px;">'
+      +'<button class="btn sm" id="ad_save">'+(isNew?'入れる':'保存する')+'</button>'
+      +'<button class="btn sec sm" id="ad_cancel">やめる</button>'
+      +'<span class="msg" id="ad_m"></span></div>'
+    +'</div>';
+}
+
+function adsHTML(){
+  if(!DATA.ads)return '<h2>広告</h2><div class="empty">読み込んでいます…</div>';
+  var ads=DATA.ads.ads||[];
+  return '<h2>ホームの広告枠</h2>'
+    +'<div class="lead">園のホーム（左下）に、上から順に出ます。入稿できるのは運営だけです。</div>'
+    +(adsMsg?'<div class="note ok">'+esc(adsMsg)+'</div>':'')
+    +'<div class="note">出す期間を空にすると、いつでも出ます。'
+      +'「出す先」で選んでいない園には、通信を直接たたかれても出ません。'
+      +'止めたものは、その場で全園から消えます。</div>'
+    +(adsDraft?adsFormHTML():'<div class="row" style="margin-bottom:12px;">'
+      +'<button class="btn sm" id="ad_new">新しい広告を入れる</button></div>')
+    +(ads.length?ads.map(function(a,i){
+      return '<div class="card" style="'+(a.active?'':'opacity:.62;')+'">'
+        +'<div class="row" style="align-items:flex-start;">'
+        +(a.imgKey?'<img data-adimg="'+esc(a.imgKey)+'" alt="" '
+            +'style="width:96px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">'
+          :(a.imgUrl?'<img src="'+esc(a.imgUrl)+'" alt="" '
+            +'style="width:96px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">':''))
+        +'<div style="flex:1;min-width:180px;">'
+        +'<div style="font-weight:800;font-size:13.5px;">'+esc(a.title)
+          +' <span class="pill '+(a.active?'p-live':'p-end')+'">'+(a.active?'出している':'止めている')+'</span></div>'
+        +(a.text?'<div style="font-size:12.5px;color:var(--mute);margin-top:3px;">'+esc(a.text)+'</div>':'')
+        +(a.url?'<div style="font-size:11.5px;margin-top:3px;"><a href="'+esc(a.url)
+          +'" target="_blank" rel="noopener noreferrer">'+esc(a.url)+'</a></div>':'')
+        +'<div style="font-size:11.5px;color:var(--mute);margin-top:6px;line-height:1.85;">'
+        +'出す先：'+adsTargetText(a)+'<br>'
+        +'期間：'+esc(adsPeriodText(a))+'<br>'
+        /* ★「いまどの園に出ているか」は運営がいちばん確かめたいこと。
+           画面で数えず、サーバが数えたもの（showingNow）をそのまま出します。 */
+        +'<b>いま出ている園：'+a.showingCount+'園</b>'
+        +(a.showingCount?'（'+esc(a.showingNow.map(function(x){return x.name;}).join('・'))+'）'
+          :'（期間の外か、止めているため、いまはどこにも出ていません）')
+        +'</div></div></div>'
+        +'<div class="row" style="margin-top:10px;">'
+        +'<button class="btn sec sm" data-adup="'+a.id+'"'+(i===0?' disabled':'')+'>▲ 上へ</button>'
+        +'<button class="btn sec sm" data-addown="'+a.id+'"'+(i===ads.length-1?' disabled':'')+'>▼ 下へ</button>'
+        +'<button class="btn sec sm" data-adtoggle="'+a.id+'">'+(a.active?'止める':'出す')+'</button>'
+        +'<button class="btn sec sm" data-aded="'+a.id+'">直す</button>'
+        +'<button class="btn warn sm" data-addel="'+a.id+'">消す</button>'
+        +'</div></div>';
+    }).join(''):'<div class="empty">まだ広告がありません。上の「新しい広告を入れる」から入れてください。</div>')
+    +'<div class="card"><h3>運営の操作ログ</h3>'
+    +(DATA.adlog&&DATA.adlog.length
+      ?'<div class="tw"><table style="min-width:520px;"><thead><tr><th>いつ</th><th>誰が</th><th>何を</th></tr></thead><tbody>'
+        +DATA.adlog.map(function(x){
+          return '<tr style="cursor:default;"><td class="num">'+esc(fmtAt(x.created_at))+'</td>'
+            +'<td>'+esc(x.user_name)+'</td><td>'+esc(x.key)+'</td></tr>';
+        }).join('')+'</tbody></table></div>'
+      :'<div class="empty">まだ記録がありません</div>')
+    +'</div>';
+}
+
+/* 上げた画像は、ログインの札が要るので <img src> では出せません。
+   札を付けて取りに行き、出てきた中身をそのまま <img> に入れます。 */
+var ADIMG={};
+function adsWireImgs(){
+  document.querySelectorAll('img[data-adimg]').forEach(function(im){
+    var k=im.getAttribute('data-adimg');
+    im.removeAttribute('data-adimg');
+    if(!k)return;
+    if(ADIMG[k]){im.src=ADIMG[k];return;}
+    var h={}; if(API.token())h.Authorization='Bearer '+API.token();
+    fetch(API.base()+'/admin/ads/image/'+encodeURIComponent(k),{headers:h})
+      .then(function(r){if(!r.ok)throw new Error('x');return r.blob();})
+      .then(function(b){var u=URL.createObjectURL(b);ADIMG[k]=u;im.src=u;})
+      .catch(function(){im.alt='画像を読み込めませんでした';});
+  });
+}
+
+/* 入れ物を重ねる。ES5 しか使えないので Object.assign は使いません
+   （古い端末で画面が丸ごと止まります）。 */
+function adsMerge(){
+  var out={},i,k;
+  for(i=0;i<arguments.length;i++){
+    var s=arguments[i]||{};
+    for(k in s)if(Object.prototype.hasOwnProperty.call(s,k))out[k]=s[k];
+  }
+  return out;
+}
+
+/* 画面の欄から、送る中身を1つ作る。
+   ★ここで期間や出す先を判断しないこと。判断はサーバ（src/ads.js）の1か所だけにあります。 */
+function adsReadForm(){
+  var v=function(id){var e=$(id);return e?e.value.trim():'';};
+  var tg=document.querySelector('input[name="ad_tg"]:checked');
+  var body={
+    title:v('ad_title'), text:v('ad_text'), url:v('ad_url'),
+    imgKey:(adsDraft&&adsDraft.imgKey)||'',
+    imgUrl:(adsDraft&&adsDraft.imgKey)?'':v('ad_imgurl'),
+    from:v('ad_from'), to:v('ad_to'),
+    target:tg?tg.value:'all',
+    active:$('ad_active')?$('ad_active').checked:true
+  };
+  body.tenantIds=Array.prototype.map.call(
+    document.querySelectorAll('.ad_ten:checked'),function(e){return +e.value;});
+  body.plans=Array.prototype.map.call(
+    document.querySelectorAll('.ad_plan:checked'),function(e){return e.value;});
+  return body;
+}
+
+function adsWire(){
+  adsWireImgs();
+  if($('ad_new'))$('ad_new').onclick=function(){
+    adsDraft={title:'',text:'',url:'',imgKey:'',imgUrl:'',from:'',to:'',
+              target:'all',tenantIds:[],plans:[],active:true};
+    adsMsg='';render();
+  };
+  if($('ad_cancel'))$('ad_cancel').onclick=function(){adsDraft=null;render();};
+  /* 出す先を変えたら、その場で下の選び欄を入れ替える（描き直さないので入力が消えない） */
+  document.querySelectorAll('input[name="ad_tg"]').forEach(function(e){e.onchange=function(){
+    if($('ad_tenbox'))$('ad_tenbox').style.display=(e.value==='tenants')?'':'none';
+    if($('ad_planbox'))$('ad_planbox').style.display=(e.value==='plans')?'':'none';
+  };});
+  /* 画像を上げる。先に上げてから鍵だけを広告に持たせる
+     （広告の本体と画像を1回の通信で送ると、大きな本文になるため）。 */
+  if($('ad_file'))$('ad_file').onchange=function(ev){
+    var f=ev.target.files&&ev.target.files[0];
+    if(!f)return;
+    var keep=adsReadForm();
+    say('ad_imgm','送っています…',true);
+    var h={'Content-Type':f.type||'application/octet-stream',
+           'x-ad-image-name':encodeURIComponent(f.name||'ad')};
+    if(API.token())h.Authorization='Bearer '+API.token();
+    fetch(API.base()+'/admin/ads/image',{method:'POST',headers:h,body:f})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+        if(!r.ok)throw new Error(j.error||('画像を入れられませんでした（'+r.status+'）'));
+        return j;});})
+      .then(function(j){
+        /* 書きかけの中身は、そのまま持ち越す（画像を1枚入れたら全部消えた、を起こさない） */
+        adsDraft=adsMerge({},adsDraft,keep,{imgKey:j.key,imgUrl:''});
+        render();
+      })
+      .catch(function(e){say('ad_imgm',e.message);});
+  };
+  if($('ad_imgdel'))$('ad_imgdel').onclick=function(){
+    adsDraft=adsMerge({},adsDraft,adsReadForm(),{imgKey:'',imgUrl:''});
+    render();
+  };
+  if($('ad_save'))$('ad_save').onclick=function(){
+    var body=adsReadForm();
+    var id=adsDraft&&adsDraft.id;
+    say('ad_m','保存しています…',true);
+    API.call(id?'PATCH':'POST','/admin/ads'+(id?'/'+id:''),body)
+      .then(function(){adsDraft=null;adsMsg=id?'広告を直しました。':'広告を入れました。';render();})
+      .catch(function(e){say('ad_m',e.message);});
+  };
+  document.querySelectorAll('[data-aded]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-aded');
+    var a=(DATA.ads.ads||[]).filter(function(x){return x.id===id;})[0];
+    if(!a)return;
+    adsDraft={id:a.id,title:a.title,text:a.text,url:a.url,imgKey:a.imgKey||'',imgUrl:a.imgUrl||'',
+              from:a.from,to:a.to,target:a.target,tenantIds:a.tenantIds.slice(),
+              plans:a.plans.slice(),active:a.active};
+    adsMsg='';render();
+  };});
+  document.querySelectorAll('[data-adtoggle]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-adtoggle');
+    var a=(DATA.ads.ads||[]).filter(function(x){return x.id===id;})[0];
+    if(!a)return;
+    /* 止めると全園のホームからその場で消えるので、一度たずねる */
+    if(a.active&&!confirm('この広告を止めます。いま出ている園（'+a.showingCount+'園）から、すぐに消えます。'))return;
+    API.call('PATCH','/admin/ads/'+id,{active:!a.active})
+      .then(function(){adsMsg=a.active?'広告を止めました。':'広告を出しました。';render();})
+      .catch(function(e){alert(e.message);});
+  };});
+  document.querySelectorAll('[data-addel]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-addel');
+    if(!confirm('この広告を消します。元には戻せません。よろしいですか。'))return;
+    API.call('DELETE','/admin/ads/'+id)
+      .then(function(){adsMsg='広告を消しました。';render();})
+      .catch(function(e){alert(e.message);});
+  };});
+  /* 並べ替えは「いまの並び」をまるごと送る。何番目かを1件ずつ送ると、
+     途中が抜けた並びになったときに、画面と実際の順が食い違います。 */
+  var move=function(id,d){
+    var ids=(DATA.ads.ads||[]).map(function(x){return x.id;});
+    var i=ids.indexOf(id); if(i<0)return;
+    var j=i+d; if(j<0||j>=ids.length)return;
+    ids[i]=ids[j];ids[j]=id;
+    API.call('POST','/admin/ads/order',{ids:ids})
+      .then(function(){adsMsg='';render();}).catch(function(e){alert(e.message);});
+  };
+  document.querySelectorAll('[data-adup]').forEach(function(b){b.onclick=function(){
+    move(+b.getAttribute('data-adup'),-1);};});
+  document.querySelectorAll('[data-addown]').forEach(function(b){b.onclick=function(){
+    move(+b.getAttribute('data-addown'),1);};});
 }
 
 /* ── 設定 ───────────────────────────── */
@@ -1099,6 +1410,11 @@ function load(){
   if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
   if(view==='one')   return API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;});
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
+  /* 広告。操作ログが読めなくても一覧は出す（読めない理由で画面ごと止めない） */
+  if(view==='ads')   return Promise.all([
+      API.call('GET','/admin/ads').then(function(j){DATA.ads=j;}),
+      API.call('GET','/admin/ads/log').then(function(j){DATA.adlog=j.log;}).catch(function(){DATA.adlog=null;})
+    ]);
   if(view==='apply') return API.call('GET','/admin/applications').then(function(j){DATA.apply=j;});
   if(view==='bill')  return Promise.all([
       API.call('GET','/admin/billing/status').then(function(j){DATA.bstat=j;}),
@@ -1135,7 +1451,7 @@ function load(){
 function render(){
   var r=$('root');
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
-  var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,me:meHTML}[view];
+  var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,ads:adsHTML,me:meHTML}[view];
   r.innerHTML=shell(inner());
   wire();
   load().then(function(){
@@ -1223,7 +1539,11 @@ function wire(){
   };});
 
   document.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){
-    view=b.getAttribute('data-v');openId=null;render();};});
+    view=b.getAttribute('data-v');openId=null;
+    /* 書きかけの広告は、タブを移ったら畳む。残しておくと、別の用で戻ってきたときに
+       前の書きかけが開いたままになり、うっかりそれを保存してしまう */
+    adsDraft=null;adsMsg='';
+    render();};});
   if($('out'))$('out').onclick=function(){API.setToken('');render();};
 
   /* 園の一覧 */
@@ -1320,6 +1640,23 @@ function wire(){
         render();
       })
       .catch(function(e){say('ua_m',e.message);});
+  };
+
+  /* 園名を直す。名前だけを送り、園コードには触れない。 */
+  if($('tn_nsave'))$('tn_nsave').onclick=function(){
+    var nm=$('tn_nm')?String($('tn_nm').value||'').trim():'';
+    var rs=$('tn_nr')?String($('tn_nr').value||'').trim():'';
+    if(!nm){say('tn_nmsg','園名を入れてください');return;}
+    if(nm.length>80){say('tn_nmsg','園名は80文字までにしてください');return;}
+    say('tn_nmsg','保存中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/name',{name:nm,reason:rs})
+      .then(function(j){
+        /* 手元の控えも直してから作り直す。render() はサーバに聞き直すが、
+           聞き直すまでの一瞬だけ古い名前が見出しに出るのを防ぐ。 */
+        if(DATA.one&&DATA.one.tenant&&j&&j.tenant)DATA.one.tenant.name=j.tenant.name;
+        render();
+      })
+      .catch(function(e){say('tn_nmsg',e.message);});
   };
 
   /* 園の利用を止める・再開する。押し間違いが重いので、必ず一度たずねる。 */
@@ -1459,6 +1796,9 @@ function wire(){
         $('p_em').value='';$('p_pw').value='';$('p_cid').value='';})
       .catch(function(e){say('pm',e.message);});
   };
+
+  /* 広告（ホームの広告枠）。入稿の口は運営だけなので、この画面にしか配線しない */
+  if(view==='ads')adsWire();
 
   /* 設定 */
   if($('s_save'))$('s_save').onclick=function(){API.setBase($('s_api').value.trim());render();};
