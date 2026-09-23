@@ -34685,7 +34685,9 @@ var EG_LOGO_N=0;
      渦の中の抜けが埋まらず、外の点が消えない太さを選びました。 */
 function egLogoMark(plan,bg,px){
   var C=EG_LOGO_C, dark=(bg==='dark'), s=px||64;
-  var id='eglg'+(++EG_LOGO_N);
+  /* ★同じ名札（id）が画面に2つできると、先にあった方が消えたときに
+     もう片方の色の指定が行き先を失い、しるしが黒く出ます。回ごとに必ず違う名札にします。 */
+  var id='eglg'+(++EG_LOGO_N)+'x'+Math.floor(Math.random()*1000000);
   var d=EG_MARK_D;
   /* 太らせる量。512 の升目の中での太さなので、小さく出すほど多く要る */
   var ow=(s>=64)?4:(s>=48)?8:(s>=36)?11:13;
@@ -34706,6 +34708,21 @@ function egLogoMark(plan,bg,px){
     +'stroke-linejoin="round" stroke-linecap="round" d="'+d+'"/></svg>';
 }
 
+/* 念のための後始末。色の指定（升目の中の名札）が行き先を失っていたら、
+   1色で塗り直す。黒い塊で出るより、1色のほうがずっとよい。 */
+function egLogoFix(root){
+  try{
+    var ns=(root||document).querySelectorAll('.eglogo-mark');
+    [].forEach.call(ns,function(sv){
+      var pth=sv.querySelector('path'); if(!pth)return;
+      var f=pth.getAttribute('fill')||'';
+      var m=/^url\(#(.+)\)$/.exec(f); if(!m)return;
+      if(sv.querySelector('#'+m[1]))return;             /* 行き先がある。そのまま */
+      pth.setAttribute('fill',EG_LOGO_C.main);
+      pth.setAttribute('stroke',EG_LOGO_C.main);
+    });
+  }catch(e){}
+}
 /* ── しるし＋文字（ふだん使うひとそろい）────────────
    高さ px に合わせて、文字の大きさも一緒に変わる。
    英字は指定のとおり Nunito Sans。読めないときは、いまの書体で出る。
@@ -35375,8 +35392,13 @@ function egBrandPaint(){
        サイドバーの上はロゴのために高さを取ってよい、とのご指示（2026-09-22）なので
        44px にし、添え書き（保育と家庭を、未来でつなぐ）も出します。 */
     box.style.cssText='margin-bottom:11px;';
-    box.innerHTML=egLogo(EG_LOGO_PLAN,'light',44);
+    /* ★画面から外れたままの箱に中身を入れてから貼り付けていました。
+       この作り方だと、しるしの色の指定（升目の中の名札を指す書き方）が
+       ときどき効かず、しるしが黒い塊で出ていました（2026-09-23 安田さんのご報告）。
+       先に画面へ貼ってから、中身を作ります。 */
     bd.insertBefore(box,bd.firstChild);
+    box.innerHTML=egLogo(EG_LOGO_PLAN,'light',44);
+    egLogoFix(box);
   }catch(e){}
 }
 /* ホームの帯の右はしに、小さな絵を1組だけ置く */
@@ -35655,8 +35677,9 @@ function egBrandLogin(){
       if(bx[i].querySelector('.eg-brand'))continue;
       var d=document.createElement('div');
       d.className='eg-brand';
+      bx[i].insertBefore(d,bx[i].firstChild);   /* 先に貼ってから中身を作る（上と同じ理由） */
       d.innerHTML=egLogo(EG_LOGO_PLAN,'light',50);
-      bx[i].insertBefore(d,bx[i].firstChild);
+      egLogoFix(d);
     }
   }catch(e){}
 }
@@ -35689,12 +35712,12 @@ function egBrandWa(){
     if(!s||s.querySelector('.eg-wa-rel'))return;
     var d=document.createElement('div');
     d.className='eg-wa-rel';
+    s.insertBefore(d,s.firstChild);            /* 先に貼ってから中身を作る（上と同じ理由） */
     d.innerHTML=egLogo(EG_LOGO_PLAN,'light',40)
       +'<span class="ar">→</span>'
       +'<img class="wa" src="img/ic/73.png" alt="未来WA">'
       +'<span class="tx">先生が使うのが <b>Miralink</b>、保護者が受け取るのが <b>未来WA</b> です。<br>'
       +'この画面で用意したものが、保護者のアプリに届きます。</span>';
-    s.insertBefore(d,s.firstChild);
   }catch(e){}
 }
 
