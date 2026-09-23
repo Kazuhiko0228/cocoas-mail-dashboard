@@ -21942,16 +21942,18 @@ function setDirtyAsk(page){
    カード（枠）を見出しだけにして、押すと中身が出る形にした。
    見出しの一覧も出し、押すとその項目が開いて、そこまで動く。
    ★閉じても中身は消さない（隠すだけ）。作り直すと、書きかけが飛ぶ。
-   どれを開けているかは、この端末のブラウザだけに覚える。
-   園の記録（stSet）に入れると、ほかの先生の画面の開き方まで動いてしまうため。 */
+   ★どれを開けているかを、この端末のブラウザに覚えさせていた（localStorage）。
+     そのため、読み込み直しても前に開けた項目が開いたままで、一覧の半分が
+     開いた状態で出ていた（2026-09-23 安田さんのご指示「リロードしたら一旦すべて閉じる」）。
+     覚えるのは、いま開いている画面のあいだだけにする（下の入れ物）。
+     設定とほかの画面を行き来するあいだは開いたまま、読み込み直すと全部閉じる。
+   園の記録（stSet）には入れない。ほかの先生の画面の開き方まで動いてしまうため。 */
 var SET_FOLD_K='cocoas_settingsOpen';
-function setFoldAll(){
-  try{var a=JSON.parse(localStorage.getItem(SET_FOLD_K)||'{}');return (a&&typeof a==='object')?a:{};}catch(e){return {};}
-}
+var SET_FOLD={};
+try{ localStorage.removeItem(SET_FOLD_K); }catch(e){}   /* 前に覚えさせた分を捨てる（1回だけ効く） */
+function setFoldAll(){ return SET_FOLD; }
 function setFoldSet(name,on){
-  var a=setFoldAll();
-  if(on)a[name]=1; else delete a[name];
-  try{localStorage.setItem(SET_FOLD_K,JSON.stringify(a));}catch(e){}
+  if(on)SET_FOLD[name]=1; else delete SET_FOLD[name];
 }
 /* 設定の画面を作り終えたあとに1回だけ呼ぶ。カードを動かすだけで、作り直さない */
 function settingsFold(){
