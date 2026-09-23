@@ -31785,6 +31785,43 @@ function facSet(d){stSet('facility',d);}
 function renderFacility(){
   var d=facGet(),s=$('section[data-page="facility"]');
   function save(){facSet(d);}
+  /* ★入れた内容はその場で保存していたが、画面に「保存」が1つも無いので、
+     入れたのに残っていないのでは、と不安になる（2026-09-23 安田さんのご指示）。
+     カードごとに保存の押しボタンを置く。
+     押すと、そのカードの欄をぜんぶ読み直してから保存するので、
+     書いた直後に（欄から出ないまま）押しても、書いたものが入る。 */
+  function facSaveBtn(){
+    return '<span class="mini" data-facmsg="1" style="font-weight:700;"></span>'
+      +'<button class="btn btn-sm btn-primary" data-facsave="1">'+ic('check')+'保存</button>';
+  }
+  function facCommit(card){
+    if(!card)return;
+    card.querySelectorAll('[data-fac]').forEach(function(e2){d.info[e2.getAttribute('data-fac')]=e2.value;});
+    [['data-fd','doctors'],['data-fp','partners'],['data-fn','notes']].forEach(function(t){
+      card.querySelectorAll('['+t[0]+']').forEach(function(e2){
+        var q=e2.getAttribute(t[0]).split('|');
+        if(d[t[1]]&&d[t[1]][+q[0]])d[t[1]][+q[0]][q[1]]=e2.value;
+      });
+    });
+    save();
+  }
+  function facMsg(card,txt,ng){
+    var sp=card&&card.querySelector('[data-facmsg]');
+    if(!sp)return;
+    sp.style.color=ng?'#A32D2D':'#1D7A56';
+    sp.textContent=txt;
+    if(!ng)setTimeout(function(){if(sp)sp.textContent='';},1800);
+  }
+  function facSaveWire(){
+    s.querySelectorAll('[data-facsave]').forEach(function(b){
+      b.onclick=function(){var c=b.closest('.card');facCommit(c);facMsg(c,langSay('保存しました'));};
+    });
+    /* 書きかけのあいだは「保存していません」を出す。押し忘れに気づけるように */
+    s.querySelectorAll('.card').forEach(function(c){
+      if(!c.querySelector('[data-facsave]'))return;
+      c.oninput=function(){facMsg(c,langSay('保存していません'),1);};
+    });
+  }
   function field(f){
     var v=d.info[f.k]==null?'':d.info[f.k];
     var inp;
@@ -31802,15 +31839,18 @@ function renderFacility(){
       .map(function(x){return '<span style="display:inline-block;padding:5px 11px;border-radius:999px;background:#F1EFE8;font-size:12.5px;"><span class="muted">'+esc(x[0])+'</span> <b>'+esc(x[1])+'</b></span>';}).join('')
     +'</div><div class="muted" style="font-size:11.5px;margin-top:8px;">人数は「生徒情報」と「職員情報」から自動で数えています（退園・退職ずみは除く）。</div></div>';
   s.innerHTML=head+FAC_INFO.map(function(g){
-      return '<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+esc(g.g)+'</h3><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'+g.f.map(field).join('')+'</div></div>';
+      return '<div class="card" style="margin-bottom:14px;">'
+        +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+        +'<h3 style="margin:0;flex:1;">'+ic('gear')+esc(g.g)+'</h3>'+facSaveBtn()+'</div>'
+        +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px 14px;">'+g.f.map(field).join('')+'</div></div>';
     }).join('')
-    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('alert')+'提携医療機関</h3><button class="btn btn-sm" id="facDocAdd">'+ic('plus')+'追加</button><button class="btn btn-sm" id="facDocPrint">'+ic('printer')+'壁掲示用に出力</button></div>'
+    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('alert')+'提携医療機関</h3>'+facSaveBtn()+'<button class="btn btn-sm" id="facDocAdd">'+ic('plus')+'追加</button><button class="btn btn-sm" id="facDocPrint">'+ic('printer')+'壁掲示用に出力</button></div>'
       +'<div class="muted" style="margin-bottom:8px;font-size:12px;">かかりつけ医・嘱託医など。緊急時に見られるよう壁掲示用に印刷できます。</div>'
       +'<div class="scrollx"><table class="austack"><thead><tr><th>医療機関名</th><th style="width:130px;">診療科</th><th style="width:120px;">担当医</th><th style="width:140px;">電話番号</th><th>住所</th><th style="width:120px;">区分</th><th style="width:44px;"></th></tr></thead><tbody id="facDocs"></tbody></table></div></div>'
-    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('users')+'提携先・取引先</h3><button class="btn btn-sm" id="facPtAdd">'+ic('plus')+'追加</button></div>'
+    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('users')+'提携先・取引先</h3>'+facSaveBtn()+'<button class="btn btn-sm" id="facPtAdd">'+ic('plus')+'追加</button></div>'
       +'<div class="muted" style="margin-bottom:8px;font-size:12px;">給食・ランチ会社、清掃／ごみ収集、消防設備点検などの取引先を登録できます。</div>'
       +'<div class="scrollx"><table class="austack"><thead><tr><th style="width:140px;">種別</th><th>会社名</th><th style="width:130px;">担当者</th><th style="width:140px;">電話番号</th><th>住所・メモ</th><th style="width:44px;"></th></tr></thead><tbody id="facPts"></tbody></table></div></div>'
-    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('doc')+'その他の情報（自由記載）</h3><button class="btn btn-sm" id="facNoteAdd">'+ic('plus')+'項目を追加</button><button class="btn btn-sm btn-primary" id="facPrint">'+ic('printer')+'施設情報を出力</button></div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('doc')+'その他の情報（自由記載）</h3>'+facSaveBtn()+'<button class="btn btn-sm" id="facNoteAdd">'+ic('plus')+'項目を追加</button><button class="btn btn-sm btn-primary" id="facPrint">'+ic('printer')+'施設情報を出力</button></div>'
       +'<div class="muted" style="margin-bottom:8px;font-size:12px;">上の項目にない情報は、見出しと内容を自由に追加して記録できます。</div>'
       +'<div id="facNotes"></div></div>';
   s.querySelectorAll('[data-fac]').forEach(function(el2){el2.onchange=function(){d.info[el2.getAttribute('data-fac')]=el2.value;save();};});
@@ -31848,7 +31888,7 @@ function renderFacility(){
     $('#facNotes').querySelectorAll('[data-fn]').forEach(function(el2){el2.onchange=function(){var p=el2.getAttribute('data-fn').split('|');d.notes[+p[0]][p[1]]=el2.value;save();};});
     $('#facNotes').querySelectorAll('[data-fndel]').forEach(function(b){b.onclick=function(){d.notes.splice(+b.getAttribute('data-fndel'),1);save();renderNotes();};});
   }
-  renderDocs();renderPts();renderNotes();
+  renderDocs();renderPts();renderNotes();facSaveWire();
   $('#facDocAdd').onclick=function(){d.doctors.push({name:'',dept:'',doctor:'',tel:'',addr:'',kind:'かかりつけ医'});save();renderDocs();};
   $('#facPtAdd').onclick=function(){d.partners.push({kind:'給食・ランチ',name:'',person:'',tel:'',memo:''});save();renderPts();};
   $('#facNoteAdd').onclick=function(){d.notes.push({title:'',body:''});save();renderNotes();};
