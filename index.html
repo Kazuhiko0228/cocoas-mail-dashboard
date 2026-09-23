@@ -27821,6 +27821,48 @@ function passwordChangeModal(force){
       .catch(function(e){$('#pw_msg').textContent=e.message;});
   };
 }
+/* ★「今すぐ同期」は画面を読み込み直すので、見ていた画面からホームへ戻ってしまっていた
+   （2026-09-23 安田さんのご指摘）。住所の # だけでは、記録の種類や見ていた位置までは戻せない。
+   押した時点の画面をこの端末（このタブ）に控えておき、読み込み直したあとに開き直す。
+   控えは1回きり・2分で捨てる（次に開いたときに、古い控えで思わぬ画面が開かないように）。 */
+var SYNCBACK;
+function syncBackKeep(){
+  try{
+    var s=document.querySelector('section[data-page]:not([hidden])');
+    var pg=s?s.getAttribute('data-page'):'';
+    if(!pg)return;
+    sessionStorage.setItem('cocoas_syncBack',JSON.stringify({
+      pg:pg,
+      rec:(typeof recType!=='undefined'?recType:''),
+      y:(window.pageYOffset||0),
+      t:(new Date()).getTime()}));
+  }catch(e){}
+}
+function syncBackTake(){
+  if(SYNCBACK!==undefined)return SYNCBACK;   /* 開き直しの判断は2か所から呼ばれる。読むのは1回だけ */
+  SYNCBACK=null;
+  try{
+    var raw=sessionStorage.getItem('cocoas_syncBack');
+    if(!raw)return SYNCBACK;
+    sessionStorage.removeItem('cocoas_syncBack');
+    var o=JSON.parse(raw);
+    if(!o||!o.pg||!o.t)return SYNCBACK;
+    if((new Date()).getTime()-o.t>120000)return SYNCBACK;
+    if(typeof TITLES==='undefined'||!TITLES[o.pg])return SYNCBACK;
+    if(typeof canView==='function'&&!canView(o.pg))return SYNCBACK;
+    SYNCBACK=o;
+  }catch(e){}
+  return SYNCBACK;
+}
+/* 控えがあれば、その画面の名前を返す。記録の種類と見ていた位置も戻す */
+function syncBackPage(){
+  var o=syncBackTake();
+  if(!o)return '';
+  try{ if(o.rec&&typeof recType!=='undefined')recType=o.rec; }catch(e){}
+  /* go() は画面のいちばん上まで戻すので、描き終わってから位置を戻す */
+  if(o.y)setTimeout(function(){ try{ window.scrollTo(0,o.y); }catch(e){} },350);
+  return o.pg;
+}
 /* 画面右上に同期の状態を出す */
 function initSyncBar(){
   if(!API.online()||document.getElementById('syncBar'))return;
@@ -27845,6 +27887,7 @@ function initSyncBar(){
          送れなかったときは開き直さない（開き直すと送り待ちが消え、次の読み込みで園の記録の中身に戻る） */
       return SYNC.pull().then(function(){return SYNC.flush();}).then(function(ok2){
         if(!ok2&&Object.keys(SYNC.queue).length){SYNC.setStatus('未保存：まだ園の記録に送れていない変更があります');return;}
+        syncBackKeep();                 /* 読み込み直したあと、この画面へ戻ってくるため */
         location.reload();
       });
     }).then(null,function(){});
@@ -28692,8 +28735,13 @@ function staffEnter(){
      （戻る・進むで移ったあとに更新しても、同じ場所に戻れるように）。 */
   if(!dl){
     try{
-      var _hp=String(location.hash||'').replace(/^#/,'');
-      if(_hp&&TITLES[_hp]&&canView(_hp))first=_hp;
+      /* 「今すぐ同期」で読み込み直したときは、押した画面へ戻す */
+      var _sb=syncBackPage();
+      if(_sb)first=_sb;
+      else{
+        var _hp=String(location.hash||'').replace(/^#/,'');
+        if(_hp&&TITLES[_hp]&&canView(_hp))first=_hp;
+      }
     }catch(e){}
   }
   go(first);if(typeof initAI==='function')initAI();
@@ -28786,7 +28834,22 @@ function staffBoot(){
       if(typeof toastAI==='function')toastAI('この記録は紙の取り込みに対応していません。画面から入力してください。');
     },300);
   }
-  else if(dl&&canView('dm')){dmSel=dl;go('dm');}else go(firstOpenPage());
+  else if(dl&&canView('dm')){dmSel=dl;go('dm');}
+  else{
+    /* ★ここは必ず firstOpenPage（ホーム）へ行っていた。サーバにつないで使っているときは
+       この道を通るので、読み込み直すと、見ていた画面からホームへ戻ってしまっていた
+       （2026-09-23 安田さんのご指摘）。「今すぐ同期」もブラウザの更新も同じ道。
+       ①同期の前に控えた画面 ②住所の #画面名 ③その人が開ける最初の画面、の順に開く。 */
+    var _bp='';
+    try{ _bp=syncBackPage(); }catch(e){}
+    if(!_bp){
+      try{
+        var _bh=String(location.hash||'').replace(/^#/,'');
+        if(_bh&&TITLES[_bh]&&canView(_bh)&&egPlanOfPage(_bh))_bp=_bh;
+      }catch(e){}
+    }
+    go(_bp||firstOpenPage());
+  }
   if(typeof initAI==='function')initAI();
 }
 /* 設定タブに追加：生徒情報リンク・職員アカウント・権限管理 */
@@ -34519,7 +34582,9 @@ function egRefresh(){
       if(_hp&&(typeof TITLES==='undefined'||!TITLES[_hp]))_hp='';
       if(_hp&&typeof canView==='function'&&!canView(_hp))_hp='';
     }catch(e3){ _hp=''; }
-    if(!window.__egHomeShown&&!_deep){window.__egHomeShown=true;go(_hp||'home');}
+    /* 「今すぐ同期」で読み込み直したときは、押した画面へ戻す（# より優先） */
+    var _sb2=''; try{ _sb2=syncBackPage(); }catch(e4){}
+    if(!window.__egHomeShown&&!_deep){window.__egHomeShown=true;go(_sb2||_hp||'home');}
   }catch(e){}
 }
 egRefresh();
