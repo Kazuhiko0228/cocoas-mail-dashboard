@@ -11529,6 +11529,8 @@ var EN_DICT={
 '⑨ 入園説明会 3日前リマインド':'⑨ Enrollment orientation 3-day reminder',
 '食物アレルギーが起きたときの流れ':'Steps to take during a food allergy reaction',
 '期間をまとめて出力：登園（出席）':'Export by period: Attendance',
+'期間をまとめて出力：登園（出席）・健康チェック・午睡チェック':'Export by period: Attendance / Health Check / Nap Check',
+'出すもの：':'Include:','健康チェックは、登園の紙の中の列にも入ります。':'Health checks also appear as a column on the attendance sheet.',
 '保育料請求書の作成（担当：園長）':'Create childcare fee invoices (Owner: Director)',
 '事故の後の対応を振り返るチェック':'Checklist to review post-incident response',
 '請求書発行（2026年10月分）':'Issue invoices (for October 2026)',
@@ -25075,6 +25077,14 @@ function periodRange(a,b,isMonth){
   return {from:from,to:to,span:n,label:isMonth?(pdYm(from)+'〜'+pdYm(to)):(pdMd(from,yy)+'〜'+pdMd(to,yy))};
 }
 /* その期間のうち、中身のある日（安全点検は月）だけを拾う。無い日は飛ばす＝白紙を出さない */
+/* 登園の画面で「まとめて出す」ときに入れるもの（登園・健康チェック・午睡）。
+   ★午睡と健康チェックも一緒に出ていたが、見出しが「登園（出席）」だけで、入っていると分からなかった。
+     しかも午睡だけ・健康だけを出すことができなかった（2026-09-24 安田さんのご指摘
+     「期間をまとめて出力の午睡と健康チェックの部分がない」）。選べるようにし、見出しにも出す */
+function periodInc(){
+  var inc=(stGet('recPeriod',{})||{}).inc||{};
+  return {t:inc.t!==false,h:inc.h!==false,n:inc.n!==false};
+}
 function periodKeys(type,from,to){
   var out=[];
   if(periodIsMonth(type)){
@@ -25099,7 +25109,7 @@ function periodKeys(type,from,to){
   var p=from.split('-'),day=new Date(+p[0],+p[1]-1,+p[2]),endN=pdNum(to);
   while(pdNum(iso(day))<=endN){
     var dk=iso(day),hit=false;
-    if(td)hit=touenHas(td[dk])||napHas(nd[dk])||healthHas(hd[dk]);
+    if(td){var inc=periodInc();hit=(inc.t&&touenHas(td[dk]))||(inc.n&&napHas(nd[dk]))||(inc.h&&healthHas(hd[dk]));}
     else if(hd)hit=healthHas(hd[dk]);
     else if(pd)hit=nippoHas(pd[dk]);
     if(hit)out.push(dk);
@@ -25115,8 +25125,9 @@ function periodKeyLabel(type,k){
 function periodBody(type,k){
   if(type==='安全点検')return safetyMonthBody(k);
   if(type==='登園（出席）'){
+    var inc=periodInc();
     /* 午睡だけ記録がある日は、空っぽの登園シートを出さない（白紙が混ざらないように） */
-    var td=stGet('rec_登園シート',{})[k],nb=napDayBody(k);
+    var td=inc.t?stGet('rec_登園シート',{})[k]:null,nb=(inc.n&&napHas(stGet('rec_午睡チェック',{})[k]))?napDayBody(k):'';
     /* ★1日の記録は1件で、rows には開いたクラスぜんぶの園児が入り、
        klass は最後に開いたクラスに上書きされる。ここでクラスを分けずに
        出していたので、Pre と Kinder が1枚の紙に混ざり、見出しだけ
@@ -25160,7 +25171,7 @@ function periodBody(type,k){
        登園の記録が無く健康チェックだけある日だけ、健康の紙を出す。 */
     var _hk=stGet('rec_健康チェック',{})[k];
     var out=tb+((tb&&nb)?'<div style="height:10px;"></div>':'')+nb;
-    if(!tb&&healthHas(_hk))
+    if(!tb&&inc.h&&healthHas(_hk))
       out+=(out?'<div style="page-break-before:always;"></div>':'')
         +'<div style="font-size:13px;font-weight:700;margin:0 0 6px;">健康チェック</div>'+healthDayBody(k);
     return out;
@@ -25192,7 +25203,7 @@ function periodCard(){
   if(isMonth){f=sv.fromM||todayISO().slice(0,7);t=sv.toM||todayISO().slice(0,7);}
   else{f=sv.from||(todayISO().slice(0,8)+'01');t=sv.to||todayISO();}
   return '<div class="card" style="margin-top:16px;">'
-    +'<h3>'+ic('printer')+'期間をまとめて出力：'+esc(recType)+'</h3>'
+    +'<h3>'+ic('printer')+'期間をまとめて出力：'+esc(recType==='登園（出席）'?'登園（出席）・健康チェック・午睡チェック':recType)+'</h3>'
     +'<div class="muted" style="margin-bottom:10px;">'
       +(isMonth?'安全点検の紙は1ヶ月ぶんの表です。月で選んでください。':'開始日と終了日を選ぶと、その間の記録をまとめて出せます。')
       +'記録の無い'+(isMonth?'月':'日')+'は出しません。</div>'
@@ -25202,6 +25213,12 @@ function periodCard(){
       +'<button class="btn" id="pdPrint">'+ic('printer')+'まとめて印刷</button>'
       +'<button class="btn" id="pdXls">'+ic('folder')+'まとめてデータ保存</button>'
     +'</div>'
+    +(recType==='登園（出席）'?(function(){var inc=periodInc();
+      return '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:13px;">'
+        +'<span class="muted">出すもの：</span>'
+        +[['t','登園（出席）'],['h','健康チェック'],['n','午睡チェック']].map(function(x){
+          return '<label style="display:inline-flex;gap:5px;align-items:center;margin:0;cursor:pointer;"><input type="checkbox" data-pdinc="'+x[0]+'"'+(inc[x[0]]?' checked':'')+' style="width:auto;">'+x[1]+'</label>';}).join('')
+        +'<span class="muted" style="font-size:11.5px;">健康チェックは、登園の紙の中の列にも入ります。</span></div>';})():'')
     +'<div class="muted" id="pdCount" style="margin-top:10px;"></div></div>';
 }
 function wirePeriod(){
@@ -25227,6 +25244,9 @@ function wirePeriod(){
     able(keys.length>0);
   }
   f.onchange=refresh;t.onchange=refresh;
+  document.querySelectorAll('[data-pdinc]').forEach(function(cb){cb.onchange=function(){
+    var sv=stGet('recPeriod',{});sv.inc=sv.inc||{};sv.inc[cb.getAttribute('data-pdinc')]=cb.checked;stSet('recPeriod',sv);refresh();
+  };});
   if(bp)bp.onclick=function(){
     if(!keys.length)return;
     /* 何十枚も紙が出るので、多いときは一度たずねる */
