@@ -1475,6 +1475,7 @@ button.hpr:hover{background:#FAF9F5}
 .dfsheet td.b{font-weight:700;}
 .dfsheet.fx{font-size:9.5px;}
 .dfsheet.fx td{border:0;box-shadow:inset 0 0 0 .5px #D9D5E4;padding:0 1px;height:auto;white-space:normal;line-height:1.15;text-overflow:clip;}
+.dfsheet .circ{border:1.3px solid #222;border-radius:50%;padding:0 .3em;margin:0 -.15em;}
 .dfsheet.fx td.f{background:#DDF3E3;box-shadow:inset 0 0 0 1px #3F9C5B;}
 .dfsheet.fx td:not([rowspan]){white-space:nowrap;}
 .dfsheet th{background:#F6F4FB;color:#8A8795;font-weight:600;font-size:10.5px;padding:2px;border:1px solid #E4E1EC;}
@@ -32891,7 +32892,15 @@ function dfSheetHTML(p){
       var c=ci+1;if(skip[r+':'+c]||cell==='skip')return;
       var sp=span[r+':'+c],at=sp?(' rowspan="'+sp[0]+'" colspan="'+sp[1]+'"'):((cell&&cell.cs)?' colspan="'+cell.cs+'"':'');
       var x=cell||{v:''};
-      h+='<td'+at+(x.id?' id="dfcell-'+esc(x.id)+'"':'')+' class="'+(x.f?'f ':'')+(x.b?'b':'')+'" title="'+esc(x.v||'')+'">'+esc(x.v||'')+'</td>';
+      /* ○で囲んだ語は、紙と同じく丸い枠で囲んで見せる */
+      var inner=esc(x.v||'');
+      if(x.c&&x.c.length){
+        var t=x.v||'',pos=0,parts=[];
+        x.c.slice().sort(function(p1,p2){return p1[0]-p2[0];}).forEach(function(sp){
+          parts.push(esc(t.slice(pos,sp[0])));parts.push('<span class="circ">'+esc(t.slice(sp[0],sp[1]))+'</span>');pos=sp[1];});
+        parts.push(esc(t.slice(pos)));inner=parts.join('');
+      }
+      h+='<td'+at+(x.id?' id="dfcell-'+esc(x.id)+'"':'')+' class="'+(x.f?'f ':'')+(x.b?'b':'')+'" title="'+esc(x.v||'')+'">'+inner+'</td>';
     });
     h+='</tr>';
   });
