@@ -1461,6 +1461,20 @@ button.hpr:hover{background:#FAF9F5}
 /* 配信テンプレートのフォルダの札。★札の中の絵が見出し用の大きさ（27px）になり、札が丸く大きく膨らんでいた */
 .tfchips .chip{display:inline-flex;align-items:center;gap:4px;height:auto;}
 /* 全体配信に添える PDF と、文面から作る窓（2026-09-24） */
+/* 未来WA の画面（2026-09-24） */
+.wacan{display:flex;flex-wrap:wrap;gap:8px;}
+.wacan span{border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;}
+.waframe iframe{width:100%;height:820px;border:1px solid var(--line);border-radius:12px;background:#fff;display:block;}
+.wam-ch{font-weight:700;font-size:13px;color:var(--tx2);margin:14px 0 6px;}
+.wam-ch:first-child{margin-top:0;}
+.wam-i{border:1px solid var(--line);border-radius:10px;margin-bottom:6px;}
+.wam-i summary{cursor:pointer;padding:10px 12px;font-size:13.5px;font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.wam-who{font-size:11px;font-weight:600;color:var(--tx2);border:1px solid var(--line);border-radius:99px;padding:1px 8px;}
+.wam-b{padding:0 14px 12px;font-size:13px;line-height:1.8;}
+.wam-b ol{margin:4px 0 8px;padding-left:20px;}
+.wam-b .note{background:var(--bg2,#f6f5f2);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--tx2);}
+.wam-b .k{border:1px solid var(--line);border-radius:6px;padding:0 5px;font-weight:600;}
+@media (max-width:640px){.waframe iframe{height:640px;}}
 .batt{display:flex;flex-direction:column;gap:6px;margin-top:10px;}
 .batt-i{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;}
 .batt-i svg{width:15px;height:15px;flex:none;color:#A32D2D;}
@@ -6576,9 +6590,13 @@ function egSubHome(x){
 /* マスのアイコン。
    'ic:07' のように書いたものは img/ic/07.png（いただいた Miralink のアイコン）を出す。
    絵文字は端末によって形が変わり、園ごとに見え方が違ってしまうので、画像に寄せている。 */
+/* ★未来WA の印（ic:73）だけ、いただいた絵が青1色のままで、未来WA の正規の5色のロゴと違って見えた
+   （2026-09-24 安田さんのご指摘）。正規のロゴ（img/icon_miraiwa.png）に差し替えて出す */
+var EG_ICON_SRC={'73':'img/icon_miraiwa.png'};
+function egIconSrc(n){return EG_ICON_SRC[n]||('img/ic/'+esc(n)+'.png');}
 function egIcon(i){
   if(!i)return '';
-  if(/^ic:/.test(i))return '<img class="tii" src="img/ic/'+esc(i.slice(3))+'.png" alt="">';
+  if(/^ic:/.test(i))return '<img class="tii" src="'+egIconSrc(i.slice(3))+'" alt="">';
   return /^[a-z]+$/.test(i) ? ic(i)
        : '<span style="font-size:19px;line-height:1;">'+esc(i)+'</span>';
 }
@@ -11125,6 +11143,27 @@ var EN_DICT={
 '年度前 0/10':'Before School Year 0/10',
 '9月のカレンダー':'September Calendar',
 '未来WA を開く':'Open MiraiWA',
+'未来WAとは？':'What is MiraiWA?',
+'使用マニュアル':'User manual',
+'保護者アカウント新規発行':'Issue parent accounts',
+'未来WA でできること':'What you can do with MiraiWA',
+'スクール用 未来WA':'MiraiWA for schools',
+'以下の項目で反映した情報が、保護者へ自動反映又は送信ができます。':'Information entered in the items below is automatically reflected or sent to parents.',
+'お子様の体温／体調／午睡の時間':'Child’s temperature / condition / nap time',
+'お子様の体温':'Child’s temperature',
+'出席簿から':'from the attendance sheet',
+'健康チェックから':'from the health check',
+'午睡チェックから':'from the nap check',
+'商品・イベント・スクールガイドの発信、売れたものの確認は、ここでそのまま行えます。':'Post products, events, and the school guide, and check sales, right here.',
+'未来WA の使用マニュアル':'MiraiWA user manual',
+'知りたい項目を押すと、手順がひらきます。':'Tap a topic to see the steps.',
+'印刷用の手引きを別のタブで開く':'Open the printable guide in a new tab',
+'PDFを添付':'Attach PDF',
+'文面からPDFを作る':'Create PDF from text',
+'文面からお知らせのPDFを作る':'Create a notice PDF from the text',
+'見本を作る':'Preview',
+'このPDFを添付する':'Attach this PDF',
+'送ると、保護者の未来WAの「おたより」に添付として届きます。':'When sent, it arrives as an attachment in the parent’s MiraiWA newsletters.',
 '勤続 1年5ヶ月':'Tenure: 1 year 5 months',
 '施設プロフィール':'Facility Profile',
 '全員分を一括出力':'Export All at Once',
@@ -18329,92 +18368,97 @@ function homeEventsWire(){
    noopener は付けない。付けると新しいタブに引き継がれず、向こうで保存できなくなる。 */
 function waOpen(){ window.open('creator.html','_blank'); }
 
-/* 未来WA は、園から保護者へ送付するためのサービス。
-   出品や売上の話より先に、園が保護者に何を送付できるかを出す。
-   3つめの欄は、その画面の合言葉。空のときは行き先の押しボタンを出さない。 */
+/* ══ 未来WA の画面（2026-09-24 安田さんのご指示で組み直した）══════════
+   上のタブ3つ：「未来WAとは？」「使用マニュアル」「保護者アカウント新規発行」。
+   ・このタブは「未来WA へ何が届くか」の一覧と、イベント・スクールガイドを出すための場所。
+     ★一覧の横に「ひらく」を置いていたが、ほかの画面へ飛ぶ入口に見えて役目がぼやけるので外した
+   ・★「未来WA を開く」（別のタブで creator.html を開く）をやめ、スクール用の未来WA をこの画面の中にそのまま出す
+   ・★「未来WA の画面でできること」は説明が分かりにくいので、いったん項目の名前だけにした */
+var WA_VIEW='about';
+var WA_TABS=[['about','未来WAとは？'],['manual','使用マニュアル'],['accounts','保護者アカウント新規発行']];
+/* 保護者へ自動で反映・送信されるもの。[項目, [どこから, …]] */
 var WA_TO_PARENT=[
-  ['おたより・デイリーレポート',
-   '「全体配信・お知らせ」で送ると、保護者のアプリのおたよりに並びます。','broadcast'],
-  ['園からの個人メッセージ',
-   '「保護者DM」で、ご家庭ごとにやりとりします。','dm'],
-  ['出欠・連絡',
-   '保護者が送った欠席・遅刻・送迎時間の変更は、Miralink のホームに届きます。','home'],
-  ['成長の記録',
-   '「保育記録」の身体測定が、保護者の画面にグラフで出ます。','carerec'],
-  ['スクールガイド',
-   '「ガイダンス資料」に入れた原本が、保護者のマイページに出ます。','docs'],
-  ['イベントのお知らせ',
-   '未来WA の画面で出したイベントが、保護者に届きます。申込の名簿も同じ画面です。','']
+  ['お子様の体温／体調／午睡の時間',[['お子様の体温','出席簿から'],['体調','健康チェックから'],['午睡の時間','午睡チェックから']]],
+  ['全体配信・お知らせ',[]],
+  ['個別メッセージ',[]]
 ];
-/* 未来WA の画面（出品・売上）でできること。案内に並べる文言をここにまとめておく。 */
-var WA_CAN=[
-  ['商品を出す','写真・値段・毎月おとどけ・ねらいを決めて出します。'],
-  ['保護者に見せる並び','園のおすすめを、保護者のストアのいちばん上に並べます。'],
-  ['園で使っている外部の教材','市販のものを、運営が発行したリンクで知らせます。'],
-  ['売れたもの','今月の売上と園への還元、注文の明細を見ます。「受け取りました」もここです。カードでお支払いいただいた注文は、園の確認を待たずにダウンロードできます。'],
-  ['イベントの申込の名簿','どなたが申し込まれたかを見ます（管理者・マネージャーのみ）。'],
-  ['ダウンロード教材の預かり','保護者にお渡しするファイルを預けます。']
-];
-/* この画面は案内だけ。園児のお名前や売上は、ここには出さない（未来WA の画面で見る）。
-   タブがふさがれて開かなかったときの行き先にもなるので、ボタンは必ず1つ置く。 */
+/* 未来WA でできること（項目の名前だけ） */
+var WA_CAN=['商品を出す','保護者に見せる並び','園で使っている外部の教材','売れたもの','イベントの申込の名簿','ダウンロード教材の預かり'];
+function waTabsHTML(){
+  return '<div class="bctabs chips" style="margin:0 0 14px;display:flex;gap:8px;flex-wrap:wrap;">'
+    +WA_TABS.map(function(t){
+      return '<span class="chip'+(t[0]===WA_VIEW?' on':'')+'" data-watab="'+t[0]+'" role="button" tabindex="0">'+esc(t[1])+'</span>';
+    }).join('')+'</div>';
+}
 function renderWaOpen(){
   var s=$('section[data-page="wastore"]');
-  /* その職員が見られない画面へは行かせない。行き先が無いときは押しボタンを出さない。 */
-  var canGo=function(p){
-    if(!p)return false;
-    try{ if(typeof egHasPage==='function'&&!egHasPage(p))return false; }catch(e){}
-    try{ if(typeof canView==='function'&&!canView(p))return false; }catch(e){}
-    return true;
-  };
-  s.innerHTML='<div class="card">'
-      /* ★何の一覧なのかが伝わらない、というご指摘（2026-08-27）。
-         「保護者に何が届くか」と「それをどこから送るか」の対応表であることを先に言う。 */
-      /* ★見出しの絵が一般の「配信」の記号で、未来WA の画面だと分からなかった
-         （2026-09-23 安田さんのご指示）。未来WA のロゴを出す。 */
-      +'<h3>'+waLogoHTML()+'未来WA でつながる</h3>'
-      /* ★「保護者は、未来WA のアプリ1つで受け取ります」だけでは、何の一覧なのかが読み取れない
-         というご指摘（2026-09-23 安田さん）。「届く側／送る側」と、下の表が何の表かを先に言う。 */
-      +'<div class="muted" style="margin:-4px 0 12px;">'
-      +'保護者が見るアプリが「未来WA」です。写真・お知らせ・請求などは、すべてここに届きます。'
-      +'送るのは、いまお使いのこの Miralink です。'
-      +'下は「保護者に届くもの」と「それを送る画面」の対応表です。「ひらく」でその画面へ移ります。</div>'
-      +WA_TO_PARENT.map(function(x){
-        return '<div style="border-top:1px solid var(--line);padding:10px 0;'
-          +'display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">'
-          +'<div style="flex:1;min-width:200px;">'
-          +'<div style="font-weight:700;font-size:13.5px;">'+esc(x[0])+'</div>'
-          +'<div class="muted" style="font-size:12.5px;margin-top:2px;">'+esc(x[1])+'</div></div>'
-          +(canGo(x[2])?'<button class="btn btn-sm btn-primary" data-wago="'+esc(x[2])+'">ひらく</button>':'')
-          +'</div>';
-      }).join('')
-      +'</div>'
-    +'<div class="card">'
-      +'<h3>'+waLogoHTML()+'未来WA を開く</h3>'
-      +'<div class="muted" style="margin:-4px 0 12px;">'
-      +'商品を出すのも、イベントを出すのも、売れたものを見るのも、未来WA の画面で行います。'
-      +'この画面からは、その入口をご案内しています。</div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
-      +'<button class="btn btn-primary" id="waGo">'+ic('send')+'未来WA を開く</button>'
-      +'<span class="muted" style="font-size:12px;">別のタブで開きます。</span></div></div>'
-    +'<div class="card"><h3>'+ic('check')+'未来WA の画面でできること</h3>'
-      +WA_CAN.map(function(x){
-        return '<div style="border-top:1px solid var(--line);padding:10px 0;">'
-          +'<div style="font-weight:700;font-size:13.5px;">'+esc(x[0])+'</div>'
-          +'<div class="muted" style="font-size:12.5px;margin-top:2px;">'+esc(x[1])+'</div></div>';
-      }).join('')
-      +'<div class="note-b" style="margin-top:13px;">'
-      +'売上と還元・イベントの申込の名簿・保護者にお渡しするファイルは、'
-      +'園の職員としてログインしているときだけ出ます。</div></div>'
+  var body='';
+  if(WA_VIEW==='manual'){
+    body='<div class="card"><h3>'+ic('doc')+'未来WA の使用マニュアル</h3>'
+      +'<div class="muted" style="margin:-4px 0 12px;">知りたい項目を押すと、手順がひらきます。</div>'
+      +'<div id="waManual" class="wam"><div class="muted">読み込んでいます…</div></div>'
+      +'<div style="margin-top:12px;"><a class="btn btn-sm" href="manual-wa.html" target="_blank" rel="noopener">'+ic('doc')+'印刷用の手引きを別のタブで開く</a></div></div>';
+  }else if(WA_VIEW==='accounts'){
     /* ★保護者アカウントを園で作る手だてが無く、運営に頼むしかなかった。
        未来WA は保護者が入れなければ何も始まらないので、ここに置く。
        サーバ側で管理者だけに絞られているので、画面もそれに合わせる。 */
-    +'<div class="card" id="waPaCard"><h3>'+ic('users')+'保護者アカウント</h3>'
+    body='<div class="card" id="waPaCard"><h3>'+ic('users')+'保護者アカウント新規発行</h3>'
       +'<div class="muted" style="margin:-4px 0 12px;">読み込んでいます…</div></div>';
-  $('#waGo').onclick=waOpen;
-  waParentCard();
-  s.querySelectorAll('[data-wago]').forEach(function(b){
-    b.onclick=function(){ go(b.getAttribute('data-wago')); };
+  }else{
+    body='<div class="card">'
+        +'<h3>'+waLogoHTML()+'未来WA でつながる</h3>'
+        +'<div class="muted" style="margin:-4px 0 10px;">以下の項目で反映した情報が、保護者へ自動反映又は送信ができます。</div>'
+        +WA_TO_PARENT.map(function(x){
+          return '<div style="border-top:1px solid var(--line);padding:10px 0;">'
+            +'<div style="font-weight:700;font-size:13.5px;">・'+esc(x[0])+'</div>'
+            +(x[1].length?'<div style="margin:4px 0 0 14px;display:grid;gap:2px;">'+x[1].map(function(y){
+              return '<div class="muted" style="font-size:12.5px;">「'+esc(y[0])+'」・・・'+esc(y[1])+'</div>';
+            }).join('')+'</div>':'')
+            +'</div>';
+        }).join('')
+      +'</div>'
+      +'<div class="card"><h3>'+ic('check')+'未来WA でできること</h3>'
+        +'<div class="wacan">'+WA_CAN.map(function(x){return '<span>'+esc(x)+'</span>';}).join('')+'</div></div>'
+      +'<div class="card"><h3>'+waLogoHTML()+'スクール用 未来WA</h3>'
+        +'<div class="muted" style="margin:-4px 0 12px;">商品・イベント・スクールガイドの発信、売れたものの確認は、ここでそのまま行えます。</div>'
+        +'<div id="waFrameBox" class="waframe"></div></div>';
+  }
+  s.innerHTML=waTabsHTML()+body;
+  s.querySelectorAll('[data-watab]').forEach(function(c){
+    c.onclick=function(){var k=c.getAttribute('data-watab');if(k===WA_VIEW)return;WA_VIEW=k;renderWaOpen();try{egBrandWa();}catch(e){}};
+    c.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click();}};
   });
+  if(WA_VIEW==='accounts')waParentCard();
+  if(WA_VIEW==='manual')waManualLoad();
+  if(WA_VIEW==='about'){
+    /* ★枠（iframe）は文字の組み立て（innerHTML）で書くと、画面の守りに消される。部品として作って差し込む。
+       同じ場所（同じ端末・同じタブ）で開くので、ログインの控え（sessionStorage）はそのまま使える */
+    var box=$('#waFrameBox');
+    if(box){var fr=document.createElement('iframe');fr.src='creator.html';fr.title='スクール用 未来WA';box.appendChild(fr);}
+  }
+}
+/* 使用マニュアル。手引き（manual-wa.html）から、章と項目を読み取って一覧にする。
+   手引きを直せば、ここも同じ中身になる（2か所に書かない） */
+function waManualLoad(){
+  var box=$('#waManual');if(!box)return;
+  fetch('manual-wa.html').then(function(r){if(!r.ok)throw new Error('x');return r.text();}).then(function(t){
+    var doc=new DOMParser().parseFromString(t,'text/html');
+    var html='';
+    [].forEach.call(doc.querySelectorAll('.ch'),function(ch,ci){
+      var h2=ch.querySelector('h2');if(!h2)return;
+      var n=h2.querySelector('.n');if(n)n.parentNode.removeChild(n);
+      html+='<div class="wam-ch">'+esc(h2.textContent.trim())+'</div>';
+      [].forEach.call(ch.querySelectorAll('.task'),function(tk){
+        var h3=tk.querySelector('h3');if(!h3)return;
+        var who=h3.querySelector('.who'),wt=who?who.textContent.trim():'';
+        if(who)who.parentNode.removeChild(who);
+        h3.parentNode.removeChild(h3);
+        html+='<details class="wam-i"><summary>'+esc(h3.textContent.trim())
+          +(wt?'<span class="wam-who">'+esc(wt)+'</span>':'')+'</summary><div class="wam-b">'+tk.innerHTML+'</div></details>';
+      });
+    });
+    box.innerHTML=html||'<div class="muted">手引きが見つかりませんでした。</div>';
+  }).catch(function(){box.innerHTML='<div class="muted">手引きを読み込めませんでした。下のボタンから開いてください。</div>';});
 }
 
 /* ══ 保護者アカウント ═══════════════════════
@@ -18425,24 +18469,24 @@ function waParentCard(){
   var c=$('#waPaCard'); if(!c)return;
   var role=(typeof currentRole==='function')?currentRole():null;
   if(role&&role!=='管理者'){
-    c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+    c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
       +'<div class="muted" style="font-size:12.5px;line-height:1.9;">'
       +'保護者アカウントの発行・停止は、園の管理者だけが行えます。'
       +'ご入用のときは管理者にお伝えください。</div>';
     return;
   }
   if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())){
-    c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+    c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
       +'<div class="muted" style="font-size:12.5px;line-height:1.9;">'
       +'この端末はサーバにつないでいないため、保護者アカウントは扱えません。'
       +'園コードでログインすると、ここで発行できます。</div>';
     return;
   }
-  c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+  c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
     +'<div class="muted" style="margin:-4px 0 12px;">読み込んでいます…</div>';
   API.call('GET','/parents').then(function(j){ waParentDraw(j&&j.parents||[]); })
     .catch(function(e){
-      c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+      c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
         +'<div class="muted" style="font-size:12.5px;">読み込めませんでした：'+esc(e.message)+'</div>';
     });
 }
@@ -18480,7 +18524,7 @@ function waParentDraw(list){
       +'</div></div>';
   }
 
-  c.innerHTML='<h3>'+ic('users')+'保護者アカウント</h3>'
+  c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
     +'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">'
     +'保護者が未来WAに入るための、メールアドレスとパスワードです。'
     +'<b>お渡しするのは、園コード・メールアドレス・パスワードの3つ</b>です。'
@@ -23384,7 +23428,9 @@ function ageClassOf(c,onDate){
   if(age<0)age=0;if(age>5)age=5;
   return age+'歳児';
 }
-function childName(c){return c.child.replace(/ちゃん|くん/g,'');}
+/* ★お子さまの名前が空の連絡先が1件あるだけで、未来WA の保護者アカウントの一覧が
+   「Cannot read properties of undefined」で開けなかった（2026-09-24）。空でも止まらないようにする */
+function childName(c){return String((c&&c.child)||'').replace(/ちゃん|くん/g,'');}
 /* ══ お子様の呼び名（名前＋くん／ちゃん）══════════════
    ★連絡先に「結菜」とだけ入っていると、一覧でも「結菜」のまま出て、
      「湊くん」「美桜ちゃん」と並んだときにそろわない（2026-08-27 のご指摘）。
@@ -34452,9 +34498,9 @@ HELP_DATA.kidsview={
    園から保護者へ送付できるものを先に書き、出品・売上はそのあとに置く。 */
 HELP_DATA.wastore={
  summary:'未来WA は、園から保護者へ送付するための保育コミュニティサービスです。おたより・個人メッセージ・出欠・成長の記録・スクールガイドは Miralink の各画面から、商品とイベントは未来WA の画面から送付します。',
- steps:['上の一覧で、園から保護者へ送付できるものと、その送り先の画面を見ます。',
-  '「ひらく」を押すと、その画面へ行けます。',
-  '商品・イベント・売上は「未来WA を開く」を押します。別のタブで開きます。',
+ steps:['上のタブ「未来WAとは？」で、保護者へ自動で反映・送信されるものを見ます。',
+  '商品・イベント・売上は、同じタブのいちばん下の「スクール用 未来WA」でそのまま行えます。',
+  '使い方は「使用マニュアル」、保護者のアカウントは「保護者アカウント新規発行」のタブです。',
   '商品を出すときは「ショップ出品」、イベントは「イベント」を選びます。',
   '売れたものと園への還元は「売れたもの」で見ます。'],
  tips:['おたより・デイリーレポートは「全体配信・お知らせ」から送ります。保護者のアプリのおたよりに並びます。',
@@ -34464,8 +34510,8 @@ HELP_DATA.wastore={
    a:'いまはできません。写真のご案内は「全体配信・お知らせ」のひな形（写真販売のお知らせ）に、外部のページのリンクを入れてお送りください。'},
   {q:'おたよりは、未来WA の画面から送るのですか。',
    a:'いいえ。おたよりは Miralink の「全体配信・お知らせ」から送ります。未来WA の画面は、商品・イベント・売上のためのものです。'},
-  {q:'「未来WA を開く」を押しても開きません。',
-   a:'ブラウザが別のタブを止めていることがあります。この画面のボタンをもう一度押してください。'}]};
+  {q:'スクール用 未来WA が表示されません。',
+   a:'いったん Miralink にログインし直してから、この画面を開き直してください。'}]};
 /* 生徒情報を請求書発行に入れたので、請求書発行の「?」も上下2つぶんにする。
    HELP_DATA は1行の大きな塊なので、そこは書き換えず、あとから直す。 */
 (function(){
@@ -34884,8 +34930,8 @@ var HELP_KB={
 
  wastore:{t:'未来WA',kw:'ストア 未来WA 商品 出品 教材 おすすめ 還元 売上 Amazon リンク 販売 イベント 申込 ダウンロード',role:['一般','マネージャー','管理者'],
   can:'未来WA は、園から保護者へ送付するためのサービスです。この画面では、園が何を送付できるかと、未来WA の画面（出品・イベント・売上）の入口をご案内しています。',
-  steps:['上の一覧で、園から保護者へ送付できるものと、その送り先の画面を確かめます。「ひらく」でその画面へ行けます。',
-   '出品・イベント・売上は「未来WA を開く」を押します。別のタブで開きます。',
+  steps:['上のタブ「未来WAとは？」で、保護者へ自動で反映・送信されるものを確かめます。',
+   '出品・イベント・売上は、同じタブの「スクール用 未来WA」でそのまま行えます。',
    '商品を出すときは「ショップ出品」を選びます。',
    '保護者に見せる並び・園で使っている外部の教材も、同じ「ショップ出品」の中にあります。',
    '売れたものと園への還元は「売れたもの」で見ます。',
@@ -36368,7 +36414,7 @@ var EG_TONE_ICON_KEEP={'73':1};
 function egIconTone(i){
   if(!i)return '';
   if(/^ic:/.test(i)){
-    var n=i.slice(3),u='img/ic/'+esc(n)+'.png';
+    var n=i.slice(3),u=egIconSrc(n);
     if(EG_TONE_ICON_KEEP[n])return '<img class="tii tii-raw" src="'+u+'" alt="">';
     return '<span class="tii" role="img" aria-hidden="true" style="-webkit-mask-image:url('+u+');mask-image:url('+u+');"></span>';
   }
@@ -36716,7 +36762,7 @@ function egPicTitle(p){
     padding:14px 18px;margin:0 0 16px;}
   .eg-wa-rel .ar{color:#756C85;font-weight:700;font-size:18px;}
   .eg-wa-rel .tx{font-size:12.5px;color:#302449;line-height:1.7;font-weight:500;}
-  .eg-wa-rel img.wa{height:30px;display:block;}
+  .eg-wa-rel img.wa{height:52px;width:auto;display:block;margin:-6px 0;}
   @media(max-width:640px){.eg-wa-rel{padding:12px 14px;gap:10px;}
     .eg-wa-rel .ar{display:none;}}
   /* 紙に出すときは、見出しの上にしるしを1つだけ。色は深いプラム1色にする
@@ -36772,7 +36818,7 @@ function egBrandPrintCSS(){
 /* 未来WA の画面の上に、関係を1行で出す。
    ★「未来WA は別のアプリなのか、Miralink の一部なのか」が分からない、という
      お問い合わせが続いていたところです。先生の道具と保護者のアプリを並べて見せます。
-   ★未来WA の印（img/ic/73.png）は5色で塗られたロゴなので、色は付けずにそのまま出します。 */
+   ★未来WA は正規のロゴ（img/logo_miraiwa.png）を、Miralink のロゴと同じ高さで出します。 */
 function egBrandWa(){
   try{
     var s=document.querySelector('section[data-page="wastore"]');
@@ -36782,7 +36828,9 @@ function egBrandWa(){
     s.insertBefore(d,s.firstChild);            /* 先に貼ってから中身を作る（上と同じ理由） */
     d.innerHTML=egLogo(EG_LOGO_PLAN,'light',40)
       +'<span class="ar">→</span>'
-      +'<img class="wa" src="img/ic/73.png" alt="未来WA">'
+      /* ★青1色の印（img/ic/73.png）を30pxで出していて、未来WA の正規の色でなく、
+         となりの Miralink より小さく見えた（2026-09-24 安田さんのご指摘）。正規のロゴを同じ高さで出す */
+      +'<img class="wa" src="img/logo_miraiwa.png" alt="未来WA">'
       +'<span class="tx">先生が使うのが <b>Miralink</b>、保護者が受け取るのが <b>未来WA</b> です。<br>'
       +'この画面で用意したものが、保護者のアプリに届きます。</span>';
   }catch(e){}
