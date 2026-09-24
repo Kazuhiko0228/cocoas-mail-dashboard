@@ -1477,6 +1477,7 @@ button.hpr:hover{background:#FAF9F5}
 @media (max-width:640px){.waframe iframe{height:640px;}}
 .rqlocal{margin-top:8px;border-left:3px solid #1F5FA8;background:#F3F7FD;border-radius:0 8px 8px 0;padding:7px 10px;font-size:12px;line-height:1.65;color:var(--tx);}
 .rqlocal-h{font-weight:700;color:#1F5FA8;margin-bottom:2px;}
+@media (max-width:760px){.rqprof{grid-template-columns:1fr 1fr !important;}}
 .batt{display:flex;flex-direction:column;gap:6px;margin-top:10px;}
 .batt-i{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;}
 .batt-i svg{width:15px;height:15px;flex:none;color:#A32D2D;}
@@ -11191,6 +11192,10 @@ var EN_DICT={
 '勤務表（シフト表）':'Work Schedule (Shift Chart)',
 'このシステムで作る':'Create in This System',
 '様式をImport':'Import form','様式を入れ込む':'Add form',
+'在園児数':'Enrolled children','都道府県':'Prefecture','市区町村':'Municipality','先に都道府県を選んでください':'Choose a prefecture first',
+'一覧に無い書類を追加する':'Add a document not on the list','一覧に追加':'Add to list','園で追加した書類':'Documents added by the school',
+'園で追加':'Added by school','様式を見る':'View form','一覧から外す':'Remove from list','書類の名前（必須）':'Document name (required)',
+'提出先（任意）':'Submit to (optional)','頻度（任意）':'Frequency (optional)','様式のファイルを選ぶ（任意）':'Choose the form file (optional)',
 '自治体の様式で提出します。「様式を入れ込む」で、自治体の様式にそのまま記入できます。':'Submitted on the municipality’s form. Use “Add form” to fill in that form directly.','以前の記録':'Earlier record',
 '要回答':'Needs answers','要確認':'Needs review','確認済み':'Confirmed','解析中':'Reading',
 '① 様式':'① Form','② 値を入れる':'② Fill values','③ 足りない欄に答える':'③ Answer missing items',
@@ -33252,36 +33257,130 @@ function reqHowModal(it){
      「様式のもらい方」の検索のことばに使うだけだった。南城市でもさいたま市でも同じ一覧が出ていた。
    「更新」を押すと、サーバが AI に公式の情報を検索させ、その自治体での提出先・様式・期限と、
    自治体独自の書類を集めて保存する（cocoas-api の src/reqnav.js）。
-   AI に渡るのは種別・自治体名・定員・書類の名前だけ。園児・職員の情報は渡さない。 */
+   AI に渡るのは種別・自治体名・在園児数・書類の名前だけ。園児・職員の情報は渡さない。 */
 var REQ_LOCAL={};   /* '種別|自治体' → 保存してある情報（null＝まだ無い） */
 var REQ_LOCAL_BUSY=false,REQ_LOCAL_MSG='';
-function reqMuniKey(p){return String(p.type||'')+'|'+String(p.muni||'').replace(/\s+/g,'');}
+/* ★自治体を手で打つ欄だったので「埼玉」のように県名だけ・打ちまちがいのまま調べに行けた（2026-09-24 安田さんのご指摘）。
+   都道府県→市区町村の2つの選び欄にする。一覧は data/municipalities.json
+   （Geolonia「japanese-addresses」CC BY 4.0 から作成。政令市の区は市にまとめた。全1,740）。
+   サーバへは「沖縄県南城市」のように県名つきで渡す（同じ名前の町が別の県にあるため） */
+var REQ_MUNI=null,REQ_MUNI_LOADING=false;
+function reqMuniLoad(){
+  if(REQ_MUNI||REQ_MUNI_LOADING)return;
+  REQ_MUNI_LOADING=true;
+  fetch('data/municipalities.json').then(function(r){return r.json();}).then(function(j){
+    REQ_MUNI=j;REQ_MUNI_LOADING=false;
+    var sec=$('section[data-page="reqnav"]');if(sec&&!sec.hidden)renderReqNav();
+  }).catch(function(){REQ_MUNI_LOADING=false;});
+}
+/* 前に市区町村だけ（例：南城市）を保存していた園は、名前から県を当てる（1つに決まるときだけ） */
+function reqPrefGuess(p){
+  if(p.pref||!p.muni||!REQ_MUNI)return p;
+  var hit=Object.keys(REQ_MUNI).filter(function(k){return REQ_MUNI[k].indexOf(p.muni)>-1;});
+  if(hit.length===1){p.pref=hit[0];reqSaveProfile(p);}
+  return p;
+}
+function reqMuniFull(p){return String(p.pref||'')+String(p.muni||'').replace(/\s+/g,'');}
+function reqMuniKey(p){return String(p.type||'')+'|'+reqMuniFull(p);}
 function reqLocalOf(p){var k=reqMuniKey(p);return Object.prototype.hasOwnProperty.call(REQ_LOCAL,k)?REQ_LOCAL[k]:undefined;}
 function reqCanRefresh(){var r=(typeof currentRole==='function')?currentRole():'管理者';return r==='管理者'||r==='マネージャー';}
 /* 保存してあるものを読む（画面を開いたとき・自治体を変えたとき） */
 function reqLocalLoad(p){
-  var muni=String(p.muni||'').replace(/\s+/g,'');
-  if(!muni||!dfOn()||reqLocalOf(p)!==undefined)return;
+  var muni=reqMuniFull(p);
+  if(!p.pref||!p.muni||!dfOn()||reqLocalOf(p)!==undefined)return;
   REQ_LOCAL[reqMuniKey(p)]=null;
   API.call('GET','/reqnav/local?type='+encodeURIComponent(p.type)+'&muni='+encodeURIComponent(muni)).then(function(j){
     REQ_LOCAL[reqMuniKey(p)]=(j&&j.local)||null;
     var sec=$('section[data-page="reqnav"]');if(sec&&!sec.hidden)renderReqNav();
   }).catch(function(){delete REQ_LOCAL[reqMuniKey(p)];});
 }
-/* 更新：いま入れた種別・自治体・定員を保存し、AI に最新を調べさせる */
+/* 更新：いま入れた種別・自治体・在園児数を保存し、AI に最新を調べさせる */
 function reqLocalRefresh(){
   if(REQ_LOCAL_BUSY)return;
   var p=reqProfile();
-  p.muni=String(($('#rqMuni')||{}).value||'').replace(/^\s+|\s+$/g,'');
   p.cap=String(($('#rqCap')||{}).value||'');
   reqSaveProfile(p);
-  if(!p.muni){REQ_LOCAL_MSG='自治体（市区町村）を入れてから「更新」を押してください。';renderReqNav();return;}
+  if(!p.pref||!p.muni){REQ_LOCAL_MSG='都道府県と市区町村を選んでから「更新」を押してください。';renderReqNav();return;}
   if(!dfOn()){REQ_LOCAL_MSG='最新への更新は、サーバにつないでいるときだけ使えます。';renderReqNav();return;}
   var t=reqTypeById(p.type);
   REQ_LOCAL_BUSY=true;REQ_LOCAL_MSG=p.muni+' の公式の情報を調べています…（30秒ほどかかります）';renderReqNav();
-  API.call('POST','/reqnav/local/refresh',{type:p.type,muni:p.muni,cap:p.cap,names:t.items.map(function(x){return x.name;})})
+  API.call('POST','/reqnav/local/refresh',{type:p.type,muni:reqMuniFull(p),cap:p.cap,names:t.items.map(function(x){return x.name;})})
     .then(function(j){REQ_LOCAL_BUSY=false;REQ_LOCAL[reqMuniKey(p)]=(j&&j.local)||null;REQ_LOCAL_MSG='';renderReqNav();})
     .catch(function(e){REQ_LOCAL_BUSY=false;REQ_LOCAL_MSG=(e&&e.message)||'更新できませんでした。';renderReqNav();});
+}
+/* ══ 一覧に無い書類を、園で追加する（2026-09-24 安田さんのご依頼）══
+   「出てこなかった書類などをインポートできるところが上の方にほしい。確実に正確な情報ではないでしょ？」
+   全国共通の一覧も AI の調べも、抜けがありうる。園が自分で書類を足し、様式のファイルも預けておけるようにする。
+   ・入れ物は園の記録の reqCustom（種別ごと）。様式の中身はサーバに預け（種類「監査様式」）、ここには目印だけ */
+function reqCustomAll(){var v=stGet('reqCustom',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+function reqCustomOf(type){var v=reqCustomAll()[type];return Array.isArray(v)?v:[];}
+function reqCustomSave(type,list){var v=reqCustomAll();v[type]=list;stSet('reqCustom',v);}
+function reqCustomAdd(){
+  var t=reqTypeById(reqProfile().type),msg=$('#rqcMsg');
+  var name=String(($('#rqcName')||{}).value||'').replace(/^\s+|\s+$/g,'');
+  if(!name){msg.textContent='書類の名前を入れてください。';return;}
+  var dup=t.items.concat(reqCustomOf(t.id)).some(function(x){return x.name===name;});
+  if(dup){msg.textContent='同じ名前の書類がすでに一覧にあります。';return;}
+  var it={id:'c'+Date.now(),name:name,submitTo:String(($('#rqcTo')||{}).value||'').slice(0,120),
+    frequency:String(($('#rqcFreq')||{}).value||'').slice(0,60),addedAt:todayISO()};
+  var f=($('#rqcFile')||{}).files;f=f&&f[0];
+  function done(){var l=reqCustomOf(t.id);l.push(it);reqCustomSave(t.id,l);renderReqNav();}
+  if(!f){done();return;}
+  if(!dfOn()){msg.textContent='様式のファイルを預けるのは、サーバにつないでいるときだけです。ファイルを外すと、書類だけ追加できます。';return;}
+  msg.textContent='様式を預けています…';
+  apiFileUpload(f,{kind:'監査様式',name:f.name||name,ref:'reqCustom'},function(err,j){
+    if(err){msg.textContent=err.message;return;}
+    it.file={key:j.key,name:f.name||name,size:f.size,type:f.type||''};done();
+  });
+}
+function reqCustomCardHTML(t){
+  return '<div class="card" style="margin-bottom:14px;"><h3>'+ic('fileplus')+'一覧に無い書類を追加する</h3>'
+    +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;">下の一覧は全国共通の基本と AI の調べなので、抜けがありえます。自治体から求められた書類があれば、ここで足してください。様式のファイル（Excel・PDF・写真）も一緒に預けておけます。</div>'
+    +'<div class="grid" style="grid-template-columns:2fr 1.4fr 1fr;gap:10px;">'
+    +'<div class="field" style="margin:0;"><label>書類の名前（必須）</label><input id="rqcName" placeholder="例：長時間保育の実施報告"></div>'
+    +'<div class="field" style="margin:0;"><label>提出先（任意）</label><input id="rqcTo" placeholder="例：〇〇市 こども保育課"></div>'
+    +'<div class="field" style="margin:0;"><label>頻度（任意）</label><input id="rqcFreq" placeholder="例：毎年4月"></div></div>'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;">'
+    +'<label class="btn btn-sm" style="cursor:pointer;margin:0;">'+ic('doc')+'<span id="rqcFileName">様式のファイルを選ぶ（任意）</span>'
+    +'<input type="file" id="rqcFile" accept=".xlsx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*" style="display:none;"></label>'
+    +'<button class="btn btn-primary btn-sm" id="rqcAdd">'+ic('plus')+'一覧に追加</button>'
+    +'<span class="muted" id="rqcMsg" style="font-size:12px;"></span></div></div>';
+}
+function reqCustomRowsHTML(t,st){
+  var list=reqCustomOf(t.id);
+  if(!list.length)return '';
+  return '<div class="card" style="margin:14px 0 10px;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">園で追加した書類</span></div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px;">'+list.map(function(it){
+      var key=t.id+'|'+it.name,cur=st[key]||'未着手';
+      return '<div class="card" style="padding:14px;"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+        +'<div style="flex:1;min-width:250px;"><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:14px;">'+esc(it.name)+'</span>'
+        +'<span class="pill" style="background:#F1EFE8;color:#5B6875;font-size:10.5px;">園で追加</span></div>'
+        +'<div class="muted" style="font-size:12px;line-height:1.55;"><b>提出先</b>：'+esc(it.submitTo||'—')+'　／　<b>頻度</b>：'+esc(it.frequency||'—')+'</div>'
+        +(it.file?'<div style="font-size:12px;margin-top:5px;display:flex;align-items:center;gap:5px;"><span style="display:inline-flex;width:14px;height:14px;flex:none;">'+ic('doc')+'</span>様式：'+esc(it.file.name)+'</div>':'')+'</div>'
+        +'<div style="display:flex;flex-direction:column;gap:7px;min-width:150px;">'
+        +'<select data-rqst="'+esc(key)+'" style="width:150px;font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
+        +(it.file?'<button class="btn btn-sm" data-rqcview="'+esc(it.id)+'">'+ic('doc')+'様式を見る</button>':'')
+        +'<button class="btn btn-sm btn-ghost" data-rqcdel="'+esc(it.id)+'">一覧から外す</button></div>'
+        +'</div></div>';
+    }).join('')+'</div>';
+}
+function reqCustomWire(s,t){
+  var f=$('#rqcFile');if(f)f.onchange=function(){var x=f.files&&f.files[0];$('#rqcFileName').textContent=x?x.name:'様式のファイルを選ぶ（任意）';};
+  var a=$('#rqcAdd');if(a)a.onclick=reqCustomAdd;
+  s.querySelectorAll('[data-rqcview]').forEach(function(b){b.onclick=function(){
+    var it=reqCustomOf(t.id).filter(function(x){return x.id===b.getAttribute('data-rqcview');})[0];
+    if(!it||!it.file)return;
+    var w=window.open('','_blank');
+    apiFileGet(it.file.key,function(err,blob){
+      if(err){if(w)w.close();alert(err.message);return;}
+      var u=URL.createObjectURL(blob);if(w)w.location.href=u;else window.open(u,'_blank');
+    });
+  };});
+  s.querySelectorAll('[data-rqcdel]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この書類を一覧から外します。預けた様式のファイルは、監査のため園の預かりに残ります。よろしいですか？'))return;
+    reqCustomSave(t.id,reqCustomOf(t.id).filter(function(x){return x.id!==b.getAttribute('data-rqcdel');}));
+    renderReqNav();
+  };});
 }
 function reqLinkHTML(u,label){
   if(!/^https?:\/\//.test(String(u||'')))return '';
@@ -33304,18 +33403,23 @@ function renderReqNav(){
   var s=$('section[data-page="reqnav"]');
   /* 監査書類の自動作成（docflow）。サーバにつないでいるときだけ、書類ごとの状態を取りに行く */
   if(dfOn())dfLoad();
-  var prof=reqProfile();var t=reqTypeById(prof.type);var st=reqStatusAll();
+  reqMuniLoad();
+  var prof=reqPrefGuess(reqProfile());var t=reqTypeById(prof.type);var st=reqStatusAll();
   reqLocalLoad(prof);
   var LOC=reqLocalOf(prof)||null,muniNow=String(prof.muni||'').replace(/\s+/g,'');
   var locItem={};(LOC&&LOC.items||[]).forEach(function(x){locItem[x.name]=x;});
   var extra=(LOC&&LOC.extra)||[];
-  var done=t.items.concat(extra).filter(function(it){return st[t.id+'|'+it.name]==='完了';}).length;
+  var done=t.items.concat(extra,reqCustomOf(t.id)).filter(function(it){return st[t.id+'|'+it.name]==='完了';}).length;
   var h='<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+'施設プロフィール</h3>'
     +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;">種別を選ぶと、その施設が行政に提出・整備すべき書類の一覧に切り替わります。</div>'
-    +'<div class="grid" style="grid-template-columns:2fr 1.3fr 0.8fr;gap:12px;">'
+    +'<div class="grid rqprof" style="grid-template-columns:1.6fr 1fr 1.2fr 0.7fr;gap:12px;">'
     +'<div class="field" style="margin:0;"><label>施設種別</label><select id="rqType">'+REQ_DATA.types.map(function(x){return '<option value="'+esc(x.id)+'"'+(x.id===prof.type?' selected':'')+'>'+x.label+'</option>';}).join('')+'</select></div>'
-    +'<div class="field" style="margin:0;"><label>自治体（市区町村）</label><input id="rqMuni" value="'+(prof.muni||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="例：〇〇市"></div>'
-    +'<div class="field" style="margin:0;"><label>定員</label><input id="rqCap" type="number" value="'+esc((prof.cap||''))+'" placeholder="例：19"></div>'
+    +'<div class="field" style="margin:0;"><label>都道府県</label><select id="rqPref"><option value="">選んでください</option>'
+      +(REQ_MUNI?Object.keys(REQ_MUNI):[]).map(function(k){return '<option'+(k===prof.pref?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select></div>'
+    +'<div class="field" style="margin:0;"><label>市区町村</label><select id="rqMuni"'+(prof.pref?'':' disabled')+'><option value="">'+(prof.pref?'選んでください':'先に都道府県を選んでください')+'</option>'
+      +((REQ_MUNI&&prof.pref&&REQ_MUNI[prof.pref])||[]).map(function(k){return '<option'+(k===prof.muni?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select></div>'
+    /* ★「定員」は分かりにくい（2026-09-24 安田さんのご指摘）。在園児数にする。空なら生徒情報の在園児の数を薄く出す */
+    +'<div class="field" style="margin:0;"><label>在園児数</label><input id="rqCap" type="number" value="'+esc((prof.cap||''))+'" placeholder="'+esc(String(enrolled().length||'例：19'))+'"></div>'
     +'</div>'
     /* ★自治体・定員を入れても何も起きず、反映されたのか分からなかった（2026-09-24 安田さんのご指摘）。
        入れたら「更新」で、その自治体の最新の情報を調べる */
@@ -33324,8 +33428,9 @@ function renderReqNav(){
       :'<span class="muted" style="font-size:12px;">最新への更新は、園長・マネージャーが行えます。</span>')
     +'<span class="muted" style="font-size:12px;">'+(REQ_LOCAL_MSG?esc(REQ_LOCAL_MSG)
       :(LOC?esc(muniNow)+' の情報：'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に更新'
-        :(muniNow?esc(muniNow)+' の情報はまだ調べていません。「更新」を押してください。':'自治体を入れて「更新」を押すと、その自治体での提出先・様式・期限を調べます。')))+'</span>'
-    +'</div></div>';
+        :(muniNow?esc(muniNow)+' の情報はまだ調べていません。「更新」を押してください。':'都道府県と市区町村を選んで「更新」を押すと、その自治体での提出先・様式・期限を調べます。')))+'</span>'
+    +'</div></div>'
+    +reqCustomCardHTML(t);
   if(LOC){
     h+='<div class="card rqlocal-sum" style="margin-bottom:14px;"><h3>'+ic('search')+esc(muniNow)+' の最新の情報</h3>'
       +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に、AI が公式の情報を検索してまとめました。提出の前に、必ず下の出典のページでもご確認ください。</div>'
@@ -33377,11 +33482,16 @@ function renderReqNav(){
           +'</div></div>';
       }).join('')+'</div>';
   }
+  h+=reqCustomRowsHTML(t,st);
   s.innerHTML=h;
   $('#rqType').onchange=function(){var p=reqProfile();p.type=this.value;reqSaveProfile(p);renderReqNav();};
   /* 自治体・定員は「更新」で保存する（1文字ずつ保存すると、打っている途中の名前で調べに行ってしまう） */
   var rb=$('#rqRefresh');if(rb)rb.onclick=reqLocalRefresh;
-  ['#rqMuni','#rqCap'].forEach(function(q){var x=$(q);if(x)x.onkeydown=function(e){if(e.key==='Enter'&&rb){e.preventDefault();reqLocalRefresh();}};});
+  var rc=$('#rqCap');if(rc)rc.onkeydown=function(e){if(e.key==='Enter'&&rb){e.preventDefault();reqLocalRefresh();}};
+  /* 県・市区町村は選んだらすぐ保存し、その自治体で前に調べたものがあれば出す */
+  $('#rqPref').onchange=function(){var p=reqProfile();p.pref=this.value;p.muni='';reqSaveProfile(p);REQ_LOCAL_MSG='';renderReqNav();};
+  $('#rqMuni').onchange=function(){var p=reqProfile();p.muni=this.value;reqSaveProfile(p);REQ_LOCAL_MSG='';renderReqNav();};
+  reqCustomWire(s,t);
   s.querySelectorAll('[data-rqst]').forEach(function(sel){sel.onchange=function(){reqSetStatus(sel.getAttribute('data-rqst'),sel.value);renderReqNav();};});
   s.querySelectorAll('[data-rqhow]').forEach(function(b){b.onclick=function(){
     var kk=b.getAttribute('data-rqhow'), tt=reqTypeById(reqProfile().type);
