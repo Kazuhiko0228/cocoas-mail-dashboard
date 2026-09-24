@@ -1473,6 +1473,10 @@ button.hpr:hover{background:#FAF9F5}
 .dfsheet td{border:1px solid #E4E1EC;padding:3px 5px;height:22px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;vertical-align:middle;}
 .dfsheet td.f{background:#E8F6EC;color:#14532D;font-weight:600;}
 .dfsheet td.b{font-weight:700;}
+.dfsheet.fx{font-size:9.5px;}
+.dfsheet.fx td{border:0;box-shadow:inset 0 0 0 .5px #D9D5E4;padding:0 1px;height:auto;white-space:normal;line-height:1.15;text-overflow:clip;}
+.dfsheet.fx td.f{background:#DDF3E3;box-shadow:inset 0 0 0 1px #3F9C5B;}
+.dfsheet.fx td:not([rowspan]){white-space:nowrap;}
 .dfsheet th{background:#F6F4FB;color:#8A8795;font-weight:600;font-size:10.5px;padding:2px;border:1px solid #E4E1EC;}
 .dfcard{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px;background:#fff;}
 .dfcard.need{border-color:#F0B98F;background:#FFF8F2;}
@@ -32866,24 +32870,38 @@ function dfSheetHTML(p){
     span[m[0]+':'+m[1]]=[m[2]-m[0]+1,m[3]-m[1]+1];
     for(var r=m[0];r<=m[2];r++)for(var c=m[1];c<=m[3];c++)if(r!==m[0]||c!==m[1])skip[r+':'+c]=1;
   });
-  var h='<table class="dfsheet"><colgroup><col style="width:28px;">'
-    +(p.widths||[]).map(function(w){return '<col style="width:'+Math.max(34,Math.min(w,260))+'px;">';}).join('')+'</colgroup>';
-  h+='<tr><th></th>'+(p.widths||[]).map(function(_,i){
+  /* ★登録ずみの様式（運営状況報告など）は、列が紙と同じ細さ（1列12px ほど）で66列ある。
+     表の様式と同じく1列を 34px 以上にしていたので、横に 2,200px になって書き込むところが画面の外にあった。
+     紙と同じ幅・高さで描き、列の記号（A・B…）と行の番号は出さない（カードから該当の場所へ飛べる） */
+  var fx=!!p.fixed;
+  var fxW=0;(p.widths||[]).forEach(function(w){fxW+=w;});
+  var h='<table class="dfsheet'+(fx?' fx':'')+'"'+(fx?' style="width:'+fxW+'px;"':'')+'><colgroup>'+(fx?'':'<col style="width:28px;">')
+    +(p.widths||[]).map(function(w){return '<col style="width:'+(fx?w:Math.max(34,Math.min(w,260)))+'px;">';}).join('')+'</colgroup>';
+  if(!fx)h+='<tr><th></th>'+(p.widths||[]).map(function(_,i){
     var n=i+1,t='';while(n>0){var m=(n-1)%26;t=String.fromCharCode(65+m)+t;n=Math.floor((n-1)/26);}return '<th>'+t+'</th>';}).join('')+'</tr>';
   p.rows.forEach(function(row,ri){
-    var r=ri+1;h+='<tr><th>'+r+'</th>';
+    var r=ri+1;h+=fx?'<tr style="height:'+((p.heights||[])[ri]||16)+'px;">':'<tr><th>'+r+'</th>';
     row.forEach(function(cell,ci){
-      var c=ci+1;if(skip[r+':'+c])return;
-      var sp=span[r+':'+c],at=sp?(' rowspan="'+sp[0]+'" colspan="'+sp[1]+'"'):'';
+      var c=ci+1;if(skip[r+':'+c]||cell==='skip')return;
+      var sp=span[r+':'+c],at=sp?(' rowspan="'+sp[0]+'" colspan="'+sp[1]+'"'):((cell&&cell.cs)?' colspan="'+cell.cs+'"':'');
       var x=cell||{v:''};
-      h+='<td'+at+' class="'+(x.f?'f ':'')+(x.b?'b':'')+'" title="'+esc(x.v||'')+'">'+esc(x.v||'')+'</td>';
+      h+='<td'+at+(x.id?' id="dfcell-'+esc(x.id)+'"':'')+' class="'+(x.f?'f ':'')+(x.b?'b':'')+'" title="'+esc(x.v||'')+'">'+esc(x.v||'')+'</td>';
     });
     h+='</tr>';
   });
   return h+'</table>';
 }
 function dfStdHTML(v){
-  var tpl=v.template,run=v.run,fs=tpl.table.fields;
+  var tpl=v.template,run=v.run;
+  if(!tpl.table){
+    return '<div style="font-weight:800;font-size:16px;">'+esc(tpl.name)+'</div>'
+      +'<div class="mini" style="margin:3px 0 8px;">Miralink の一覧の形（項目・内容・根拠）で出します。</div>'
+      +'<table class="dfsheet"><tr><th style="font-size:11px;color:var(--tx);">項目</th><th style="font-size:11px;color:var(--tx);">内容</th></tr>'
+      +(run.items.scalars||[]).map(function(x){var val=/^\d{4}-\d{2}-\d{2}$/.test(String(x.value||''))?dfDate(x.value):(x.value||'');
+        return '<tr><td style="white-space:normal;">'+esc(x.label)+'</td><td class="'+(x.value?'f':'')+'" style="white-space:normal;">'+esc(val)+'</td></tr>';}).join('')
+      +'</table>';
+  }
+  var fs=tpl.table.fields;
   var fac=(run.items.scalars||[]).filter(function(s){return s.fid==='facility';})[0];
   return '<div style="font-weight:800;font-size:16px;">'+esc(tpl.name)+'</div>'
     +'<div class="mini" style="margin:3px 0 8px;">施設名：'+esc((fac&&fac.value)||'')+'　／　'+esc(dfDate(run.asOf))+' 現在</div>'
@@ -32893,8 +32911,34 @@ function dfStdHTML(v){
       return '<td class="'+(c.value?'f':'')+'">'+esc(val)+'</td>';}).join('')+'</tr>';}).join('')
     +'</table><div class="mini" style="margin-top:8px;">Miralink の標準の形（A4 横）で出します。</div>';
 }
+/* 登録ずみの様式で「どこに書くか」の言い方 */
+function dfSpotText(sp){
+  if(!sp)return '';
+  if(typeof sp==='string')return sp;
+  if(sp.at)return sp.at;
+  if(sp.cells)return sp.cells.join('・');
+  if(sp.choice){var k=[];for(var x in sp.choice)if(sp.choice.hasOwnProperty(x))k.push(sp.choice[x]+' '+x);return k.join('／')+'（○で囲む）';}
+  return sp.cell||sp.choiceIn||'';
+}
+/* 1つだけの欄の、答え・入れ方 */
+function dfScalarInput(sv,open){
+  var key='s|'+sv.fid;
+  if(!open)return '';
+  var canAns=sv.class==='C'||sv.missing||!!sv.answer;
+  if(!canAns)return '';
+  if(sv.choices){
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'+sv.choices.map(function(c){
+      var on=sv.value===c;
+      return '<button class="btn btn-sm'+(on?' btn-primary':'')+'" data-dfpick="'+esc(sv.fid+'|'+c)+'">'+(on?ic('check'):'')+esc(c)+'</button>';
+    }).join('')+'</div>';
+  }
+  if(sv.missing){
+    return '<input '+(sv.input==='date'?'type="date" ':'')+'data-dfans="'+esc(key)+'" placeholder="入れてください" style="margin-top:6px;">';
+  }
+  return '';
+}
 function dfValHTML(f,c,editable,key){
-  var val=c&&c.value?(f.fmt==='date'?dfDate(c.value):c.value):'';
+  var val=c&&c.value?((f.fmt==='date'||/^\d{4}-\d{2}-\d{2}$/.test(String(c.value)))?dfDate(c.value):c.value):'';
   if(c&&c.missing&&editable){
     return '<input '+(f.fmt==='date'?'type="date" ':'')+'data-dfans="'+esc(key)+'" placeholder="帳簿に無いので入れてください">';
   }
@@ -32907,7 +32951,8 @@ function dfRender(){
   var v=DF.view;if(!v)return;
   var run=v.run,tpl=v.template,L=run.layout||{},xlsx=L.kind==='xlsx';
   var open=!run.confirmedAt,chk=!!run.canCheck&&open;
-  var fmap={};tpl.table.fields.forEach(function(f){fmap[f.id]=f;});
+  var fmap={};((tpl.table&&tpl.table.fields)||[]).forEach(function(f){fmap[f.id]=f;});
+  var spots=(v.preview&&v.preview.spots)||{};
   var smap={};(tpl.scalars||[]).forEach(function(f){smap[f.id]=f;});
   /* 様式（Excel）に書く場所が無い「1つだけの欄」は出さないので、確かめる数に入れない（サーバと同じ線） */
   function sOut(fid){return !xlsx||!!(L.scalars&&L.scalars[fid]);}
@@ -32918,7 +32963,9 @@ function dfRender(){
     +(run.items.rows||[]).filter(function(r){return r.need;}).length;
   var howTxt={reuse:'前に確かめた位置を、そのまま使いました（同じ様式です）。',skip:'様式の見出しから、書く位置を全部見つけました。',
     used:'見出しで見つからなかった欄だけ、AI に位置を推定させました（見出しだけを送り、中身は送っていません）。',
-    off:'様式の見出しから、書く位置を探しました。',failed:'AI に聞けなかったので、見出しで見つかった欄だけ使っています。'}[DF.how]||'';
+    off:'様式の見出しから、書く位置を探しました。',failed:'AI に聞けなかったので、見出しで見つかった欄だけ使っています。',
+    registered:'運営が登録ずみの様式です。書き込む場所は決まっているので、値と答えだけ確かめてください。'}[DF.how]||'';
+  if(!howTxt&&L.fixed)howTxt='運営が登録ずみの様式です（'+(L.label||'')+'）。';
 
   var h='<div class="modal"><div class="dfhead">'
     +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
@@ -32926,7 +32973,7 @@ function dfRender(){
       +dfBadge(run.status)+'<span class="mini">版 '+esc(run.version)+'</span>'
       +'<button class="btn btn-sm btn-ghost" id="dfX">閉じる</button></div>'
     +'<div class="mini" style="margin-top:4px;">'
-      +(v.form?'様式：'+esc(v.form.name||'')+'（Excel）':'様式：Miralink の標準の形')
+      +(v.form?'様式：'+esc(v.form.name||'')+'（Excel'+(L.fixed&&L.label?'・'+esc(L.label):'')+'）':'様式：Miralink の標準の形')
       +'　／　基準日 '+(open?'<input type="date" id="dfAsOf" value="'+esc(run.asOf)+'" style="width:auto;padding:2px 6px;font-size:12px;"> <button class="btn btn-sm" id="dfRefill" style="padding:2px 9px;">帳簿から取り込み直す</button>':esc(dfDate(run.asOf)))
       +(run.confirmedAt?'　／　確定：'+esc(run.confirmedBy||'')+'（'+esc(dfTime(run.confirmedAt))+'）':'')
     +'</div>'
@@ -32936,7 +32983,7 @@ function dfRender(){
   /* 左：様式の見た目 */
   h+='<div class="dfbody"><div class="dfpane sheet"><div class="dfsec">様式の見た目（緑が書き込むところ）</div>'
     +(xlsx&&v.preview?dfSheetHTML(v.preview):dfStdHTML(v));
-  if(xlsx&&open){
+  if(xlsx&&open&&!L.fixed){
     var maxC=Math.max(26,(v.preview&&v.preview.widths?v.preview.widths.length:0));
     var letters=[];for(var i=1;i<=maxC;i++){var n=i,t='';while(n>0){var m=(n-1)%26;t=String.fromCharCode(65+m)+t;n=Math.floor((n-1)/26);}letters.push(t);}
     h+='<details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:700;font-size:12.5px;">書き込む位置を直す</summary>'
@@ -32960,22 +33007,35 @@ function dfRender(){
 
   /* 右：1件ずつ */
   h+='<div class="dfpane">';
-  if(need&&open)h+='<div class="note-b" style="margin-bottom:10px;">帳簿に無い欄が <b>'+need+'件</b> あります。オレンジの欄に入れてください（職員情報を直してから「帳簿から取り込み直す」でも入ります）。</div>';
+  if(need&&open)h+='<div class="note-b" style="margin-bottom:10px;">答えが要る項目が <b>'+need+'件</b> あります（園の判断が要るもの・Miralink にまだ無いもの）。オレンジのカードで答えてください。'
+    +(tpl.table?'職員情報を直してから「帳簿から取り込み直す」でも入ります。':'')+'</div>';
   if(open&&!run.canCheck)h+='<div class="mini" style="margin-bottom:10px;">確かめて確定するのは、管理者・園長・主任の方です。</div>';
-  h+='<div class="dfsec">1つだけの欄</div>';
+  var flt=DF.filter||'all';
+  if((run.items.scalars||[]).length>8){
+    h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
+      +[['all','全部'],['need','答えが要るもの'],['todo','まだ確かめていないもの']].map(function(x){
+        return '<button class="btn btn-sm'+(flt===x[0]?' btn-primary':'')+'" data-dfflt="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div>';
+  }
+  h+='<div class="dfsec">'+(tpl.table?'1つだけの欄':'項目（'+(run.items.scalars||[]).length+'）')+'</div>';
   (run.items.scalars||[]).forEach(function(sv){
+    if(flt==='need'&&!(sv.missing||sv.class==='C'))return;
+    if(flt==='todo'&&sv.checked)return;
     var f=smap[sv.fid]||{label:sv.label};
     var out=sOut(sv.fid);
-    var pos=xlsx?(out?'<span class="dfpos">'+esc(L.scalars[sv.fid])+((L.inplace||{})[sv.fid]?' の空欄を埋めます':' に書きます')+'</span>'
+    var sp=(L.scalars||{})[sv.fid];
+    var pos=xlsx?(out?'<span class="dfpos"'+(spots[sv.fid]&&spots[sv.fid][0]?' data-dfgo="'+esc(spots[sv.fid][0])+'" style="cursor:pointer;text-decoration:underline dotted;" title="様式のその場所を見る"':'')+'>'
+        +esc(dfSpotText(sp))+((L.inplace||{})[sv.fid]?' の空欄を埋めます':(typeof sp==='string'?' に書きます':''))+'</span>'
       :'<span class="mini">様式に欄が無いので、出しません</span>'):'';
     h+='<div class="dfcard '+(!out?'':(sv.missing?'need':(sv.checked?'ok':'')))+'"'+(out?'':' style="opacity:.6;"')+'><div class="dfcard-h">'
       +'<b style="font-size:13px;">'+esc(sv.label)+'</b><span class="dfcls '+esc(sv.class)+'">'+esc(sv.class)+'</span>'+pos
       +'<span style="flex:1;"></span>'+(out?dfChkBtn(chk,sv.checked,'scalar',sv.fid,sv.missing):'')+'</div>'
-      +'<div class="dfc">'+dfValHTML(f,sv,open&&!!(sv.missing||sv.answer),'s|'+sv.fid)+'</div>'
+      +(sv.question&&(sv.missing||sv.answer||sv.class==='C')?'<div style="font-size:12.5px;margin:2px 0 4px;">'+esc(sv.question)+'</div>':'')
+      +(sv.choices?(sv.value?'<div class="dfc"><span class="v">'+esc(sv.value)+'</span></div>':'')+dfScalarInput(sv,open)
+        :'<div class="dfc">'+dfValHTML(f,sv,open&&!!(sv.missing||sv.answer),'s|'+sv.fid)+'</div>')
       +'<div class="dfbasis">根拠：'+esc(sv.basis||'')+(sv.checked?'　／　確認：'+esc(sv.checked.by)+'（'+esc(dfTime(sv.checked.at))+'）':'')+'</div></div>';
   });
-  h+='<div class="dfsec" style="margin-top:14px;">職員（'+(run.items.rows||[]).length+'名）</div>';
-  if(!(run.items.rows||[]).length)h+='<div class="muted">基準日に在籍している職員がいません。職員情報を確かめてください。</div>';
+  if(tpl.table)h+='<div class="dfsec" style="margin-top:14px;">職員（'+(run.items.rows||[]).length+'名）</div>';
+  if(tpl.table&&!(run.items.rows||[]).length)h+='<div class="muted">基準日に在籍している職員がいません。職員情報を確かめてください。</div>';
   (run.items.rows||[]).forEach(function(r,i){
     var pos=xlsx?'<span class="dfpos">'+(L.table.firstRow+i)+'行目</span>':'';
     var bases={};
@@ -33020,6 +33080,9 @@ function dfChkBtn(can,checked,kind,id,blocked){
 }
 function dfWire(){
   var v=DF.view,run=v.run,b=dfBg(),p='/docflow/runs/'+run.id;
+  /* 紙の形の様式は、左の枠の幅に合わせて縮めて見せる（横にスクロールさせない） */
+  var fxT=b.querySelector('.dfsheet.fx');
+  if(fxT){var pane=fxT.parentNode,w=fxT.scrollWidth,pw=pane.clientWidth-8;if(w>pw&&pw>100)fxT.style.zoom=String(Math.max(.55,pw/w));}
   var x=$('#dfX');if(x)x.onclick=dfClose;
   var rf=$('#dfRefill');if(rf)rf.onclick=function(){dfAct('POST',p+'/refill',{asOf:$('#dfAsOf').value});};
   b.querySelectorAll('[data-dfchk]').forEach(function(bt){bt.onclick=function(){
@@ -33036,6 +33099,17 @@ function dfWire(){
     var k=bt.getAttribute('data-dfansclr').split('|');
     var body=k[0]==='s'?{kind:'scalar',fid:k[1],value:''}:{kind:'cell',rid:k[1],fid:k[2],value:''};
     dfAct('PUT',p+'/answer',body);
+  };});
+  b.querySelectorAll('[data-dfpick]').forEach(function(bt){bt.onclick=function(){
+    var k=bt.getAttribute('data-dfpick'),i=k.indexOf('|');
+    dfAct('PUT',p+'/answer',{kind:'scalar',fid:k.slice(0,i),value:k.slice(i+1)});
+  };});
+  b.querySelectorAll('[data-dfflt]').forEach(function(bt){bt.onclick=function(){DF.filter=bt.getAttribute('data-dfflt');dfRender();};});
+  /* カードの「どこに書くか」を押すと、左の様式のそのセルまで動いて光らせる */
+  b.querySelectorAll('[data-dfgo]').forEach(function(bt){bt.onclick=function(){
+    var td=document.getElementById('dfcell-'+bt.getAttribute('data-dfgo'));if(!td)return;
+    try{td.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});}catch(e){td.scrollIntoView();}
+    td.style.outline='3px solid #E3A008';setTimeout(function(){td.style.outline='';},1600);
   };});
   var ls=$('#dfLayoutSave');if(ls)ls.onclick=function(){
     if(!confirm('書き込む位置を保存すると、確かめた印はすべて外れます。よろしいですか？'))return;
