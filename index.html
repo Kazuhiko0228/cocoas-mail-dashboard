@@ -10650,7 +10650,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','差し替え':'Replace',
 '自力で行える':'Can do independently',
 'コース変更届':'Course change form',
 'Pre 3名':'Pre: 3 children',
@@ -23372,7 +23372,10 @@ function renderAudit(){
         +(function(){var di=auditDataInfo(it.key,fy);return di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'';})()
         +auditLineHtml(it.key,fy)+'</td>'+
         '<td style="width:80px;"><span class="pill" style="'+wc+'">'+it.when+'</span></td>'+
-        '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?'この画面を見る権限がありません':'園で紙に残す')+'</span>')+'</td></tr>';}).join('')+
+        /* ★書類格納の書類は「書類格納 →」で別の画面へ飛ばしていた。その書類の枠を探し直す手間になるので、
+           ここで直接ファイルを選んで取り込めるようにした（2026-09-25 安田さんのご依頼） */
+        ((it.sys==='docs'&&AUDIT_DOC_SLOT[it.key]&&auditCanGoItem(it.sys,it.key))?auditDocCell(it.key):
+        '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?'この画面を見る権限がありません':'園で紙に残す')+'</span>')+'</td>')+'</tr>';}).join('')+
       '</tbody></table></div>';}).join('')
     +((function(){var sn=0;AUDIT_CATS.forEach(function(c){c.items.forEach(function(it){if(auditItemShow(it))sn++;});});return sn;})()?'':'<div class="card"><div class="empty">この絞り込みに当てはまる書類はありません。上の「すべて」に戻してください。</div></div>');
   function upd(){var d=$('#auDate').value;if(d){var du=daysUntil(new Date(d));$('#auCount').textContent=du>=0?('書類監査まで あと '+du+'日'):'入力された監査日は過ぎています';}else{$('#auCount').textContent='';}}
@@ -23419,6 +23422,7 @@ function renderAudit(){
        保存するときに、改行は空白1つに直す。 */
     inp.onchange=function(){auditPlaceSet(inp.getAttribute('data-place'),inp.value.replace(/[\r\n]+/g,' ').trim());renderAudit();};
   });
+  auditDocWire(s,renderAudit);
   s.querySelectorAll('[data-sys]').forEach(function(b){b.onclick=function(){
     var v=b.getAttribute('data-sys');
     /* ★どの道を通っても、まず前の「書類の確認ビュー」を解く。
@@ -27381,6 +27385,61 @@ function renderDocsHub(){
   if(boss&&$('#dpAudit'))$('#dpAudit').onclick=function(){docsView='audit';renderDocs();};
   $('#dpGuide').onclick=function(){docsView='';go('guide');};
 }
+/* 書類格納の1枠に、ファイルを取り込む。書類格納の画面と監査対応の一覧の両方から使う
+   （2026-09-25 安田さんのご依頼「書類格納のページに飛ぶのではなく、直接その書類を選んで取り込めるように」）。
+   done(ok) を呼ぶ。中身の置き方・前の中身の片付けは、これまで書類格納の画面でやっていたのと同じ */
+function docSlotPut(name,fl,done){
+  if(!fl){done&&done(false);return;}
+  if(fl.size>DOC_FILE_MAX){
+    alert('このファイルは大きすぎます（'+docSizeText(fl.size)+'）。\n'+docSizeText(DOC_FILE_MAX)+' までにしてください。');
+    done&&done(false);return;
+  }
+  docFileStore(fl,{kind:FILE_KIND_DOC,name:fl.name,ref:name},function(err,key,where){
+    /* ★鍵が返っていれば、この端末には入っている。err は「園の記録へは預けられなかった」理由。
+       ここで捨てると、取り込めた中身まで無かったことになる。 */
+    if(!key){alert('取り込めませんでした。\n'+((err&&err.message)||err||''));done&&done(false);return;}
+    if(err)alert('この端末には取り込みました。ただし園の記録へは預けられませんでした。\n'+(err.message||err)
+      +'\n\nつながったときに、自動でもう一度お預けします。');
+    var d=stGet('docs',{}),prev=d[name]||{};
+    /* 前に入れてあった中身は、置きかえたら消す。残すと置き場が太るだけになる。 */
+    if(prev.file&&prev.file.key)docFileRemove(prev.file.key);
+    d[name]={url:prev.url||'',memo:prev.memo||'',updated:todayISO(),
+      file:{key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO(),where:where}};
+    stSet('docs',d);
+    done&&done(true);
+  });
+}
+/* 書類格納の1枠の中身を、新しいタブで開く */
+function docSlotOpen(name){
+  var r=(stGet('docs',{})[name]||{}),f=r.file;
+  if(!f||!f.key){alert('この書類は取り込まれていません。');return;}
+  docFileFetch(f.key,function(err,blob){
+    if(err||!blob){alert('書類が見つかりませんでした。もう一度取り込んでください。');return;}
+    var u=URL.createObjectURL(blob);
+    var w=window.open(u,'_blank');
+    if(!w)alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');
+    setTimeout(function(){URL.revokeObjectURL(u);},60000);
+  });
+}
+var DOC_ACCEPT='.pdf,.png,.jpg,.jpeg,.heic,.xlsx,.xls,.docx,.doc,.csv,image/*,application/pdf';
+/* 監査対応の一覧の右はし。入っていなければ「ファイルを選んで格納」、入っていれば「ひらく」「差し替え」 */
+function auditDocCell(key){
+  var name=AUDIT_DOC_SLOT[key],r=stGet('docs',{})[name]||{},f=r.file;
+  var pick=function(lab,cls){return '<label class="btn btn-sm'+(cls||'')+'" style="cursor:pointer;margin:0;">'+lab
+    +'<input type="file" data-audoc="'+esc(key)+'" accept="'+DOC_ACCEPT+'" style="display:none;"></label>';};
+  return '<td style="width:150px;text-align:right;"><div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">'
+    +(f?'<button class="btn btn-sm" data-audocopen="'+esc(key)+'">'+ic('folder')+'ひらく</button>'+pick('差し替え',' btn-ghost')
+       :pick(ic('folder')+'ファイルを選んで格納',' btn-primary'))
+    +'</div></td>';
+}
+function auditDocWire(s,rerender){
+  s.querySelectorAll('[data-audoc]').forEach(function(inp){inp.onchange=function(e){
+    var fl=e.target.files&&e.target.files[0],name=AUDIT_DOC_SLOT[inp.getAttribute('data-audoc')];
+    if(!fl||!name)return;
+    docSlotPut(name,fl,function(ok){if(ok){if(typeof aiToast==='function')aiToast('「'+docLabel(name)+'」に格納しました');rerender();}else inp.value='';});
+  };});
+  s.querySelectorAll('[data-audocopen]').forEach(function(b){b.onclick=function(){docSlotOpen(AUDIT_DOC_SLOT[b.getAttribute('data-audocopen')]);};});
+}
 function renderDocsAudit(){
   var docs=stGet('docs',{}),hosp=stGet('hospitals',HOSP_DEFAULT),s=$('section[data-page="docs"]');
   s.innerHTML='<div style="margin-bottom:14px;"><button class="btn btn-sm" id="dcBack">‹ 書類格納にもどる</button></div>'
@@ -27464,37 +27523,10 @@ function renderDocsAudit(){
   s.querySelectorAll('[data-dfile]').forEach(function(inp){inp.onchange=function(e){
     var name=inp.getAttribute('data-dfile'),fl=e.target.files&&e.target.files[0];
     if(!fl)return;
-    if(fl.size>DOC_FILE_MAX){
-      alert('このファイルは大きすぎます（'+docSizeText(fl.size)+'）。\n'+docSizeText(DOC_FILE_MAX)+' までにしてください。');
-      inp.value='';return;
-    }
-    docFileStore(fl,{kind:FILE_KIND_DOC,name:fl.name,ref:name},function(err,key,where){
-      /* ★鍵が返っていれば、この端末には入っている。err は「園の記録へは預けられなかった」理由。
-         ここで捨てると、取り込めた中身まで無かったことになる。 */
-      if(!key){alert('取り込めませんでした。\n'+((err&&err.message)||err||''));return;}
-      if(err)alert('この端末には取り込みました。ただし園の記録へは預けられませんでした。\n'+(err.message||err)
-        +'\n\nつながったときに、自動でもう一度お預けします。');
-      var d=stGet('docs',{}),prev=d[name]||{};
-      /* 前に入れてあった中身は、置きかえたら消す。残すと置き場が太るだけになる。 */
-      if(prev.file&&prev.file.key)docFileRemove(prev.file.key);
-      d[name]={url:prev.url||'',memo:prev.memo||'',updated:todayISO(),
-        file:{key:key,name:fl.name,size:fl.size,type:fl.type||'',at:todayISO(),where:where}};
-      stSet('docs',d);
-      renderDocs();
-    });
+    docSlotPut(name,fl,function(ok){if(ok)renderDocs();else inp.value='';});
   };});
   /* ひらく。端末から読み出して、新しいタブに出す。 */
-  s.querySelectorAll('[data-dopen]').forEach(function(b){b.onclick=function(){
-    var name=b.getAttribute('data-dopen'),r=(stGet('docs',{})[name]||{}),f=r.file;
-    if(!f||!f.key){alert('この書類は取り込まれていません。');return;}
-    docFileFetch(f.key,function(err,blob){
-      if(err||!blob){alert('書類が見つかりませんでした。もう一度取り込んでください。');return;}
-      var u=URL.createObjectURL(blob);
-      var w=window.open(u,'_blank');
-      if(!w)alert('新しいタブを開けませんでした。ブラウザの設定をご確認ください。');
-      setTimeout(function(){URL.revokeObjectURL(u);},60000);
-    });
-  };});
+  s.querySelectorAll('[data-dopen]').forEach(function(b){b.onclick=function(){docSlotOpen(b.getAttribute('data-dopen'));};});
   /* 消す。端末の中身と、一覧の記録の両方を消す。 */
   s.querySelectorAll('[data-dfdel]').forEach(function(b){b.onclick=function(){
     var name=b.getAttribute('data-dfdel'),d=stGet('docs',{}),r=d[name]||{},f=r.file;
