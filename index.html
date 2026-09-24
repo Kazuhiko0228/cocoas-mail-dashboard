@@ -32846,15 +32846,17 @@ function dfShow(id,how){
     .catch(function(e){dfClose();alert(e.message);});
 }
 /* サーバから返ってきた回で、いま開いている窓を描き直す */
-function dfApply(run){
+function dfApply(run,keep){
   if(!DF.view)return;
   DF.view.run=run;
-  if(run.layout&&run.layout.kind==='xlsx'){dfShow(run.id);return;}  /* 様式の写しも作り直す */
+  /* 値が変わったときだけ、様式の写しを作り直す。確かめる印を付けただけなら作り直さない
+     （★運営状況報告は 386行あり、1回押すたびに作り直すと1秒ほど待たされていた） */
+  if(!keep&&run.layout&&run.layout.kind==='xlsx'){dfShow(run.id);return;}
   dfRender();
 }
 function dfAct(method,path,body,after){
   if(DF.busy)return;DF.busy=true;
-  API.call(method,path,body).then(function(j){DF.busy=false;dfLoad(true);if(after)after(j);else dfApply(j.run);})
+  API.call(method,path,body).then(function(j){DF.busy=false;dfLoad(true);if(after)after(j);else dfApply(j.run,/\/check$/.test(path));})
     .catch(function(e){DF.busy=false;alert(e.message);});
 }
 
@@ -32928,16 +32930,27 @@ function dfSpotText(sp){
 function dfScalarInput(sv,open){
   var key='s|'+sv.fid;
   if(!open)return '';
-  var canAns=sv.class==='C'||sv.missing||!!sv.answer;
+  var canAns=sv.class==='C'||sv.missing||!!sv.answer||(sv.ask&&!sv.value);
   if(!canAns)return '';
+  if(sv.choices&&sv.input==='multi'){
+    /* いくつも選べる欄。押すたびに入れる・外す（値は「、」でつなぐ） */
+    var cur=sv.value?String(sv.value).split('、'):[];
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'+sv.choices.map(function(c){
+      var on=cur.indexOf(c)>=0;
+      return '<button class="btn btn-sm'+(on?' btn-primary':'')+'" data-dfmulti="'+esc(sv.fid+'|'+c)+'">'+(on?ic('check'):'')+esc(c)+'</button>';
+    }).join('')+'</div>';
+  }
   if(sv.choices){
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'+sv.choices.map(function(c){
       var on=sv.value===c;
       return '<button class="btn btn-sm'+(on?' btn-primary':'')+'" data-dfpick="'+esc(sv.fid+'|'+c)+'">'+(on?ic('check'):'')+esc(c)+'</button>';
     }).join('')+'</div>';
   }
-  if(sv.missing){
-    return '<input '+(sv.input==='date'?'type="date" ':'')+'data-dfans="'+esc(key)+'" placeholder="入れてください" style="margin-top:6px;">';
+  if(sv.missing||(sv.ask&&!sv.value)){
+    return '<input '+(sv.input==='date'?'type="date" ':'')+'data-dfans="'+esc(key)+'" placeholder="'+(sv.missing?'入れてください':'空欄でよければそのまま')+'" style="margin-top:6px;">';
+  }
+  if(sv.answer){
+    return ' <button class="btn btn-sm btn-ghost" style="padding:1px 6px;font-size:10.5px;" data-dfansclr="'+esc(key)+'">答え直す</button>';
   }
   return '';
 }
@@ -32961,6 +32974,7 @@ function dfRender(){
   /* 様式（Excel）に書く場所が無い「1つだけの欄」は出さないので、確かめる数に入れない（サーバと同じ線） */
   function sOut(fid){return !xlsx||!!(L.scalars&&L.scalars[fid]);}
   var nAll=(run.items.scalars||[]).filter(function(s){return sOut(s.fid);}).length+(run.items.rows||[]).length;
+  var gl=dfGroupList(run,sOut);
   var nOk=(run.items.scalars||[]).filter(function(s){return s.checked&&sOut(s.fid);}).length
     +(run.items.rows||[]).filter(function(r){return r.checked;}).length;
   var need=(run.items.scalars||[]).filter(function(s){return s.missing&&sOut(s.fid);}).length
@@ -33020,8 +33034,11 @@ function dfRender(){
       +[['all','全部'],['need','答えが要るもの'],['todo','まだ確かめていないもの']].map(function(x){
         return '<button class="btn btn-sm'+(flt===x[0]?' btn-primary':'')+'" data-dfflt="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div>';
   }
-  h+='<div class="dfsec">'+(tpl.table?'1つだけの欄':'項目（'+(run.items.scalars||[]).length+'）')+'</div>';
-  (run.items.scalars||[]).forEach(function(sv){
+  var grouped=!tpl.table&&(run.items.scalars||[]).some(function(x){return !!x.group;});
+  if(grouped){
+    h+=dfGroupsHTML(run,tpl,L,xlsx,open,chk,spots,flt,sOut);
+  }else h+='<div class="dfsec">'+(tpl.table?'1つだけの欄':'項目（'+(run.items.scalars||[]).length+'）')+'</div>';
+  (grouped?[]:(run.items.scalars||[])).forEach(function(sv){
     if(flt==='need'&&!(sv.missing||sv.class==='C'))return;
     if(flt==='todo'&&sv.checked)return;
     var f=smap[sv.fid]||{label:sv.label};
@@ -33059,11 +33076,13 @@ function dfRender(){
   h+='</div></div>';
 
   /* 下：確定・出す */
-  h+='<div class="dffoot"><span style="font-weight:700;">確認 '+nOk+' / '+nAll+'</span>'
+  var allOk=(nOk===nAll);
+  if(gl.length){nAll=gl.length;nOk=gl.filter(function(g){return g.ok;}).length;}
+  h+='<div class="dffoot"><span style="font-weight:700;">確認 '+nOk+' / '+nAll+(gl.length?' 項目':'')+'</span>'
     +(need&&open?'<span class="mini" style="color:#A4491A;">答えていない欄 '+need+'件</span>':'')
     +'<span style="flex:1;"></span>';
   if(open){
-    if(run.canCheck)h+='<button class="btn btn-primary" id="dfConfirm"'+((nOk===nAll&&!need)?'':' disabled')+'>'+ic('check')+'確定する</button>';
+    if(run.canCheck)h+='<button class="btn btn-primary" id="dfConfirm"'+((allOk&&nOk===nAll&&!need)?'':' disabled')+'>'+ic('check')+'確定する</button>';
   }else{
     h+='<button class="btn btn-primary" id="dfOut">'+ic('printer')+'様式の形で出す（Excel）</button>';
     if(run.canCheck)h+='<button class="btn" id="dfRevise">新しい版を作る</button>';
@@ -33076,6 +33095,52 @@ function dfRender(){
   dfBg().innerHTML=h;
   dfWire();
   try{langApply(dfBg());}catch(e){}
+}
+/* 項目の番号（①〜64）ごとのまとまり。様式の並びのまま */
+function dfGroupList(run,sOut){
+  var out=[],idx={};
+  (run.items.scalars||[]).forEach(function(x){
+    if(!x.group)return;
+    if(!idx.hasOwnProperty(x.group)){idx[x.group]=out.length;out.push({g:x.group,list:[]});}
+    out[idx[x.group]].list.push(x);
+  });
+  out.forEach(function(G){
+    var o=G.list.filter(function(x){return sOut(x.fid);});
+    G.need=G.list.some(function(x){return x.missing&&sOut(x.fid);});
+    G.ok=o.length>0&&o.every(function(x){return !!x.checked;});
+    G.none=!o.length;
+  });
+  return out.filter(function(G){return !G.none;});
+}
+function dfGroupsHTML(run,tpl,L,xlsx,open,chk,spots,flt,sOut){
+  var h='',gl=dfGroupList(run,sOut),names=tpl.groups||{};
+  h+='<div class="dfsec">項目（'+gl.length+'）</div>';
+  gl.forEach(function(G){
+    if(flt==='need'&&!G.need&&!G.list.some(function(x){return x.class==='C'&&!x.value;}))return;
+    if(flt==='todo'&&G.ok)return;
+    var first=null;G.list.forEach(function(x){if(!first&&spots[x.fid]&&spots[x.fid][0])first=spots[x.fid][0];});
+    var by=G.ok?G.list[0].checked:null;
+    h+='<div class="dfcard '+(G.need?'need':(G.ok?'ok':''))+'"><div class="dfcard-h">'
+      +'<b style="font-size:13.5px;">'+esc(names[G.g]||G.g)+'</b>'
+      +(first?'<span class="dfpos" data-dfgo="'+esc(first)+'" style="cursor:pointer;text-decoration:underline dotted;" title="様式のその場所を見る">様式で見る</span>':'')
+      +'<span style="flex:1;"></span>'+dfChkBtn(chk,G.ok,'group',G.g,G.need)+'</div>';
+    G.list.forEach(function(sv){
+      var out=sOut(sv.fid);
+      var lab=String(sv.label).replace(/^\S+\s/,'');
+      var val=sv.value?(/^\d{4}-\d{2}-\d{2}$/.test(String(sv.value))?dfDate(sv.value):String(sv.value)):'';
+      h+='<div style="border-top:1px dashed var(--line);padding:6px 0 4px;'+(out?'':'opacity:.55;')+'">'
+        +'<div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;">'
+        +'<span style="font-size:11.5px;color:var(--tx2);">'+esc(lab)+'</span><span class="dfcls '+esc(sv.class)+'">'+esc(sv.class)+'</span>'
+        +'<span style="flex:1;"></span><span style="font-size:13px;font-weight:700;'+(sv.missing?'color:#A4491A;':'')+'">'
+        +(val?esc(val):(sv.missing?'（答えが要ります）':'<span class="mini">（空欄）</span>'))+'</span></div>'
+        +(sv.question&&open&&(sv.missing||sv.class==='C'||(sv.ask&&!sv.value))?'<div style="font-size:12px;margin-top:2px;">'+esc(sv.question)+'</div>':'')
+        +dfScalarInput(sv,open)
+        +'<div class="dfbasis" style="margin-top:2px;">'+esc(sv.basis||'')+'</div></div>';
+    });
+    if(by)h+='<div class="dfbasis">確認：'+esc(by.by)+'（'+esc(dfTime(by.at))+'）</div>';
+    h+='</div>';
+  });
+  return h;
 }
 function dfChkBtn(can,checked,kind,id,blocked){
   if(!can)return checked?'<span class="dfbadge" style="background:#EAF3DE;color:#27500A;">確認済み</span>':'';
@@ -33091,7 +33156,7 @@ function dfWire(){
   var rf=$('#dfRefill');if(rf)rf.onclick=function(){dfAct('POST',p+'/refill',{asOf:$('#dfAsOf').value});};
   b.querySelectorAll('[data-dfchk]').forEach(function(bt){bt.onclick=function(){
     var k=bt.getAttribute('data-dfchk').split('|'),on=bt.getAttribute('data-on')==='1';
-    var body={kind:k[0],on:on};if(k[0]==='row')body.rid=k[1];else body.fid=k[1];
+    var body={kind:k[0],on:on};if(k[0]==='row')body.rid=k[1];else if(k[0]==='group')body.group=k[1];else body.fid=k[1];
     dfAct('POST',p+'/check',body);
   };});
   b.querySelectorAll('[data-dfans]').forEach(function(inp){inp.onchange=function(){
@@ -33107,6 +33172,15 @@ function dfWire(){
   b.querySelectorAll('[data-dfpick]').forEach(function(bt){bt.onclick=function(){
     var k=bt.getAttribute('data-dfpick'),i=k.indexOf('|');
     dfAct('PUT',p+'/answer',{kind:'scalar',fid:k.slice(0,i),value:k.slice(i+1)});
+  };});
+  b.querySelectorAll('[data-dfmulti]').forEach(function(bt){bt.onclick=function(){
+    var k=bt.getAttribute('data-dfmulti'),i=k.indexOf('|'),fid=k.slice(0,i),c=k.slice(i+1);
+    var sv=(DF.view.run.items.scalars||[]).filter(function(x){return x.fid===fid;})[0];if(!sv)return;
+    var cur=sv.value?String(sv.value).split('、'):[],j=cur.indexOf(c);
+    if(j>=0)cur.splice(j,1);else cur.push(c);
+    /* 選択肢の並びにそろえる */
+    cur=sv.choices.filter(function(x){return cur.indexOf(x)>=0;});
+    dfAct('PUT',p+'/answer',{kind:'scalar',fid:fid,value:cur.join('、')});
   };});
   b.querySelectorAll('[data-dfflt]').forEach(function(bt){bt.onclick=function(){DF.filter=bt.getAttribute('data-dfflt');dfRender();};});
   /* カードの「どこに書くか」を押すと、左の様式のそのセルまで動いて光らせる */
