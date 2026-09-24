@@ -31014,13 +31014,38 @@ function rpHealthCard(p){
      ★これまでは在園児だけを渡していたので、退園した子は選んでも在園児の先頭に戻されていた。
    ・中身のカードと保存の処理は1行も変えていない。書き戻し（クラス・生年月日・入園日・退園日・
      通園曜日）は、この画面に入力欄があることが前提なので、まとめて移してある。 */
+/* 園児の選び欄の中身。クラス → 名前の順に並べ、クラスごとの見出し（optgroup）を付ける */
+function rosterSortKey(c){
+  var sp=(typeof spStore==='function')?(spStore()[c.id]||{}):{};
+  var k=String((sp.lastKana||'')+(sp.firstKana||''))||childFullName(c)||'';
+  return k;
+}
+function rosterGroupOpts(kids,selId){
+  var gname=function(c){return c.kind==='withdrawn'?'退園':(c.klass||'クラス未設定');};
+  var order=function(g){if(g==='退園')return 9999;var i=CLASSES.indexOf(g);return i<0?9000:i;};
+  var list=kids.slice().sort(function(a,b){
+    var ga=gname(a),gb=gname(b);
+    if(ga!==gb)return (order(ga)-order(gb))||(ga<gb?-1:1);
+    return rosterSortKey(a).localeCompare(rosterSortKey(b),'ja');
+  });
+  var out='',cur=null;
+  list.forEach(function(c){
+    var g=gname(c);
+    if(g!==cur){if(cur!==null)out+='</optgroup>';out+='<optgroup label="'+esc(g)+'">';cur=g;}
+    out+='<option value="'+esc(c.id)+'"'+(c.id===selId?' selected':'')+'>'+esc(childFullName(c))+'</option>';
+  });
+  if(cur!==null)out+='</optgroup>';
+  return out;
+}
 function rosterProfile(kids){
   if(!rosterSel)return '<div class="card"><div class="empty">生徒がいません</div>'
     +'<button class="btn btn-sm" id="rpBack">'+ic('back')+'一覧へ戻る</button></div>';
   var p=spKanaSplit(spGet(rosterSel));
   var cur=DB.contacts.filter(function(x){return x.id===rosterSel;})[0]||{};
   rpGuards=spGuardians(p);
-  var sel='<select id="rpSel" style="width:200px;">'+kids.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===rosterSel?' selected':'')+'>'+esc(childFullName(c))+'（'+esc(c.klass)+'）</option>';}).join('')+'</select>';
+  /* ★登録した順に並んでいて、目当ての子を探しにくかった（2026-09-25 安田さんのご指摘）。
+     クラス（設定のクラスの並び）→ 名前（ふりがながあればふりがな）の順に並べ、クラスごとに見出しを付ける。退園した子はいちばん下 */
+  var sel='<select id="rpSel" style="width:240px;">'+rosterGroupOpts(kids,rosterSel)+'</select>';
   var h='<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">'
     +'<button class="btn btn-sm" id="rpBack">'+ic('back')+'一覧へ戻る</button>'
     +'<h3 style="margin:0;">'+ic('idcard')+'個別プロフィール</h3>'+sel+'<span style="flex:1;"></span><button class="btn btn-sm" id="rpMapBtn">'+ic('pin')+'この子を地図で見る</button><button class="btn btn-primary btn-sm" id="rpSave">'+ic('check')+'保存</button> <span class="muted" id="rpMsg"></span></div>';
