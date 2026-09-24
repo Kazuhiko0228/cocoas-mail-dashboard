@@ -1457,6 +1457,55 @@ button.hpr:hover{background:#FAF9F5}
   .fs5 td,.fs5 .dc-body b,.fs5 .btn{font-size:var(--fs-body);}
   .content>section>.card{margin-bottom:var(--sp-4) !important;}
 }
+/* ══ 監査書類の自動作成（docflow）══════════════════════ */
+.dfbadge{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;text-align:center;}
+.dfbg .modal{width:1180px;max-width:96vw;padding:0;display:flex;flex-direction:column;}
+.dfhead{padding:18px 22px 12px;border-bottom:1px solid var(--line);}
+.dfsteps{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.dfsteps span{font-size:11.5px;padding:4px 10px;border-radius:999px;background:#F1EFE8;color:#8A8795;font-weight:600;}
+.dfsteps span.on{background:var(--eg-main,#5128C8);color:#fff;}
+.dfsteps span.done{background:#EAF3DE;color:#27500A;}
+.dfbody{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0;min-height:0;flex:1;overflow:hidden;}
+.dfpane{padding:14px 18px;overflow:auto;max-height:calc(90vh - 190px);}
+.dfpane+.dfpane{border-left:1px solid var(--line);}
+.dfsec{font-size:12px;font-weight:800;color:var(--tx2);margin:4px 0 8px;letter-spacing:.02em;}
+.dfsheet{border-collapse:collapse;font-size:11.5px;table-layout:fixed;background:#fff;}
+.dfsheet td{border:1px solid #E4E1EC;padding:3px 5px;height:22px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;vertical-align:middle;}
+.dfsheet td.f{background:#E8F6EC;color:#14532D;font-weight:600;}
+.dfsheet td.b{font-weight:700;}
+.dfsheet th{background:#F6F4FB;color:#8A8795;font-weight:600;font-size:10.5px;padding:2px;border:1px solid #E4E1EC;}
+.dfcard{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px;background:#fff;}
+.dfcard.need{border-color:#F0B98F;background:#FFF8F2;}
+.dfcard.ok{border-color:#A9D18E;background:#F6FBF1;}
+.dfcard-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.dfcells{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;}
+.dfc .l{display:block;font-size:10.5px;color:var(--tx3);}
+.dfc .v{font-size:13px;font-weight:600;word-break:break-all;}
+.dfc .v.miss{color:#A4491A;}
+.dfc input{width:100%;margin-top:2px;font-size:13px;padding:5px 8px;}
+.dfcls{display:inline-block;font-size:9.5px;font-weight:800;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;}
+.dfcls.A{background:#E8F6EC;color:#14532D;}.dfcls.B{background:#E3EEFB;color:#1F5FA8;}
+.dfpos{font-size:10.5px;color:#6B5FA8;font-weight:700;}
+.dfbasis{font-size:11px;color:var(--tx3);margin-top:6px;line-height:1.6;}
+.dfchk{white-space:nowrap;}
+.dfchk.on{background:#27500A !important;border-color:#27500A !important;color:#fff !important;}
+.dffoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--line);background:#FAF9FD;}
+.dfwait{display:flex;flex-direction:column;align-items:center;gap:14px;padding:40px 20px;text-align:center;}
+.dfspin{width:34px;height:34px;border-radius:50%;border:3px solid #E4E1EC;border-top-color:var(--eg-main,#5128C8);animation:dfspin 1s linear infinite;}
+@keyframes dfspin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion:reduce){.dfspin{animation:none;}}
+/* ★狭い画面で、様式の写しの枠が 28px につぶれていた。
+   縦1列の格子の中に「中でスクロールする枠」を入れると、格子がその枠を中身の高さと見なさず縮めるため。
+   狭い画面では格子をやめて上から積み、窓ぜんたいをスクロールさせる（下の確定・出すは下に貼りつける） */
+@media(max-width:1024px){
+  .dfbg .modal{display:block;}
+  .dfbody{display:block;overflow:visible;}
+  .dfpane{max-height:none;overflow:visible;}
+  .dfpane+.dfpane{border-left:0;border-top:1px solid var(--line);}
+  .dfpane.sheet{max-height:340px;overflow:auto;}
+  .dffoot{position:sticky;bottom:0;z-index:2;}
+  .dfhead{padding:14px 16px 10px;}
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
@@ -10979,6 +11028,31 @@ var EN_DICT={
 '体験前 日程調整中':'Before Trial: Scheduling in Progress',
 '勤務表（シフト表）':'Work Schedule (Shift Chart)',
 'このシステムで作る':'Create in This System',
+'様式をImport':'Import form','以前の記録':'Earlier record',
+'要回答':'Needs answers','要確認':'Needs review','確認済み':'Confirmed','解析中':'Reading',
+'① 様式':'① Form','② 値を入れる':'② Fill values','③ 足りない欄に答える':'③ Answer missing items',
+'④ 1件ずつ確かめる':'④ Review one by one','⑤ 確定して出す':'⑤ Confirm and export',
+'様式の見た目（緑が書き込むところ）':'Form preview (green = cells to be filled)',
+'1つだけの欄':'Single fields','書き込む位置を直す':'Adjust where values go','位置を保存':'Save positions',
+'書かない':'Not written','表の1行目':'First table row','最後の行':'Last row',
+'確認しました':'Reviewed','確定する':'Confirm','新しい版を作る':'Create new version',
+'様式の形で出す（Excel）':'Export in the form layout (Excel)','帳簿から取り込み直す':'Reload from records',
+'答え直す':'Change answer','帳簿に無いので入れてください':'Not in records - please enter',
+'様式に欄が無いので、出しません':'Not on this form, so not exported',
+'様式：Miralink の標準の形':'Form: Miralink standard layout',
+'Miralink の標準の形（A4 横）で出します。':'Exported in the Miralink standard layout (A4 landscape).',
+'確かめて確定するのは、管理者・園長・主任の方です。':'Reviewing and confirming is done by administrators, directors and head teachers.',
+'園児・職員の中身は、外のAIには送りません。':'Children’s and staff details are never sent to external AI.',
+'様式を読んでいます…（見出しから、どの列に何を書くかを探しています）':'Reading the form… (finding which column holds what from the headings)',
+'帳簿から値を集めています…':'Collecting values from records…',
+'様式の見出しから、書く位置を全部見つけました。':'All positions were found from the form headings.',
+'前に確かめた位置を、そのまま使いました（同じ様式です）。':'Reused the positions confirmed last time (same form).',
+'見出しで見つからなかった欄だけ、AI に位置を推定させました（見出しだけを送り、中身は送っていません）。':'AI estimated positions only for items not found from headings (only headings were sent, no contents).',
+'様式の見出しから、書く位置を探しました。':'Positions were found from the form headings.',
+'確定すると、この版は直せなくなります（直すときは新しい版を作ります）。確定しますか？':'Once confirmed, this version cannot be changed (create a new version to make changes). Confirm?',
+'書き込む位置を保存すると、確かめた印はすべて外れます。よろしいですか？':'Saving positions clears all review marks. Continue?',
+'この版をもとに、新しい版を作ります（確かめる作業はやり直しです）。よろしいですか？':'Create a new version from this one? (Review must be done again.)',
+'作りかけの回があります。新しく作りますか？（作りかけの回は、そのまま残ります）':'A draft already exists. Create a new one? (The draft will be kept.)',
 '記入用紙を印刷する':'Print Blank Form',
 '企業主導型保育事業':'Corporate-Led Childcare Program',
 '保護者の緊急連絡票':'Parent Emergency Contact Form',
@@ -32616,6 +32690,8 @@ function reqHowModal(it){
 
 function renderReqNav(){
   var s=$('section[data-page="reqnav"]');
+  /* 監査書類の自動作成（docflow）。サーバにつないでいるときだけ、書類ごとの状態を取りに行く */
+  if(dfOn())dfLoad();
   var prof=reqProfile();var t=reqTypeById(prof.type);var st=reqStatusAll();
   var done=t.items.filter(function(it){return st[t.id+'|'+it.name]==='完了';}).length;
   var h='<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+'施設プロフィール</h3>'
@@ -32629,6 +32705,7 @@ function renderReqNav(){
   h+='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">'+esc(t.label)+'</span><span class="muted">の主な提出・整備書類</span><span style="flex:1;"></span><span class="tag" style="background:#EAF3DE;color:#27500A;">完了 '+done+' / '+t.items.length+'</span></div>';
   h+='<div style="display:flex;flex-direction:column;gap:10px;">'+t.items.map(function(it){
     var key=t.id+'|'+it.name;var cur=st[key]||'未着手';var tgt=reqTarget(it.systemDoc);var catc=REQ_CATCOLOR[it.category]||'#888780';
+    var dd=dfDocOf(t.id,it.name);
     var stcol=cur==='完了'?'#EAF3DE;color:#27500A;border-color:#639922':(cur==='準備中'?'#FAEEDA;color:#854F0B;border-color:#E9C88B':'#fff;color:#5B6875');
     return '<div class="card" style="padding:14px;"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
       +'<div style="flex:1;min-width:250px;">'
@@ -32638,10 +32715,14 @@ function renderReqNav(){
       +'<div class="muted" style="font-size:12px;line-height:1.55;"><b>根拠</b>：'+esc(it.basis)+'　／　<b>提出先</b>：'+esc(it.submitTo||'—')+'　／　<b>頻度</b>：'+esc(it.frequency)+'</div>'
       +(it.note?'<div style="font-size:11.5px;color:var(--tx3);margin-top:5px;line-height:1.55;">'+esc(it.note)+'</div>':'')
       +'</div>'
-      +'<div style="display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:150px;">'
+      /* ★自動作成に対応した書類（いまは職員名簿）は、状態を手で選ぶのをやめ、
+         流れの状態（未着手・要回答・要確認・確認済み）を出す。手で「完了」にできると、
+         確かめていない書類が確認済みに見えてしまうため。ほかの書類は、これまでどおり */
+      +((dd&&dd.template)?dfRowActions(dd):(
+       '<div style="display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:150px;">'
       +'<select data-rqst="'+esc(key)+'" style="width:150px;background:'+stcol+';font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
       +(tgt?'<button class="btn btn-sm" data-rqgo="'+esc(it.systemDoc)+'">'+ic('fileplus')+'このシステムで作る</button>'
-           :'<button class="btn btn-sm" data-rqhow="'+esc(key)+'">'+ic('search')+'様式のもらい方</button>')+'</div>'
+           :'<button class="btn btn-sm" data-rqhow="'+esc(key)+'">'+ic('search')+'様式のもらい方</button>')+'</div>'))
       +'</div></div>';
   }).join('')+'</div>';
   s.innerHTML=h;
@@ -32655,6 +32736,330 @@ function renderReqNav(){
     if(it)reqHowModal(it);
   };});
   s.querySelectorAll('[data-rqgo]').forEach(function(b){b.onclick=function(){var tgt=reqTarget(b.getAttribute('data-rqgo'));if(!tgt)return;if(tgt.dg)dgType=tgt.dg;if(tgt.rec)recType=tgt.rec;go(tgt.rec?recPageOf(tgt.rec):tgt.page);};});
+  dfRowWire(s);
+}
+
+/* ══ 監査書類の自動作成（docflow）════════════════════════
+   提出書類ナビの1行ずつに、次の流れを載せる（docs/docflow-spec.md）。
+     様式を入れる → サーバが読む → 帳簿から値を入れる → 足りない欄を答える
+     → 1件ずつ確かめる（管理者・マネージャー・主任）→ 確定 → 様式そのままの形で出す
+   ★いまは「職員名簿」と Excel の様式だけ（P1）。ほかの書類は、これまでどおりの選び方のまま。
+   ★確かめる・確定するのボタンは、画面では出し分けるだけで、線を引いているのはサーバ。
+   ★「全部確認しました」の一括のボタンは作らない。1件ずつ見ることが目的なので。 */
+var DF={docs:null,loading:false,err:'',canCheck:false,view:null,busy:false};
+var DF_COL={'未着手':['#F1EFE8','#5B6875'],'解析中':['#FFF4CC','#8A6A00'],'要回答':['#FDE7D6','#A4491A'],
+  '要確認':['#E3EEFB','#1F5FA8'],'確認済み':['#EAF3DE','#27500A']};
+function dfOn(){try{return typeof API!=='undefined'&&API.online();}catch(e){return false;}}
+function dfLoad(force){
+  if(!dfOn()||DF.loading)return;
+  if(DF.docs&&!force)return;
+  DF.loading=true;
+  API.call('GET','/docflow/docs').then(function(j){
+    DF.docs=j.docs||[];DF.canCheck=!!j.canCheck;DF.err='';DF.loading=false;
+    var sec=$('section[data-page="reqnav"]');if(sec&&!sec.hidden)renderReqNav();
+  }).catch(function(e){DF.loading=false;DF.err=e.message||'';});
+}
+function dfDocOf(typeId,name){
+  if(!DF.docs)return null;
+  for(var i=0;i<DF.docs.length;i++){var d=DF.docs[i];if(d.type===typeId&&d.name===name)return d;}
+  return null;
+}
+function dfBadge(st,legacy){
+  var c=DF_COL[st]||DF_COL['未着手'];
+  return '<span class="dfbadge" style="background:'+c[0]+';color:'+c[1]+';">'+esc(st)+'</span>'
+    +(legacy?'<div class="mini" style="text-align:center;margin-top:2px;">以前の記録</div>':'');
+}
+/* ★確認・確定の時刻を ISO の文字のまま切って出していたので、日本時間より9時間早く出ていた
+   （「02:44」）。端末の時刻に直して出す */
+function dfTime(iso){
+  var d=new Date(iso);if(isNaN(d.getTime()))return String(iso||'');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function dfDate(v){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));
+  return m?(+m[1])+'年'+(+m[2])+'月'+(+m[3])+'日':String(v||'');
+}
+/* 提出書類ナビの1行の右側（テンプレートのある書類だけ） */
+function dfRowActions(dd){
+  return '<div style="display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:170px;">'
+    +dfBadge(dd.status,dd.statusFrom==='legacy')
+    +(dd.runId?'<button class="btn btn-sm btn-primary" data-dfopen="'+esc(dd.runId)+'">'+ic('edit')+'開く</button>':'')
+    +'<label class="btn btn-sm" style="cursor:pointer;margin:0;justify-content:center;">'+ic('fileplus')+'様式をImport'
+      +'<input type="file" data-dfimp="'+esc(dd.id)+'" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;"></label>'
+    +'<button class="btn btn-sm" data-dfstd="'+esc(dd.id)+'">'+ic('fileplus')+'このシステムで作る</button>'
+    +'</div>';
+}
+function dfRowWire(s){
+  s.querySelectorAll('[data-dfopen]').forEach(function(b){b.onclick=function(){dfOpen(+b.getAttribute('data-dfopen'));};});
+  s.querySelectorAll('[data-dfstd]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-dfstd'),dd=(DF.docs||[]).filter(function(x){return x.id===id;})[0];
+    if(dd&&dd.runId&&dd.status!=='確認済み'&&!confirm('作りかけの回があります。新しく作りますか？（作りかけの回は、そのまま残ります）'))return;
+    dfWait('帳簿から値を集めています…');
+    API.call('POST','/docflow/runs',{docId:id}).then(function(j){dfLoad(true);dfShow(j.run.id);})
+      .catch(function(e){dfClose();alert(e.message);});
+  };});
+  s.querySelectorAll('[data-dfimp]').forEach(function(inp){inp.onchange=function(){
+    var f=inp.files&&inp.files[0],id=inp.getAttribute('data-dfimp');inp.value='';
+    if(!f)return;
+    if(!/\.xlsx$/i.test(f.name)){
+      alert(/\.xls$/i.test(f.name)
+        ?'古い形の Excel（.xls）です。Excel で開いて「.xlsx」で保存し直してから入れてください。'
+        :'いまは Excel（.xlsx）の様式だけ読めます。PDF・写真の様式は次の段で読めるようになります。\nそれまでは「このシステムで作る」をお使いください。');
+      return;
+    }
+    dfWait('様式を読んでいます…（見出しから、どの列に何を書くかを探しています）');
+    apiFileUpload(f,{kind:'監査様式',name:f.name,ref:id},function(err,j){
+      if(err){dfClose();alert(err.message||'様式を預けられませんでした');return;}
+      API.call('POST','/docflow/forms',{docId:id,fileKey:j.key}).then(function(r){
+        dfLoad(true);dfShow(r.run.id,r.how);
+      }).catch(function(e){dfClose();alert(e.message);});
+    });
+  };});
+}
+
+/* ── 窓 ── */
+function dfBg(){
+  var m=document.getElementById('dfBg');
+  if(!m){
+    m=el('div',{class:'modal-bg dfbg',id:'dfBg'});$('#modalRoot').appendChild(m);
+    m.addEventListener('click',function(e){if(e.target===m)dfClose();});
+  }
+  return m;
+}
+function dfClose(){var m=document.getElementById('dfBg');if(m)m.remove();DF.view=null;}
+function dfWait(msg){
+  dfBg().innerHTML='<div class="modal"><div class="dfwait"><div class="dfspin"></div>'
+    +'<div style="font-weight:700;">'+esc(msg)+'</div>'
+    +'<div class="muted" style="font-size:12px;">園児・職員の中身は、外のAIには送りません。</div></div></div>';
+}
+function dfOpen(id){dfWait('読み込んでいます…');dfShow(id);}
+function dfShow(id,how){
+  API.call('GET','/docflow/runs/'+id).then(function(j){DF.view=j;DF.how=how||'';dfRender();})
+    .catch(function(e){dfClose();alert(e.message);});
+}
+/* サーバから返ってきた回で、いま開いている窓を描き直す */
+function dfApply(run){
+  if(!DF.view)return;
+  DF.view.run=run;
+  if(run.layout&&run.layout.kind==='xlsx'){dfShow(run.id);return;}  /* 様式の写しも作り直す */
+  dfRender();
+}
+function dfAct(method,path,body,after){
+  if(DF.busy)return;DF.busy=true;
+  API.call(method,path,body).then(function(j){DF.busy=false;dfLoad(true);if(after)after(j);else dfApply(j.run);})
+    .catch(function(e){DF.busy=false;alert(e.message);});
+}
+
+function dfStepsHTML(run){
+  var st=run.status,nAns=(st==='要回答'),nChk=(st==='要確認'),done=(st==='確認済み');
+  function s(lab,state){return '<span class="'+state+'">'+lab+'</span>';}
+  return '<div class="dfsteps">'
+    +s('① 様式','done')+s('② 値を入れる','done')
+    +s('③ 足りない欄に答える',nAns?'on':'done')
+    +s('④ 1件ずつ確かめる',nChk?'on':(done?'done':''))
+    +s('⑤ 確定して出す',done?'on':'')+'</div>';
+}
+function dfSheetHTML(p){
+  if(!p||!p.rows)return '';
+  var skip={},span={};
+  (p.merges||[]).forEach(function(m){
+    span[m[0]+':'+m[1]]=[m[2]-m[0]+1,m[3]-m[1]+1];
+    for(var r=m[0];r<=m[2];r++)for(var c=m[1];c<=m[3];c++)if(r!==m[0]||c!==m[1])skip[r+':'+c]=1;
+  });
+  var h='<table class="dfsheet"><colgroup><col style="width:28px;">'
+    +(p.widths||[]).map(function(w){return '<col style="width:'+Math.max(34,Math.min(w,260))+'px;">';}).join('')+'</colgroup>';
+  h+='<tr><th></th>'+(p.widths||[]).map(function(_,i){
+    var n=i+1,t='';while(n>0){var m=(n-1)%26;t=String.fromCharCode(65+m)+t;n=Math.floor((n-1)/26);}return '<th>'+t+'</th>';}).join('')+'</tr>';
+  p.rows.forEach(function(row,ri){
+    var r=ri+1;h+='<tr><th>'+r+'</th>';
+    row.forEach(function(cell,ci){
+      var c=ci+1;if(skip[r+':'+c])return;
+      var sp=span[r+':'+c],at=sp?(' rowspan="'+sp[0]+'" colspan="'+sp[1]+'"'):'';
+      var x=cell||{v:''};
+      h+='<td'+at+' class="'+(x.f?'f ':'')+(x.b?'b':'')+'" title="'+esc(x.v||'')+'">'+esc(x.v||'')+'</td>';
+    });
+    h+='</tr>';
+  });
+  return h+'</table>';
+}
+function dfStdHTML(v){
+  var tpl=v.template,run=v.run,fs=tpl.table.fields;
+  var fac=(run.items.scalars||[]).filter(function(s){return s.fid==='facility';})[0];
+  return '<div style="font-weight:800;font-size:16px;">'+esc(tpl.name)+'</div>'
+    +'<div class="mini" style="margin:3px 0 8px;">施設名：'+esc((fac&&fac.value)||'')+'　／　'+esc(dfDate(run.asOf))+' 現在</div>'
+    +'<table class="dfsheet"><tr><th>No.</th>'+fs.map(function(f){return '<th style="font-size:11px;color:var(--tx);">'+esc(f.label)+'</th>';}).join('')+'</tr>'
+    +(run.items.rows||[]).map(function(r,i){return '<tr><td>'+(i+1)+'</td>'+fs.map(function(f){
+      var c=r.cells[f.id]||{};var val=f.fmt==='date'?dfDate(c.value):(c.value||'');
+      return '<td class="'+(c.value?'f':'')+'">'+esc(val)+'</td>';}).join('')+'</tr>';}).join('')
+    +'</table><div class="mini" style="margin-top:8px;">Miralink の標準の形（A4 横）で出します。</div>';
+}
+function dfValHTML(f,c,editable,key){
+  var val=c&&c.value?(f.fmt==='date'?dfDate(c.value):c.value):'';
+  if(c&&c.missing&&editable){
+    return '<input '+(f.fmt==='date'?'type="date" ':'')+'data-dfans="'+esc(key)+'" placeholder="帳簿に無いので入れてください">';
+  }
+  if(c&&c.answer&&editable){
+    return '<span class="v">'+esc(val)+'</span> <button class="btn btn-sm btn-ghost" style="padding:1px 6px;font-size:10.5px;" data-dfansclr="'+esc(key)+'">答え直す</button>';
+  }
+  return '<span class="v'+(val?'':' miss')+'">'+(val?esc(val):'（空欄）')+'</span>';
+}
+function dfRender(){
+  var v=DF.view;if(!v)return;
+  var run=v.run,tpl=v.template,L=run.layout||{},xlsx=L.kind==='xlsx';
+  var open=!run.confirmedAt,chk=!!run.canCheck&&open;
+  var fmap={};tpl.table.fields.forEach(function(f){fmap[f.id]=f;});
+  var smap={};(tpl.scalars||[]).forEach(function(f){smap[f.id]=f;});
+  /* 様式（Excel）に書く場所が無い「1つだけの欄」は出さないので、確かめる数に入れない（サーバと同じ線） */
+  function sOut(fid){return !xlsx||!!(L.scalars&&L.scalars[fid]);}
+  var nAll=(run.items.scalars||[]).filter(function(s){return sOut(s.fid);}).length+(run.items.rows||[]).length;
+  var nOk=(run.items.scalars||[]).filter(function(s){return s.checked&&sOut(s.fid);}).length
+    +(run.items.rows||[]).filter(function(r){return r.checked;}).length;
+  var need=(run.items.scalars||[]).filter(function(s){return s.missing&&sOut(s.fid);}).length
+    +(run.items.rows||[]).filter(function(r){return r.need;}).length;
+  var howTxt={reuse:'前に確かめた位置を、そのまま使いました（同じ様式です）。',skip:'様式の見出しから、書く位置を全部見つけました。',
+    used:'見出しで見つからなかった欄だけ、AI に位置を推定させました（見出しだけを送り、中身は送っていません）。',
+    off:'様式の見出しから、書く位置を探しました。',failed:'AI に聞けなかったので、見出しで見つかった欄だけ使っています。'}[DF.how]||'';
+
+  var h='<div class="modal"><div class="dfhead">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+      +'<div style="font-weight:800;font-size:17px;flex:1;min-width:200px;">'+esc((v.doc&&v.doc.name)||tpl.name)+'</div>'
+      +dfBadge(run.status)+'<span class="mini">版 '+esc(run.version)+'</span>'
+      +'<button class="btn btn-sm btn-ghost" id="dfX">閉じる</button></div>'
+    +'<div class="mini" style="margin-top:4px;">'
+      +(v.form?'様式：'+esc(v.form.name||'')+'（Excel）':'様式：Miralink の標準の形')
+      +'　／　基準日 '+(open?'<input type="date" id="dfAsOf" value="'+esc(run.asOf)+'" style="width:auto;padding:2px 6px;font-size:12px;"> <button class="btn btn-sm" id="dfRefill" style="padding:2px 9px;">帳簿から取り込み直す</button>':esc(dfDate(run.asOf)))
+      +(run.confirmedAt?'　／　確定：'+esc(run.confirmedBy||'')+'（'+esc(dfTime(run.confirmedAt))+'）':'')
+    +'</div>'
+    +(howTxt?'<div class="mini" style="margin-top:4px;color:#6B5FA8;">'+esc(howTxt)+'</div>':'')
+    +dfStepsHTML(run)+'</div>';
+
+  /* 左：様式の見た目 */
+  h+='<div class="dfbody"><div class="dfpane sheet"><div class="dfsec">様式の見た目（緑が書き込むところ）</div>'
+    +(xlsx&&v.preview?dfSheetHTML(v.preview):dfStdHTML(v));
+  if(xlsx&&open){
+    var maxC=Math.max(26,(v.preview&&v.preview.widths?v.preview.widths.length:0));
+    var letters=[];for(var i=1;i<=maxC;i++){var n=i,t='';while(n>0){var m=(n-1)%26;t=String.fromCharCode(65+m)+t;n=Math.floor((n-1)/26);}letters.push(t);}
+    h+='<details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:700;font-size:12.5px;">書き込む位置を直す</summary>'
+      +'<div class="mini" style="margin:6px 0 8px;">位置を直すと、確かめた印はすべて外れます（違う場所に書くことになるため）。</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+      +'<label class="mini">表の1行目 <input type="number" id="dfFirst" value="'+esc(L.table.firstRow)+'" style="width:70px;"></label>'
+      +'<label class="mini">最後の行 <input type="number" id="dfLast" value="'+esc(L.table.lastRow)+'" style="width:70px;"></label></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 10px;">'
+      +tpl.table.fields.map(function(f){
+        var cur=L.table.cols[f.id]||'';
+        return '<label class="mini">'+esc(f.label)+(L.origin&&L.origin[f.id]?' <span style="color:#6B5FA8;">（'+esc(L.origin[f.id])+'）</span>':'')
+          +'<select data-dfcol="'+esc(f.id)+'"><option value="">書かない</option>'
+          +letters.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select></label>';
+      }).join('')
+      +(tpl.scalars||[]).map(function(f){
+        return '<label class="mini">'+esc(f.label)+'（セル）<input data-dfcell="'+esc(f.id)+'" value="'+esc((L.scalars||{})[f.id]||'')+'" placeholder="例 C2"></label>';
+      }).join('')
+      +'</div><button class="btn btn-sm" id="dfLayoutSave" style="margin-top:9px;">位置を保存</button></details>';
+  }
+  h+='</div>';
+
+  /* 右：1件ずつ */
+  h+='<div class="dfpane">';
+  if(need&&open)h+='<div class="note-b" style="margin-bottom:10px;">帳簿に無い欄が <b>'+need+'件</b> あります。オレンジの欄に入れてください（職員情報を直してから「帳簿から取り込み直す」でも入ります）。</div>';
+  if(open&&!run.canCheck)h+='<div class="mini" style="margin-bottom:10px;">確かめて確定するのは、管理者・園長・主任の方です。</div>';
+  h+='<div class="dfsec">1つだけの欄</div>';
+  (run.items.scalars||[]).forEach(function(sv){
+    var f=smap[sv.fid]||{label:sv.label};
+    var out=sOut(sv.fid);
+    var pos=xlsx?(out?'<span class="dfpos">'+esc(L.scalars[sv.fid])+((L.inplace||{})[sv.fid]?' の空欄を埋めます':' に書きます')+'</span>'
+      :'<span class="mini">様式に欄が無いので、出しません</span>'):'';
+    h+='<div class="dfcard '+(!out?'':(sv.missing?'need':(sv.checked?'ok':'')))+'"'+(out?'':' style="opacity:.6;"')+'><div class="dfcard-h">'
+      +'<b style="font-size:13px;">'+esc(sv.label)+'</b><span class="dfcls '+esc(sv.class)+'">'+esc(sv.class)+'</span>'+pos
+      +'<span style="flex:1;"></span>'+(out?dfChkBtn(chk,sv.checked,'scalar',sv.fid,sv.missing):'')+'</div>'
+      +'<div class="dfc">'+dfValHTML(f,sv,open&&!!(sv.missing||sv.answer),'s|'+sv.fid)+'</div>'
+      +'<div class="dfbasis">根拠：'+esc(sv.basis||'')+(sv.checked?'　／　確認：'+esc(sv.checked.by)+'（'+esc(dfTime(sv.checked.at))+'）':'')+'</div></div>';
+  });
+  h+='<div class="dfsec" style="margin-top:14px;">職員（'+(run.items.rows||[]).length+'名）</div>';
+  if(!(run.items.rows||[]).length)h+='<div class="muted">基準日に在籍している職員がいません。職員情報を確かめてください。</div>';
+  (run.items.rows||[]).forEach(function(r,i){
+    var pos=xlsx?'<span class="dfpos">'+(L.table.firstRow+i)+'行目</span>':'';
+    var bases={};
+    h+='<div class="dfcard '+(r.need?'need':(r.checked?'ok':''))+'"><div class="dfcard-h">'
+      +'<b style="font-size:14px;">'+esc(r.title)+'</b>'+pos+'<span style="flex:1;"></span>'
+      +dfChkBtn(chk,r.checked,'row',r.rid,r.need)+'</div><div class="dfcells">'
+      +tpl.table.fields.map(function(f){
+        var c=r.cells[f.id]||{};
+        if(c.basis){var bk=c.class==='B'?(f.label+'は'+c.basis):c.basis.replace(/の〔[^〕]*〕$/,'');bases[bk]=1;}
+        var col=xlsx?(L.table.cols[f.id]?' <span class="dfpos">'+esc(L.table.cols[f.id])+'列</span>':' <span class="mini">書かない</span>'):'';
+        return '<div class="dfc"><span class="l">'+esc(f.label)+'<span class="dfcls '+esc(c.class||f.class)+'">'+esc(c.class||f.class)+'</span>'+col+'</span>'
+          +dfValHTML(f,c,open&&!!(c.missing||c.answer),'c|'+r.rid+'|'+f.id)+'</div>';
+      }).join('')
+      +'</div><div class="dfbasis">根拠：'+esc(Object.keys(bases).join('　／　'))
+      +(r.checked?'<br>確認：'+esc(r.checked.by)+'（'+esc(dfTime(r.checked.at))+'）':'')+'</div></div>';
+  });
+  h+='</div></div>';
+
+  /* 下：確定・出す */
+  h+='<div class="dffoot"><span style="font-weight:700;">確認 '+nOk+' / '+nAll+'</span>'
+    +(need&&open?'<span class="mini" style="color:#A4491A;">答えていない欄 '+need+'件</span>':'')
+    +'<span style="flex:1;"></span>';
+  if(open){
+    if(run.canCheck)h+='<button class="btn btn-primary" id="dfConfirm"'+((nOk===nAll&&!need)?'':' disabled')+'>'+ic('check')+'確定する</button>';
+  }else{
+    h+='<button class="btn btn-primary" id="dfOut">'+ic('printer')+'様式の形で出す（Excel）</button>';
+    if(run.canCheck)h+='<button class="btn" id="dfRevise">新しい版を作る</button>';
+  }
+  if((v.history||[]).length>1){
+    h+='<select id="dfHist" style="width:auto;">'+v.history.map(function(x){
+      return '<option value="'+esc(x.id)+'"'+(x.id===run.id?' selected':'')+'>版 '+esc(x.version)+'（'+esc(x.status)+'）</option>';}).join('')+'</select>';
+  }
+  h+='</div></div>';
+  dfBg().innerHTML=h;
+  dfWire();
+  try{langApply(dfBg());}catch(e){}
+}
+function dfChkBtn(can,checked,kind,id,blocked){
+  if(!can)return checked?'<span class="dfbadge" style="background:#EAF3DE;color:#27500A;">確認済み</span>':'';
+  if(checked)return '<button class="btn btn-sm dfchk on" data-dfchk="'+esc(kind+'|'+id)+'" data-on="0" title="押すと確認を外します">'+ic('check')+'確認しました</button>';
+  return '<button class="btn btn-sm dfchk" data-dfchk="'+esc(kind+'|'+id)+'" data-on="1"'+(blocked?' disabled title="先に空欄に答えてください"':'')+'>確認する</button>';
+}
+function dfWire(){
+  var v=DF.view,run=v.run,b=dfBg(),p='/docflow/runs/'+run.id;
+  var x=$('#dfX');if(x)x.onclick=dfClose;
+  var rf=$('#dfRefill');if(rf)rf.onclick=function(){dfAct('POST',p+'/refill',{asOf:$('#dfAsOf').value});};
+  b.querySelectorAll('[data-dfchk]').forEach(function(bt){bt.onclick=function(){
+    var k=bt.getAttribute('data-dfchk').split('|'),on=bt.getAttribute('data-on')==='1';
+    var body={kind:k[0],on:on};if(k[0]==='row')body.rid=k[1];else body.fid=k[1];
+    dfAct('POST',p+'/check',body);
+  };});
+  b.querySelectorAll('[data-dfans]').forEach(function(inp){inp.onchange=function(){
+    var k=inp.getAttribute('data-dfans').split('|'),val=inp.value;if(!String(val).replace(/\s/g,''))return;
+    var body=k[0]==='s'?{kind:'scalar',fid:k[1],value:val}:{kind:'cell',rid:k[1],fid:k[2],value:val};
+    dfAct('PUT',p+'/answer',body);
+  };});
+  b.querySelectorAll('[data-dfansclr]').forEach(function(bt){bt.onclick=function(){
+    var k=bt.getAttribute('data-dfansclr').split('|');
+    var body=k[0]==='s'?{kind:'scalar',fid:k[1],value:''}:{kind:'cell',rid:k[1],fid:k[2],value:''};
+    dfAct('PUT',p+'/answer',body);
+  };});
+  var ls=$('#dfLayoutSave');if(ls)ls.onclick=function(){
+    if(!confirm('書き込む位置を保存すると、確かめた印はすべて外れます。よろしいですか？'))return;
+    var cols={},cells={};
+    b.querySelectorAll('[data-dfcol]').forEach(function(s){if(s.value)cols[s.getAttribute('data-dfcol')]=s.value;});
+    b.querySelectorAll('[data-dfcell]').forEach(function(s){if(s.value)cells[s.getAttribute('data-dfcell')]=s.value;});
+    dfAct('PUT',p+'/layout',{table:{firstRow:+$('#dfFirst').value,lastRow:+$('#dfLast').value,cols:cols},scalars:cells});
+  };
+  var cf=$('#dfConfirm');if(cf)cf.onclick=function(){
+    if(!confirm('確定すると、この版は直せなくなります（直すときは新しい版を作ります）。確定しますか？'))return;
+    dfAct('POST',p+'/confirm',{});
+  };
+  var out=$('#dfOut');if(out)out.onclick=function(){
+    out.disabled=true;
+    API.call('POST',p+'/output',{}).then(function(j){
+      apiFileGet(j.fileKey,function(err,blob){out.disabled=false;
+        if(err){alert(err.message);return;}dlAnchor(blob,j.name||'様式.xlsx');});
+    }).catch(function(e){out.disabled=false;alert(e.message);});
+  };
+  var rv=$('#dfRevise');if(rv)rv.onclick=function(){
+    if(!confirm('この版をもとに、新しい版を作ります（確かめる作業はやり直しです）。よろしいですか？'))return;
+    dfAct('POST',p+'/revise',{},function(j){dfShow(j.run.id);});
+  };
+  var hs=$('#dfHist');if(hs)hs.onchange=function(){dfOpen(+hs.value);};
 }
 
 /* ========== 変更ログ・自動バックアップ ==========
