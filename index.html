@@ -1460,6 +1460,18 @@ button.hpr:hover{background:#FAF9F5}
 /* ══ 監査書類の自動作成（docflow）══════════════════════ */
 /* 配信テンプレートのフォルダの札。★札の中の絵が見出し用の大きさ（27px）になり、札が丸く大きく膨らんでいた */
 .tfchips .chip{display:inline-flex;align-items:center;gap:4px;height:auto;}
+/* 全体配信に添える PDF と、文面から作る窓（2026-09-24） */
+.batt{display:flex;flex-direction:column;gap:6px;margin-top:10px;}
+.batt-i{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;}
+.batt-i svg{width:15px;height:15px;flex:none;color:#A32D2D;}
+.batt-i b{font-weight:600;word-break:break-all;}
+.npdf-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;}
+.npdf-pv{position:sticky;top:0;border:1px solid var(--line);border-radius:10px;min-height:420px;display:flex;align-items:center;justify-content:center;background:#f4f4f2;padding:10px;}
+.npdf-pv iframe{width:100%;height:560px;border:0;background:#fff;}
+.npdf-ph{display:grid;grid-template-columns:56px 1fr auto;gap:6px 8px;align-items:center;margin-bottom:8px;}
+.npdf-ph img{width:56px;height:56px;object-fit:cover;border-radius:8px;grid-row:span 2;}
+.npdf-ph input{grid-column:2 / 4;}
+@media (max-width:760px){.npdf-g{grid-template-columns:1fr;}.npdf-pv iframe{height:420px;}}
 .tfchips .chip svg,label.tfsel>svg{width:14px !important;height:14px !important;padding:0 !important;background:none !important;flex:none;}
 /* 大きさを決めた入れ物の中の絵は、入れ物いっぱいにする */
 span[style*="width:15px;height:15px"]>svg{width:100%;height:100%;}
@@ -20179,6 +20191,200 @@ function renderCompose(){
   if(typeof expMailDraftRender==='function')expMailDraftRender(_cs);
 }
 
+/* ══ 全体配信に添える PDF（2026-09-24 安田さんのご依頼）══════════
+   「ファイルをインポートして入れ込む方法と、作った文面から綺麗に案内PDFを生成して入れ込む方法」。
+   ・中身はサーバに預ける（種類「配信の添付」）。配信の記録には目印（key）だけを書く
+   ・保護者が開けるのは、そのご家庭あての配信に目印が載っているものだけ（サーバの /parent/files）
+   ・文面から作る PDF は、サーバ（/notice-pdf）がお知らせの形に組む。写真は4枚まで、○×の印を付けられる */
+var BATTACH=[];
+var BATT_MAX=5;
+function bAttHTML(){
+  if(!BATTACH.length)return '';
+  return '<div class="batt">'+BATTACH.map(function(a,i){
+    return '<span class="batt-i">'+ic('doc')+'<b>'+esc(a.name)+'</b><span class="muted">'+fileSizeText(a.size)+'</span>'
+      +'<button type="button" class="btn btn-sm btn-ghost" data-battview="'+i+'">見る</button>'
+      +'<button type="button" class="btn btn-sm btn-ghost" data-battdel="'+i+'">外す</button></span>';
+  }).join('')+'<div class="muted" style="font-size:12px;">送ると、保護者の未来WAの「おたより」に添付として届きます。</div></div>';
+}
+function fileSizeText(n){n=+n||0;return n>=1048576?(Math.round(n/104857.6)/10)+'MB':Math.max(1,Math.round(n/1024))+'KB';}
+function bAttPaint(){
+  var b=$('#bAtt');if(!b)return;
+  b.innerHTML=bAttHTML();
+  b.querySelectorAll('[data-battview]').forEach(function(x){x.onclick=function(){bAttView(BATTACH[+x.getAttribute('data-battview')]);};});
+  b.querySelectorAll('[data-battdel]').forEach(function(x){x.onclick=function(){
+    var a=BATTACH.splice(+x.getAttribute('data-battdel'),1)[0];
+    /* まだ誰にも送っていないので、預けた中身も片付ける */
+    if(a&&a.key)apiFileDel(a.key);
+    bAttPaint();
+  };});
+}
+function bAttView(a){
+  if(!a)return;
+  var w=window.open('','_blank');
+  apiFileGet(a.key,function(err,blob){
+    if(err){if(w)w.close();alert(err.message);return;}
+    var u=URL.createObjectURL(blob);
+    if(w)w.location.href=u;else window.open(u,'_blank');
+  });
+}
+/* 預けて、添付の一覧に足す */
+function bAttAdd(blob,name,msgEl){
+  if(!API.online()){alert('PDFの添付は、サーバにつないでいるときだけ使えます。');return;}
+  if(BATTACH.length>=BATT_MAX){alert('添付は'+BATT_MAX+'つまでです。');return;}
+  if(msgEl)msgEl.textContent='預けています…';
+  apiFileUpload(blob,{kind:'配信の添付',name:name},function(err,j){
+    if(err){if(msgEl)msgEl.textContent='';alert(err.message);return;}
+    if(msgEl)msgEl.textContent='';
+    BATTACH.push({key:j.key,name:name,mime:blob.type||'application/pdf',size:blob.size});
+    bAttPaint();
+  });
+}
+/* getDraft は、いまの件名・本文（差し込み済み）と名乗りを返す */
+function bAttWire(getDraft){
+  var pk=$('#bAttPick'),f=$('#bAttFile'),mk=$('#bAttMake');
+  if(pk&&f){pk.onclick=function(){f.value='';f.click();};
+    f.onchange=function(){var x=f.files&&f.files[0];if(!x)return;
+      if(x.size>20*1048576){alert('ファイルが大きすぎます（20MB まで）。');return;}
+      bAttAdd(x,x.name||'添付.pdf',$('#bSchedMsg'));};}
+  if(mk)mk.onclick=function(){noticePdfModal(getDraft());};
+  bAttPaint();
+}
+/* 写真を長辺1600pxの JPEG に縮める（PDF に入れる形。重いまま送らない） */
+function noticePhotoShrink(file,cb){
+  var r=new FileReader();
+  r.onload=function(){
+    var im=new Image();
+    im.onload=function(){
+      var k=Math.min(1,1600/Math.max(im.width,im.height)),cv=document.createElement('canvas');
+      cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);
+      var g=cv.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,cv.width,cv.height);g.drawImage(im,0,0,cv.width,cv.height);
+      cb(null,cv.toDataURL('image/jpeg',0.85));
+    };
+    im.onerror=function(){cb(new Error('この写真は読めませんでした（JPEG・PNG を選んでください）'));};
+    im.src=r.result;
+  };
+  r.onerror=function(){cb(new Error('この写真は読めませんでした'));};
+  r.readAsDataURL(file);
+}
+function apiNoticePdf(body,cb){
+  var h={'Content-Type':'application/json'};
+  if(API.token())h.Authorization='Bearer '+API.token();
+  fetch(API.base()+'/notice-pdf',{method:'POST',headers:h,body:JSON.stringify(body)})
+    .then(function(r){
+      if(!r.ok)return r.json().catch(function(){return {};}).then(function(j){throw new Error(j.error||'PDF を作れませんでした（'+r.status+'）');});
+      return r.blob();})
+    .then(function(b){cb(null,b);})
+    .catch(function(e){cb(e);});
+}
+/* 本文から、PDF に要らないものを落とす。
+   ・入れ替わらなかった〔 〕（宛名などご家庭ごとのもの。PDF は全家庭に同じものを配る）
+   ・末尾の園名・担当者の名乗り（PDF では下に整えて入れる） */
+function noticeBodyClean(body,sign){
+  var lines=String(body||'').replace(/〔[^〕]*〕/g,'').split('\n');
+  var tail=[schoolNameFixed(),SET.manager||'',sign||''].filter(Boolean);
+  while(lines.length&&(!lines[lines.length-1].trim()||tail.indexOf(lines[lines.length-1].trim())>-1))lines.pop();
+  return lines.join('\n').replace(/^\s+/,'');
+}
+function noticePdfModal(d){
+  d=d||{};
+  if(!API.online()){alert('PDFを作るのは、サーバにつないでいるときだけ使えます。');return;}
+  var photos=[],lastBlob=null,lastUrl='';
+  var m=el('div',{class:'modal-bg'});
+  var sign=d.sign||SET.manager||'';
+  m.innerHTML='<div class="modal npdf" style="width:960px;max-width:calc(100vw - 24px);"><h2>文面からお知らせのPDFを作る</h2>'
+    +'<div class="muted" style="margin:-6px 0 12px;">左を直して「見本を作る」を押すと、右に仕上がりが出ます。よければ「このPDFを添付する」。</div>'
+    +'<div class="npdf-g"><div>'
+      +'<div class="field"><label>形</label><div class="chips">'
+        +'<span class="chip on" data-nlay="center">お知らせ（中央ぞろえ）</span><span class="chip" data-nlay="left">文書（左ぞろえ・以上で結ぶ）</span></div></div>'
+      +'<div class="field"><label>見出し（【 】の中）</label><input id="np_k" value="お知らせ" placeholder="例：お知らせとお願い"></div>'
+      +'<div class="field"><label>題</label><input id="np_t"></div>'
+      +'<div class="field"><label>本文</label><textarea id="np_b" rows="11"></textarea>'
+        +'<div class="muted" style="font-size:12px;margin-top:4px;">行のはじめに「・」で箇条書き、**ここ** のように ** ではさむと太字になります。</div></div>'
+      +'<div class="grid grid-2col" style="gap:8px;">'
+        +'<div class="field"><label>宛名</label><input id="np_to" value="保護者の皆様"></div>'
+        +'<div class="field"><label>日付</label><input type="date" id="np_d"></div>'
+        +'<div class="field"><label>園名</label><input id="np_s"></div>'
+        +'<div class="field"><label>差出人</label><input id="np_n"></div>'
+        +'<div class="field"><label>電話（任意）</label><input id="np_tel"></div></div>'
+      +'<div class="field"><label>写真（4枚まで・任意）</label><div id="np_ph"></div>'
+        +'<button type="button" class="btn btn-sm" id="np_addph">'+ic('plus')+'写真を足す</button><input type="file" id="np_phf" accept="image/jpeg,image/png" hidden></div>'
+    +'</div><div class="npdf-pv"><div class="muted" id="np_pv0">「見本を作る」を押すと、ここに PDF が出ます。</div></div></div>'
+    +'<div id="np_msg" style="color:#A32D2D;font-size:12.5px;min-height:18px;margin-top:8px;"></div>'
+    +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;flex-wrap:wrap;">'
+      +'<button class="btn" id="np_close">閉じる</button><button class="btn" id="np_make">見本を作る</button>'
+      +'<button class="btn btn-primary" id="np_att" disabled>このPDFを添付する</button></div></div>';
+  $('#modalRoot').appendChild(m);
+  var lay='center';
+  $('#np_t').value=String(d.subject||'');
+  $('#np_b').value=noticeBodyClean(d.body,sign);
+  $('#np_d').value=todayISO();
+  $('#np_s').value=schoolNameFixed()||'';
+  $('#np_n').value=sign;
+  $('#np_tel').value=SET.tel||'';
+  function close(){if(lastUrl)URL.revokeObjectURL(lastUrl);m.remove();}
+  $('#np_close').onclick=close;
+  m.addEventListener('click',function(e){if(e.target===m)close();});
+  m.querySelectorAll('[data-nlay]').forEach(function(c){c.onclick=function(){
+    lay=c.getAttribute('data-nlay');
+    m.querySelectorAll('[data-nlay]').forEach(function(x){x.classList.toggle('on',x===c);});
+    stale();
+  };});
+  /* 直したら、いまの見本は古い。添付のボタンを止めて、作り直してもらう */
+  function stale(){if(lastBlob){lastBlob=null;$('#np_att').disabled=true;$('#np_msg').style.color='var(--tx2)';$('#np_msg').textContent='直したので、もう一度「見本を作る」を押してください。';}}
+  m.querySelector('.npdf-g > div').addEventListener('input',stale);
+  function paintPh(){
+    var b=$('#np_ph');
+    b.innerHTML=photos.map(function(p,i){
+      return '<div class="npdf-ph"><img src="'+p.data+'" alt="">'
+        +'<select data-npm="'+i+'"><option value="">印なし</option><option value="ok"'+(p.mark==='ok'?' selected':'')+'>○ よい例（赤）</option><option value="ng"'+(p.mark==='ng'?' selected':'')+'>× よくない例（青）</option></select>'
+        +'<input data-npc="'+i+'" value="'+esc(p.caption||'')+'" placeholder="ひとこと（任意）">'
+        +'<button type="button" class="btn btn-sm btn-ghost" data-npx="'+i+'">外す</button></div>';
+    }).join('');
+    b.querySelectorAll('[data-npm]').forEach(function(x){x.onchange=function(){photos[+x.getAttribute('data-npm')].mark=x.value;stale();};});
+    b.querySelectorAll('[data-npc]').forEach(function(x){x.oninput=function(){photos[+x.getAttribute('data-npc')].caption=x.value;};});
+    b.querySelectorAll('[data-npx]').forEach(function(x){x.onclick=function(){photos.splice(+x.getAttribute('data-npx'),1);paintPh();stale();};});
+    $('#np_addph').style.display=photos.length>=4?'none':'';
+  }
+  $('#np_addph').onclick=function(){$('#np_phf').value='';$('#np_phf').click();};
+  $('#np_phf').onchange=function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    noticePhotoShrink(f,function(err,data){
+      if(err){alert(err.message);return;}
+      photos.push({data:data,mark:'',caption:''});paintPh();stale();
+    });
+  };
+  paintPh();
+  function payload(){
+    return {layout:lay,kicker:$('#np_k').value,title:$('#np_t').value,body:$('#np_b').value,to:$('#np_to').value,
+      date:$('#np_d').value,school:$('#np_s').value,sender:$('#np_n').value,tel:$('#np_tel').value,
+      photos:photos.map(function(p){return {data:p.data,mark:p.mark,caption:p.caption};})};
+  }
+  $('#np_make').onclick=function(){
+    var b=$('#np_make'),msg=$('#np_msg');
+    b.disabled=true;msg.style.color='var(--tx2)';msg.textContent='作っています…';
+    apiNoticePdf(payload(),function(err,blob){
+      b.disabled=false;
+      if(err){msg.style.color='#A32D2D';msg.textContent=err.message;return;}
+      lastBlob=blob;
+      if(lastUrl)URL.revokeObjectURL(lastUrl);
+      lastUrl=URL.createObjectURL(blob);
+      /* ★見本の枠（iframe）を文字の組み立て（innerHTML）で書くと、画面の守り（script・iframe などを落とす）に
+         消されて見本が出なかった。自分で作った PDF を出す枠なので、部品として作って差し込む */
+      var fr=$('#np_pv');
+      if(!fr){fr=document.createElement('iframe');fr.id='np_pv';fr.title='PDFの見本';m.querySelector('.npdf-pv').appendChild(fr);}
+      fr.src=lastUrl;$('#np_pv0').hidden=true;
+      $('#np_att').disabled=false;msg.textContent='';
+    });
+  };
+  $('#np_att').onclick=function(){
+    if(!lastBlob)return;
+    var t=String($('#np_t').value||$('#np_k').value||'お知らせ').replace(/[\\\/:*?"<>|]/g,'').slice(0,60);
+    var blob=lastBlob.type?lastBlob:new Blob([lastBlob],{type:'application/pdf'});
+    bAttAdd(blob,t+'.pdf',$('#np_msg'));
+    close();
+  };
+}
+
 /* shared sequential sender */
 /* 保護者のアプリの「おたより」に出すかどうかは、これまで
    ひな形の名前に「デイリー」「配信」「お知らせ」が入っているかで当てていた。
@@ -20412,7 +20618,7 @@ function leadMailPanelWire(box){
       .catch(function(e){alert((e&&e.message)||'解除できませんでした。');});
   };});
 }
-function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind,bcc){
+function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind,bcc,attach){
   /* bcc は、その1回だけの控えの送り先。空なら設定のBCCを使う */
   var useBcc=String(bcc||SET.bcc||'');
   if(!list.length){log.innerHTML='<div class="li" style="color:#A32D2D;">宛先が選択されていません。</div>';return;}
@@ -20424,7 +20630,10 @@ function sendSeq(list,tplLabel,subjectTpl,bodyTpl,ctx,btn,log,bar,perPerson,kind
     var body=perPerson?fillTokens(bodyTpl,c,ctx):bodyTpl;
     h.push({date:todayISO(),time:todayISO().slice(5).replace('-','/')+' '+stamp,
       tpl:tplLabel,kind:(kind||'personal'),to:c.name+' 様',email:c.email,from:SET.sender,bcc:useBcc,
-      subject:subj,body:body});
+      subject:subj,body:body,
+      /* ★どのご家庭あてかの印（cid）。サーバはこの印で、そのご家庭の未来WAにだけ渡す。
+         これが無いと、つながった園では全体配信が1通も届かない（2026-09-24 に見つけた） */
+      cid:c.id,attach:(isB&&attach&&attach.length)?attach:undefined});
     /* ★体験・見学のお問い合わせの方（リード）は、未来WA のアカウントをお持ちでない。
        これまでは「届きません：◯◯ 様（未来WAをお使いではありません）」と出して終わりで、
        控えだけが積み上がり、園は送ったつもりで1通も届いていなかった。
@@ -20602,7 +20811,12 @@ function renderBroadcast(){
       '<div class="card"><h3>'+ic('mail')+'プレビュー</h3><div class="muted" style="margin:-4px 0 8px;">送ると、この文章がそのまま保護者に届きます。この欄は直せません。</div><div class="preview" id="bPreview"></div></div>'+
     '</div>'+
     '<div class="card" style="margin-top:16px;">'+
-      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'未来WAへ送る</button><span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" id="bSend">'+ic('cast')+'未来WAへ送る</button>'
+        /* PDF を添えて送る（2026-09-24 安田さんのご依頼）。ファイルを選ぶか、書いた文面からお知らせの PDF を作る */
+        +'<button class="btn" id="bAttPick">'+ic('doc')+'PDFを添付</button><button class="btn" id="bAttMake">'+ic('doc')+'文面からPDFを作る</button>'
+        +'<input type="file" id="bAttFile" accept="application/pdf,image/jpeg,image/png" hidden>'
+        +'<span style="color:var(--tx3);">または</span><input type="datetime-local" id="bSchedAt" style="width:200px;"><button class="btn" id="bSched">'+ic('clock')+'予約</button><span class="muted" id="bCount"></span></div>'+
+      '<div id="bAtt">'+bAttHTML()+'</div>'+
       '<div id="bSchedMsg" style="color:#A32D2D;font-size:12.5px;margin-top:8px;"></div>'+
       '<div class="pbar"><div id="bBar"></div></div><div class="send-log" id="bLog"></div></div>';
   $('#bTpl').onchange=function(e){bTpl=e.target.value;bSel=null;renderBroadcast();};
@@ -20861,8 +21075,10 @@ function renderBroadcast(){
     box.querySelectorAll('[data-c]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-c');bSel[k]=!bSel[k];chips();count();};});
   }
   var bt=$('#bToday');if(bt){bt.checked=bTodayOnly;bt.onchange=function(){bTodayOnly=bt.checked;count();};}
-  $('#bSend').onclick=function(){var e=buildEmail(),rc=recip();sendSeq(rc,def.label,e.subject,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false,'broadcast');
-    if(rc.length)delete BDRAFT[def.key];   /* 送ったら書きかけの控えは消す（次に開くとひな形の文に戻る） */};
+  $('#bSend').onclick=function(){var e=buildEmail(),rc=recip();sendSeq(rc,def.label,e.subject,e.body,{},$('#bSend'),$('#bLog'),$('#bBar'),false,'broadcast','',BATTACH.slice());
+    /* 送ったら書きかけの控えと添付は消す（次に開くとひな形の文に戻る） */
+    if(rc.length){delete BDRAFT[def.key];BATTACH=[];bAttPaint();}};
+  bAttWire(function(){var e=buildEmail();return {subject:e.subject,body:e.body,sign:bMgrSign()};});
   /* 予約の欄は、いまより前を選べないようにする（過ぎた日時は受け取らない） */
   schedGuard($('#bSchedAt'),$('#bSchedMsg'));
   var bs=$('#bSched');if(bs)bs.onclick=function(){
@@ -20875,7 +21091,7 @@ function renderBroadcast(){
     var e=buildEmail();var q=stGet('scheduled',[]);
     /* ★保存する種別の名前は前のまま（'全体周知・お知らせ'）。予約の一覧で読み替えて出す。
        名前を変えると、すでに入っている予約と見分けがつかなくなるため（2026-09-24 画面の名前だけ「全体配信」に変えた） */
-    q.push({id:Date.now(),when:when,kind:'全体周知・お知らせ',label:def.label,count:rc.length,names:rc.map(function(c){return childFullName(c)+'（'+c.name+' 様）';}),group:Object.keys(bSel).filter(function(k){return bSel[k];}).join('・'),to:rc.map(function(c){return childFullName(c);}).join('・'),subject:e.subject,body:e.body});
+    q.push({id:Date.now(),when:when,kind:'全体周知・お知らせ',label:def.label,count:rc.length,names:rc.map(function(c){return childFullName(c)+'（'+c.name+' 様）';}),group:Object.keys(bSel).filter(function(k){return bSel[k];}).join('・'),to:rc.map(function(c){return childFullName(c);}).join('・'),subject:e.subject,body:e.body,attach:BATTACH.slice()});
     stSet('scheduled',q);
     /* ★「配信カレンダーで確認」と書いてあるだけで、そこへ行く道が無かった。押せるようにする。
        配信カレンダーを開けない役職のときは、押せないボタンを出さずに言葉だけにする。 */

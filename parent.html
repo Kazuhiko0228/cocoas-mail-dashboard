@@ -150,6 +150,8 @@
   .post .t{font-weight:600;font-size:14px;display:flex;align-items:center;gap:7px;}
   .post .d{font-size:11.5px;color:var(--tx3);margin-top:1px;}
   .post .x{font-size:13px;color:var(--tx2);margin-top:4px;white-space:pre-wrap;}
+  .patt{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .patt-b{border:1px solid var(--line,#e3e3de);background:#fff;border-radius:10px;padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--tx,#222);cursor:pointer;text-align:left;word-break:break-all;}
   .new{background:var(--pink);color:#fff;font-size:9.5px;font-weight:700;border-radius:99px;padding:1px 7px;letter-spacing:.03em;}
 
   /* SNS */
@@ -6209,7 +6211,9 @@ function allPosts(){
     var d=(x.date||todayISO()).slice(0,10);
     var k=d+'|'+(x.subject||x.tpl||'')+'|'+String(x.body).slice(0,80);
     if(seenKey[k])return; seenKey[k]=1;          /* 同じおたよりは1件だけ */
-    posts.push({id:'h'+i,date:d,type:'daily',title:(x.subject||x.tpl||'園からのおたより'),body:x.body});
+    posts.push({id:'h'+i,date:d,type:'daily',title:(x.subject||x.tpl||'園からのおたより'),body:x.body,
+      /* 園が添えた PDF・写真の目印（2026-09-24）。中身は押したときにサーバから取る */
+      attach:Array.isArray(x.attach)?x.attach:[]});
   });
   posts.sort(function(a,b){return (a.date<b.date)?1:(a.date>b.date?-1:0);});
   return posts;
@@ -6218,9 +6222,26 @@ function postRow(p,isNew){
   return '<div class="post"><div class="ic" style="background:'+postIconBg(p.type)+';">'+postIcon(p.type)+'</div>'
     +'<div class="bd"><div class="t">'+esc(p.title)+(isNew?'<span class="new">NEW</span>':'')+'</div>'
     +'<div class="d">'+fmtDate(p.date)+'</div>'
-    +'<div class="x">'+esc(p.body||'')+'</div>'
-    +(p.url?'<button class="link" style="margin-top:5px;" data-open="'+esc(p.url)+'">開く →</button>':'')+'</div></div>';
+    /* 園がお知らせの本文で ** ではさんだところは太字にする（PDF と同じ書き方。記号のまま出さない） */
+    +'<div class="x">'+esc(p.body||'').replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>')+'</div>'
+    +(p.url?'<button class="link" style="margin-top:5px;" data-open="'+esc(p.url)+'">開く →</button>':'')
+    +((p.attach||[]).length?'<div class="patt">'+p.attach.map(function(a){
+      return '<button type="button" class="patt-b" data-watt="'+esc(a.key)+'">📎 '+esc(a.name||'添付')+'</button>';
+    }).join('')+'</div>':'')+'</div></div>';
 }
+/* おたよりの添付を開く。園の記録にある目印を、サーバの保護者の口（/parent/files）で開く。
+   ★窓は押したその場で開いておく。取り終わってから開くと、iPhone の Safari が「ポップアップ」として止める */
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-watt]');if(!b)return;
+  if(!WAPI.base()){toast('添付は、園とつながっているときに開けます');return;}
+  var w=window.open('','_blank'),h={};
+  if(WAPI.token())h.Authorization='Bearer '+WAPI.token();
+  toast('開いています…');
+  fetch(WAPI.base()+'/parent/files/'+encodeURIComponent(b.getAttribute('data-watt')),{headers:h})
+    .then(function(r){if(!r.ok)throw new Error('x');return r.blob();})
+    .then(function(bl){var u=URL.createObjectURL(bl);if(w)w.location.href=u;else location.href=u;})
+    .catch(function(){if(w)w.close();toast('この添付は開けませんでした');});
+});
 /* 各SNSの公式ロゴマーク。ブランドカラーで表示する（利用許諾を得て使用）。
    Instagram はブランドのグラデーション、LINE は LINEグリーン、YouTube は YouTubeレッド。 */
 var SNS_ICON={
