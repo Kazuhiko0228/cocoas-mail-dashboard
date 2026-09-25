@@ -4416,6 +4416,7 @@ function printSanitize(html){
 function printDoc(title,bodyHtml){
   var area=$('#printArea');
   if(!area){area=el('div',{id:'printArea'});document.body.appendChild(area);}
+  area.setAttribute('data-school',schoolNameFixed()||'');
   area.innerHTML='<h1>'+esc(title)+'</h1>'+printSanitize(bodyHtml)
     +'<div class="print-foot">'+esc(schoolNameFixed())+'　／　出力日：'+esc(fmtY(todayISO()))+'</div>';
   window.print();
@@ -10670,7 +10671,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -23471,7 +23472,7 @@ function renderAudit(){
   $('#auPrint').onclick=function(){
     var stt2=auditState(fy),ad=auditDateOf(fy);
     var body='<p>'+fy+'年度　監査日：'+(ad?esc(ad):'未定')+'</p>'+AUDIT_CATS.map(function(c){
-      return '<h2>'+c.cat+'</h2><table><thead><tr><th style="width:60px;">状態</th><th>書類名</th><th>保管場所</th><th style="width:70px;">区分</th><th>システム内データ</th></tr></thead><tbody>'+
+      return '<h2>'+c.cat+'</h2><table><thead><tr><th style="width:60px;">状態</th><th>書類名</th><th>保管場所</th><th style="width:70px;">区分</th><th>記録の状況</th></tr></thead><tbody>'+
         c.items.map(function(it){return '<tr><td>'+stt2[it.key]+'</td><td>'+it.name+(it.note?'<div style="font-size:10px;">'+esc(it.note)+'</div>':'')+'</td><td>'+esc(auditPlaceOf(it)||'')+'</td><td>'+it.when+'</td><td>'+(auditDataInfo(it.key,fy)||'—')+'</td></tr>';}).join('')+'</tbody></table>';
     }).join('');
     printDoc('監査書類 最終チェックリスト（'+fy+'年度）',body);
@@ -25699,7 +25700,7 @@ function touenDayBody(dk,d,kids){
     /* ★健康チェックは画面では登園の中に入れたのに、紙は別のままだった。
        依頼（39-14）の眼目は「別々の用紙で保管する必要なし」なので、
        この紙に列として入れる。体温のとなり＝画面と同じ並びにする。 */
-    '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th><th style="width:150px;">健康チェック</th>'+opts.map(function(op){return '<th>'+esc(op)+(isAutoAttendOpt(op)?'（自動）':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
+    '<table><thead><tr><th>NAME</th><th>生年月日</th><th>歳児</th><th>出欠</th><th>体温</th><th style="width:150px;">健康チェック</th>'+opts.map(function(op){return '<th>'+esc(op)+''+'</th>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){
       /* 保護者が未来WAで押した登園・降園を、空の欄にだけ添える（画面と同じ。記録は書き換えない） */
       var r=touenCheckinFill(dk,c.id,Object.assign({opts:{}},d.rows[c.id]||{}),d);
@@ -27418,10 +27419,10 @@ function dgUnei(){
     var capSum=0,nSum=0;
     clsRows.forEach(function(r){capSum+=(+r.cap||0);nSum+=r.n;});
     var rows='<h2>1. 施設概要</h2><table><tbody><tr><th>施設名</th><td>'+schoolNameFixed()+'</td></tr><tr><th>所在地</th><td>'+esc(SET.address||'')+'</td></tr><tr><th>開所時間</th><td>'+d.hours+'</td></tr></tbody></table>'+
-    '<h2>2. 児童の状況（システムの児童名簿から自動反映）</h2><table><thead><tr><th>クラス</th><th>定員</th><th>現員</th></tr></thead><tbody>'
+    '<h2>2. 児童の状況</h2><table><thead><tr><th>クラス</th><th>定員</th><th>現員</th></tr></thead><tbody>'
       +clsRows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(String(r.cap))+'</td><td>'+r.n+'</td></tr>';}).join('')
       +'<tr><td>合計</td><td>'+capSum+'</td><td>'+nSum+'</td></tr></tbody></table>'+
-    '<h2>3. 職員の状況（システムの職員名簿から自動反映）</h2><table><thead><tr><th>氏名</th><th>役職</th><th>雇用形態</th><th>保有資格</th><th>在職</th></tr></thead><tbody>'
+    '<h2>3. 職員の状況</h2><table><thead><tr><th>氏名</th><th>役職</th><th>雇用形態</th><th>保有資格</th><th>在職</th></tr></thead><tbody>'
       /* ★退職日を入れた職員も現職として載っていた */
       +DB.staff.map(function(x){
         var left=x.leaveDate&&String(x.leaveDate)<=todayISO();
@@ -33650,12 +33651,15 @@ function reqLinkHTML(u,label){
   if(!/^https?:\/\//.test(String(u||'')))return '';
   return '<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" style="color:#1F5FA8;">'+esc(label||'公式のページ')+' ↗</a>';
 }
-function reqLocalBoxHTML(li,muni){
+/* ★AI が作ったリンクが開けなかった（2026-09-25）。サーバで確かめて捨てたあとは、
+   自分で探せるよう検索のリンクを出す（公式のページだと言い切れるものだけを「出典」と呼ぶ） */
+function reqSearchLink(q){return '<a href="https://www.google.com/search?q='+encodeURIComponent(q)+'" target="_blank" rel="noopener noreferrer" style="color:#5B6875;">検索で探す ↗</a>';}
+function reqLocalBoxHTML(li,muni,itemName){
   if(!li)return '';
   var rows=[['提出先',li.submitTo],['様式',li.form],['期限',li.deadline],['注意',li.note]].filter(function(x){return x[1];});
   return '<div class="rqlocal"><div class="rqlocal-h">'+esc(muni)+' では</div>'
     +rows.map(function(x){return '<div><b>'+x[0]+'</b>：'+esc(x[1])+'</div>';}).join('')
-    +(li.url?'<div>'+reqLinkHTML(li.url,'出典')+'</div>':'')+'</div>';
+    +'<div>'+(li.url?reqLinkHTML(li.url,'出典'):reqSearchLink(muni+' '+String(itemName||li.name||'').replace(/（[^）]*）/g,'')+' 様式'))+'</div>'+'</div>';
 }
 
 /* 行政に出す届出・申請・報告か。これらは自治体の様式でしか受け付けられないので、
@@ -33699,7 +33703,7 @@ function renderReqNav(){
     h+='<div class="card rqlocal-sum" style="margin-bottom:14px;"><h3>'+ic('search')+esc(muniNow)+' の最新の情報</h3>'
       +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に、AI が公式の情報を検索してまとめました。提出の前に、必ず下の出典のページでもご確認ください。</div>'
       +(LOC.summary?'<div style="font-size:13px;line-height:1.8;margin-bottom:8px;">'+esc(LOC.summary)+'</div>':'')
-      +((LOC.office&&LOC.office.name)?'<div style="font-size:13px;"><b>担当</b>：'+esc(LOC.office.name)+(LOC.office.tel?'　'+esc(LOC.office.tel):'')+'　'+reqLinkHTML(LOC.office.url,'担当のページ')+'</div>':'')
+      +((LOC.office&&LOC.office.name)?'<div style="font-size:13px;"><b>担当</b>：'+esc(LOC.office.name)+(LOC.office.tel?'　'+esc(LOC.office.tel):'')+'　'+(LOC.office.url?reqLinkHTML(LOC.office.url,'担当のページ'):reqSearchLink(muniNow+' '+LOC.office.name))+'</div>':'')
       +((LOC.sources||[]).length?'<details style="margin-top:8px;font-size:12.5px;"><summary style="cursor:pointer;">出典（'+LOC.sources.length+'件）</summary><div style="display:grid;gap:4px;margin-top:6px;">'+LOC.sources.map(function(x){return reqLinkHTML(x.url,x.title);}).join('')+'</div></details>':'')
       +'</div>';
   }else{
@@ -33719,7 +33723,7 @@ function renderReqNav(){
       +'<div class="muted" style="font-size:12px;line-height:1.55;"><b>根拠</b>：'+esc(it.basis)+'　／　<b>提出先</b>：'+esc(it.submitTo||'—')+'　／　<b>頻度</b>：'+esc(it.frequency)+'</div>'
       +(it.note?'<div style="font-size:11.5px;color:var(--tx3);margin-top:5px;line-height:1.55;">'+esc(it.note)+'</div>':'')
       +(gov?'<div style="font-size:11.5px;color:#1F5FA8;margin-top:5px;font-weight:600;">自治体の様式で提出します。「様式を入れ込む」で、自治体の様式にそのまま記入できます。</div>':'')
-      +reqLocalBoxHTML(locItem[it.name],muniNow)
+      +reqLocalBoxHTML(locItem[it.name],muniNow,it.name)
       +'</div>'
       /* ★自動作成に対応した書類（いまは職員名簿）は、状態を手で選ぶのをやめ、
          流れの状態（未着手・要回答・要確認・確認済み）を出す。手で「完了」にできると、
@@ -37254,10 +37258,10 @@ function egPicTitle(p){
     /* ★はじめ しるしだけを出していたところ、紙だけを見た方に何の書類か伝わりませんでした。
        名前も一緒に出します。色は深いプラム1色なので、白黒のプリンタでも黒く出ます。
        ★しるしが 26px では放射状の線が潰れたので 36px にしました（2026-09-22 のご指摘）。 */
-    #printArea::before{content:'Miralink';display:block;height:36px;line-height:36px;
-      padding-left:44px;margin:0 0 8px;font-size:16px;font-weight:700;color:#302449;
-      letter-spacing:.01em;
-      background-repeat:no-repeat;background-position:left center;background-size:auto 36px;}
+    /* ★紙の上に Miralink の名前としるしを出していたが、園が役所や保護者へ出す書類なので
+       載せる必要が無い（2026-09-25 安田さんのご指摘）。園の名前を出す（egPrintSchool が data-school に入れる） */
+    #printArea::before{content:attr(data-school);display:block;margin:0 0 8px;font-size:14px;font-weight:700;color:#302449;
+      letter-spacing:.01em;}
   }
 </style>
 <script>
@@ -37280,6 +37284,12 @@ function egBrandLogin(){
 /* 紙の見出しのしるし。
    ★図形をそのまま CSS の中に書くと、同じ形がファイルの中に2つできて重くなります。
      すでに持っている形（EG_MARK_S）から、読み込んだときに1回だけ作ります。 */
+function egPrintSchool(){
+  try{
+    var a=document.getElementById('printArea');
+    if(a)a.setAttribute('data-school',(typeof schoolNameFixed==='function'&&schoolNameFixed())||'');
+  }catch(e){}
+}
 function egBrandPrintCSS(){
   try{
     /* ★紙のしるしも、いただいた形そのまま（放射状の線と点ごと）にします。
@@ -37317,7 +37327,9 @@ function egBrandWa(){
 }
 
 (function(){
-  egBrandPrintCSS();
+  /* 紙のしるし（Miralink）は出さなくなった（2026-09-25）。園の名前を紙の上に入れる */
+  egPrintSchool();
+  window.addEventListener('beforeprint',egPrintSchool);
   var _sl=window.showStaffLogin;
   if(typeof _sl==='function'){
     window.showStaffLogin=function(){ var r=_sl.apply(this,arguments); setTimeout(egBrandLogin,0); return r; };
