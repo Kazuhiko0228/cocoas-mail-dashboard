@@ -1477,6 +1477,13 @@ button.hpr:hover{background:#FAF9F5}
 @media (max-width:640px){.waframe iframe{height:640px;}}
 .rqlocal{margin-top:8px;border-left:3px solid #1F5FA8;background:#F3F7FD;border-radius:0 8px 8px 0;padding:7px 10px;font-size:12px;line-height:1.65;color:var(--tx);}
 .rqlocal-h{font-weight:700;color:#1F5FA8;margin-bottom:2px;}
+.kkch{border:1px solid var(--line);border-radius:10px;margin-bottom:6px;overflow:hidden;}
+.kkch-h{display:flex;align-items:center;gap:6px;width:100%;background:var(--bg2,#F6F7F5);border:0;padding:8px 10px;cursor:pointer;text-align:left;font-weight:700;font-size:12px;color:var(--tx);line-height:1.4;font-family:inherit;}
+.kkch.open .kkch-h{border-bottom:1px solid var(--line);}
+.kkch-ar{width:12px;flex:none;color:var(--tx2);}
+.kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
+.kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
+.kkch-b{padding:6px;}
 .ksmeal{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
 .ksmeal-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
 .ksgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;}
@@ -10671,7 +10678,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -27361,16 +27368,34 @@ function renderKikiVars(){
   $('#kkVarBody').innerHTML=h;
   $('#kkVarBody').querySelectorAll('[data-kv]').forEach(function(inp){inp.oninput=function(){var vv=kikiVars();vv[inp.getAttribute('data-kv')]=inp.value;kikiSaveVars(vv);renderKikiEditor();};});
 }
+/* ★セクションの一覧が全部開いたままで、縦に長くスクロールしないと次の章が見えなかった
+   （2026-09-25 安田さんのご指示「冒頭や章ごとにプルダウンにできるように」）。
+   章ごとに畳み、いま開いているセクションの章だけ開いておく。開け閉めは画面を開いているあいだ覚える */
+var KIKI_OPEN=null;
 function renderKikiNav(){
   var ed=kikiEdits();
+  if(!KIKI_OPEN){
+    KIKI_OPEN={};
+    var cur=KIKI_SECTIONS.filter(function(s){return s.id===kikiSel;})[0];
+    if(cur)KIKI_OPEN[cur.chapter]=true;
+  }
   var h=KIKI_CHAPTERS.map(function(ch){
     var secs=KIKI_SECTIONS.filter(function(s){return s.chapter===ch.id;});
     if(!secs.length)return '';
-    return '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:11.5px;color:var(--tx2);margin-bottom:5px;line-height:1.4;">'+esc(ch.title)+'</div>'
-      +secs.map(function(s){var on=s.id===kikiSel;return '<div data-ks="'+esc(s.id)+'" style="padding:6px 9px;border-radius:8px;cursor:pointer;font-size:12.5px;margin-bottom:2px;'+(on?'background:var(--teal);color:#fff;':'')+'">'+esc(s.title)+(ed[s.id]!=null?' <span style="opacity:.7;">✎</span>':'')+'</div>';}).join('')
+    var open=!!KIKI_OPEN[ch.id],nEd=secs.filter(function(s){return ed[s.id]!=null;}).length;
+    var hasSel=secs.some(function(s){return s.id===kikiSel;});
+    return '<div class="kkch'+(open?' open':'')+'">'
+      +'<button type="button" class="kkch-h" data-kch="'+esc(ch.id)+'" aria-expanded="'+(open?'true':'false')+'">'
+        +'<span class="kkch-ar">'+(open?'▾':'▸')+'</span><span style="flex:1;">'+esc(ch.title)+'</span>'
+        +'<span class="kkch-n">'+secs.length+(nEd?'・✎'+nEd:'')+'</span>'+(hasSel&&!open?'<span class="kkch-dot"></span>':'')+'</button>'
+      +(open?'<div class="kkch-b">'+secs.map(function(s){var on=s.id===kikiSel;return '<div data-ks="'+esc(s.id)+'" style="padding:6px 9px;border-radius:8px;cursor:pointer;font-size:12.5px;margin-bottom:2px;'+(on?'background:var(--teal);color:#fff;':'')+'">'+esc(s.title)+(ed[s.id]!=null?' <span style="opacity:.7;">✎</span>':'')+'</div>';}).join('')+'</div>':'')
       +'</div>';
   }).join('');
+  h='<div style="display:flex;gap:6px;margin-bottom:8px;"><button type="button" class="btn btn-sm btn-ghost" id="kkOpenAll" style="flex:1;">すべて開く</button><button type="button" class="btn btn-sm btn-ghost" id="kkCloseAll" style="flex:1;">すべて閉じる</button></div>'+h;
   $('#kkNav').innerHTML=h;
+  $('#kkNav').querySelectorAll('[data-kch]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-kch');KIKI_OPEN[k]=!KIKI_OPEN[k];renderKikiNav();};});
+  $('#kkOpenAll').onclick=function(){KIKI_CHAPTERS.forEach(function(c){KIKI_OPEN[c.id]=true;});renderKikiNav();};
+  $('#kkCloseAll').onclick=function(){KIKI_OPEN={};renderKikiNav();};
   $('#kkNav').querySelectorAll('[data-ks]').forEach(function(d){d.onclick=function(){kikiSel=d.getAttribute('data-ks');renderKikiNav();renderKikiEditor();};});
 }
 function renderKikiEditor(){
