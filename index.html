@@ -1490,6 +1490,10 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.npocur{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#EEF6F2;border:1px solid #9FD3BD;border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+.npocur-t{flex:1;min-width:220px;font-size:12.5px;line-height:1.7;}
+.npocur-t b{color:#0F6E56;font-size:12px;}
+.npocur-x{color:var(--tx);}
 .mpick{display:inline-flex;align-items:center;gap:4px;flex:none;}
 .mpick select{width:auto;min-width:0;padding-right:26px;}
 .mpick-b{padding:0;width:36px;min-width:36px;height:38px;font-size:18px;line-height:1;justify-content:center;}
@@ -10737,7 +10741,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -25652,9 +25656,16 @@ function edNippo(){
       +'<select id="npoKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select>'
       +'<button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     lockBarHtml(d)+
-    '<div class="field"><label>活動内容<button class="btn btn-sm btn-ghost" id="npoCurr" style="float:right;padding:2px 8px;">カリキュラムから取り込む</button></label>'
-      +'<textarea id="npoActual" rows="4" placeholder="'+esc(currText||'')+'">'+esc(actualVal)+'</textarea>'
-      +(currText&&!actualVal?'<div class="muted" style="font-size:11.5px;margin-top:3px;">薄い字はカリキュラムの予定です。まだ記録には入っていません。「カリキュラムから取り込む」を押すと入ります。</div>':'')
+    /* ★「カリキュラムから取り込む」が見出しの右はしの小さな枠だけで、押すものだと気づきにくかった
+       （2026-09-25 安田さんのご指示）。欄が空のときは、欄のすぐ上にカリキュラムの予定を見せ、
+       大きな「この予定を活動内容に入れる」を置く。書いたあとは「予定で置き換える」を小さく残す */
+    '<div class="field"><label>活動内容</label>'
+      +(currText&&!actualVal
+        ?'<div class="npocur"><div class="npocur-t"><b>'+esc(recDate.slice(5).replace('-','/'))+'　'+esc(d.klass)+' のカリキュラムの予定</b><div class="npocur-x">'+esc(currText).replace(/\n/g,'<br>')+'</div></div>'
+          +'<button class="btn btn-primary" id="npoCurr">'+ic('check')+'この予定を活動内容に入れる</button></div>'
+        :'')
+      +'<textarea id="npoActual" rows="4" placeholder="'+esc(currText?'上の予定を入れるか、ここに書いてください':'活動内容を書いてください')+'">'+esc(actualVal)+'</textarea>'
+      +(currText&&actualVal?'<div style="text-align:right;margin-top:4px;"><button class="btn btn-sm" id="npoCurr">'+ic('refresh')+'カリキュラムの予定で置き換える</button></div>':'')
       +'</div>'+
     /* ★記入用紙には「使った絵本や玩具」の列があるのに、画面に欄が無かった（17-7）。
        紙で書いて取り込むと、画面で見たときに落ちてしまう。 */
@@ -25673,7 +25684,9 @@ function edNippo(){
     if(!lockCanEdit(d)){alert('この記録は確定ずみです。クラスを変えるには園長・管理者の許可が要ります。');e.target.value=d.klass;return;}
     lockNote(d,'クラス',d.klass,e.target.value);
     d.klass=e.target.value;save();edNippo();};
-  $('#npoCurr').onclick=function(){if(!lockCanEdit(d))return;lockNote(d,'活動内容',d.actual,currText);$('#npoActual').value=currText;d.actual=currText;save();};
+  var _nc=$('#npoCurr');if(_nc)_nc.onclick=function(){if(!lockCanEdit(d))return;
+    if(d.actual&&d.actual!==currText&&!confirm('いま書いてある活動内容を、カリキュラムの予定に置き換えます。よろしいですか？'))return;
+    lockNote(d,'活動内容',d.actual,currText);d.actual=currText;save();edNippo();};
   /* 確定したあとに直したときは、どこを何から何に変えたかを残す（監査で見られる） */
   var NPO_LABEL={actual:'活動内容',books:'使った絵本や玩具',diary:'クラスの様子・エピソード',absent:'欠席',early:'早退',note:'引き継ぎ・特記事項',by:'記録者'};
   [['npoActual','actual'],['npoBooks','books'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){
