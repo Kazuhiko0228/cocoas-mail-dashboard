@@ -11296,7 +11296,7 @@ var EN_DICT={
 '勤務表（シフト表）':'Work Schedule (Shift Chart)',
 'このシステムで作る':'Create in This System',
 '様式をImport':'Import form','様式を入れ込む':'Add form',
-'在園児数':'Enrolled children','個人連絡':'Personal notes','個人連絡を書く':'Write a personal note','一時保存':'Save for now',
+'在園児数':'Enrolled children','きょうの連絡帳（保護者へ送る文）':'Today’s note (message to family)','AIで文章にする':'Write with AI','この内容で保護者へ送る':'Send to family','文を消す':'Clear text','個人連絡':'Personal notes','個人連絡を書く':'Write a personal note','一時保存':'Save for now',
 '一時保存しました（まだ送付していません）':'Saved for now (not sent yet)','1日のまとめ':'Daily summary','AIで作り直す':'Rewrite with AI',
 'この内容で送信しますか？':'Send with this content?','宛先と内容を確認しました':'I have checked the recipient and content','戻って直す':'Go back and edit','送信する':'Send',
 '送ると、保護者の未来WA にすぐ届きます。取り消せません。':'It reaches the family’s MiraiWA right away and cannot be undone.',
@@ -17441,14 +17441,15 @@ function renderFeed(){
             return '<div><span class="l">'+em+' '+esc(k)+'　<span data-nolang="1">'+esc(dr[k])+'</span></span>'
               +'<span class="y"><button class="btn btn-sm btn-ghost" data-fddel="'+esc(k)+'">消す</button></span></div>';
           }).join('')+'</div>'
-        +'<div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.8;">ジャンルを選び直しても、書いたものは消えません。「保護者へ送付」で、ここにあるものをまとめて送付します。</div>'
+        +'<div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.8;">ジャンルを選び直しても、書いたものは消えません。下の「きょうの連絡帳」で、このひとことをもとに文章にして送ります。</div>'
         +'</div>'
       : '')
     /* ジャンルを選ぶ → ひとこと → 一時保存（2026-09-25 安田さんのご指示）。一時保存したものは下に積み上がり、
        まとめて「保護者へ送付」する */
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
-    +'<button class="btn btn-sm" id="fdSave">'+ic('check')+'一時保存</button>'
-    +'<button class="btn btn-primary btn-sm" id="fdAdd">'+(drk.length?('保護者へ送付（'+drk.length+'件）'):'保護者へ送付')+'</button>'
+    +'<button class="btn btn-primary btn-sm" id="fdSave">'+ic('check')+'一時保存</button>'
+    /* ★ひとこと1行だけで保護者へ送れていた（2026-09-25 安田さんのご指摘「連絡帳みたいな感じでしょ？」）。
+       ひとことは材料としてためておき、下の「きょうの連絡帳」で文にしてから送る（AI でも手でも書ける） */
     +'<span class="muted" id="fdMsg" style="font-size:12px;"></span></div>'
     /* ★AIに何を渡しているのかが、画面のどこにも出ていなかった。
        集めた材料をここに並べ、要らないものは外せるようにする
@@ -17456,9 +17457,13 @@ function renderFeed(){
     +'</div>'
     /* ★「AIで1日のまとめを作る」がひとことの送付ボタンの横にあり、何を作るボタンか分かりにくかった。
        1日のまとめの枠を分け、「このまとめを保護者へ送付」の横に置く（2026-09-25 安田さんのご指示） */
-    +'<div class="card" style="margin-bottom:14px;"><h3>'+ic('spark')+'1日のまとめ</h3>'
+    +'<div class="card" style="margin-bottom:14px;"><h3>'+ic('spark')+'きょうの連絡帳（保護者へ送る文）</h3>'
     +'<div style="padding:10px 12px;border:1px solid var(--line);border-radius:12px;">'
-    +'<div style="font-weight:800;font-size:12.5px;margin-bottom:6px;">AIの1日のまとめに使うもの（'+matsOn.length+'件）</div>'
+    +'<div style="font-weight:800;font-size:12.5px;margin-bottom:6px;">一時保存したひとこと（'+drk.length+'件・かならず文に入れます）</div>'
+    +(drk.length?drk.map(function(k){var em=(FEED_KINDS.filter(function(x){return x[0]===k;})[0]||['','・'])[1];
+        return '<div style="font-size:12.5px;line-height:1.8;">'+em+' <b>'+esc(k)+'</b>　<span data-nolang="1">'+esc(dr[k])+'</span></div>';}).join('')
+      :'<div class="muted" style="font-size:12px;">まだありません。上でジャンルを選んで、ひとことを一時保存してください。</div>')
+    +'<div style="font-weight:800;font-size:12.5px;margin:10px 0 6px;">その日の記録から使うもの（'+matsOn.length+'件）</div>'
     +(mats.length
       ? mats.map(function(m){
           return '<div style="display:flex;gap:8px;align-items:flex-start;padding:3px 0;">'
@@ -17477,18 +17482,17 @@ function renderFeed(){
     /* illumine の AI Daily Report にあたる（2026-09-12）。
        きょうの記録と登園の事実から、保護者に渡す報告文を日本語と英語で作る。
        先生が読んで直してから送付する。AI が勝手に送ることはない。 */
-    +(FEED.ai
-      ? '<div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--bg2,#F6F7F5);">'
-        +'<div style="font-weight:800;font-size:13px;margin-bottom:6px;">📝 できたまとめ（送付する前に読んで直せます）</div>'
-        +((alang==='en')?'':'<div class="field"><label>日本語</label><textarea id="fdSumJa" rows="4">'+esc(FEED.ai.ja||'')+'</textarea></div>')
-        +((alang==='ja')?'':'<div class="field"><label>English</label><textarea id="fdSumEn" rows="4">'+esc(FEED.ai.en||'')+'</textarea></div>')
-        +((alang==='en')?'<div class="muted" style="font-size:11.5px;margin-bottom:4px;line-height:1.8;">このまとめは英語で届きます。ご家庭には、この英語がそのまま出ます。</div>':'')
-        +'</div>'
-      : '')
+    /* 送る文。AI で作っても、ここに手で書いてもよい（2026-09-25 安田さんのご指示「もちろん手動でも書けるように」） */
+    +'<div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--bg2,#F6F7F5);">'
+      +'<div style="font-weight:800;font-size:13px;margin-bottom:6px;">📝 送る文（「AIで文章にする」か、ここに直接書けます）</div>'
+      +((alang==='en')?'':'<div class="field" style="margin-bottom:8px;"><label>日本語</label><textarea id="fdSumJa" rows="5" placeholder="例：きょうは給食をおかわりして、午後はブロックで高いタワーを作りました。お昼寝も12:30から14:00までぐっすりでした。">'+esc((FEED.ai&&FEED.ai.ja)||'')+'</textarea></div>')
+      +((alang==='ja')?'':'<div class="field" style="margin-bottom:8px;"><label>English</label><textarea id="fdSumEn" rows="5">'+esc((FEED.ai&&FEED.ai.en)||'')+'</textarea></div>')
+      +((alang==='en')?'<div class="muted" style="font-size:11.5px;margin-bottom:4px;line-height:1.8;">この連絡帳は英語で届きます。ご家庭には、この英語がそのまま出ます。</div>':'')
+    +'</div>'
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;">'
-    +'<button class="btn btn-sm" id="fdAI">'+ic('spark')+(FEED.ai?'AIで作り直す':'AIで1日のまとめを作る')+'</button>'
-    +'<button class="btn btn-primary btn-sm" id="fdSumSend"'+(FEED.ai?'':' disabled title="先にAIでまとめを作ってください"')+'>このまとめを保護者へ送付</button>'
-    +(FEED.ai?'<button class="btn btn-sm btn-ghost" id="fdSumNo">やめる</button>':'')
+    +'<button class="btn btn-sm" id="fdAI">'+ic('spark')+((FEED.ai&&(FEED.ai.ja||FEED.ai.en))?'AIで作り直す':'AIで文章にする')+'</button>'
+    +'<button class="btn btn-primary btn-sm" id="fdSumSend">この内容で保護者へ送る</button>'
+    +((FEED.ai&&(FEED.ai.ja||FEED.ai.en))?'<button class="btn btn-sm btn-ghost" id="fdSumNo">文を消す</button>':'')
     +'<span class="muted" id="fdMsg2" style="font-size:12px;"></span></div>'
     +'</div>';
   /* ★これまでは、きょう送付したものしか出していなかったので、
@@ -17576,26 +17580,11 @@ function renderFeed(){
     renderFeed();
     fdSay('一時保存しました（まだ送付していません）','#fdMsg');
   };
-  $('#fdAdd').onclick=function(){
-    fdKeep();
-    var ks=feedDraftKinds(day,FEED.kid),d2=feedDraftOf(day,FEED.kid);
-    if(!ks.length){fdSay('ひとことを入れてください','#fdMsg');return;}
-    /* ★個人への連絡は取り消せないので、送る前に中身を見せて確かめてもらう（2026-09-25 安田さんのご指示） */
-    feedConfirm(c,ks.map(function(k){return k+'：'+d2[k];}),function(){fdSendNow(ks,d2);});
-  };
-  function fdSendNow(ks,d2){
-    var by=(currentStaff()||{}).name||'';
-    ks.forEach(function(k){
-      feedAdd(day,FEED.kid,{t:tcNow(),kind:k,text:String(d2[k]).slice(0,200),by:by});
-      feedDraftSet(day,FEED.kid,k,'');
-    });
-    /* 送付したものがすぐ見えるように、一覧はきょうに戻す */
-    FEED.from='';FEED.to='';
-    /* 知らせの文も英語に切り替わるようにする。この短い知らせは画面の外に出すので、langApply では届かない */
-    var tst=ks.length+'件を保護者へ送付しました';
-    if(typeof langMsg==='function')tst=langMsg(tst);
-    renderFeed(); if(typeof aiToast==='function')aiToast(tst);
-  }
+  /* 送る文を手で直したら控える（描き直しても消えないように） */
+  function fdSumKeep(){var jb=$('#fdSumJa'),eb=$('#fdSumEn');
+    FEED.ai=FEED.ai||{ja:'',en:'',lang:alang};
+    if(jb)FEED.ai.ja=jb.value;if(eb)FEED.ai.en=eb.value;}
+  ['#fdSumJa','#fdSumEn'].forEach(function(q){var x=$(q);if(x)x.oninput=fdSumKeep;});
   var ai=$('#fdAI'); if(ai)ai.onclick=function(){
     if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())){fdSay('AIは、園コードでログインしているときに使えます（Standard 以上）。');return;}
     fdKeep();
@@ -17603,10 +17592,15 @@ function renderFeed(){
        ★以前は、送付したひとことと登園の時刻だけを渡していた。
          その日の午睡・健康チェック・活動・日誌は、まとめに1文字も入っていなかった。 */
     var use=feedMaterials(day,FEED.kid,c).filter(function(m){return !FEED.matOff[m.k];});
-    if(!use.length){fdSay('まだ記録がありません。1つ以上書いてから作ってください。');return;}
+    /* ★先生のひとこと（一時保存したもの）を、いちばん上の材料として必ず渡す（2026-09-25 安田さんのご指示
+       「一言をベースにAIで文章を作って送付できるように」）。記録は、そのうしろに添える */
+    var dk=feedDraftOf(day,FEED.kid),hk=feedDraftKinds(day,FEED.kid);
+    var hitokoto=hk.map(function(k){return '先生のひとこと（'+k+'）：'+dk[k];});
+    if(!hitokoto.length&&!use.length){fdSay('ひとことを一時保存するか、その日の記録を書いてから作ってください。');return;}
+    if(FEED.ai&&(FEED.ai.ja||FEED.ai.en)&&!confirm('いま書いてある送る文を、AIの文に入れ替えます。よろしいですか？'))return;
     var lang=feedLangOf(FEED.kid);
     /* 送る前に、お名前・連絡先らしきものを伏せ字にする（ほかのご家庭のことを外へ出さないため） */
-    var facts=aiScrub(use.map(function(m){return m.l+'：'+m.t;}).join('\n'));
+    var facts=aiScrub(hitokoto.concat(use.map(function(m){return m.l+'：'+m.t;})).join('\n'));
     fdSay('AIがまとめています…（10秒ほど）');
     /* ★何語で作るかを「先生からの補足」の文に混ぜて送っていたが、補足は指示の中ほどに入るだけで、
        あとに続く「日本語と英語の両方を返してください」に上書きされていた。
@@ -17614,7 +17608,8 @@ function renderFeed(){
        ことばは lang という自分の欄で渡し、作るところで出し分けてもらう
        （2026-09-20 安田さんのご依頼「選んだ言語だけが作られる」）。 */
     API.call('POST','/ai/plan',{kind:'日々のまとめ',klass:c?c.klass:'',ageLabel:c?(ageClassOf(c)||''):'',
-      period:day,facts:facts.slice(0,1500),lang:lang})
+      period:day,facts:facts.slice(0,1500),lang:lang,
+      note:hitokoto.length?'「先生のひとこと」は、この子のきょうの出来事です。1つ残らず文に入れてください。':''})
       .then(function(j){
         var got=(j&&j.data)?j.data:{ja:(j&&j.text)||'',en:''};
         /* 選んだことばのぶんだけ持つ。作るところが古いままでも、
@@ -17633,13 +17628,15 @@ function renderFeed(){
        未来WA は、ことばを日本語にしている保護者に本文のほうを出すので、
        ここを空にすると、そのご家庭の画面から中身が消えてしまう。 */
     if(alang==='en'){
-      if(!en){fdSay('英語のまとめが空です');return;}
+      if(!en){fdSay('送る文（English）が空です。「AIで文章にする」か、直接書いてください。');return;}
       ja=en;
-    }else if(!ja){fdSay('日本語のまとめが空です');return;}
+    }else if(!ja){fdSay('送る文が空です。「AIで文章にする」か、直接書いてください。');return;}
     if(alang==='ja')en='';
     feedConfirm(c,[(alang==='en'?en:ja)],function(){
       feedAdd(day,FEED.kid,{t:tcNow(),kind:FEED_SUM,text:ja.slice(0,600),en:en.slice(0,800),by:(currentStaff()||{}).name||''});
-      FEED.ai=null; FEED.from='';FEED.to=''; renderFeed(); if(typeof aiToast==='function')aiToast('まとめを保護者へ送付しました');
+      /* 文に入れたひとことは、送ったので片付ける（次の日の分と混ざらないように） */
+      feedDraftKinds(day,FEED.kid).forEach(function(k){feedDraftSet(day,FEED.kid,k,'');});
+      FEED.ai=null; FEED.from='';FEED.to=''; renderFeed(); if(typeof aiToast==='function')aiToast('きょうの連絡帳を保護者へ送りました');
     });
   };
 }
