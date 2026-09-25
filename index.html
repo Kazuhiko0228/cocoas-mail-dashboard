@@ -16281,7 +16281,7 @@ var EN_DICT={
 '行事が、年度の順に並びます。行事を足す・消すには、月間スケジュールを開ける権限が要ります。':'Events are listed in school-year order. Adding and removing events requires permission to open the Monthly Schedule.',
 '毎月のタスクをここでチェックできます。行事などは年間スケジュールから確認・編集を行なってください。':'Check this month\u2019s tasks here. Events and the like are viewed and edited on the Annual Schedule.',
 '行事を直すときは年間スケジュールで':'To change an event, use the Annual Schedule',
-'この行事を消す':'Remove this event',
+'この行事を消す':'Remove this event','この行事を直す':'Edit this event','行事を直す':'Edit event',
 '日にち':'Date','行事の名前':'Event name','例：運動会':'e.g. Sports Day',
 '{0}年{1}月の行事を入れます。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。':'Add an event for {1}/{0}. Events you add also appear in “This month’s events” on Home and on the Monthly Schedule calendar.',
 '日にちを選んでください。':'Please pick a date.',
@@ -17714,6 +17714,8 @@ function annualHTML(fy,forPrint){
             return '<div class="anmr"><span>'+(+e.date.slice(8))+'日　'+esc(e.name)+'</span><span style="flex:1;"></span>'
               /* ×は記号なので、英語にするときに置きかえない（data-nolang）。
                  何のボタンかは、マウスを乗せると出る ふきだし で伝える。 */
+              /* ★足す・消すしかなく、日にちや名前を直すには消して入れ直すしかなかった（2026-09-25 安田さんのご指示） */
+              +(canEd?'<button class="btn btn-sm btn-ghost" data-anevedit="'+esc(e.id||'')+'" title="この行事を直す" style="padding:0 8px;line-height:1.6;margin-right:4px;">'+ic('edit')+'直す</button>':'')
               +(canEd?'<button class="btn btn-sm btn-ghost" data-anevdel="'+esc(e.id||'')+'" data-nolang="1"'
                   +' title="この行事を消す" style="padding:0 8px;line-height:1.6;">×</button>':'')
               +'</div>';
@@ -17744,6 +17746,10 @@ function renderAnnual(){
   };});
   s.querySelectorAll('[data-anevdel]').forEach(function(b){b.onclick=function(){
     homeEventDel(b.getAttribute('data-anevdel'),renderAnnual);
+  };});
+  s.querySelectorAll('[data-anevedit]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-anevedit'),e=homeEventsAll().filter(function(x){return x.id===id;})[0];
+    if(e)annualEventAsk(String(e.date).slice(0,7),renderAnnual,e);
   };});
 }
 
@@ -18468,7 +18474,8 @@ function homeEventAsk(ym,done){
      こうすると、年度の外の日が入ることがない（2026-09-21 安田さんのご指示）。
    ym … 「2026-04」の形。押した月。
    done … 足したあとに描き直すもの。 */
-function annualEventAsk(ym,done){
+/* ev を渡すと「直す」窓になる（日にちと名前が入った状態で開き、同じ行事を書き換える） */
+function annualEventAsk(ym,done,ev){
   if(!/^\d{4}-\d{2}$/.test(String(ym||'')))return;
   var y=+String(ym).slice(0,4),mo=+String(ym).slice(5,7);
   /* その月の終わりの日。翌月の「0日」が、その月の最後の日になる */
@@ -18476,16 +18483,17 @@ function annualEventAsk(ym,done){
   var lo=ym+'-01',hi=ym+'-'+('0'+last).slice(-2);
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
-  m.innerHTML='<div class="modal" style="width:420px;max-width:94vw;"><h2>行事を足す</h2>'
+  m.innerHTML='<div class="modal" style="width:420px;max-width:94vw;"><h2>'+(ev?'行事を直す':'行事を足す')+'</h2>'
     +'<div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.8;">'
     +y+'年'+mo+'月の行事を入れます。入れた行事は、ホームの「今月の行事」と月間スケジュールのカレンダーにも出ます。</div>'
     +'<div class="field"><label>日にち</label>'
-    +'<input type="date" id="anEvDate" value="'+esc(lo)+'" min="'+esc(lo)+'" max="'+esc(hi)+'"></div>'
+    /* 直すときは、ほかの月へも動かせるよう、その年度の中ならどの日でも選べる */
+    +'<input type="date" id="anEvDate" value="'+esc(ev?String(ev.date).slice(0,10):lo)+'"'+(ev?'':' min="'+esc(lo)+'" max="'+esc(hi)+'"')+'></div>'
     +'<div class="field"><label>行事の名前</label>'
-    +'<input id="anEvName" maxlength="60" placeholder="例：運動会"></div>'
+    +'<input id="anEvName" maxlength="60" placeholder="例：運動会" value="'+esc(ev?ev.name||'':'')+'"></div>'
     +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">'
     +'<button class="btn" id="anEvCancel">やめる</button>'
-    +'<button class="btn btn-primary" id="anEvSave">足す</button></div></div>';
+    +'<button class="btn btn-primary" id="anEvSave">'+(ev?'直す':'足す')+'</button></div></div>';
   var nmBox=$('#anEvName');
   if(nmBox)setTimeout(function(){try{nmBox.focus();}catch(e){}},0);
   $('#anEvCancel').onclick=function(){m.remove();};
@@ -18496,9 +18504,11 @@ function annualEventAsk(ym,done){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){alert('日にちを選んでください。');return;}
     /* ★日付の欄の min・max は、端末によっては効かず、手で打ててしまう。
        保存の前に、押した月の中かどうかをもう一度たしかめる。 */
-    if(d<lo||d>hi){alert('この月の中の日にちを選んでください。');return;}
+    if(!ev&&(d<lo||d>hi)){alert('この月の中の日にちを選んでください。');return;}
     if(!nm){alert('行事の名前を入れてください。');return;}
-    var a=homeEventsAll();a.push({id:'ev'+Date.now(),date:d,name:nm.slice(0,60)});
+    var a=homeEventsAll();
+    if(ev){a=a.map(function(x){return x.id===ev.id?Object.assign({},x,{date:d,name:nm.slice(0,60)}):x;});}
+    else a.push({id:'ev'+Date.now(),date:d,name:nm.slice(0,60)});
     stSet('homeEvents',a.slice(-200));
     m.remove();
     if(typeof done==='function')done();
