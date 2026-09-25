@@ -6470,6 +6470,7 @@ var EG_NAV=[
      /* ★「日常チェック」の行も出していたが、押しても画面が変わらない（いま開いている
         画面そのものを指しているだけ）ので消した（2026-09-21 安田さんのご指示）。
         中の3つ（登園（出席）・安全点検・保育日誌・業務日報）で足りる。 */
+     {p:'missing',  l:'未入力書類'},
      {p:'records',  l:'登園（出席）',       rec:'登園（出席）'},
      {p:'records',  l:'安全点検',           rec:'安全点検'},
      {p:'records',  l:'保育日誌・業務日報', rec:'保育日誌・業務日報'},
@@ -6488,9 +6489,8 @@ var EG_NAV=[
      {p:'templates', l:'配信テンプレート', navHide:true, homeHide:true}]},
    {k:'wa',      l:'未来WA',    i:'ic:73',si:'cast', c:'#C43478', bg:'#FDECF4', p:'wastore'},
    {k:'photo',   l:'写真販売',   i:'photo', si:'photo', c:'#B4560C', bg:'#FBEFE3', p:'photosale'},
-   /* ★サイドバーには出ているのにメニューには出ていなかった（2026-09-21 安田さんのご指摘）。
-      menuShow を付けたものは、homeHide が付いていてもメニューのマスには出す。 */
-   {k:'miss_home', l:'未入力書類', i:'ic:65',si:'alert', c:'#A32D2D', bg:'#FCEBEB', p:'missing', homeHide:true, menuShow:true}
+   /* ★「未入力書類」はここ（連絡・配信の並び）の単独の行だったが、日々の記録の抜けを見る画面なので
+      「出席簿・日常チェック」の中へ移した（2026-09-25 安田さんのご指示） */
  ]},
  {cat:'カリキュラム',items:[
    {k:'annual',     l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'annual'},
@@ -10366,7 +10366,7 @@ var EN_DICT={
 /* ── 月間カリキュラム 作り直し（2026-09-21）───────────── */
 '午前':'Morning','午後':'Afternoon',
 '◀ 前の週':'◀ Previous week','次の週 ▶':'Next week ▶','この週を印刷':'Print this week',
-'週は月曜はじまりです。まだ何も書いていない週には「・」、その週の平日がぜんぶ書けたら「✓」が付きます。':
+'週は月曜はじまりです。その週の平日がぜんぶ書けたら「✓」が付きます。':
   'Weeks start on Monday. A week with nothing written shows "・"; a week where every weekday is filled in shows "✓".',
 '第{0}週 {1}/{2}-{3}/{4}':'Week {0} {1}/{2}-{3}/{4}',
 '第{0}週 {1}/{2}-{3}/{4}　・':'Week {0} {1}/{2}-{3}/{4} ・',
@@ -22205,7 +22205,9 @@ function renderCurriculum(){
     +'<div class="curwk-list">'
     +weeks.map(function(w,i){
       var done=w.days.filter(curDayHas).length;
-      var mark=(done===0)?'・':((done===w.days.length)?'✓':'');
+      /* ★まだ書いていない週に「・」を付けていたが、週の名前の右はしに点がぽつんと浮いて見えた
+         （2026-09-25 安田さんのご指示で削除）。書けた週の「✓」だけにする */
+      var mark=(done>0&&done===w.days.length)?'✓':'';
       return '<button class="btn btn-sm'+(i===curWeekIdx?' btn-primary':'')+' curwk-b" data-cwk="'+i+'">'
         +'第'+(i+1)+'週 '+curWeekLabel(w)+(mark?'　'+mark:'')+'</button>';
     }).join('')
@@ -22213,7 +22215,7 @@ function renderCurriculum(){
     +'<button class="btn btn-sm" id="curWkNext">次の週 ▶</button>'
     +'</div>'
     +'<div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">'
-    +'<span class="muted" style="font-size:11.5px;flex:1;min-width:200px;">週は月曜はじまりです。まだ何も書いていない週には「・」、その週の平日がぜんぶ書けたら「✓」が付きます。</span>'
+    +'<span class="muted" style="font-size:11.5px;flex:1;min-width:200px;">週は月曜はじまりです。その週の平日がぜんぶ書けたら「✓」が付きます。</span>'
     +'<button class="btn btn-sm" id="curWkPrint">'+ic('printer')+'この週を印刷</button></div>'
     +'</div>';
   var bodyHtml;
