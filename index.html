@@ -1490,6 +1490,9 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.mpick{display:inline-flex;align-items:center;gap:4px;flex:none;}
+.mpick select{width:auto;min-width:0;padding-right:26px;}
+.mpick-b{padding:0;width:36px;min-width:36px;height:38px;font-size:18px;line-height:1;justify-content:center;}
 .kktok{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;}
 .kktok-h{font-size:11.5px;font-weight:700;color:var(--tx2);margin-bottom:6px;}
 .kktok-g{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:5px;}
@@ -4435,6 +4438,47 @@ function printSanitize(html){
   }
   return doc.body.innerHTML;
 }
+/* ══ 月を選ぶ欄（2026-09-25 安田さんのご指摘）══════════════════
+   ★ブラウザの月の欄（input type="month"）は、ブラウザの言語で出る。英語の Chrome では、
+     画面を日本語にしていても「September 2026」と出ていた。
+   年と月の2つの選び欄＋前後の月へのボタンにし、画面の言語（日本語／EN）に合わせて出す。
+   値は今までと同じ「YYYY-MM」で、同じ id の隠し欄に入る。選び直すと隠し欄に change が届くので、
+   これまでの $('#shMonth').onchange などはそのまま動く */
+var MP_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function mpIsEn(){try{return localStorage.getItem(LANG_KEY)==='en';}catch(e){return false;}}
+function monthPickHTML(id,val){
+  var v=/^\d{4}-\d{2}$/.test(String(val||''))?String(val):todayISO().slice(0,7);
+  var y=+v.slice(0,4),m=+v.slice(5,7),en=mpIsEn(),ys=[],i;
+  for(i=y-5;i<=y+3;i++)ys.push(i);
+  return '<span class="mpick" data-mpick="'+esc(id)+'" data-nolang="1">'
+    +'<button type="button" class="btn btn-sm mpick-b" data-mpstep="-1" aria-label="'+(en?'Previous month':'前の月')+'">‹</button>'
+    +'<select class="mpick-y" aria-label="'+(en?'Year':'年')+'">'+ys.map(function(x){return '<option value="'+x+'"'+(x===y?' selected':'')+'>'+x+(en?'':'年')+'</option>';}).join('')+'</select>'
+    +'<select class="mpick-m" aria-label="'+(en?'Month':'月')+'">'+[1,2,3,4,5,6,7,8,9,10,11,12].map(function(x){return '<option value="'+x+'"'+(x===m?' selected':'')+'>'+(en?MP_EN[x-1]:x+'月')+'</option>';}).join('')+'</select>'
+    +'<button type="button" class="btn btn-sm mpick-b" data-mpstep="1" aria-label="'+(en?'Next month':'次の月')+'">›</button>'
+    +'<input type="hidden" id="'+esc(id)+'" value="'+esc(v)+'"></span>';
+}
+function mpSet(box,y,m){
+  var hid=box.querySelector('input[type="hidden"]');if(!hid)return;
+  var v=y+'-'+pad(m);if(hid.value===v)return;
+  hid.value=v;
+  var ys=box.querySelector('.mpick-y');
+  if(ys&&!ys.querySelector('option[value="'+y+'"]')){var o=document.createElement('option');o.value=y;o.textContent=y+(mpIsEn()?'':'年');ys.appendChild(o);}
+  if(ys)ys.value=String(y);
+  var ms=box.querySelector('.mpick-m');if(ms)ms.value=String(m);
+  try{hid.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}
+}
+document.addEventListener('change',function(e){
+  var t=e.target;if(!t||!t.closest)return;
+  var box=t.closest('.mpick');if(!box||t.type==='hidden')return;
+  mpSet(box,+box.querySelector('.mpick-y').value,+box.querySelector('.mpick-m').value);
+});
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest&&e.target.closest('[data-mpstep]');if(!b)return;
+  var box=b.closest('.mpick');if(!box)return;
+  var hid=box.querySelector('input[type="hidden"]'),v=String(hid.value||todayISO().slice(0,7));
+  var d=new Date(+v.slice(0,4),+v.slice(5,7)-1+(+b.getAttribute('data-mpstep')),1);
+  mpSet(box,d.getFullYear(),d.getMonth()+1);
+});
 function printDoc(title,bodyHtml){
   var area=$('#printArea');
   if(!area){area=el('div',{id:'printArea'});document.body.appendChild(area);}
@@ -19313,7 +19357,7 @@ function renderDash(){
   var maxF=Math.max(1,Math.max.apply(null,Object.keys(byStatus).map(function(k){return byStatus[k];})));
   var fyList=[curFY()-2,curFY()-1,curFY()];
   var perLabel=dashPeriod==='all'?'累計（全期間）':dashPeriod==='fy'?(dashFY+'年度（'+dashFY+'/4〜'+(dashFY+1)+'/3）'):(dashMonth.split('-')[0]+'年'+(+dashMonth.split('-')[1])+'月');
-  var perPicker=dashPeriod==='fy'?('<select id="perFY" style="width:130px;">'+fyList.map(function(f){return '<option value="'+esc(f)+'"'+(f===dashFY?' selected':'')+'>'+f+'年度</option>';}).join('')+'</select>'):dashPeriod==='month'?('<input type="month" id="perMonth" value="'+esc(dashMonth)+'" style="width:160px;">'):'';
+  var perPicker=dashPeriod==='fy'?('<select id="perFY" style="width:130px;">'+fyList.map(function(f){return '<option value="'+esc(f)+'"'+(f===dashFY?' selected':'')+'>'+f+'年度</option>';}).join('')+'</select>'):dashPeriod==='month'?(''+monthPickHTML('perMonth',dashMonth)+''):'';
   var perToggle=[['all','全期間'],['fy','年度'],['month','月']].map(function(p){return '<span class="chip'+(p[0]===dashPeriod?' on':'')+'" data-per="'+esc(p[0])+'">'+p[1]+'</span>';}).join('');
   // ---- 今月の指標 ----
   var mkNow=todayISO().slice(0,7),fyNow=curFY();
@@ -22078,7 +22122,7 @@ function renderCurriculum(){
   var types=actTypes(curClass);
   function actOpts(sel){return '<option value="">—</option>'+types.map(function(t){return '<option'+(t===sel?' selected':'')+'>'+esc(t)+'</option>';}).join('');}
   var header=curLegacyBarHtml()+'<div class="card" style="margin-bottom:16px;"><h3>'+ic('book')+'カリキュラム</h3>'+
-    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+esc(k)+'">'+k+'</span>';}).join('')+'</div><input type="month" id="curMonth" value="'+esc(CUR.month)+'" style="width:150px;margin-left:auto;"></div>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;"><span class="muted">クラス</span><div class="chips" style="margin:0;">'+CLASSES.map(function(k){return '<span class="chip'+(k===curClass?' on':'')+'" data-cc="'+esc(k)+'">'+k+'</span>';}).join('')+'</div>'+monthPickHTML('curMonth',CUR.month)+'</div>'+
     '</div>';
   /* 週ごとの欄をやめる前に、いま書いてある内容を各日へ写す（1回だけ） */
   curMigrateWeekToDay();
@@ -25006,7 +25050,7 @@ function edBody(){
   function rowOf(id){return d.rows[id]||(d.rows[id]={h:'',w:''});}
   function kaup(r){var h=+r.h,w=+r.w;if(!h||!w)return '';return (w*10000/(h*h)).toFixed(2);}
   var clOpts=['すべて'].concat(CLASSES).map(function(k){return '<option'+(k===bmKlass?' selected':'')+'>'+k+'</option>';}).join('');
-  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('身体測定記録（毎月）','<input type="month" id="bmMonth" value="'+esc(recMonth)+'" style="width:160px;"><select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'/* 確定ずみのときは、保存する／編集する を出さない。
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+recHead('身体測定記録（毎月）',''+monthPickHTML('bmMonth',recMonth)+'<select id="bmKlassSel" style="width:110px;">'+clOpts+'</select>'/* 確定ずみのときは、保存する／編集する を出さない。
        この画面には鍵が2つ（保存＝locked と 確定＝lock）あり、
        確定ずみで「編集する」を押すと、案内は「入れ終わったら保存を押せ」に変わるのに
        入力欄は止まったまま、という食い違いが起きていた。確定の帯に一本化する。 */
@@ -26929,7 +26973,7 @@ function renderTimecard(){
   function staffDays(sid){var t=all[sid]||{};return Object.keys(t).filter(function(k){return tcTime(t[k].in)&&tcTime(t[k].out);}).length;}
   s.innerHTML='<div class="card" style="margin-bottom:14px;"><div class="chips" style="margin:0;">'+[['plan','勤務表（シフト予定）'],['time','出勤簿（実績の打刻）']].map(function(t){return '<span class="chip'+(t[0]===shiftTab?' on':'')+'" data-shtab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>'
     +'<div class="card">'+recHead('出勤簿（タイムカード）',
-      '<input type="month" id="tcMonth" value="'+esc(mk)+'" style="width:160px;"><select id="tcStaff" style="width:170px;">'+staff.map(function(st){return '<option value="'+esc(st.id)+'"'+(String(st.id)===String(tcStaffSel||staff[0]&&staff[0].id)?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select>'
+      ''+monthPickHTML('tcMonth',mk)+'<select id="tcStaff" style="width:170px;">'+staff.map(function(st){return '<option value="'+esc(st.id)+'"'+(String(st.id)===String(tcStaffSel||staff[0]&&staff[0].id)?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select>'
       +'<button class="btn btn-sm" id="tcFill">'+ic('check')+'シフトから一括入力</button><button class="btn btn-sm" id="tcPrint">'+ic('printer')+'この職員を出力</button><button class="btn btn-sm btn-primary" id="tcPrintAll">'+ic('printer')+'全員分を出力</button><button class="btn btn-sm" id="tcCsv">'+ic('folder')+'データ保存</button>')
     +'<div class="muted" style="margin-bottom:10px;">実際の出退勤を記録します（労働時間は休憩を差し引いて自動計算）。「シフトから一括入力」で予定の時間を初期値として入れられます。</div>'
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'+staff.map(function(st){return '<span class="tag" style="background:'+(String(st.id)===String(tcStaffSel)?'#E3F1F9;color:#0B5F8F;font-weight:600;':'#F1EFE8;color:#5F5E5A;')+'">'+esc(st.name)+' '+staffDays(st.id)+'日 / '+tcHours(staffMin(st.id))+'h</span>';}).join('')+'</div>'
@@ -27035,7 +27079,7 @@ function renderShift(){
      削除の確認は「シフト表に残っている記録は消しません」と約束している。 */
   var shStaff=tcStaffOf(shiftMonth,null);
   s.innerHTML='<div class="card" style="margin-bottom:14px;"><div class="chips" style="margin:0;">'+[['plan','勤務表（シフト予定）'],['time','出勤簿（実績の打刻）']].map(function(t){return '<span class="chip'+(t[0]===shiftTab?' on':'')+'" data-shtab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>'
-    +'<div class="card">'+recHead('勤務表（シフト表）','<input type="month" id="shMonth" value="'+esc(shiftMonth)+'" style="width:160px;"><button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm" id="shPrint">'+ic('printer')+'記号で出力</button><button class="btn btn-sm btn-primary" id="shPrintTime">'+ic('printer')+'時刻表記で出力</button>')+
+    +'<div class="card">'+recHead('勤務表（シフト表）',''+monthPickHTML('shMonth',shiftMonth)+'<button class="btn btn-sm" id="shBulk">'+ic('check')+'基本シフト一括反映</button><button class="btn btn-sm" id="shImport">'+ic('fileplus')+'CSV取込（Freee等）</button><button class="btn btn-sm" id="shPrint">'+ic('printer')+'記号で出力</button><button class="btn btn-sm btn-primary" id="shPrintTime">'+ic('printer')+'時刻表記で出力</button>')+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">'+
       /* ★「休憩」のことばと休憩時刻の欄を、勤務時間の欄とひとつながりに並べていた。
          せまい画面では入力の字を 16px にしているので、100px の欄には「12:00-13:0」までしか入らず、
@@ -31923,7 +31967,7 @@ function renderBilling(){
      お金の話を1つの画面にまとめる、という安田さんの決め。 */
   s.innerHTML=billContractHTML(kids,mk)
     +'<div class="card" style="margin-bottom:14px;">'+recHead('請求書発行（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月分）',
-      '<input type="month" id="ivMonth" value="'+esc(mk)+'" style="width:160px;">'
+      ''+monthPickHTML('ivMonth',mk)+''
       +'<button class="btn btn-sm btn-primary" id="ivSendAll">'+ic('send')+'まとめて送付</button>'
       +'<button class="btn btn-sm" id="ivPrintAll">'+ic('printer')+'全員分を印刷</button>')
     +'<div class="muted" style="margin-bottom:10px;">金額は、上の「契約とオプション」と「設定 → 料金設定」から自動で出ます。休園中の園児も一覧に出ます。金額を手で決めるときは、上の表の「明細」から。<br>「送付」を押した日が発行日になり、そのときの単価で金額が決まります。あとから料金設定を直しても、送った請求書の金額は変わりません。</div>'
@@ -32131,7 +32175,7 @@ function renderExpense(){
   var mk=expMonthCur(),s=$('section[data-page="expense"]');
   var tabs=[['list','経費精算表'],['cash','金種表'],['wage','賃金台帳']];
   var head='<div class="card" style="margin-bottom:14px;">'+recHead('経費管理（'+mk.split('-')[0]+'年'+(+mk.split('-')[1])+'月）',
-      '<input type="month" id="exMonth" value="'+esc(mk)+'" style="width:160px;">')
+      ''+monthPickHTML('exMonth',mk)+'')
     +'<div class="chips" style="margin:0;">'+tabs.map(function(t){return '<span class="chip'+(t[0]===expTab?' on':'')+'" data-extab="'+esc(t[0])+'">'+t[1]+'</span>';}).join('')+'</div></div>';
   s.innerHTML=head+'<div id="exBody"></div>';
   $('#exMonth').onchange=function(e){expMonth=e.target.value;renderExpense();};
@@ -33444,7 +33488,7 @@ function renderTasks(){
       +'</div></div></div>';
   }
   s.innerHTML='<div class="card" style="margin-bottom:14px;">'+recHead('月間スケジュール（カレンダー）',
-      '<input type="month" id="tkMonth" value="'+esc(mk)+'" style="width:160px;"><span class="tag" style="background:'+(done===list.length?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'+done+' / '+list.length+' 終わった</span>')
+      ''+monthPickHTML('tkMonth',mk)+'<span class="tag" style="background:'+(done===list.length?'#EAF3DE;color:#27500A':'#FAEEDA;color:#854F0B')+';">'+done+' / '+list.length+' 終わった</span>')
     +(taskIppan()?'<div class="muted">先生に関わるものだけを出しています。</div>':'')+'</div>'
     +'<div class="card" style="margin-bottom:14px;">'
     +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;">'
