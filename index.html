@@ -1490,6 +1490,16 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.tplcats{margin:0;}
+.tplgrp{margin-bottom:16px;}
+.tplgrp-h{font-size:13px;font-weight:700;color:var(--tx2);margin:0 2px 8px;}
+.tplrow{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;}
+.tplrow-m{flex:1;min-width:240px;}
+.tplrow-n{display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;flex-wrap:wrap;}
+.tplrow-n>svg{width:16px;height:16px;flex:none;color:var(--eg-main,#5128C8);}
+.tplrow-s{font-size:12px;color:var(--tx2);margin-top:2px;}
+.tplrow-a{display:flex;gap:8px;flex-wrap:wrap;}
+.tplrow-b{flex-basis:100%;border-top:1px solid var(--line);padding-top:10px;}
 .npocur{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#EEF6F2;border:1px solid #9FD3BD;border-radius:12px;padding:10px 12px;margin-bottom:8px;}
 .npocur-t{flex:1;min-width:220px;font-size:12.5px;line-height:1.7;}
 .npocur-t b{color:#0F6E56;font-size:12px;}
@@ -10741,7 +10751,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -21623,6 +21633,24 @@ function tplFolderWire(s){
     tplUserSave(st);renderTemplates();
   };});
 }
+/* ══ 配信テンプレートの種類分け（2026-09-25 安田さんのご依頼「ソート分けをして選択がしやすいように」）══
+   ★16件が同じ大きさのカードで2列に並び、本文の見本まで全部出ていたので、目当てのひな形を探しにくかった。
+   用途で自動で分け（園が作るフォルダとは別）、1行ずつの一覧にする。本文は「中身を見る」で開く */
+var TPL_CATS=[
+  ['trial','体験・見学',['schedule','confirm','reminder','thanks','followup']],
+  ['admit','入園の手続き',['documents','admissionInvoice','admissionConfirm','admissionReminder']],
+  ['money','保育料・お支払い',['invoice','transfer']],
+  ['daily','デイリーレポート',null],
+  ['notice','お知らせ（全体配信）',null],
+  ['custom','園で作ったもの',null]
+];
+var TPL_CAT='all',TPL_OPEN={};
+function tplCatOf(kind,key,t){
+  if(t&&t.custom)return 'custom';
+  if(kind==='broadcast')return (t&&t.daily)?'daily':'notice';
+  for(var i=0;i<TPL_CATS.length;i++){if(TPL_CATS[i][2]&&TPL_CATS[i][2].indexOf(key)>-1)return TPL_CATS[i][0];}
+  return (t&&t.enrolledOnly)?'money':'trial';
+}
 function renderTemplates(){
   var s=$('section[data-page="templates"]');
   var M=mailTplAll();
@@ -21633,50 +21661,64 @@ function renderTemplates(){
   /* 「見られる人」で分けた意味が出るよう、一覧もその役職のものだけにする（管理者は全件） */
   var mkeysAll=Object.keys(M).filter(function(k){return tplAllowed('mail',k);});
   var mkeys=mkeysAll.filter(function(k){return inF('mail|'+k);});
-  var indiv=mkeys.map(function(k){
+  var rows=[];
+  function tplRow(o){
+    var id=o.kind+'|'+o.key,open=!!TPL_OPEN[id];
+    return '<div class="tplrow'+(open?' open':'')+'">'
+      +'<div class="tplrow-m">'
+        +'<div class="tplrow-n">'+ic(o.kind==='mail'?'doc':'cast')+'<span>'+esc(o.label)+'</span>'+o.tags+'</div>'
+        +'<div class="tplrow-s">題名：'+esc(o.sub)+'</div>'
+        +'<div class="tplrow-s">'+esc(o.to)+'</div></div>'
+      +'<div class="tplrow-a">'+o.useBtn
+        +'<button class="btn btn-sm" data-tplopen="'+esc(id)+'">'+(open?'閉じる':'中身を見る')+'</button></div>'
+      +(open?'<div class="tplrow-b"><div class="preview" style="max-height:220px;">'+esc(o.body)+'</div>'+o.who
+        +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+        +'<button class="btn btn-sm" data-edit="'+esc(id)+'">題名と文章を直す</button>'
+        +(o.edited?'<button class="btn btn-sm btn-ghost" data-reset="'+esc(id)+'">はじめの内容に戻す</button>':'')
+        +(o.custom?'<button class="btn btn-sm btn-ghost" data-del="'+esc(o.key)+'">消す</button>':'')
+        +tplFolderSel(TST,id)+'</div></div>':'')
+      +'</div>';
+  }
+  mkeys.forEach(function(k){
     var t=M[k];
-    var tags=(t.custom?'<span class="tag" style="margin-left:8px;">園で作成</span>':'')+(t.edited?'<span class="tag" style="margin-left:8px;">書き直し済み</span>':'');
+    var tags=(t.custom?'<span class="tag" style="margin-left:6px;">園で作成</span>':'')+(t.edited?'<span class="tag" style="margin-left:6px;">書き直し済み</span>':'');
     var to=t.enrolledOnly?'在園のご家庭':(t.custom?'問い合わせ・体験の方':((t.targets||[]).join('・')||'選んで送る'));
-    return '<div class="card"><h3>'+ic('doc')+esc(t.label)+tags+'</h3>'
-      +'<div class="muted" style="margin-bottom:8px;">題名：'+esc(fillTokens(t.subject,null,{}))+'</div>'
-      +'<div class="preview" style="max-height:160px;">'+esc(fillTokens(t.body,null,{}))+'</div>'
-      +tplWhoLine(t.at,t.by,t.custom?'作成':'書き直し')
-      +'<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-      +(canGoPage('compose')?('<button class="btn btn-sm btn-primary" data-use="'+esc(k)+'">この文面で使う</button>'):'')
-      +'<button class="btn btn-sm" data-edit="mail|'+esc(k)+'">題名と文章を直す</button>'
-      +(t.edited?'<button class="btn btn-sm btn-ghost" data-reset="mail|'+esc(k)+'">はじめの内容に戻す</button>':'')
-      +(t.custom?'<button class="btn btn-sm btn-ghost" data-del="'+esc(k)+'">消す</button>':'')
-      +'<span class="muted">送る相手：'+esc(to)+'</span>'+tplFolderSel(TST,'mail|'+k)+'</div></div>';
-  }).join('');
+    rows.push({kind:'mail',key:k,cat:tplCatOf('mail',k,t),label:t.label,tags:tags,sub:fillTokens(t.subject,null,{}),body:fillTokens(t.body,null,{}),
+      to:'送る相手：'+to,who:tplWhoLine(t.at,t.by,t.custom?'作成':'書き直し'),edited:!!t.edited,custom:!!t.custom,
+      useBtn:canGoPage('compose')?('<button class="btn btn-sm btn-primary" data-use="'+esc(k)+'">この文面で使う</button>'):''});
+  });
   var bkeysAll=bcastAll().filter(function(x){return tplAllowed('broadcast',x.key);});
   var bkeys=bkeysAll.filter(function(x){return inF('broadcast|'+x.key);});
-  var bc=bkeys.map(function(x){
+  bkeys.forEach(function(x){
     /* デイリーレポートも、いまはほかのひな形と同じ「題名＋本文」。ここで直せる */
     var b=bcastBody(x.key);
-    var sub=fillTokens(b.subject,null,{});
-    var bd=fillTokens(b.body,null,{});
     var edited=!!b.edited;
-    var tags=(x.custom?'<span class="tag" style="margin-left:8px;">園で作成</span>':'')+(edited?'<span class="tag" style="margin-left:8px;">書き直し済み</span>':'');
-    var who=x.custom?tplWhoLine(x.at,x.by,'作成'):(edited?tplWhoLine(b.at,b.by,'書き直し'):'');
-    return '<div class="card"><h3>'+ic('cast')+esc(x.label)+tags+'</h3>'
-      +'<div class="muted" style="margin-bottom:8px;">題名：'+esc(sub)+'</div>'
-      +'<div class="preview" style="max-height:160px;">'+esc(bd)+'</div>'+who
-      +'<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-      +'<button class="btn btn-sm btn-primary" data-bc="'+esc(x.key)+'">この文面で配信</button>'
-      +'<button class="btn btn-sm" data-edit="broadcast|'+esc(x.key)+'">題名と文章を直す</button>'
-      +(edited?'<button class="btn btn-sm btn-ghost" data-reset="broadcast|'+esc(x.key)+'">はじめの内容に戻す</button>':'')
-      +(x.custom?'<button class="btn btn-sm btn-ghost" data-del="'+esc(x.key)+'">消す</button>':'')
-      +'<span class="muted">対象：'+esc((x.cls||CLASSES).join('・'))+' 在園児</span>'+tplFolderSel(TST,'broadcast|'+x.key)+'</div></div>';
-  }).join('');
+    var tags=(x.custom?'<span class="tag" style="margin-left:6px;">園で作成</span>':'')+(edited?'<span class="tag" style="margin-left:6px;">書き直し済み</span>':'');
+    rows.push({kind:'broadcast',key:x.key,cat:tplCatOf('broadcast',x.key,x),label:x.label,tags:tags,sub:fillTokens(b.subject,null,{}),body:fillTokens(b.body,null,{}),
+      to:'対象：'+(x.cls||CLASSES).join('・')+' 在園児',who:x.custom?tplWhoLine(x.at,x.by,'作成'):(edited?tplWhoLine(b.at,b.by,'書き直し'):''),
+      edited:edited,custom:!!x.custom,useBtn:'<button class="btn btn-sm btn-primary" data-bc="'+esc(x.key)+'">この文面で配信</button>'});
+  });
+  var cats=TPL_CATS.filter(function(c){return rows.some(function(r){return r.cat===c[0];});});
+  if(TPL_CAT!=='all'&&!cats.some(function(c){return c[0]===TPL_CAT;}))TPL_CAT='all';
+  var catBar='<div class="chips tplcats">'
+    +'<span class="chip'+(TPL_CAT==='all'?' on':'')+'" data-tplcat="all">すべて（'+rows.length+'）</span>'
+    +cats.map(function(c){var n=rows.filter(function(r){return r.cat===c[0];}).length;
+      return '<span class="chip'+(TPL_CAT===c[0]?' on':'')+'" data-tplcat="'+c[0]+'">'+esc(c[1])+'（'+n+'）</span>';}).join('')+'</div>';
+  var listHTML=cats.filter(function(c){return TPL_CAT==='all'||TPL_CAT===c[0];}).map(function(c){
+    return '<div class="tplgrp"><div class="tplgrp-h">'+esc(c[1])+'</div>'
+      +rows.filter(function(r){return r.cat===c[0];}).map(tplRow).join('')+'</div>';
+  }).join('')||'<div class="empty">表示できるひな形がありません。</div>';
   s.innerHTML=
     /* 差出人の帯は外した（上の「個別」の画面と同じ理由） */
     '<div style="margin-bottom:16px;"><button class="btn btn-primary" id="tplNew">'+ic('plus')+'配信テンプレートを作成する</button></div>'
     +tplFolderBar(TST,mkeysAll.map(function(k){return 'mail|'+k;}).concat(bkeysAll.map(function(x){return 'broadcast|'+x.key;})))
-    +'<div style="font-size:13px;font-weight:600;margin:0 0 10px;color:var(--tx2);">個別メッセージ（1:1）</div><div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:22px;">'+(indiv||'<div class="empty">表示できるひな形がありません。</div>')+'</div>'
-    +'<div style="font-size:13px;font-weight:600;margin:0 0 10px;color:var(--tx2);">全体配信・お知らせ</div><div class="grid" style="grid-template-columns:1fr 1fr;">'+(bc||'<div class="empty">表示できるひな形がありません。</div>')+'</div>';
+    +'<div class="card" style="margin-bottom:14px;"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span class="muted" style="font-size:12.5px;font-weight:600;">用途で分ける</span>'+catBar+'</div></div>'
+    +listHTML;
   wireTokenHelp(s);
   tplFolderWire(s);
   $('#tplNew').onclick=tplCreateModal;
+  s.querySelectorAll('[data-tplcat]').forEach(function(c){c.onclick=function(){TPL_CAT=c.getAttribute('data-tplcat');renderTemplates();};});
+  s.querySelectorAll('[data-tplopen]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-tplopen');TPL_OPEN[k]=!TPL_OPEN[k];renderTemplates();};});
   s.querySelectorAll('[data-use]').forEach(function(b){b.addEventListener('click',function(){routeTo(['compose',b.getAttribute('data-use')]);});});
   s.querySelectorAll('[data-bc]').forEach(function(b){b.addEventListener('click',function(){routeTo(['broadcast',b.getAttribute('data-bc')]);});});
   s.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){var pp=b.getAttribute('data-edit').split('|');tplEditModal(pp[0],pp[1]);});});
