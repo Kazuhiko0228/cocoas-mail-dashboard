@@ -1484,6 +1484,14 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.kktok{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;}
+.kktok-h{font-size:11.5px;font-weight:700;color:var(--tx2);margin-bottom:6px;}
+.kktok-g{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:5px;}
+.kktok-gl{font-size:10.5px;color:var(--tx3);min-width:84px;}
+.kktok-c{border:1px solid var(--line);background:#fff;border-radius:99px;padding:3px 10px;font-size:11.5px;cursor:pointer;font-family:inherit;color:var(--tx);}
+.kktok-c.used{background:#E1F5EE;border-color:#5DCAA5;color:#0F6E56;font-weight:600;}
+.kktok-c.kkt-blank{border-style:dashed;color:var(--tx2);}
+.kktok-n{font-size:10.5px;color:var(--tx3);margin-top:4px;}
 .kkauto{display:inline-block;margin-left:6px;font-size:10px;font-weight:600;color:#27500A;background:#EAF3DE;border-radius:99px;padding:0 7px;vertical-align:1px;}
 .ksmeal{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
 .ksmeal-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
@@ -10679,7 +10687,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -27440,14 +27448,51 @@ function renderKikiEditor(){
     +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;align-items:start;">'
     +'<div><label class="muted" style="font-size:11.5px;">本文（<code>{{　}}</code>は施設固有情報が自動で入ります）</label>'
     +'<textarea id="kkBody" rows="22" style="font-size:12px;line-height:1.7;width:100%;">'+esc(kikiBody(sec))+'</textarea>'
+    +'<div id="kkTokens"></div>'
     +'<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm" id="kkSecPrint">'+ic('printer')+'このセクションを出力</button><button class="btn btn-sm btn-ghost" id="kkReset" style="'+(edited?'':'display:none;')+'">'+ic('edit')+'既定に戻す</button></div></div>'
     +'<div><label class="muted" style="font-size:11.5px;">プレビュー</label><div class="preview" id="kkPrev" style="max-height:520px;"></div></div>'
     +'</div>';
   $('#kkEditor').innerHTML=h;
   $('#kkPrev').innerHTML=kikiPrevHtml(sec);
-  $('#kkBody').oninput=function(){kikiSaveEdit(sec.id,$('#kkBody').value);$('#kkPrev').innerHTML=kikiPrevHtml(sec);var ed=kikiEdits()[sec.id]!=null;$('#kkReset').style.display=ed?'':'none';$('#kkEditedBadge').style.display=ed?'':'none';renderKikiNav();};
+  kikiTokensPaint(sec);
+  $('#kkBody').oninput=function(){kikiSaveEdit(sec.id,$('#kkBody').value);kikiTokensPaint(sec);$('#kkPrev').innerHTML=kikiPrevHtml(sec);var ed=kikiEdits()[sec.id]!=null;$('#kkReset').style.display=ed?'':'none';$('#kkEditedBadge').style.display=ed?'':'none';renderKikiNav();};
   $('#kkReset').onclick=function(){kikiSaveEdit(sec.id,null);renderKikiEditor();renderKikiNav();};
   $('#kkSecPrint').onclick=function(){printDoc('危機管理マニュアル｜'+sec.title,kikiSecPrintHtml(sec));};
+}
+/* ══ 差し込む語句 {{ }} を選んで入れる（2026-09-25 安田さんのご依頼）══
+   「入りそうな指定語句は選択できるようにしておいた方がいい。使いそうなものに絞って出して」。
+   手で {{救護担当}} と打つと、1文字違うだけで入れ替わらず、そのまま紙に出てしまう。
+   出すのは「このセクションで使っている語句」と「それと同じ組（指揮系統・役割 など）の語句」だけ。
+   語句が1つも無いセクションでは、基本情報の組を出す。押すと、カーソルの位置に入る */
+function kikiTokensFor(sec){
+  var body=kikiBody(sec),used=[],groups={};
+  body.replace(/\{\{([^}]+)\}\}/g,function(m,k){k=k.trim();if(used.indexOf(k)<0)used.push(k);return m;});
+  used.forEach(function(k){var d=KIKI_VARDEF_MAP[k];if(d)groups[d.g]=1;});
+  if(!Object.keys(groups).length)groups['基本情報']=1;
+  return KIKI_VARDEF.filter(function(d){return groups[d.g];}).map(function(d){return {k:d.k,label:d.label,g:d.g,used:used.indexOf(d.k)>-1};});
+}
+function kikiTokensPaint(sec){
+  var box=$('#kkTokens');if(!box)return;
+  var list=kikiTokensFor(sec),byG={},order=[];
+  list.forEach(function(x){if(!byG[x.g]){byG[x.g]=[];order.push(x.g);}byG[x.g].push(x);});
+  box.innerHTML='<div class="kktok"><div class="kktok-h">差し込む語句（押すとカーソルの位置に入ります）</div>'
+    +order.map(function(g){return '<div class="kktok-g"><span class="kktok-gl">'+esc(g)+'</span>'
+      +byG[g].map(function(x){
+        var val=kikiVal(x.k);
+        return '<button type="button" class="kktok-c'+(x.used?' used':'')+(val?'':' kkt-blank')+'" data-kktok="'+esc(x.k)+'" title="'+esc(val?('いまの値：'+val):'施設固有情報がまだ空です')+'">'+esc(x.label)+'</button>';
+      }).join('')+'</div>';}).join('')
+    +'<div class="kktok-n">色つきはこのセクションで使っているもの。点線は、施設固有情報がまだ空のもの。</div></div>';
+  box.querySelectorAll('[data-kktok]').forEach(function(b){
+    b.onmousedown=function(e){e.preventDefault();};   /* 押してもカーソルの位置を失わないように */
+    b.onclick=function(){
+      var ta=$('#kkBody');if(!ta)return;
+      var ins='{{'+b.getAttribute('data-kktok')+'}}',st=ta.selectionStart,en=ta.selectionEnd;
+      if(typeof st!=='number'){st=en=ta.value.length;}
+      ta.value=ta.value.slice(0,st)+ins+ta.value.slice(en);
+      ta.focus();ta.selectionStart=ta.selectionEnd=st+ins.length;
+      ta.dispatchEvent(new Event('input',{bubbles:true}));
+    };
+  });
 }
 function kikiSecPrintHtml(sec){
   return '<div style="font-size:12px;line-height:1.75;">'+esc(kikiSubstPlain(kikiBody(sec))).replace(/\n/g,'<br>')+'</div>';
