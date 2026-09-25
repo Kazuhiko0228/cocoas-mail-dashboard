@@ -1236,6 +1236,20 @@ button.hpr:hover{background:#FAF9F5}
   .topbar .btn-primary{width:44px;min-width:44px;padding:0;gap:0;font-size:0;justify-content:center;}
   /* ほかの端末と共有中の帯。せまい画面では、印と「今すぐ同期」だけにして1段におさめる */
   #syncBar .muted,#syncBar #syncStatus{display:none;}
+  #syncBar .sync-ic{display:none;}
+}
+/* ★スマホの幅では「ほかの端末と共有中」の札と「今すぐ同期」が見出しの場所を取り、見出しが1文字ずつ縦に割れ、
+   「新規メッセージ」の＋が2段目へ落ちていた（2026-09-25 安田さんのご指示で修正）。
+   640px 以下では札を隠し、「今すぐ同期」は丸い矢印の絵だけにする */
+@media(max-width:640px){
+  #syncBar .syncpill{display:none!important;}
+  #syncBar{gap:4px!important;}
+  #syncNow{width:44px;min-width:44px;height:44px;padding:0!important;justify-content:center;}
+  #syncNow .sync-tx{display:none;}
+  #syncNow .sync-ic{display:inline-flex;width:18px;height:18px;}
+  #syncNow .sync-ic svg{width:18px;height:18px;}
+}
+@media(max-width:1024px){
   /* ことばの切り替え（日本語 ⇄ EN）。帯の中で 78px を使っていた。
      字と余白を詰めて 58px にし、空いた 20px を見出しに回す。
      高さは指で押せる 44px のままにしておく。 */
@@ -29376,11 +29390,11 @@ function initSyncBar(){
   var w=el('div',{id:'syncBar'});
   w.style.cssText='display:flex;align-items:center;gap:8px;margin-left:auto;font-size:11.5px;color:var(--tx2);';
   var t=API.tenant()||{},u=serverUser()||{};
-  w.innerHTML='<span style="display:inline-flex;align-items:center;gap:5px;background:#E3F1F9;color:#0B5F8F;border-radius:99px;padding:3px 10px;font-weight:600;">ほかの端末と共有中</span>'
+  w.innerHTML='<span class="syncpill" style="display:inline-flex;align-items:center;gap:5px;background:#E3F1F9;color:#0B5F8F;border-radius:99px;padding:3px 10px;font-weight:600;">ほかの端末と共有中</span>'
     /* ★ここに園名を出していたので、サイドバーの園名と同じものが1画面に2回出ていた。
        上の帯は「ほかの端末と共有中」と同期の状態だけにする（2026-09-21 安田さんのご指示）。 */
     +'<span id="syncStatus" style="opacity:.45;">最新の状態です</span>'
-    +'<button class="btn btn-sm" id="syncNow" style="padding:3px 9px;font-size:11px;">今すぐ同期</button>';
+    +'<button class="btn btn-sm" id="syncNow" style="padding:3px 9px;font-size:11px;" title="今すぐ同期" aria-label="今すぐ同期"><span class="sync-ic">'+ic('refresh')+'</span><span class="sync-tx">今すぐ同期</span></button>';
   var spacer=bar.querySelector('.spacer');
   if(spacer)bar.insertBefore(w,spacer.nextSibling);else bar.appendChild(w);
   /* ★送り待ちを1回送るだけで、送れなかった分・送っている最中に保存した分が残っていても読み込み直していた。
