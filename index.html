@@ -1492,6 +1492,9 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.hlbar{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+.hlbar-b{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px;}
+.hlbar-b .btn{min-width:220px;justify-content:flex-start;}
 .qrsheet{position:fixed;left:12px;right:12px;bottom:12px;z-index:900;background:#fff;border:1px solid var(--line);border-radius:16px;
   box-shadow:0 10px 30px rgba(20,10,40,.18);padding:12px 44px 12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;max-width:640px;margin:0 auto;}
 .qrsheet-t{flex:1;min-width:200px;font-size:13px;line-height:1.6;}
@@ -25009,15 +25012,18 @@ function healthBarHtml(hd,kids,fever){
   var shown={},other=0;
   kids.forEach(function(c){shown[String(c.id)]=1;});
   (hd.entries||[]).forEach(function(en){ if(en&&!shown[String(en.childId)])other++; });
-  return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">'
-    +'<span style="font-size:13px;font-weight:600;">健康チェック</span>'
+  /* ★ボタンが見出しと横一列に並び、どれがどれか見分けにくかった（2026-09-25 安田さんのご指示「ボタン縦おきに」）。
+     見出しの下に、ボタンを縦に並べる */
+  return '<div class="hlbar">'
+    +'<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;"><span style="font-size:13px;font-weight:600;">健康チェック</span>'
+    +'<span class="muted" style="font-size:11.5px;">症状あり '+((hd.entries||[]).length)+'名'
+      +(other?'（うち '+other+'名は、いま出していないクラスです）':'')+'</span></div>'
+    +'<div class="hlbar-b">'
     +'<button class="btn btn-sm" id="hlAllHealthy" style="'+(hd.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'
       +(hd.allHealthy?'✓ 全員に症状なし 記録済み':'全員に症状なし を記録')+'</button>'
     +'<button class="btn btn-sm" id="hlPrint">'+ic('printer')+'健康チェックを出力</button>'
     +'<button class="btn btn-sm" id="hlBlank">'+ic('printer')+'記入用紙</button>'
-    +'<span class="muted" style="font-size:11.5px;">症状あり '+((hd.entries||[]).length)+'名'
-      +(other?'（うち '+other+'名は、いま出していないクラスです）':'')+'</span>'
-    +'</div>'
+    +'</div></div>'
     +(fever&&fever.length?'<div class="muted" style="margin-top:8px;color:#A32D2D;font-weight:500;font-size:12.5px;">発熱の可能性（37.5℃以上）：'+fever.map(function(c){return esc(childFullName(c))+'（'+esc(tempOf(c.id,recDate))+'℃）';}).join('・')+'</div>':'');
 }
 function napBlock(klass){
