@@ -19164,7 +19164,14 @@ var PS_TABS=[['main','イベントと写真'],['sales','販売状況'],['key','�
 function psFlyerOf(id){var a=stGet('psFlyer',{})||{};var f=a[String(id)]||{};return {name:f.name||'',key:f.key!==false};}
 function psFlyerSet(id,o){var a=stGet('psFlyer',{})||{};a[String(id)]=o;stSet('psFlyer',a);}
 /* 写真販売のページ（未来WA）を開くリンク。キーを載せる紙なら、キーも入った状態で開く */
-function psWaPhotoUrl(key){return location.origin+location.pathname.replace(/[^\/]*$/,'')+'parent.html?photo=1'+(key?'&key='+encodeURIComponent(key):'');}
+/* ★接続先（api）と園コード（tenant）も付ける（2026-09-25 確認で発見）。
+   付けていなかったので、未来WA をふだん使っているのと別のブラウザ（iPhone のカメラ→Safari で、未来WA はホーム画面に置いている等）で
+   読むと、園につながらない「デモ版」の画面が開き、ログインできなかった */
+function psWaPhotoUrl(key){
+  var q='photo=1'+(key?'&key='+encodeURIComponent(key):'');
+  try{ var b=API.base(),t=(API.tenant()||{}).code; if(b)q+='&api='+encodeURIComponent(b); if(t)q+='&tenant='+encodeURIComponent(t); }catch(e){}
+  return location.origin+location.pathname.replace(/[^\/]*$/,'')+'parent.html?'+q;
+}
 function psDrawOne(s){
   var e=PS.ev, boss=(typeof isBoss==='function')?isBoss():true;
   if(PS.photos===null){
@@ -19235,8 +19242,9 @@ function psDrawOne(s){
           :'<div class="muted" style="font-size:12.5px;">まだ売れた写真はありません。</div>')+'</div>';
       h+='<div class="card"><h3>さいきんの購入</h3>'
         +((S.recent||[]).length?'<div class="lines">'+S.recent.map(function(r){
-            return '<div><span class="l"><span class="muted" style="font-variant-numeric:tabular-nums;">'+esc(String(r.at||'').replace('T',' ').slice(0,16))+'</span>　写真 '+('0000'+r.seq).slice(-5)
-              +(r.refunded?'　<span class="pill" style="background:#F1EFE8;color:#5F5E5A;font-size:10px;">返金ずみ</span>':'')+'</span><span class="y">'+psYen(r.yen)+'</span></div>';}).join('')+'</div>'
+            /* ★.lines には見た目の決まりが無く、金額が写真の番号にくっついていた（2026-09-25 確認で発見）。1行を左右に分ける */
+            return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:13px;"><span class="l"><span class="muted" style="font-variant-numeric:tabular-nums;">'+esc(String(r.at||'').replace('T',' ').slice(0,16))+'</span>　写真 '+('0000'+r.seq).slice(-5)
+              +(r.refunded?'　<span class="pill" style="background:#F1EFE8;color:#5F5E5A;font-size:10px;">返金ずみ</span>':'')+'</span><span class="y" style="font-weight:700;font-variant-numeric:tabular-nums;">'+psYen(r.yen)+'</span></div>';}).join('')+'</div>'
           :'<div class="muted" style="font-size:12.5px;">まだ購入はありません。</div>')+'</div>';
     }
   }else if(PS.tab==='faces'){

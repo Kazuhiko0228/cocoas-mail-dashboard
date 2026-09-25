@@ -8434,6 +8434,7 @@ function waServerLogin(email,pw,cb){
     .catch(function(e){cb(false,e.message);});
 }
 
+var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
 /* 接続先の設定。?api=https://… &tenant=omiya で入れられる。 */
 (function(){
   try{
@@ -8445,6 +8446,10 @@ function waServerLogin(email,pw,cb){
       if(a!==null){
         if(!WAPI.allowBase(a)){ alert('この接続先は使えません。\n'+a); }
         else if(WAPI.base()===a.replace(/\/$/,'')){ /* すでに同じなら何も聞かない */ }
+        /* ★当社の本番サーバで、まだどこにもつないでいない端末なら、聞かずにつなぐ（2026-09-25）。
+           写真販売のチラシの二次元コードを読んだ保護者に「接続先を変更します」と出すと、何のことか分からず止まってしまう。
+           よその接続先（開発用・つなぎ替え）は、これまでどおり必ず確かめる */
+        else if(!WAPI.base()&&a.replace(/\/$/,'')===WA_API_OFFICIAL){ WAPI.setBase(a); }
         else if(confirm('データの接続先を、次のサーバに変更します。\n\n'+a+'\n\nよろしいですか？')){ WAPI.setBase(a); }
       }
       if(t!==null)WAPI.setTenant(t);
