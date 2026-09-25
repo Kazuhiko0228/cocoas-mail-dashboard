@@ -4469,6 +4469,20 @@ function printSanitize(html){
    年と月の2つの選び欄＋前後の月へのボタンにし、画面の言語（日本語／EN）に合わせて出す。
    値は今までと同じ「YYYY-MM」で、同じ id の隠し欄に入る。選び直すと隠し欄に change が届くので、
    これまでの $('#shMonth').onchange などはそのまま動く */
+/* ★すでに配った記入用紙のQRは「…/#records?rec=…」の形（# のうしろに問い合わせが入っている）。
+   画面の切り替えは # のうしろをページの名前として読むので「records?rec=…」という無いページになり、ホームが開いていた。
+   開いたらすぐ、# のうしろの問い合わせを本来の場所（? のうしろ）へ移しておく（2026-09-25） */
+(function(){
+  function fix(){
+    var h=String(location.hash||''),i=h.indexOf('?');
+    if(i<0||location.search)return false;
+    history.replaceState(history.state,'',location.pathname+h.slice(i)+h.slice(0,i));
+    return true;
+  }
+  try{ fix(); }catch(e){}
+  /* 同じタブで Miralink を開いたままQRのリンクを開くと、読み込み直さずに # だけが変わる。そのときは読み込み直す */
+  try{ window.addEventListener('hashchange',function(){ try{ if(fix())location.reload(); }catch(e){} }); }catch(e){}
+})();
 var MP_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function mpIsEn(){try{return localStorage.getItem(LANG_KEY)==='en';}catch(e){return false;}}
 function monthPickHTML(id,val){
@@ -24082,7 +24096,11 @@ function wireScan(type,d){
 }
 /* ===== 記入用紙（紙で書く用）の出力。QRを読むとその記録の取り込み画面が開く ===== */
 function scanDeepUrl(type,date){
-  var base=location.href.split('?')[0];
+  /* ★画面のアドレスの「#records」まで含めて土台にしていたので、QRの中身が
+     「…/#records?rec=…」になっていた。# より後ろはページの中の目印あつかいで、
+     読んだスマホには rec も date も渡らず、ホームが開くだけだった（2026-09-25 安田さんのご指摘）。
+     # の前（ページのアドレス）だけを土台にする */
+  var base=location.origin+location.pathname;
   return base+'?rec='+encodeURIComponent(type)+'&date='+encodeURIComponent(date)+'&scan=1';
 }
 function qrDataUri(text,cb){
@@ -29921,13 +29939,21 @@ function staffEnter(){
   }
   go(first);if(typeof initAI==='function')initAI();
 }
-function recDeepLink(){
-  var m=location.search.match(/[?&]rec=([^&]+)/);if(!m)return null;
-  var t=decodeURIComponent(m[1]);
-  var d=(location.search.match(/[?&]date=([^&]+)/)||[])[1];
-  return {type:t,date:d?decodeURIComponent(d):'',scan:/[?&]scan=1/.test(location.search)};
+/* リンクの問い合わせの部分。★すでに配った用紙のQRは「#records?rec=…」の形なので、
+   # のうしろに入っているものも読む（刷り直さなくても開けるように） */
+function deepQuery(){
+  if(location.search)return location.search;
+  var h=String(location.hash||''),i=h.indexOf('?');
+  return i>-1?h.slice(i):'';
 }
-function dmDeepLink(){var m=location.search.match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
+function recDeepLink(){
+  var q=deepQuery();
+  var m=q.match(/[?&]rec=([^&]+)/);if(!m)return null;
+  var t=decodeURIComponent(m[1]);
+  var d=(q.match(/[?&]date=([^&]+)/)||[])[1];
+  return {type:t,date:d?decodeURIComponent(d):'',scan:/[?&]scan=1/.test(q)};
+}
+function dmDeepLink(){var m=deepQuery().match(/[?&]dm=(\d+)/);return m?+m[1]:null;}
 function staffBoot(){
   try{autoSnapshot();}catch(e){}
   /* 監査の記録を年度ごとの形へ。古い形が残っているときだけ動く */
