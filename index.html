@@ -1492,6 +1492,13 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.qrsheet{position:fixed;left:12px;right:12px;bottom:12px;z-index:900;background:#fff;border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 10px 30px rgba(20,10,40,.18);padding:12px 44px 12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;max-width:640px;margin:0 auto;}
+.qrsheet-t{flex:1;min-width:200px;font-size:13px;line-height:1.6;}
+.qrsheet-t span{font-size:11.5px;color:var(--tx2);}
+.qrsheet .btn-primary{font-size:15px;padding:12px 16px;}
+.qrsheet .btn-primary svg{width:18px;height:18px;}
+.qrsheet-x{position:absolute;right:8px;top:8px;border:0;background:none;font-size:18px;color:var(--tx2);cursor:pointer;width:30px;height:30px;}
 .tmgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
 .tmchk{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;cursor:pointer;margin:0;}
 .tplcats{margin:0;}
@@ -10755,7 +10762,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','この用紙を撮影して取り込む':'Photograph this sheet to import it','書いた用紙を撮影すると、この記録に取り込みます':'Take a photo of the filled-in sheet to attach it to this record','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -23830,6 +23837,24 @@ function weekMonISO(d){
   var w=b.getDay(),off=(w===0?-6:1-w);
   return iso(new Date(b.getFullYear(),b.getMonth(),b.getDate()+off));
 }
+/* QRから来たときに画面の下に出す、撮影のボタン */
+function scanQrSheet(rl){
+  var old=document.getElementById('qrSheet');if(old)old.remove();
+  var d=el('div',{id:'qrSheet',class:'qrsheet'});
+  var lab=scanDateLabel(scanDateOf(rl.type),rl.type)||rl.date||'';
+  d.innerHTML='<div class="qrsheet-t"><b>'+esc(rl.type)+'</b>　'+esc(lab)+'<br><span>書いた用紙を撮影すると、この記録に取り込みます</span></div>'
+    +'<button type="button" class="btn btn-primary" id="qrShoot">'+ic('photo')+'この用紙を撮影して取り込む</button>'
+    +'<button type="button" class="qrsheet-x" id="qrClose" aria-label="閉じる">×</button>';
+  document.body.appendChild(d);
+  $('#qrShoot').onclick=function(){
+    var f=document.getElementById('scanFile');
+    if(!f){alert('この記録は紙の取り込みに対応していません。画面から入力してください。');return;}
+    /* 取り込みが終わったら、この帯は片付ける */
+    f.addEventListener('change',function(){setTimeout(function(){var q=document.getElementById('qrSheet');if(q)q.remove();},400);},{once:true});
+    f.click();
+  };
+  $('#qrClose').onclick=function(){d.remove();};
+}
 function scanDateOf(type){
   if(type==='身体測定')return recMonth;
   if(type==='児童票（成長の記録）')return recDevMonth;
@@ -29979,7 +30004,13 @@ function staffBoot(){
     setTimeout(function(){
       if(!rl.scan)return;
       var f=document.getElementById('scanFile');
-      if(f){f.click();return;}
+      /* ★QRを読んで開いたら、撮影の窓を自動で開こうとしていた（f.click()）。
+         ところがスマホのブラウザは、人が押したとき以外に撮影・ファイルの窓を開かせない
+         （Chrome：「File chooser dialog can only be shown with a user activation」）。
+         窓は開かず、しかも「撮影・スキャンを追加」はページのずっと下にあって、
+         QRを読んだ先生は「何も起きない」と感じていた（2026-09-25 Remiさんからのご質問）。
+         画面の下に大きなボタンを出して、押してもらって開く */
+      if(f){scanQrSheet(rl);return;}
       /* 以前に印刷した用紙のQRなど、取り込みに対応していない記録のときに無反応にならないようにする */
       if(typeof toastAI==='function')toastAI('この記録は紙の取り込みに対応していません。画面から入力してください。');
     },300);
