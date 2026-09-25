@@ -1492,6 +1492,8 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.tmgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.tmchk{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;cursor:pointer;margin:0;}
 .tplcats{margin:0;}
 .tplgrp{margin-bottom:16px;}
 .tplgrp-h{font-size:13px;font-weight:700;color:var(--tx2);margin:0 2px 8px;}
@@ -10753,7 +10755,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -33179,11 +33181,87 @@ function taskIsArr(a){return Object.prototype.toString.call(a)==='[object Array]
 function taskHideAll(){var a=stGet('taskHide',[]);return taskIsArr(a)?a:[];}
 function taskAddAll(){var a=stGet('taskAdd',[]);return taskIsArr(a)?a:[];}
 /* いま出す一覧＝もとの一覧から園が消したものを外し、園が足したものを後ろに付ける */
+/* ══ やることの「月」を園ごとに選び直す（2026-09-25 安田さんのご指示）══
+   ★最初から入っているやることの月は、全園で同じで、園では変えられなかった。
+     消防設備の法定点検は一律「9月」、決算は「5月」、健康診断は「6月」。実際には園ごとに違う。
+     しかも法定点検は、危機管理マニュアルの施設固有情報に「6月・12月（総合点検3月）」と別の月があり、
+     同じことに2つの月が書かれていた。
+   ・選び直した月は taskMonth（{やることの名前:'6月・12月'}）に入れる。入れていないものは最初の月のまま
+   ・★消防設備の法定点検だけは、施設固有情報の「消防設備 法定点検月」を正にする（片方で直すと両方が変わる） */
+var TASK_HOUTEI='消防用設備等の法定点検・報告';
+function taskMonthAll(){var v=stGet('taskMonth',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+/* 「6月・12月（総合点検3月）」のような書き方から、月を取り出して「6月・12月・3月」にそろえる（年度の順） */
+function taskMonthNorm(txt){
+  var ms=[],m,re=/(\d{1,2})\s*月/g;
+  while((m=re.exec(String(txt||'')))){var n=+m[1];if(n>=1&&n<=12&&ms.indexOf(n)<0)ms.push(n);}
+  ms.sort(function(a,b){return ((a+8)%12)-((b+8)%12);});
+  return ms.map(function(n){return n+'月';}).join('・');
+}
+function taskMonthOf(t){
+  if(t.name===TASK_HOUTEI&&typeof kikiVal==='function'){var h=taskMonthNorm(kikiVal('法定点検月'));if(h)return h;}
+  var o=taskMonthAll()[t.name];
+  return o||t.month;
+}
+function taskMonthSet(name,val){
+  if(name===TASK_HOUTEI&&typeof kikiVars==='function'){
+    var vv=kikiVars();
+    /* 施設固有情報の書き方（総合点検の添え書きなど）は、月が同じなら残す */
+    if(taskMonthNorm(vv['法定点検月']||kikiVal('法定点検月'))!==val){vv['法定点検月']=val;kikiSaveVars(vv);}
+  }else{
+    var a=taskMonthAll();
+    var base=ANNUAL_TASKS_BASE.filter(function(x){return x.name===name;})[0];
+    if(base&&base.month===val)delete a[name];else a[name]=val;
+    stSet('taskMonth',a);
+  }
+  ANNUAL_TASKS=taskBuild();
+}
+/* その月にやるものか。★「2月」を探すと「12月」にも当たり、年末調整（12月）が2月の「やること」にも出ていた。
+   「・」で区切って1つずつ比べる */
+function taskInMonth(month,mo){
+  var m=String(month||'');
+  if(m.indexOf('毎月')>-1)return true;
+  return m.split(/[・,、\s]+/).some(function(x){return x===mo+'月';});
+}
+/* 月を選び直す窓（毎月／1〜12月を選ぶ。いくつ選んでもよい） */
+function taskMonthModal(name){
+  var t=ANNUAL_TASKS.filter(function(x){return x.name===name;})[0];if(!t)return;
+  var cur=String(t.month||''),every=cur.indexOf('毎月')>-1,on={};
+  cur.split(/[・,、\s]+/).forEach(function(x){var n=parseInt(x,10);if(n)on[n]=1;});
+  var order=[4,5,6,7,8,9,10,11,12,1,2,3];
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:440px;max-width:94vw;"><h2>やる月を選ぶ</h2>'
+    +'<div class="muted" style="margin:-4px 0 10px;font-size:12.5px;">'+esc(name)+'</div>'
+    +(name===TASK_HOUTEI?'<div class="muted" style="font-size:11.5px;margin-bottom:8px;line-height:1.7;">この月は、危機管理マニュアルの施設固有情報「消防設備 法定点検月」と同じものです。どちらで直しても両方が変わります。</div>':'')
+    +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="tmEvery" style="width:auto;"'+(every?' checked':'')+'>毎月</label>'
+    +'<div class="tmgrid" id="tmGrid"'+(every?' style="opacity:.4;pointer-events:none;"':'')+'>'+order.map(function(n){
+      return '<label class="tmchk"><input type="checkbox" data-tm="'+n+'" style="width:auto;"'+(on[n]?' checked':'')+'>'+n+'月</label>';}).join('')+'</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;">'
+    +(ANNUAL_TASKS_BASE.some(function(x){return x.name===name;})&&name!==TASK_HOUTEI?'<button class="btn btn-ghost" id="tmReset" style="margin-right:auto;">はじめの月に戻す</button>':'')
+    +'<button class="btn" id="tmNo">やめる</button><button class="btn btn-primary" id="tmOk">決める</button></div></div>';
+  $('#tmEvery').onchange=function(){var g=$('#tmGrid');g.style.opacity=this.checked?'.4':'';g.style.pointerEvents=this.checked?'none':'';};
+  $('#tmNo').onclick=function(){m.remove();};
+  var rs=$('#tmReset');if(rs)rs.onclick=function(){var a=taskMonthAll();delete a[name];stSet('taskMonth',a);ANNUAL_TASKS=taskBuild();m.remove();renderTasks();};
+  $('#tmOk').onclick=function(){
+    var val;
+    if($('#tmEvery').checked)val='毎月';
+    else{var ms=[].slice.call(m.querySelectorAll('[data-tm]')).filter(function(x){return x.checked;}).map(function(x){return +x.getAttribute('data-tm');});
+      if(!ms.length){alert('月を1つ以上選んでください。');return;}
+      val=taskMonthNorm(ms.map(function(n){return n+'月';}).join('・'));}
+    /* 園で足したやることは、足したときの入れ物の月を書き換える */
+    var own=taskAddAll(),hit=false;
+    own.forEach(function(x){if(x.name===name){x.month=val;hit=true;}});
+    if(hit){stSet('taskAdd',own);ANNUAL_TASKS=taskBuild();}
+    else taskMonthSet(name,val);
+    m.remove();renderTasks();
+  };
+}
 function taskBuild(){
   var hide=taskHideAll(),out=[],i,t;
   for(i=0;i<ANNUAL_TASKS_BASE.length;i++){
     t=ANNUAL_TASKS_BASE[i];
-    if(taskRequired(t.name)||hide.indexOf(t.name)<0)out.push(t);
+    /* 園で選び直した月を当てた写しを使う（もとの一覧は書き換えない） */
+    if(taskRequired(t.name)||hide.indexOf(t.name)<0){var mt=taskMonthOf(t);out.push(mt===t.month?t:Object.assign({},t,{month:mt}));}
   }
   var ad=taskAddAll();
   for(i=0;i<ad.length;i++){
@@ -33368,16 +33446,15 @@ function tasksVisible(list){if(!taskIppan())return list;
   return list.filter(function(t){return TASK_IPPAN.indexOf(t.name)>-1;});}
 /* 年間の一覧に出すぶん。毎月やることは上のカードに出しているので、ここでは外す */
 function tasksYearOnly(){
+  /* 月を選び直せるようにしたので、年度の順（4月→3月）に並べ直す。同じ月の中は、もとの並びのまま */
+  var fo=function(t){var n=parseInt(String(t.month||''),10)||4;return (n+8)%12;};
   return tasksVisible(ANNUAL_TASKS).filter(function(t){
-    return String(t.month||'').indexOf('毎月')<0;});
+    return String(t.month||'').indexOf('毎月')<0;})
+    .map(function(t,i){return {t:t,i:i};}).sort(function(a,b){return (fo(a.t)-fo(b.t))||(a.i-b.i);}).map(function(x){return x.t;});
 }
 function tasksForMonth(mk){
   var mo=+mk.slice(5,7);
-  return tasksVisible(ANNUAL_TASKS.filter(function(t){
-    var m=String(t.month||'');
-    if(m.indexOf('毎月')>-1)return true;
-    return m.indexOf(mo+'月')>-1;
-  }));
+  return tasksVisible(ANNUAL_TASKS.filter(function(t){ return taskInMonth(t.month,mo); }));
 }
 var taskMonth=null;
 function taskMonthCur(){if(!taskMonth)taskMonth=todayISO().slice(0,7);return taskMonth;}
@@ -33417,6 +33494,8 @@ function taskDayOf(t,mk){var d=taskDaySaved(mk,t.name);if(d)return Math.min(+d,t
 /* カレンダーのマスは狭いので、題名の頭だけを出す（全文はマウスを乗せると出る） */
 function taskShort(n){n=String(n||'');return n.length>9?n.slice(0,9)+'…':n;}
 function renderTasks(){
+  /* 月の選び直し・施設固有情報の法定点検月・ほかの端末からの変更を、開くたびに当て直す */
+  ANNUAL_TASKS=taskBuild();
   var mk=taskMonthCur(),s=$('section[data-page="tasks"]');
   var list=tasksForMonth(mk),done=list.filter(function(t){return taskStatus(t,mk);}).length;
   var monthly=list.filter(function(t){return String(t.month).indexOf('毎月')>-1;});
@@ -33477,6 +33556,7 @@ function renderTasks(){
     for(i=0;i<list.length;i++){
       t=list[i];
       h+='<div class="tked"><span class="tkedn">'+esc(t.name)+'</span>'
+        +'<button class="btn btn-sm" data-tkmon="'+esc(t.name)+'" title="やる月を選び直す">'+ic('cal')+esc(t.month||'')+'</button>'
         +(taskOwnerCanEdit()
           ?'<select data-tkown="'+esc(t.name)+'" style="width:88px;font-size:12px;padding:3px 5px;">'
             /* いまの担当が自分より上でも、消さずに出す。選べないようにするだけ */
@@ -33497,7 +33577,7 @@ function renderTasks(){
     for(j=0;j<ANNUAL_TASKS_BASE.length;j++){
       b=ANNUAL_TASKS_BASE[j];
       if(hid.indexOf(b.name)<0)continue;
-      if(String(b.month||'').indexOf(mlabel)<0)continue;
+      if(!taskInMonth(taskMonthOf(b),parseInt(mlabel,10))&&!(mlabel==='毎月'&&String(taskMonthOf(b)).indexOf('毎月')>-1))continue;
       hh+='<div class="tked"><span class="tkedn" style="color:var(--tx3);text-decoration:line-through;">'+esc(b.name)+'</span>'
         +'<button class="btn btn-sm" data-tkback="'+esc(b.name)+'">もどす</button></div>';
     }
@@ -33587,7 +33667,7 @@ function renderTasks(){
     +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;"><h3 style="margin:0;">'+ic('clock')+'毎月やること（'+monthly.length+'）</h3><span style="flex:1;"></span>'
     +(taskIppan()?'':'<button class="btn btn-sm'+(taskEdit?' btn-primary':'')+'" data-tkedit="1">'+(taskEdit?'完了':'修正')+'</button>')+'</div>'
     +(taskEdit
-      ?'<div class="muted" style="margin-bottom:9px;">園に合わない やることは消せます。法令で決まっているものは消せません。</div>'+editBox('毎月',monthly)
+      ?'<div class="muted" style="margin-bottom:9px;">園に合わない やることは消せます。法令で決まっているものは消せません。月のボタンを押すと、やる月を選び直せます。</div>'+editBox('毎月',monthly)
       :(monthly.length?monthly.map(item).join(''):'<div class="empty">ありません</div>'))+'</div>'
     +'<div class="card" style="margin-bottom:14px;">'
     +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px;"><h3 style="margin:0;">'+ic('cal')+mo+'月だけやること（'+special.length+'）</h3><span style="flex:1;"></span>'
@@ -33646,6 +33726,7 @@ function renderTasks(){
     taskOwnerSet(sl.getAttribute('data-tkown'),sl.value);renderTasks();};});
   s.querySelectorAll('[data-tkback]').forEach(function(b){b.onclick=function(){
     taskHideSet(b.getAttribute('data-tkback'),false);renderTasks();};});
+  s.querySelectorAll('[data-tkmon]').forEach(function(b){b.onclick=function(){taskMonthModal(b.getAttribute('data-tkmon'));};});
   s.querySelectorAll('[data-tkaddgo]').forEach(function(b){b.onclick=function(){
     var sfx=b.getAttribute('data-tkaddgo'),el=$('#tkAN'+sfx);
     var n=el?String(el.value||'').replace(/^\s+|\s+$/g,''):'';
