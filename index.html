@@ -200,6 +200,12 @@
   .setNav{margin-bottom:16px;}
   .setNavIn{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;}
   .setNavT{font-size:12px;font-weight:700;margin-bottom:8px;}
+  .setNavG{margin-bottom:6px;}
+  .setNavGH{display:flex;align-items:center;gap:6px;width:100%;text-align:left;font-size:12px;font-weight:700;color:var(--tx);
+    padding:7px 8px;border:0;border-radius:8px;background:var(--bg2,#F6F7F5);cursor:pointer;font-family:inherit;}
+  .setNavGA{width:11px;flex:none;color:var(--tx2);}
+  .setNavGN{font-size:11px;font-weight:600;color:var(--tx2);}
+  .setNavGB{padding:3px 0 2px 6px;}
   .setNavI{display:block;width:100%;text-align:left;font-size:12.5px;padding:8px 9px;border-radius:8px;
     cursor:pointer;border:0;background:none;color:inherit;line-height:1.5;font-family:inherit;}
   .setNavI:hover{background:var(--bg);}
@@ -10687,7 +10693,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -22709,24 +22715,54 @@ function settingsFold(){
   items.forEach(function(it){
     it.h.onclick=function(){toggle(it,null);};
   });
-  /* 見出しの一覧。押すとその項目が開いて、そこまで動く */
+  /* 見出しの一覧。押すとその項目が開いて、そこまで動く。
+     ★19項目が1列に並んで縦に長く、目当ての項目を探しにくかった（2026-09-25 安田さんのご指示「ソート分けてプルダウンに」）。
+     組ごとに分けて畳む。組は見出しの名前の頭で決める（見出しの名前を変えたら SET_NAV_GROUPS も直す）。
+     どの組にも当たらないものは「その他」 */
   var q=document.createElement('input');
   q.className='setNavQ';q.setAttribute('placeholder','項目をしぼり込む');
   var list=document.createElement('div');
+  var groups=SET_NAV_GROUPS.map(function(g){return {name:g[0],keys:g[1],items:[]};});
+  var other={name:'その他',keys:[],items:[]};
   items.forEach(function(it){
+    var g=groups.filter(function(x){return x.keys.some(function(k){return it.name.indexOf(k)===0;});})[0]||other;
+    g.items.push(it);
     var b=document.createElement('button');
     b.type='button';b.className='setNavI';b.textContent=it.name;
     b.onclick=function(){
       toggle(it,true);
       try{it.card.scrollIntoView({block:'start'});}catch(e){it.card.scrollIntoView();}
     };
-    it.nav=b;list.appendChild(b);
+    it.nav=b;
+  });
+  if(other.items.length)groups.push(other);
+  groups=groups.filter(function(g){return g.items.length;});
+  groups.forEach(function(g,gi){
+    var wrapG=document.createElement('div');wrapG.className='setNavG';
+    var hb=document.createElement('button');hb.type='button';hb.className='setNavGH';
+    var bodyG=document.createElement('div');bodyG.className='setNavGB';
+    g.items.forEach(function(it){bodyG.appendChild(it.nav);});
+    g.el=wrapG;g.head=hb;g.body=bodyG;
+    g.paint=function(open){
+      g.open=open;bodyG.style.display=open?'':'none';
+      hb.innerHTML='<span class="setNavGA">'+(open?'▾':'▸')+'</span><span style="flex:1;">'+esc(g.name)+'</span><span class="setNavGN">'+g.items.length+'</span>';
+    };
+    hb.onclick=function(){SET_NAV_OPEN[g.name]=!g.open;g.paint(!g.open);};
+    /* 最初は、前に開いていた組（画面を開いているあいだ覚える）。何も無ければいちばん上の組だけ */
+    g.paint(SET_NAV_OPEN[g.name]!=null?!!SET_NAV_OPEN[g.name]:gi===0);
+    wrapG.appendChild(hb);wrapG.appendChild(bodyG);list.appendChild(wrapG);
   });
   q.oninput=function(){
     var v=q.value.replace(/^\s+|\s+$/g,'').toLowerCase();
-    items.forEach(function(it){
-      var t=(it.nav.textContent||'').toLowerCase();
-      it.nav.style.display=(!v||t.indexOf(v)>-1)?'':'none';
+    groups.forEach(function(g){
+      var hit=0;
+      g.items.forEach(function(it){
+        var t=(it.nav.textContent||'').toLowerCase(),ok=(!v||t.indexOf(v)>-1);
+        it.nav.style.display=ok?'':'none';if(ok)hit++;
+      });
+      /* しぼり込んでいるときは、当たった組を開き、当たらない組は隠す */
+      g.el.style.display=(v&&!hit)?'none':'';
+      if(v)g.paint(hit>0);else g.paint(SET_NAV_OPEN[g.name]!=null?!!SET_NAV_OPEN[g.name]:groups.indexOf(g)===0);
     });
   };
   var box=document.createElement('div');box.className='setNavIn';
@@ -22735,6 +22771,15 @@ function settingsFold(){
   nav.appendChild(box);
   draw();
 }
+/* 設定の見出しの組（見出しの名前の頭で当てる） */
+var SET_NAV_GROUPS=[
+  ['園の基本',['学校情報','写真販売','表示のことば','選択肢の管理']],
+  ['保育・記録',['保育士の配置','登園記録のオプション','アクティビティ種類','生徒情報・ベース設定','以前に取り込んだ紙']],
+  ['お金・請求',['振込口座','料金設定','請求書の体裁','経費管理']],
+  ['アカウント・権限',['職員アカウント','権限管理','全体配信・お知らせのひな形']],
+  ['データ・つなぎ先',['AIの接続','書類・写真の預け先','データのバックアップ']]
+];
+var SET_NAV_OPEN={};
 function setupWarnHTML(){
   var m=setupMissing();
   if(!m.length)return '';
