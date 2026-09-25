@@ -1484,6 +1484,7 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.kkauto{display:inline-block;margin-left:6px;font-size:10px;font-weight:600;color:#27500A;background:#EAF3DE;border-radius:99px;padding:0 7px;vertical-align:1px;}
 .ksmeal{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
 .ksmeal-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
 .ksgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;}
@@ -10678,7 +10679,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -27327,7 +27328,31 @@ function kikiSaveVars(v){var st=dgStore();st.kiki=st.kiki||{};st.kiki.vars=v;stS
 function kikiSaveEdit(id,body){var st=dgStore();st.kiki=st.kiki||{};st.kiki.edits=st.kiki.edits||{};if(body==null)delete st.kiki.edits[id];else st.kiki.edits[id]=body;stSet('docgen',st);}
 function kikiVars(){return kikiStore().vars||{};}
 function kikiEdits(){return kikiStore().edits||{};}
-function kikiVal(k){var v=kikiVars()[k];if(v!=null&&v!=='')return v;var d=KIKI_VARDEF_MAP[k];return (d&&d.d)?d.d:'';}
+/* ★園の基本情報をすでに入れてあっても、ここは空のままで、同じことをもう一度打たせていた
+   （2026-09-25 安田さんのご指摘）。施設管理・設定・職員・クラス・提出書類ナビに入っているものから先に入れておく。
+   園がここで書き直したときは、書き直したほうを使う（入れ物 vars には書き直したものだけが入る）。
+   施設管理を直せば、書き直していない欄は一緒に変わる。保育安全計画もこの値を使う */
+function kikiAuto(k){
+  var f={};try{f=(facGet().info)||{};}catch(e){f={};}
+  var t=function(x){return String(x==null?'':x).replace(/^\s+|\s+$/g,'');};
+  switch(k){
+    case '園名': return t(f.name)||t(typeof schoolNameFixed==='function'?schoolNameFixed():'');
+    case '運営会社': return t(f.company);
+    case '住所': return t((f.zip?'〒'+t(f.zip)+' ':'')+t(f.address))||t(SET.address);
+    case '電話': return t(f.tel)||t(SET.tel);
+    case '目標物': return t(f.landmark);
+    case '市区町村': { var rp={};try{rp=reqProfile()||{};}catch(e){} return t((rp.pref||'')+(rp.muni||'')); }
+    case '開園時間': return t(f.openHours);
+    case '代表取締役': return t(f.rep);
+    case 'マネージャー': return t(f.manager);
+    case 'クラス構成': return (typeof CLASSES!=='undefined'&&CLASSES.length)?CLASSES.join(' / '):'';
+    case '保育施設支援課TEL': return t([t(f.authority),t(f.authorityTel)].filter(Boolean).join('　'));
+    case 'かかりつけ医': { var ds=[];try{ds=facGet().doctors||[];}catch(e){} return ds.filter(function(x){return x&&x.name;}).slice(0,4)
+      .map(function(x){return x.name+(x.tel?'（'+x.tel+'）':'');}).join('／'); }
+  }
+  return '';
+}
+function kikiVal(k){var v=kikiVars()[k];if(v!=null&&v!=='')return v;var a=kikiAuto(k);if(a)return a;var d=KIKI_VARDEF_MAP[k];return (d&&d.d)?d.d:'';}
 function kikiBody(sec){var e=kikiEdits()[sec.id];return e!=null?e:sec.body;}
 function kikiSubstPlain(body){return body.replace(/\{\{([^}]+)\}\}/g,function(m,k){k=k.trim();var v=kikiVal(k);return v||('（'+k+'）');});}
 /* 画像の src には、この端末で作った data:image/ 以外を入れない */
@@ -27361,12 +27386,20 @@ function renderKikiVars(){
   KIKI_VARDEF.forEach(function(d){if(!groups[d.g]){groups[d.g]=[];order.push(d.g);}groups[d.g].push(d);});
   var h=order.map(function(g){
     return '<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:12.5px;color:var(--tx);margin-bottom:6px;">'+g+'</div><div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;">'
-      +groups[g].map(function(d){return '<div class="field" style="margin:0;"><label style="font-size:11.5px;">'+d.label+'</label><input data-kv="'+esc(d.k)+'" value="'+(v[d.k]||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" placeholder="'+esc(d.d||d.ph||'')+'"></div>';}).join('')
+      +groups[g].map(function(d){
+        var own=v[d.k]||'',au=own?'':kikiAuto(d.k);
+        return '<div class="field" style="margin:0;"><label style="font-size:11.5px;">'+d.label
+          +(au?'<span class="kkauto" title="施設管理・設定などに入っている園の情報から入れています。書き直すと、書き直したほうを使います">園の情報から</span>':'')+'</label>'
+          +'<input data-kv="'+esc(d.k)+'" value="'+esc(own||au)+'" placeholder="'+esc(d.d||d.ph||'')+'"'+(au?' data-kvauto="1"':'')+'></div>';}).join('')
       +'</div></div>';
   }).join('');
   h+='<div class="muted" style="font-size:11.5px;line-height:1.6;">※ 氏名・住所・個人の連絡先などはこの端末のブラウザ内にのみ保存され、公開ソースには含まれません。スタッフの緊急連絡先は「連絡先」機能で別管理します。</div>';
   $('#kkVarBody').innerHTML=h;
-  $('#kkVarBody').querySelectorAll('[data-kv]').forEach(function(inp){inp.oninput=function(){var vv=kikiVars();vv[inp.getAttribute('data-kv')]=inp.value;kikiSaveVars(vv);renderKikiEditor();};});
+  $('#kkVarBody').querySelectorAll('[data-kv]').forEach(function(inp){inp.oninput=function(){
+    var vv=kikiVars(),k=inp.getAttribute('data-kv');
+    /* 園の情報から入れた値のままなら、入れ物には書かない（施設管理を直したときに一緒に変わるように） */
+    if(inp.value===kikiAuto(k))delete vv[k];else vv[k]=inp.value;
+    kikiSaveVars(vv);renderKikiEditor();};});
 }
 /* ★セクションの一覧が全部開いたままで、縦に長くスクロールしないと次の章が見えなかった
    （2026-09-25 安田さんのご指示「冒頭や章ごとにプルダウンにできるように」）。
