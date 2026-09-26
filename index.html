@@ -20973,14 +20973,14 @@ function renderCompose(){
     if(!when){if(msg)msg.textContent='予約する日時を選んでください。';return;}
     if(when<schedMinNow()){if(msg)msg.textContent='過ぎた日時には予約できません。いまより後の日時を選んでください。';return;}
     if(!sc.length){if(msg)msg.textContent='送信先を選んでください。';return;}
-    /* ★体験・見学の方（リード）へはメールで送る。メールの予約はサーバにまだ無いので、予約させない（2026-09-25）。
-       黙って外すと、送ったつもりで届かない */
+    /* 体験・見学の方（リード）へは、予約の時刻にサーバがメールで送る（2026-09-26 に対応。それまでは予約できなかった）。
+       ★メールがまだ使えない園では、送ったつもりで届かないので予約させない */
     var leads=sc.filter(function(c){return c.kind==='lead';});
-    if(leads.length){if(msg)msg.textContent='体験・見学の方（'+leads.length+'名）へはメールで送るため、予約できません。この方たちは「送信」で送ってください。';return;}
+    if(leads.length&&!(typeof leadMailCanSend==='function'&&leadMailCanSend())){if(msg)msg.textContent='体験・見学の方（'+leads.length+'名）へのメールは、いまこの園では使えないため予約できません。';return;}
     var q=stGet('scheduled',[]),cx=ctx();
     /* ★宛先の番号（cid）と、1人ずつの文面（per）も残す。サーバが予約の時刻に送るときに使う（src/sched.js）。
        以前は名前しか残しておらず、誰あてか分からないので送りようがなかった */
-    q.push({id:Date.now(),when:when,kind:'個別配信',per:sc.map(function(c){return {cid:c.id,name:c.name,subject:fillTokens($('#cmpSubject').value,c,cx),body:fillTokens($('#cmpBody').value,c,cx)};}),label:mailTpl(composeTpl).label,count:sc.length,names:sc.map(function(c){return (c.child?c.child+'（'+c.name+' 様）':c.name+' 様');}),to:sc.map(function(c){return c.name;}).join('・'),subject:$('#cmpSubject').value,body:$('#cmpBody').value});
+    q.push({id:Date.now(),when:when,kind:'個別配信',per:sc.map(function(c){return {cid:c.id,name:c.name,lead:c.kind==='lead'||undefined,subject:fillTokens($('#cmpSubject').value,c,cx),body:fillTokens($('#cmpBody').value,c,cx)};}),label:mailTpl(composeTpl).label,count:sc.length,names:sc.map(function(c){return (c.child?c.child+'（'+c.name+' 様）':c.name+' 様');}),to:sc.map(function(c){return c.name;}).join('・'),subject:$('#cmpSubject').value,body:$('#cmpBody').value});
     stSet('scheduled',q);
     /* 予約済み配信の一覧は「全体配信・お知らせ」の「全体配信」タブの中にある */
     var okDeliv=(typeof canGoPage!=='function')||canGoPage('broadcast');
@@ -23193,6 +23193,13 @@ function schedAbsorb(){
     (o.dm[cid]||[]).forEach(function(m){if(m&&!ids[String(m.id)]){th.messages.push(m);ids[String(m.id)]=1;dmAdd++;}});
   });
   if(dmAdd)dmSaveAll(t);
+  /* 予約したメール（体験・見学の方あて）が送れなかったら、1度だけ知らせる（この端末で見せたものは覚えておく） */
+  try{
+    var seen=JSON.parse(localStorage.getItem('mira_schedMailSeen')||'{}'),bad=[];
+    Object.keys(o.sent).forEach(function(id){var mm=o.sent[id]&&o.sent[id].mail;if(mm&&mm.ng&&mm.ng.length&&!seen[id]){seen[id]=1;bad=bad.concat(mm.ng);}});
+    if(bad.length){localStorage.setItem('mira_schedMailSeen',JSON.stringify(seen));
+      setTimeout(function(){alert('予約していたメールのうち、送れなかった方がいます。\n\n'+bad.join('\n')+'\n\nお電話などでご連絡ください。');},50);}
+  }catch(e){}
   /* 送れなかった予約（宛先の番号が無い古い予約）は残して、一覧で知らせる */
   var q=stGet('scheduled',[]),keep=q.filter(function(x){var m=o.sent[String(x.id)];return !m||m.err;});
   if(keep.length!==q.length)stSet('scheduled',keep);
