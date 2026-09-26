@@ -1509,6 +1509,21 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+  /* 外した項目（rfHide）はボタンや欄の display 指定に負けないように隠す */
+  [hidden]{display:none!important;}
+  /* 記録で使う項目のスイッチ */
+  .rog{border-top:1px solid var(--line,#E6E2F0);padding:10px 0 4px;}
+  .rog-h{font-weight:700;font-size:12.5px;margin-bottom:4px;}
+  .rosw{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px;cursor:pointer;}
+  .rosw input{position:absolute;opacity:0;width:1px;height:1px;}
+  .rosw-t{flex:none;width:34px;height:20px;border-radius:10px;background:#CFCAD9;position:relative;transition:background .15s;}
+  .rosw-t:after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;}
+  .rosw input:checked+.rosw-t{background:#1F7A6D;}
+  .rosw input:checked+.rosw-t:after{left:16px;}
+  .rosw input:focus-visible+.rosw-t{outline:2px solid #1F7A6D;outline-offset:2px;}
+  .rosub{margin:2px 0 2px 2px;}
+  .rosub>summary{cursor:pointer;font-size:12.5px;padding:4px 0;}
+  .rosub>.rosw{padding-left:14px;}
 .mira-kid{display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin:0 1px;}
 .mira-kid .avatar{flex:none;}
 .mira-src{margin-top:8px;font-size:11px;color:var(--tx3);border-top:1px dashed var(--line);padding-top:6px;}
@@ -3542,7 +3557,7 @@ var SAFETY_GROUPS=[
   {loc:'建物まわり・その他',items:['出入口の施錠具に不具合はないか','植え込みの枝が通路にはみ出していないか','扉の取っ手にゆるみや汚れはないか','屋外灯はすべて点くか','冷暖房の効き具合に異常はないか','裏口など普段使わない場所も見て回ったか','コード類はまとめられ、通行の邪魔になっていないか']},
   /* ★国のガイドラインの参考例と自治体の様式にあって、ここに無かった項目（2026-09-26 安田さんのご判断「足らないものは全部入れて」）。
      ★記録は「上から何番目の項目か」で残しているので、足すのは必ずいちばん下。途中に差し込むと、前の日の結果がずれる。
-     園に無いもの（砂場・ベランダなど）は、園長が「項目を選ぶ」で隠せる（safetyHide） */
+     園に無いもの（砂場・ベランダなど）は、園長が設定の「記録で使う項目」で隠せる（safetyHide） */
   {loc:'防犯・出入口',items:['門扉は施錠され、子どもが一人で開けられないか','不審者が入れない対策（インターホン・防犯カメラなど）が動いているか']},
   {loc:'室内の事故防止',items:['口に入る小さな物（窒息のおそれ）が落ちていないか','薬品・医薬品を鍵のかかる場所にしまっているか','家具・棚に転倒防止をしているか','棚の上に落ちてきそうな物はないか','家具の角にガードが付いているか','コンセントにカバーが付いているか','窓やガラスにひび・破損はないか','扉に指はさみ防止が付いているか','トイレの床が濡れていないか','暖房器具に転倒・やけど防止をしているか','窓・ベランダから転落しない対策があるか','死角になる場所を見て回ったか']},
   {loc:'避難・防火',items:['避難経路・非常口に物を置いていないか','消火器が決まった場所にあるか']},
@@ -3551,9 +3566,24 @@ var SAFETY_GROUPS=[
   {loc:'朝の開錠（早番）',items:['開錠して、園の中に異常がないか見て回った']},
   {loc:'夕方の戸締り（遅番）',items:['電気・ガス・冷暖房を切った','窓・扉をすべて施錠した']}
 ];
-/* 園に無い項目を隠す（園長が「項目を選ぶ」で決める。項目の文字で持つ） */
+/* 園に無い項目を隠す（園長が設定の「記録で使う項目」で決める。項目の文字で持つ） */
 function safetyHidden(){var a=stGet('safetyHide',[]);return Array.isArray(a)?a:[];}
 function safetyShown(it){return safetyHidden().indexOf(it)<0;}
+/* ══ 園ごとに、使う記録・項目を選ぶ（2026-09-26 安田さんのご依頼「園ごとにいる項目いらない項目をトグルで変更できるように。
+   めっちゃ使うわけじゃないから、邪魔にならないところで」）══════════════════════
+   自治体の様式に合わせて既定で全部入れたので、園によっては使わない欄がある。設定の奥（畳んだカード）で外せる。
+   外しても書いた記録は消さない。画面から見えなくするだけ（hidden）なので、入れ直せば元の値が出る。
+   安全点検の1項目ずつの出し入れ（safetyHide）も、ここにまとめた */
+var REC_OPT=[
+  {g:'保育記録のタブ',items:[{k:'tab:散歩・園外活動',l:'散歩・園外活動'},{k:'tab:プール・水遊び',l:'プール・水遊び'}]},
+  {g:'登園（出席）・健康チェック',items:[{k:'hobs',l:'登園時の様子（機嫌・顔色・食事・睡眠・排便など）'},{k:'hextra',l:'体調が悪い子の 処置した人・感染症の疑い・家庭連絡・お迎え'}]},
+  {g:'保育日誌・業務日報',items:[{k:'npo:aim',l:'本日のねらい'},{k:'npo:review',l:'評価・反省'},{k:'npo:eh',l:'行事・保健'},{k:'npo:ext',l:'延長保育（登園シートから自動）'},{k:'npo:staff',l:'出勤した職員（出勤簿から自動）'}]}
+];
+function recOn(k){var o=stGet('recOff',{});return !(o&&typeof o==='object'&&o[k]);}
+function recOffSet(k,off){var o=stGet('recOff',{});if(!o||typeof o!=='object')o={};if(off)o[k]=1;else delete o[k];stSet('recOff',o);}
+function recTabOn(t){return recOn('tab:'+t);}
+/* 外した項目に付ける印。要素ごと隠す（中の入力欄は残るので、保存の処理はそのまま動く） */
+function rfHide(k){return recOn(k)?'':' hidden';}
 function safetyFlat(){var a=[];SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(it){a.push({loc:g.loc,item:it});});});return a;}
 var SYMPTOMS=[
   {cat:'鼻水',opts:['透明(さら)','透明(ねば)','黄色','緑色']},
@@ -3605,8 +3635,9 @@ function recPageOf(t){
 function recPageOf_(t){return REC_CARE.indexOf(t)>-1?'carerec':'records';}
 /* 苦情の記録には保護者の個人的なことが入るので、園長・管理者だけに出す */
 function recCareList(){
-  if(typeof isBoss==='function'&&!isBoss())return REC_CARE.filter(function(t){return t!=='保護者対応の記録';});
-  return REC_CARE;
+  var a=REC_CARE.filter(function(t){return recTabOn(t);});
+  if(typeof isBoss==='function'&&!isBoss())return a.filter(function(t){return t!=='保護者対応の記録';});
+  return a;
 }
 /* 記録の呼び名を変えたので、前の名前で呼ばれても新しい画面をひらけるようにする */
 /* ★呼び名は保存の鍵になっている（RKEY・TASK_PAGE・SCAN_TARGETS・監査の一覧）。
@@ -5816,6 +5847,7 @@ function buildNav(){
         /* 中の機能にも navHide を使えるようにした。
            ホームのマスの中にだけ出したいもの（避難訓練など）に使う。 */
         if(y.navHide)return;
+        if(y.rec&&!recTabOn(y.rec))return;
         var key=y.p+'|'+(y.rec||'')+'|'+(y.l||'');
         if(!y.p||seen[key])return;seen[key]=1;
         /* ★連絡先の行を生徒情報一覧・連絡先のタブに畳んだため、「生徒台帳」の権限を外して「連絡先」を残した役職は、
@@ -6819,6 +6851,7 @@ function egSubHome(x){
   if(!x||!x.sub)return [];
   return x.sub.filter(function(y){
     if(y.homeHide)return false;
+    if(y.rec&&!recTabOn(y.rec))return false;
     if(typeof canView==='function'&&!canView(y.p))return false;
     return true;
   });
@@ -11198,7 +11231,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','カリキュラム作成':'Curriculum builder','月間の予定':'Monthly plan','AIで日案をつくる':'Day plans with AI','新年度の準備':'New school year','年度の切り替え':'School year switch','切り替える':'Switch','元に戻す':'Undo','クラスの進級':'Class promotion','年間行事':'Annual events','確かめて切り替える':'Review and switch','卒園の日':'Graduation date','全部えらぶ':'Select all','全部はずす':'Clear all','仮':'Draft','戻る':'Back','記録を選んで報告を作る':'Pick a record and create the report','最後に作った報告を開く':'Open the latest report','前の様式で作る':'Use the previous form','様式（Excel）を入れて作る':'Add the form (Excel) and create','記録を書く':'Write a record','自治体の様式':'Municipality form','送れませんでした（宛先の記録が無い古い予約です）。削除して、予約し直してください。':'Not sent (an old reservation without recipient records). Delete it and schedule again.','日案をつくる':'Build day plans','AIとつくる':'Plan with AI','この月の活動内容':'This month’s activities','今回使いたいもの（任意）':'What you want to use (optional)','やりたいこと（いくつでも選べます）':'What to do (choose any)','AI保育計画で日案をつくる':'Build day plans in AI Planning','販売状況':'Sales','買ったご家庭':'Buying families','写真を見たご家庭':'Families who viewed','認証キーを登録':'Registered keys','売れた写真':'Sold photos','さいきんの購入':'Recent purchases','認証キーを載せる':'Show the access key','チラシを出す':'Print flyer','チラシに載せるイベント名':'Event name on flyer','公開待ち':'Scheduled','公開中':'Live','公開終了':'Ended','下書き':'Draft','イベントと写真':'Event & photos','認証キー・お知らせ':'Access key & flyer','写っている顔':'Faces','写真をアップロードする':'Upload photos','アップロードする':'Upload','保存しました！':'Saved!','閲覧方法':'How to view','確認の間隔':'Check interval','この用紙を撮影して取り込む':'Photograph this sheet to import it','書いた用紙を撮影すると、この記録に取り込みます':'Take a photo of the filled-in sheet to attach it to this record','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','記録で使う項目':'Record items in use','保育記録のタブ':'Care record tabs','安全点検の項目':'Safety check items','すべて使っています':'All items in use','園で使わない項目を外すと、記録の画面と紙に出なくなります。外しても、書いた記録は消えません（入れ直せば元どおり出ます）。':'Items you turn off no longer appear on record screens or printouts. Existing entries are kept and come back if you turn the item on again.','カリキュラム作成':'Curriculum builder','月間の予定':'Monthly plan','AIで日案をつくる':'Day plans with AI','新年度の準備':'New school year','年度の切り替え':'School year switch','切り替える':'Switch','元に戻す':'Undo','クラスの進級':'Class promotion','年間行事':'Annual events','確かめて切り替える':'Review and switch','卒園の日':'Graduation date','全部えらぶ':'Select all','全部はずす':'Clear all','仮':'Draft','戻る':'Back','記録を選んで報告を作る':'Pick a record and create the report','最後に作った報告を開く':'Open the latest report','前の様式で作る':'Use the previous form','様式（Excel）を入れて作る':'Add the form (Excel) and create','記録を書く':'Write a record','自治体の様式':'Municipality form','送れませんでした（宛先の記録が無い古い予約です）。削除して、予約し直してください。':'Not sent (an old reservation without recipient records). Delete it and schedule again.','日案をつくる':'Build day plans','AIとつくる':'Plan with AI','この月の活動内容':'This month’s activities','今回使いたいもの（任意）':'What you want to use (optional)','やりたいこと（いくつでも選べます）':'What to do (choose any)','AI保育計画で日案をつくる':'Build day plans in AI Planning','販売状況':'Sales','買ったご家庭':'Buying families','写真を見たご家庭':'Families who viewed','認証キーを登録':'Registered keys','売れた写真':'Sold photos','さいきんの購入':'Recent purchases','認証キーを載せる':'Show the access key','チラシを出す':'Print flyer','チラシに載せるイベント名':'Event name on flyer','公開待ち':'Scheduled','公開中':'Live','公開終了':'Ended','下書き':'Draft','イベントと写真':'Event & photos','認証キー・お知らせ':'Access key & flyer','写っている顔':'Faces','写真をアップロードする':'Upload photos','アップロードする':'Upload','保存しました！':'Saved!','閲覧方法':'How to view','確認の間隔':'Check interval','この用紙を撮影して取り込む':'Photograph this sheet to import it','書いた用紙を撮影すると、この記録に取り込みます':'Take a photo of the filled-in sheet to attach it to this record','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -23831,6 +23864,7 @@ function renderSettings(){
   }
   /* 新年度の準備（2026-09-25）。管理者・マネージャー */
   if(typeof renderNewYearSettings==='function')renderNewYearSettings(s);
+  renderRecOptSettings(s);
   if(typeof renderFileMoveSettings==='function'
      && (typeof currentRole!=='function'||currentRole()==='管理者'))renderFileMoveSettings(s);
   /* バックアップは全園児のデータを丸ごと持ち出せる。
@@ -25362,7 +25396,7 @@ function edTouen(){
     thermoBarHTML()+
     /* ★横に送ると園児名の列まで一緒に流れて、誰の記録か分からなくなっていた。
        stickycol で左の1列を貼り付け、hint で「横に送れる」影を出す。 */
-    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th><th style="white-space:nowrap;">登園時の様子</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
+    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th><th style="white-space:nowrap;"'+rfHide('hobs')+'>登園時の様子</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=viewOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席')+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
         /* 登園・降園の時刻（シート4行「登園時間」）。保護者が未来WAで押したものには「保護者」の札 */
@@ -25374,7 +25408,7 @@ function edTouen(){
         +'</td>'+
       '<td><input data-tt="'+esc(c.id)+'" data-temp36="1" type="number" inputmode="decimal" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
       '<td style="white-space:nowrap;">'+healthCellHtml(_hd,c)+'</td>'+
-      '<td>'+hobsCellHtml(_hd,c,r)+'</td>'+
+      '<td'+rfHide('hobs')+'>'+hobsCellHtml(_hd,c,r)+'</td>'+
       opts.map(function(op,oi){var on=!!r.opts[op];
         /* 給食・延長保育はその日の予定を読み取り専用で表示する。
            押しても反応しないので、点線の枠とグレーでタップできるボタンと見分けられるようにする */
@@ -25684,7 +25718,6 @@ function kenshokuMonthBody(mo){
     +(rows||'<tr><td colspan="15">この月の記録はありません</td></tr>')+'</tbody></table></div>'
     +'<p style="font-size:9px;">※ 検食は、施設長（不在のときは施設長が指名した職員）が、子どもが食べる前（喫食の30分前まで）に行う。</p>';
 }
-var SF_CHOOSE=false;
 function edSafety(){
   var K='rec_安全点検',data=stGet(K,{}),d=data[recDate]||{items:{},memo:'',by:''};
   /* ★日常記録5つのうち、安全点検だけ確定の帯が無かった。そのため
@@ -25695,21 +25728,20 @@ function edSafety(){
             {k:'memo',l:'メモ'},{k:'by',l:'点検者'},{k:'approver',l:'施設長の確認'}];
   var _sfSnap=lockSnap(d,SF_F);
   var last7='';for(var i=6;i>=0;i--){var dt=iso(addDays(-i));var has=data[dt];last7+='<span class="tag" style="'+(has?'background:#EAF3DE;color:#27500A;':'')+'">'+dt.slice(5).replace('-','/')+(has?' ✓':' —')+'</span> ';}
-  var idx=-1,choose=!!SF_CHOOSE,hid=safetyHidden();
+  var idx=-1,hid=safetyHidden();
   if(!d.notes)d.notes={};
   var rows=SAFETY_GROUPS.map(function(g){
-    var shownN=g.items.filter(function(it){return choose||hid.indexOf(it)<0;}).length;
+    var shownN=g.items.filter(function(it){return hid.indexOf(it)<0;}).length;
     return (shownN?'<tr><td colspan="2" style="background:#F1EFE8;font-weight:600;font-size:12.5px;">'+g.loc+'</td></tr>':'')+
     g.items.map(function(it){idx++;var i=idx,v=d.items[i];
-      /* 項目を選ぶとき：チェックを外した項目は、毎日の表に出さない */
-      if(choose)return '<tr><td colspan="2"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" data-sfshow="'+esc(it)+'"'+(hid.indexOf(it)<0?' checked':'')+' style="width:auto;">'+esc(it)+'</label></td></tr>';
+      /* 園で使わない項目は出さない（設定の「記録で使う項目」で外したもの） */
       if(hid.indexOf(it)>-1)return '';
       /* 要対応のときだけ、異常の内容と直したことを書く欄を出す（自治体の様式の「措置」欄） */
       var note=v==='ng'?'<tr><td colspan="2" style="padding-top:0;"><input data-sn="'+esc(i)+'" value="'+esc(d.notes[i]||'')+'" placeholder="どんな異常か、どう直したか（例：すべり台の手すりのねじのゆるみ → 締め直した）" style="font-size:12.5px;"></td></tr>':'';
       return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;width:160px;"><button class="btn btn-sm" data-si="'+esc(i)+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">良</button> <button class="btn btn-sm" data-si="'+esc(i)+'" data-v="ng" style="'+(v==='ng'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">要対応</button></td></tr>'+note;}).join('');}).join('');
   $('#recBody').innerHTML=lockBarHtml(d)+'<div class="card">'+recHead('園施設 安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="sfAllOk">'+ic('check')+'すべて「良」にする</button><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力（月間表）</button>'
-      +((typeof isBoss!=='function'||isBoss())?'<button class="btn btn-sm'+(SF_CHOOSE?' btn-primary':'')+'" id="sfChoose">'+(SF_CHOOSE?'項目を選び終える':'項目を選ぶ')+'</button>':''))+
-    (SF_CHOOSE?'<div class="note-b" style="margin-bottom:10px;font-size:12.5px;">この園で点検する項目にチェックを入れてください。外した項目は、毎日の表と紙に出なくなります（前の記録は消えません）。</div>':'')+
+      /* ★「項目を選ぶ」ボタンはここにあったが、毎日押すものではないので設定の「記録で使う項目」へ移した（2026-09-26） */
+      )+
     '<table><tbody>'+rows+'</tbody></table>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+esc((d.memo||''))+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><select id="sfBy"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===d.by?' selected':'')+'>'+st.name+'</option>';}).join('')+'</select></div></div>'+
     /* 施設長の確認（自治体の様式の「施設長」欄）。確定とは別に、見たことを残す */
@@ -25727,10 +25759,6 @@ function edSafety(){
   /* 「すべて良」は、この園で点検している（隠していない）項目だけ */
   $('#sfAllOk').onclick=function(){var n=0,hd=safetyHidden();SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(it){if(hd.indexOf(it)<0&&d.items[n]!=='ng')d.items[n]='ok';n++;});});save();edSafety();};
   document.querySelectorAll('[data-sn]').forEach(function(x){x.onchange=function(){d.notes[x.getAttribute('data-sn')]=x.value;save();};});
-  if($('#sfChoose'))$('#sfChoose').onclick=function(){SF_CHOOSE=!SF_CHOOSE;edSafety();};
-  document.querySelectorAll('[data-sfshow]').forEach(function(x){x.onchange=function(){
-    var h=safetyHidden(),it=x.getAttribute('data-sfshow'),k=h.indexOf(it);
-    if(x.checked&&k>-1)h.splice(k,1);else if(!x.checked&&k<0)h.push(it);stSet('safetyHide',h);};});
   if($('#sfApprove'))$('#sfApprove').onclick=function(){var w='';try{w=(currentStaff()||{}).name||'';}catch(e){}
     d.approver=(w||'施設長')+'（'+todayISO().slice(5).replace('-','/')+' '+pad(new Date().getHours())+':'+pad(new Date().getMinutes())+'）';save();edSafety();};
   document.querySelectorAll('[data-si]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-si'),v=b.getAttribute('data-v');d.items[i]=(d.items[i]===v?null:v);save();edSafety();};});
@@ -25876,7 +25904,7 @@ function healthBarHtml(hd,kids,fever){
     +'<div class="hlbar-b">'
     +'<button class="btn btn-sm" id="hlAllHealthy" style="'+(hd.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'
       +(hd.allHealthy?'✓ 全員に症状なし 記録済み':'全員に症状なし を記録')+'</button>'
-    +'<button class="btn btn-sm" id="hlAllObs" title="まだ入れていない出席の子に、機嫌 良・顔色 異常なし・食事 普・排便 普 を入れます">登園時の様子：全員いつもどおり</button>'
+    +'<button class="btn btn-sm" id="hlAllObs"'+rfHide('hobs')+' title="まだ入れていない出席の子に、機嫌 良・顔色 異常なし・食事 普・排便 普 を入れます">登園時の様子：全員いつもどおり</button>'
     +'<button class="btn btn-sm" id="hlPrint">'+ic('printer')+'健康チェックを出力</button>'
     +'<button class="btn btn-sm" id="hlBlank">'+ic('printer')+'記入用紙</button>'
     +'</div></div>'
@@ -26004,7 +26032,7 @@ function healthModal(idx,d,save,pre){
     '<div class="field"><label>その他異常</label><input id="he_other" value="'+(en.other||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'+
     '<div class="field"><label>対応・処置</label><input id="he_action" value="'+(en.action||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'+
     /* ★自治体の様式にある「処置者・家庭連絡・お迎え・感染症の疑い」の欄が無かった（2026-09-26） */
-    '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;">'
+    '<div'+rfHide('hextra')+'><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;">'
       +'<div class="field" style="margin:0;"><label>処置した人</label><select id="he_by"><option value="">—</option>'+(DB.staff||[]).filter(function(x){return x&&x.name&&!x.leaveDate;}).map(function(x){return '<option'+(x.name===en.byStaff?' selected':'')+'>'+esc(x.name)+'</option>';}).join('')+'</select></div>'
       +'<div class="field" style="margin:0;"><label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="he_infect" style="width:auto;"'+(en.infect?' checked':'')+'>感染症の疑いがある</label></div></div>'
     +'<div class="grid" style="grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-top:10px;">'
@@ -26012,7 +26040,7 @@ function healthModal(idx,d,save,pre){
       +'<input id="he_contactAt" type="time" value="'+esc(en.contactAt||'')+'" style="width:130px;">'
       +'<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="he_pickup" style="width:auto;"'+(en.pickup?' checked':'')+'>お迎えがあった</label>'
       +'<div style="display:flex;gap:8px;"><input id="he_pickupAt" type="time" value="'+esc(en.pickupAt||'')+'" style="width:130px;"><input id="he_pickupBy" value="'+esc(en.pickupBy||'')+'" placeholder="迎えに来た人（例：母）"></div>'
-    +'</div>'+
+    +'</div></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;"><button class="btn" id="he_cancel">キャンセル</button><button class="btn btn-primary" id="he_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
@@ -26751,7 +26779,7 @@ function edNippo(){
        （2026-09-25 安田さんのご指示）。欄が空のときは、欄のすぐ上にカリキュラムの予定を見せ、
        大きな「この予定を活動内容に入れる」を置く。書いたあとは「予定で置き換える」を小さく残す */
     /* ★自治体の日誌の様式にある「本日のねらい」「評価・反省」「行事」「保健」の欄が無かった（2026-09-26） */
-    '<div class="field"><label>本日のねらい</label><input id="npoAim" value="'+esc(d.aim||'')+'" placeholder="例：友だちと一緒に体を動かす楽しさを味わう"></div>'+
+    '<div class="field"'+rfHide('npo:aim')+'><label>本日のねらい</label><input id="npoAim" value="'+esc(d.aim||'')+'" placeholder="例：友だちと一緒に体を動かす楽しさを味わう"></div>'+
     '<div class="field"><label>活動内容</label>'
       +(currText&&!actualVal
         ?'<div class="npocur"><div class="npocur-t"><b>'+esc(recDate.slice(5).replace('-','/'))+'　'+esc(d.klass)+' のカリキュラムの予定</b><div class="npocur-x">'+esc(currText).replace(/\n/g,'<br>')+'</div></div>'
@@ -26764,8 +26792,8 @@ function edNippo(){
        紙で書いて取り込むと、画面で見たときに落ちてしまう。 */
     '<div class="field"><label>使った絵本や玩具</label><input id="npoBooks" value="'+esc((d.books||''))+'" placeholder="例：はらぺこあおむし／積み木"></div>'+
     '<div class="field"><label>クラスの様子・エピソード</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
-    '<div class="field"><label>評価・反省</label><textarea id="npoReview" rows="2" placeholder="ねらいに対して子どもの姿はどうだったか、次にどうするか">'+esc(d.review||'')+'</textarea></div>'+
-    '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
+    '<div class="field"'+rfHide('npo:review')+'><label>評価・反省</label><textarea id="npoReview" rows="2" placeholder="ねらいに対して子どもの姿はどうだったか、次にどうするか">'+esc(d.review||'')+'</textarea></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;"'+rfHide('npo:eh')+'>'+
       '<div class="field"><label>行事</label><input id="npoEvent" value="'+esc(d.event||'')+'" placeholder="例：誕生会"></div>'+
       '<div class="field"><label>保健（健診・消毒など）</label><input id="npoHoken" value="'+esc(d.hoken||'')+'" placeholder="例：おもちゃの消毒"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
@@ -27051,8 +27079,8 @@ function nippoAutoHTML(dk,klass,forPrint){
       +(ages.length>1||(ages[0]&&ages[0]!=='—')?'<div style="font-size:11.5px;margin-top:3px;">'+ages.map(function(k){var g=a.age[k];return esc(k)+'：'+g.e+'名中 出席'+g.p+'・欠席'+g.a;}).join('　')+'</div>':'')):'')
     +cell('欠席した子',a.absent.length?a.absent.map(esc).join('、'):(a.en&&(a.pr||a.ab)?'なし':''))
     +cell('保育の開始・終了',a.start||a.end?esc(a.start||'—')+' 〜 '+esc(a.end||'—')+'<span style="font-size:11px;color:#888;">（最初の登園・最後のお迎え）</span>':'')
-    +cell('延長保育',a.late.length?a.late.length+'名：'+a.late.map(esc).join('、'):(a.pr?'なし':''))
-    +cell('出勤した職員',a.staff.length?a.staff.map(esc).join('、'):'')
+    +(recOn('npo:ext')||a.late.length?cell('延長保育',a.late.length?a.late.length+'名：'+a.late.map(esc).join('、'):(a.pr?'なし':'')):'')
+    +(recOn('npo:staff')?cell('出勤した職員',a.staff.length?a.staff.map(esc).join('、'):''):'')
     +cell('安全点検',a.sfNg===null?'':(a.sfNg?'要対応 '+a.sfNg+'件（'+a.sfAll+'項目中）':'異常なし（'+a.sfAll+'項目）'))
     +cell('給食・おやつ',esc(a.meal))
     +'</tbody></table>';
@@ -36722,6 +36750,42 @@ function nyUndo(){
   try{if(typeof SYNC!=='undefined'&&SYNC.push)SYNC.push();}catch(e){}
   alert('元に戻しました（'+(back+cn)+'か所）。'+(kept?'\n切り替えたあとに直してあった '+kept+'か所は、そのまま残しました。':''));
   try{renderSettings();}catch(e){}
+}
+/* 設定：記録で使う項目。設定のほかのカードと同じく、見出しを押すまで畳んである（settingsFold） */
+function renderRecOptSettings(s){
+  if(typeof isBoss==='function'&&!isBoss())return;
+  var off=0,all=0,hid=safetyHidden();
+  REC_OPT.forEach(function(g){g.items.forEach(function(it){all++;if(!recOn(it.k))off++;});});
+  SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(it){all++;if(hid.indexOf(it)>-1)off++;});});
+  var sw=function(attr,on,label){return '<label class="rosw"><input type="checkbox" '+attr+(on?' checked':'')+'><span class="rosw-t"></span><span>'+esc(label)+'</span></label>';};
+  var h='<div class="card" data-recopt="1" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('check')+'記録で使う項目</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin:0 0 6px;">園で使わない項目を外すと、記録の画面と紙に出なくなります。外しても、書いた記録は消えません（入れ直せば元どおり出ます）。'
+    +'<br><b class="rocount">'+(off?off+'項目を外しています':'すべて使っています')+'</b></div>';
+  REC_OPT.forEach(function(g){
+    h+='<div class="rog"><div class="rog-h">'+esc(g.g)+'</div>'+g.items.map(function(it){return sw('data-ro="'+esc(it.k)+'"',recOn(it.k),it.l);}).join('')+'</div>';
+  });
+  h+='<div class="rog"><div class="rog-h">安全点検の項目</div>';
+  SAFETY_GROUPS.forEach(function(g){
+    var n=g.items.filter(function(it){return hid.indexOf(it)<0;}).length;
+    h+='<details class="rosub"><summary>'+esc(g.loc)+'<span class="muted">　'+n+' / '+g.items.length+'</span></summary>'
+      +g.items.map(function(it){return sw('data-rosf="'+esc(it)+'"',hid.indexOf(it)<0,it);}).join('')+'</details>';
+  });
+  h+='</div></div>';
+  s.insertAdjacentHTML('beforeend',h);
+  var card=s.querySelector('[data-recopt]');
+  card.querySelectorAll('[data-ro]').forEach(function(x){x.onchange=function(){recOffSet(x.getAttribute('data-ro'),!x.checked);recOptCount();};});
+  card.querySelectorAll('[data-rosf]').forEach(function(x){x.onchange=function(){
+    var h2=safetyHidden(),it=x.getAttribute('data-rosf'),k=h2.indexOf(it);
+    if(x.checked&&k>-1)h2.splice(k,1);else if(!x.checked&&k<0)h2.push(it);stSet('safetyHide',h2);recOptCount();};});
+  /* 数だけ書き直す（全体を描き直すと、開いていた小さな組が閉じてしまう） */
+  function recOptCount(){
+    var o=0,hd=safetyHidden(),sm=card.querySelector('.rocount');
+    REC_OPT.forEach(function(g){g.items.forEach(function(it){if(!recOn(it.k))o++;});});
+    SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(it){if(hd.indexOf(it)>-1)o++;});});
+    if(sm)sm.textContent=o?o+'項目を外しています':'すべて使っています';
+    card.querySelectorAll('details.rosub').forEach(function(d,i){var g=SAFETY_GROUPS[i],n=g.items.filter(function(it){return hd.indexOf(it)<0;}).length,m=d.querySelector('summary .muted');if(m)m.textContent='　'+n+' / '+g.items.length;});
+    try{buildNav&&buildNav();}catch(e){}
+  }
 }
 function renderNewYearSettings(s){
   if(!nyCanUse())return;
