@@ -1517,6 +1517,24 @@ button.hpr:hover{background:#FAF9F5}
 .mira-wait{color:var(--tx3);}
 .mira-logo{background:#fff;border-radius:8px;padding:4px 6px;display:inline-flex;align-items:center;}
 .mira-logo img{height:16px;display:block;}
+#aiPanel{position:fixed;}
+.mira-side{display:none;background:#FAF8FE;border-right:1px solid var(--line);overflow-y:auto;padding:10px 8px;}
+#aiPanel.wide{padding-left:270px;}
+#aiPanel.wide .mira-side{display:block;position:absolute;left:0;top:0;bottom:0;width:270px;box-sizing:border-box;border-radius:18px 0 0 18px;}
+#aiPanel.wide #aiHist{display:none;}
+#aiPanel.hist:not(.wide) .mira-side{display:block;position:absolute;left:0;right:0;top:58px;bottom:0;z-index:3;border-radius:0 0 18px 18px;}
+.mira-newbtn{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:var(--teal);margin-bottom:10px;}
+.mira-side-h{font-size:11px;color:var(--tx3);margin:4px 4px 6px;font-weight:700;}
+.mira-item{display:flex;align-items:center;gap:6px;padding:8px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;}
+.mira-item:hover{background:#EEE7FB;}
+.mira-item.on{background:#E5DCFA;font-weight:700;}
+.mira-item .mt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mira-item .md{font-size:10.5px;color:var(--tx3);}
+.mira-item .mx{border:none;background:none;color:var(--tx3);cursor:pointer;font-size:14px;padding:0 2px;opacity:.6;}
+.mira-item .mx:hover{opacity:1;color:#A32D2D;}
+.mira-empty{font-size:12px;color:var(--tx3);padding:8px 6px;line-height:1.7;}
+@media(max-width:640px){#aiPanel.wide{padding-left:0;}#aiPanel.wide .mira-side{display:none;}#aiPanel.wide #aiHist{display:inline-block;}
+  #aiPanel.wide.hist .mira-side{display:block;position:absolute;left:0;right:0;top:58px;bottom:0;width:auto;z-index:3;border-radius:0;}}
 .aipgrid{display:flex;flex-direction:column;gap:10px;}
 .aipwk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;}
 .aipday{border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;}
@@ -37141,16 +37159,34 @@ function helpEscalate(p){
      ★住所・電話・アレルギー・保護者の情報・保護者からの連絡は送らない
    ・園の記録を読むかどうかは設定で切り替えられる（既定はオン。stGet('miraData')）
    ・いのちに関わる場面（園の手順書のシナリオに当たるもの）は、これまでどおり手順書を先に出す */
-var MIRA={msgs:[],busy:false};
-try{var _mh=JSON.parse(sessionStorage.getItem('mira_chat')||'null');if(_mh&&_mh.length)MIRA.msgs=_mh.slice(-30);}catch(e){}
-function miraSave(){try{sessionStorage.setItem('mira_chat',JSON.stringify(MIRA.msgs.slice(-30)));}catch(e){}}
+/* ★会話はアカウントごとにサーバへ残す（2026-09-26 安田さんのご指示「サイドバーを作って、アカウントごとに蓄積して残せるように（Claude のように）」）。
+   id … サーバの会話の番号。codes … この会話で「児A」がどの園児か（園児の番号）。日がたって園児が入れ替わっても同じ子に戻す */
+var MIRA={msgs:[],busy:false,id:null,codes:{},list:null};
+function miraSave(){
+  /* 会話に出てきた仮の呼び名だけを、園児の番号と結んで残す */
+  var m=miraMap(),used={};
+  MIRA.msgs.forEach(function(x){String(x.text||'').replace(/児[A-Z]{1,3}/g,function(c){if(m.byCode[c])used[c]=String(m.byCode[c].id);return c;});});
+  Object.keys(used).forEach(function(c){MIRA.codes[c]=used[c];});
+  if(typeof API==='undefined'||!API.token()||!MIRA.msgs.length)return;
+  var body={messages:MIRA.msgs,codes:MIRA.codes};
+  if(MIRA.id){API.call('PUT','/ai/chats/'+MIRA.id,body).then(function(){miraListLoad();}).catch(function(){});}
+  else{
+    var first=MIRA.msgs.filter(function(x){return x.role==='me';})[0];
+    body.title=String(first?first.text:'').replace(/\s+/g,' ').slice(0,40);
+    API.call('POST','/ai/chats',body).then(function(j){if(j&&j.chat){MIRA.id=j.chat.id;miraListLoad();}}).catch(function(){});
+  }
+}
 function miraDataOn(){var v=null;try{v=stGet('miraData',null);}catch(e){}return v!==false;}
 /* 仮の呼び名。クラスの並び→番号の順に、在園児全員へ A, B, … と振る（会話の途中で変わらないように） */
 function miraCode(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return '児'+s;}
 function miraMap(){
+  var all={},m={byId:{},byCode:{},names:[]},used={},i=0;
+  (DB.contacts||[]).forEach(function(c){if(c&&c.kind!=='lead')all[String(c.id)]=c;});
+  /* この会話ですでに使った呼び名は、そのまま同じ子に（退園した子も戻せるように、在園に限らない） */
+  Object.keys(MIRA.codes||{}).forEach(function(code){used[code]=1;var c=all[String(MIRA.codes[code])];if(c){m.byId[String(c.id)]=code;m.byCode[code]=c;}});
   var ks=enrolled().slice().sort(function(a,b){var x=CLASSES.indexOf(a.klass),y=CLASSES.indexOf(b.klass);return x!==y?x-y:(+a.id>+b.id?1:-1);});
-  var m={byId:{},byCode:{},names:[]};
-  ks.forEach(function(c,i){var code=miraCode(i);m.byId[String(c.id)]=code;m.byCode[code]=c;
+  ks.forEach(function(c){if(m.byId[String(c.id)])return;var code;do{code=miraCode(i++);}while(used[code]);used[code]=1;m.byId[String(c.id)]=code;m.byCode[code]=c;});
+  Object.keys(m.byCode).forEach(function(code){var c=m.byCode[code];
     [childFullName(c),childName(c)].forEach(function(n){n=String(n||'').replace(/^\s+|\s+$/g,'');if(n.length>=2)m.names.push([n,code]);});});
   m.names.sort(function(a,b){return b[0].length-a[0].length;});
   return m;
@@ -37256,19 +37292,19 @@ function miraSend(q){
   if(MIRA.busy){aiPush('bot','前の質問に答えているところです。少しお待ちください。');return;}
   MIRA.busy=true;
   var m=miraMap(),useData=miraDataOn()&&miraWantsData(q),ctx=useData?miraDataText(q,m):null;
-  MIRA.msgs.push({role:'me',text:aiScrub(miraPseudo(q,m)).slice(0,1500)});miraSave();
+  MIRA.msgs.push({role:'me',text:aiScrub(miraPseudo(q,m)).slice(0,1500),at:new Date().toISOString()});
   aiPush('bot','<span class="mira-wait">'+(useData?'園の記録を読んで、考えています…':'考えています…')+'</span>');
   var wait=$('#aiBody').lastChild;
   function drop(){if(wait&&wait.parentNode)wait.parentNode.removeChild(wait);}
   API.call('POST','/ai/chat',{messages:MIRA.msgs.slice(-12),help:miraHelpText(q),data:ctx?ctx.text:''}).then(function(j){
     drop();
-    if(j&&j.code==='urgent'){MIRA.msgs.pop();miraSave();aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
+    if(j&&j.code==='urgent'){MIRA.msgs.pop();aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
     var t=String((j&&j.text)||'');
-    MIRA.msgs.push({role:'ai',text:t});miraSave();
+    MIRA.msgs.push({role:'ai',text:t,at:new Date().toISOString()});miraSave();
     aiPush('bot',miraHTML(t,m)+(ctx?'<div class="mira-src">'+esc(ctx.note)+'</div>':''));
     try{wireFileImgs($('#aiBody'));}catch(e){}
   }).catch(function(e){
-    drop();MIRA.msgs.pop();miraSave();
+    drop();MIRA.msgs.pop();
     aiPush('bot',esc((e&&e.message)||'AIに聞けませんでした。時間をおいてお試しください。'));
   }).then(function(){MIRA.busy=false;});
 }
@@ -37276,7 +37312,43 @@ function miraOpen(){
   if(typeof initAI==='function')initAI();
   if(!AI_OPEN){AI_OPEN=true;$('#aiPanel').classList.add('open');var dot=$('#aiFab .dot');if(dot)dot.style.display='none';if(!aiStarted){aiStarted=true;aiGreet();}}
 }
-function miraNew(){MIRA.msgs=[];miraSave();$('#aiBody').innerHTML='';aiGreet();}
+function miraNew(){MIRA.msgs=[];MIRA.id=null;MIRA.codes={};$('#aiBody').innerHTML='';aiGreet();miraListPaint();closeHistNarrow();}
+function closeHistNarrow(){var p=$('#aiPanel');if(p)p.classList.remove('hist');}
+/* 名前だけに戻した文（顔写真なし）。会話の一覧の題名に使う */
+function miraPlain(t,m){return String(t||'').replace(/児([A-Z]{1,3})/g,function(all){var c=m.byCode[all];return c?childFullName(c):all;});}
+/* 会話の一覧（サイドバー） */
+function miraListLoad(){
+  if(typeof API==='undefined'||!API.token())return;
+  API.call('GET','/ai/chats').then(function(j){MIRA.list=(j&&j.chats)||[];miraListPaint();}).catch(function(){});
+}
+function miraListPaint(){
+  var el2=$('#miraSide');if(!el2)return;
+  var m=miraMap(),L=MIRA.list||[];
+  el2.innerHTML='<button type="button" class="mira-newbtn" id="miraSideNew">＋ 新しい会話</button>'
+    +'<div class="mira-side-h">これまでの会話</div>'
+    +(L.length?L.map(function(c){
+      var d=new Date(c.updatedAt),dl=isNaN(d.getTime())?'':((d.getMonth()+1)+'/'+d.getDate());
+      return '<div class="mira-item'+(c.id===MIRA.id?' on':'')+'" data-mirchat="'+c.id+'"><span class="mt">'+esc(miraPlain(c.title||'（題名なし）',m))+'</span>'
+        +'<span class="md">'+esc(dl)+'</span><button type="button" class="mx" data-mirdel="'+c.id+'" title="この会話を消す">×</button></div>';}).join('')
+      :'<div class="mira-empty">まだありません。質問すると、ここに残ります。</div>');
+  var nb=$('#miraSideNew');if(nb)nb.onclick=miraNew;
+  el2.querySelectorAll('[data-mirchat]').forEach(function(x){x.onclick=function(e){if(e.target.closest('[data-mirdel]'))return;miraOpenChat(+x.getAttribute('data-mirchat'));};});
+  el2.querySelectorAll('[data-mirdel]').forEach(function(x){x.onclick=function(e){e.stopPropagation();
+    if(!confirm('この会話を消します。よろしいですか？'))return;
+    var id=+x.getAttribute('data-mirdel');
+    API.call('DELETE','/ai/chats/'+id).then(function(){if(MIRA.id===id)miraNew();miraListLoad();}).catch(function(err){alert(err.message);});};});
+}
+function miraOpenChat(id){
+  if(MIRA.busy)return;
+  API.call('GET','/ai/chats/'+id).then(function(j){
+    if(!j||!j.chat)return;
+    MIRA.id=j.chat.id;MIRA.msgs=j.chat.messages||[];MIRA.codes=j.chat.codes||{};
+    var m=miraMap();$('#aiBody').innerHTML='';
+    MIRA.msgs.forEach(function(x){aiPush(x.role==='me'?'me':'bot',miraHTML(x.text,m));});
+    try{wireFileImgs($('#aiBody'));}catch(e){}
+    miraListPaint();closeHistNarrow();
+  }).catch(function(err){alert(err.message);});
+}
 /* 各画面の「?」。長い説明の代わりに、その画面でできることを短く出し、続けて聞けるようにする */
 function miraPageHelp(page){
   miraOpen();
@@ -37315,7 +37387,9 @@ function initAI(){
   var panel=el('div',{id:'aiPanel'});
   /* ★「保育の相談」「使い方」の2つに分けていたのを、Miralink AI の1つの会話にまとめた（2026-09-25） */
   panel.innerHTML='<div class="ai-head"><span class="mira-logo"><img src="img/logo_miralink.png" alt=""></span><div class="t">Miralink AI<small>保育の相談・使い方・園の記録</small></div>'
-    +'<button id="aiNew" title="新しい会話">＋</button><button id="aiWide" title="大きく表示する">⤢</button><button id="aiClose">×</button></div>'
+    +'<button id="aiHist" title="これまでの会話">☰</button><button id="aiNew" title="新しい会話">＋</button><button id="aiWide" title="大きく表示する">⤢</button><button id="aiClose">×</button></div>'
+    /* 会話の一覧。大きく表示したときは左にいつも出し、小さいときは ☰ で開く */
+    +'<div class="mira-side" id="miraSide"></div>'
     +'<div class="ai-body" id="aiBody"></div>'
     +'<div class="ai-chips" id="aiChips"></div>'
     +'<div class="ai-foot"><input id="aiInput" placeholder="なんでも聞いてください（例：今月、欠席が多い子は？）"><button id="aiSend">➤</button></div>'
@@ -37336,6 +37410,7 @@ function initAI(){
   fab.onclick=function(){AI_OPEN=!AI_OPEN;panel.classList.toggle('open',AI_OPEN);var dot=fab.querySelector('.dot');if(dot)dot.style.display='none';if(AI_OPEN&&!aiStarted){aiStarted=true;aiGreet();}};
   $('#aiClose').onclick=function(){AI_OPEN=false;panel.classList.remove('open');};
   $('#aiNew').onclick=miraNew;
+  $('#aiHist').onclick=function(){panel.classList.toggle('hist');if(panel.classList.contains('hist'))miraListLoad();};
   /* 大きく表示する。長い答えは、384px の枠では読みにくい（2026-08-27 のご依頼）。
      選んだ大きさは、この端末に覚えておく。 */
   function aiWideApply(on){
@@ -37362,8 +37437,8 @@ function aiPush(role,html){var b=$('#aiBody');var d=el('div',{class:role==='me'?
    ChatGPT や Claude と同じく、短い問いかけだけにする。下の断り書きは入力欄の下に出している。 */
 function aiGreet(){
   aiPush('bot','こんにちは、Miralink AI です。保育の相談、Miralink の使い方、園の記録（出席・ヒヤリハット・日誌など）のことを、ふだんの言葉で聞いてください。');
-  /* 前に話していたことがあれば、続きから（同じタブの中だけ覚えている） */
-  if(MIRA.msgs.length){var m=miraMap();MIRA.msgs.slice(-10).forEach(function(x){aiPush(x.role==='me'?'me':'bot',x.role==='me'?miraHTML(x.text,m):miraHTML(x.text,m));});try{wireFileImgs($('#aiBody'));}catch(e){}}
+  /* 前の会話は、左（せまいときは ☰）の一覧から開く */
+  miraListLoad();
 }
 function aiSubmit(){var v=$('#aiInput').value.trim();if(!v)return;$('#aiInput').value='';aiAsk(v);}
 function aiAsk(q){
