@@ -3546,7 +3546,10 @@ var SAFETY_GROUPS=[
   {loc:'防犯・出入口',items:['門扉は施錠され、子どもが一人で開けられないか','不審者が入れない対策（インターホン・防犯カメラなど）が動いているか']},
   {loc:'室内の事故防止',items:['口に入る小さな物（窒息のおそれ）が落ちていないか','薬品・医薬品を鍵のかかる場所にしまっているか','家具・棚に転倒防止をしているか','棚の上に落ちてきそうな物はないか','家具の角にガードが付いているか','コンセントにカバーが付いているか','窓やガラスにひび・破損はないか','扉に指はさみ防止が付いているか','トイレの床が濡れていないか','暖房器具に転倒・やけど防止をしているか','窓・ベランダから転落しない対策があるか','死角になる場所を見て回ったか']},
   {loc:'避難・防火',items:['避難経路・非常口に物を置いていないか','消火器が決まった場所にあるか']},
-  {loc:'園庭（追加）',items:['砂場に異物や動物のふんがないか','害虫やハチの巣がないか','雨上がりの水たまりがないか']}
+  {loc:'園庭（追加）',items:['砂場に異物や動物のふんがないか','害虫やハチの巣がないか','雨上がりの水たまりがないか']},
+  /* 早出・遅出の確認（大阪市の様式）。別の画面は作らず、ここに並べる */
+  {loc:'朝の開錠（早番）',items:['開錠して、園の中に異常がないか見て回った']},
+  {loc:'夕方の戸締り（遅番）',items:['電気・ガス・冷暖房を切った','窓・扉をすべて施錠した']}
 ];
 /* 園に無い項目を隠す（園長が「項目を選ぶ」で決める。項目の文字で持つ） */
 function safetyHidden(){var a=stGet('safetyHide',[]);return Array.isArray(a)?a:[];}
@@ -3591,7 +3594,7 @@ var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（�
 /* 健康チェックは登園（出席）の中に入れた（2026-08-24）。体温のとなりに列がある。
    保存先の鍵は分けたまま（これまでの記録・紙・監査の一覧をずらさないため）。 */
 var REC_DAILY=['登園（出席）','安全点検','保育日誌・業務日報','検食簿'];
-var REC_CARE=['身体測定','事故・ヒヤリハットの記録','児童票（成長の記録）','保護者対応の記録'];
+var REC_CARE=['身体測定','事故・ヒヤリハットの記録','児童票（成長の記録）','散歩・園外活動','プール・水遊び','保護者対応の記録'];
 /* ?rec=生徒個人発達記録 のような古いリンク（配った紙のQRを含む）でも、
    正しい画面が開くように、先に新しい名前へ読み替える。
    読み替えないと、どちらも「日常チェック」と判定されて別の記録が開いていた。 */
@@ -3610,7 +3613,7 @@ function recCareList(){
    語順を「保育日誌・業務日報」に直したので（17-1）、古い名前で保存されている
    recType・古いリンク・年間やること からも同じ画面へ着けるようにする。 */
 var REC_OLD_NAME={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録','健康チェック':'登園（出席）','業務日報・保育日誌':'保育日誌・業務日報'};
-var RKEY={'検食簿':'rec_検食簿','登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','保育日誌・業務日報':'rec_日報','保護者対応の記録':'rec_kujo'};
+var RKEY={'検食簿':'rec_検食簿','登園（出席）':'rec_登園シート','安全点検':'rec_安全点検','午睡チェック':'rec_午睡チェック','健康チェック':'rec_健康チェック','身体測定':'rec_身体測定','事故・ヒヤリハットの記録':'rec_hiyari','児童票（成長の記録）':'rec_発達','保育日誌・業務日報':'rec_日報','保護者対応の記録':'rec_kujo','散歩・園外活動':'rec_sanpo','プール・水遊び':'rec_pool'};
 /* 保護者が未来WAで押した登園も、登園シートの画面と同じ補い方で数える（帳簿は書き換えない） */
 function attendedToday(id){var sh=touenDayView(todayISO(),stGet('rec_登園シート',{})[todayISO()]);return !!(sh&&sh.rows&&sh.rows[id]&&sh.rows[id].att==='●');}
 var DRILL_PLAN=[['4月','地震'],['5月','火事'],['6月','不審者'],['6月','地震'],['7月','火事'],['8月','地震'],['9月','火事'],['10月','地震'],['11月','火事'],['12月','地震'],['1月','不審者'],['1月','火事'],['2月','地震'],['3月','火事']];
@@ -6609,6 +6612,8 @@ var EG_NAV=[
      {p:'carerec', l:'身体測定',          rec:'身体測定'},
      {p:'carerec', l:'ヒヤリハット',      rec:'事故・ヒヤリハットの記録'},
      {p:'carerec', l:'児童票',            rec:'児童票（成長の記録）'},
+     {p:'carerec', l:'散歩・園外活動',    rec:'散歩・園外活動'},
+     {p:'carerec', l:'プール・水遊び',    rec:'プール・水遊び'},
      {p:'carerec', l:'保護者対応記録',    rec:'保護者対応の記録'},
      /* 避難訓練は監査の必須記録で、先生も書く。職員研修の組は管理者だけ・パスワード付きなので、ここに残す */
      {p:'drill',   l:'避難訓練',          navHide:true}]},
@@ -10874,7 +10879,7 @@ var EN_DICT={
 '監査対応':'Audit','書類作成':'Document Creation','市町村指定の書類':'Municipal Forms',
 '書類格納':'Document Storage','スクールガイド':'School Guide','施設管理':'Facility',
 '設定':'Settings','避難訓練':'Evacuation Drill','保育研修':'Training Records',
-'身体測定':'Physical Measurement','事故・ヒヤリハットの記録':'Incident Records',
+'身体測定':'Physical Measurement','事故・ヒヤリハットの記録':'Incident Records','散歩・園外活動':'Walks & outings','プール・水遊び':'Pool & water play','散歩・園外活動の記録':'Walk & outing record','プール・水遊びの記録':'Pool & water play record','出勤した職員':'Staff on duty',
 '児童票（成長の記録）':'Growth Records','よく使う':'Frequently Used',
 'カリキュラム・スケジュール':'Curriculum & Schedule','顧客情報・料金管理':'Customers & Billing',
 '職員情報・運営関連':'Staff & Operations','新規顧客管理':'New Customers',
@@ -25227,7 +25232,7 @@ function renderRecGroup(page,list,note){
      古い導線（提出書類ナビ・年間スケジュールなど）から来ても迷子にならないよう、
      同じ画面へ寄せる。 */
   if(recType==='午睡チェック')recType='登園（出席）';
-  ({'検食簿':edKenshoku,'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'事故・ヒヤリハットの記録':edHiyari,'児童票（成長の記録）':edDev,'保育日誌・業務日報':edNippo,'保護者対応の記録':edKujo})[recType]();
+  ({'検食簿':edKenshoku,'登園（出席）':edTouen,'安全点検':edSafety,'午睡チェック':edTouen,'健康チェック':edHealth,'身体測定':edBody,'事故・ヒヤリハットの記録':edHiyari,'児童票（成長の記録）':edDev,'保育日誌・業務日報':edNippo,'保護者対応の記録':edKujo,'散歩・園外活動':function(){edLogList('散歩・園外活動');},'プール・水遊び':function(){edLogList('プール・水遊び');}})[recType]();
   attachRecPaperCard();
   /* 期間まとめの口は #recBody の外に置く。編集画面を描き直しても消えないので、付け直しが要らない */
   if(page==='records'&&$('#recPeriodBox')){$('#recPeriodBox').innerHTML=periodCard();wirePeriod();}
@@ -26440,6 +26445,102 @@ function kujoModal(idx,log,K){
   }
   kjRender();
 }
+/* ══ 散歩・園外活動／プール・水遊びの記録（2026-09-26 安田さんのご判断「足らないものは全部入れて」）══════
+   国の散歩計画表（参考例）・川口市・大阪市・板橋区の散歩の記録、大阪市・名古屋市・川崎市・福岡市のプール管理日誌にある欄。
+   ヒヤリハットと同じ「記録を追加」の形にして、書き方を増やさない（1つの書き方で2つの記録を持つ） */
+var LOG_DEFS={
+  '散歩・園外活動':{key:'rec_sanpo',title:'散歩・園外活動の記録',sum:['place','go','back','kids'],fields:[
+    {k:'date',l:'日付',t:'date'},{k:'klass',l:'クラス',t:'class'},
+    {k:'place',l:'行き先・経路',t:'text',ph:'例：〇〇公園（大通りを通らない道）',req:1},{k:'aim',l:'ねらい',t:'text',ph:'例：秋の自然にふれる'},
+    {k:'go',l:'出発',t:'time'},{k:'back',l:'帰園',t:'time'},
+    {k:'lead',l:'引率した職員',t:'staffs'},{k:'kids',l:'子どもの人数',t:'number',unit:'名'},
+    {k:'count',l:'人数を確かめた',t:'checks',opts:['出発のとき','行き先で','帰ったとき']},
+    {k:'carry',l:'持ち物',t:'checks',opts:['携帯電話','救急用品','名簿']},
+    {k:'safe',l:'行き先の安全を確かめた',t:'checks',opts:['危ない物・場所が無い','トイレ・水の場所','車の通り']},
+    {k:'note',l:'気づいたこと',t:'area'}]},
+  'プール・水遊び':{key:'rec_pool',title:'プール・水遊びの記録',sum:['start','end','waterT','kids'],fields:[
+    {k:'date',l:'日付',t:'date'},{k:'klass',l:'クラス',t:'class'},{k:'weather',l:'天気',t:'text',ph:'例：晴れ'},
+    {k:'airT',l:'気温（℃）',t:'number'},{k:'waterT',l:'水温（℃）',t:'number',unit:'℃'},{k:'depth',l:'水深（cm）',t:'number'},
+    {k:'cl1',l:'残留塩素 入る前（mg/L）',t:'number'},{k:'cl2',l:'残留塩素 終わったあと（mg/L）',t:'number'},
+    {k:'start',l:'はじめ',t:'time'},{k:'end',l:'おわり',t:'time'},{k:'kids',l:'子どもの人数',t:'number',unit:'名'},
+    {k:'lead',l:'指導した職員',t:'staffs'},{k:'watch',l:'監視に専念した職員',t:'staffs'},
+    {k:'check',l:'確かめたこと',t:'checks',opts:['プールと周りの清掃','設備の点検','子どもの体調','監視に専念する人を置いた']},
+    {k:'note',l:'気づいたこと',t:'area'}]}
+};
+function logStaffNames(){var t=todayISO();return (DB.staff||[]).filter(function(x){return x&&x.name&&!(x.leaveDate&&x.leaveDate<=t);}).map(function(x){return x.name;});}
+function logValText(f,v){
+  if(v==null||v==='')return '';
+  if(Array.isArray(v))return v.join('・');
+  if(f.t==='date')return fmt(v);
+  return String(v)+(f.unit||'');
+}
+function edLogList(type){
+  var D=LOG_DEFS[type],K=D.key,log=stGet(K,[])||[];
+  var fm={};D.fields.forEach(function(f){fm[f.k]=f;});
+  var rows=log.map(function(r,i){return {r:r,i:i};}).sort(function(a,b){return (b.r.date||'')<(a.r.date||'')?-1:1;});
+  $('#recBody').innerHTML='<div class="card">'+recHead(D.title,'<button class="btn btn-sm btn-primary" id="lgAdd">'+ic('plus')+'記録を追加</button><button class="btn btn-sm" id="lgPrint">'+ic('printer')+'一覧を出力</button>')
+    +(rows.length?'<div class="scrollx"><table><thead><tr><th style="width:110px;">日付</th><th style="width:80px;">クラス</th><th>内容</th><th style="width:120px;"></th></tr></thead><tbody>'
+      +rows.map(function(x){var r=x.r;
+        return '<tr><td>'+esc(fmt(r.date||''))+'</td><td>'+esc(r.klass||'')+'</td><td style="font-size:12.5px;">'
+          +D.sum.map(function(k){var t=logValText(fm[k],r[k]);return t?esc(fm[k].l)+'：'+esc(t):'';}).filter(Boolean).join('　')+'</td>'
+          +'<td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm" data-lgedit="'+x.i+'">'+ic('edit')+'開く</button> <button class="btn btn-sm btn-ghost" data-lgdel="'+x.i+'">'+ic('trash')+'</button></td></tr>';}).join('')
+      +'</tbody></table></div>':'<div class="empty">まだ記録がありません。「記録を追加」から書けます。</div>')
+    +'</div>';
+  $('#lgAdd').onclick=function(){logModal(type,null);};
+  document.querySelectorAll('[data-lgedit]').forEach(function(b){b.onclick=function(){logModal(type,+b.getAttribute('data-lgedit'));};});
+  document.querySelectorAll('[data-lgdel]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この記録を消します。よろしいですか？'))return;
+    var l=stGet(K,[])||[];l.splice(+b.getAttribute('data-lgdel'),1);stSet(K,l);edLogList(type);};});
+  $('#lgPrint').onclick=function(){
+    var body=rows.length?rows.map(function(x){var r=x.r;return '<h3>'+esc(fmt(r.date||''))+'　'+esc(r.klass||'')+'</h3><table><tbody>'
+      +D.fields.filter(function(f){return f.k!=='date'&&f.k!=='klass';}).map(function(f){return '<tr><th style="width:170px;">'+esc(f.l)+'</th><td>'+esc(logValText(f,r[f.k]))+'</td></tr>';}).join('')
+      +'</tbody></table>'+(r.by?'<p style="font-size:10px;">記録：'+esc(r.by)+'</p>':'');}).join(''):'<p>記録なし</p>';
+    printDoc(D.title,body);
+  };
+}
+function logModal(type,idx){
+  var D=LOG_DEFS[type],K=D.key,log=stGet(K,[])||[];
+  var r=idx!=null?JSON.parse(JSON.stringify(log[idx])):{date:recDate,klass:CLASSES[0]||''};
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  function fieldHTML(f){
+    var v=r[f.k],h='';
+    if(f.t==='class')h='<select data-lf="'+f.k+'">'+CLASSES.map(function(k){return '<option'+(k===v?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select>';
+    else if(f.t==='area')h='<textarea data-lf="'+f.k+'" rows="2">'+esc(v||'')+'</textarea>';
+    else if(f.t==='staffs'||f.t==='checks'){var opts=f.t==='staffs'?logStaffNames():f.opts,cur=Array.isArray(v)?v:[];
+      h='<div style="display:flex;gap:6px;flex-wrap:wrap;">'+opts.map(function(o){var on=cur.indexOf(o)>-1;return '<button type="button" class="btn btn-sm'+(on?' btn-primary':'')+'" data-lm="'+f.k+'" data-lv="'+esc(o)+'">'+esc(o)+'</button>';}).join('')+'</div>';}
+    else h='<input data-lf="'+f.k+'" type="'+(f.t==='text'?'text':f.t)+'"'+(f.t==='number'?' step="0.1" inputmode="decimal"':'')+' value="'+esc(v==null?'':v)+'" placeholder="'+esc(f.ph||'')+'">';
+    return '<div class="field" style="margin:0;"><label>'+esc(f.l)+'</label>'+h+'</div>';
+  }
+  function collect(){m.querySelectorAll('[data-lf]').forEach(function(x){r[x.getAttribute('data-lf')]=x.value;});}
+  function draw(){
+    var wide=function(f){return f.t==='area'||f.t==='checks'||f.t==='staffs'||f.k==='place'||f.k==='aim';};
+    m.innerHTML='<div class="modal" style="width:680px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(D.title)+'</h2>'
+      +'<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;">'
+      +D.fields.map(function(f){return '<div style="'+(wide(f)?'grid-column:1/-1;':'')+'">'+fieldHTML(f)+'</div>';}).join('')+'</div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"><button class="btn" id="lgX">やめる</button><button class="btn btn-primary" id="lgSave">保存</button></div></div>';
+    m.querySelectorAll('[data-lm]').forEach(function(b){b.onclick=function(){collect();var k=b.getAttribute('data-lm'),v=b.getAttribute('data-lv'),a=Array.isArray(r[k])?r[k]:[];
+      var j=a.indexOf(v);if(j>-1)a.splice(j,1);else a.push(v);r[k]=a;draw();};});
+    $('#lgX').onclick=function(){m.remove();};
+    $('#lgSave').onclick=function(){collect();
+      var miss=D.fields.filter(function(f){return f.req&&!String(r[f.k]||'').replace(/\\s/g,'');});
+      if(!r.date){alert('日付を入れてください。');return;}
+      if(miss.length){alert('「'+miss[0].l+'」を入れてください。');return;}
+      try{r.by=(currentStaff()||{}).name||r.by||'';}catch(e){}
+      var l=stGet(K,[])||[];if(idx!=null)l[idx]=r;else l.push(r);stSet(K,l);m.remove();edLogList(type);};
+  }
+  draw();
+}
+/* 日誌の「この日の様子」に出す、出勤した職員（打刻、無ければシフト） */
+function nippoStaffOn(dk){
+  var mk=dk.slice(0,7),day=+dk.slice(8,10),tc=tcMonth(mk),sh=shiftCells(mk),out=[],k;
+  for(k in tc){if(!Object.prototype.hasOwnProperty.call(tc,k)||!haichiIsStaff(k))continue;var v=tc[k][day];
+    if(v&&(v.in||v.out))out.push(haichiStaffName(k)+'（'+(v.in||'?')+'〜'+(v.out||'?')+'）');}
+  if(out.length)return out;
+  for(k in sh){if(!Object.prototype.hasOwnProperty.call(sh,k)||!haichiIsStaff(k))continue;var p=sh[k][day];
+    if(p&&p!=='休')out.push(haichiStaffName(k)+'（'+p+'）');}
+  return out;
+}
 function edKujo(){
   var K='rec_kujo',log=stGet(K,[]);
   if(Object.prototype.toString.call(log)!=='[object Array]')log=[];
@@ -26644,7 +26745,7 @@ function edNippo(){
       +'<button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     lockBarHtml(d)+
     /* 記録から自動で入る欄（入力は増やさない。書き直すときは元の記録で直す） */
-    '<details class="npoauto" open style="margin-bottom:12px;"><summary style="cursor:pointer;font-weight:700;font-size:13px;">この日の様子（登園シート・安全点検・検食簿から自動で入ります）</summary>'
+    '<details class="npoauto" open style="margin-bottom:12px;"><summary style="cursor:pointer;font-weight:700;font-size:13px;">この日の様子（登園シート・安全点検・検食簿・出勤簿から自動で入ります）</summary>'
       +'<div style="margin-top:8px;">'+nippoAutoHTML(recDate,d.klass,false)+'</div></details>'+
     /* ★「カリキュラムから取り込む」が見出しの右はしの小さな枠だけで、押すものだと気づきにくかった
        （2026-09-25 安田さんのご指示）。欄が空のときは、欄のすぐ上にカリキュラムの予定を見せ、
@@ -26918,7 +27019,7 @@ function healthDayBody(dk,d,showKids){
    安全点検の結果・給食 は、登園シート・安全点検・検食簿にもう書いてあるので、先生はもう一度書かなくてよい。
    （国と13の自治体の様式を見比べた結果。日誌だけに無かった欄） */
 function nippoAuto(dk,klass){
-  var o={weather:'',temp:'',hum:'',en:0,pr:0,ab:0,age:{},absent:[],start:'',end:'',sfNg:null,sfAll:0,meal:''};
+  var o={weather:'',temp:'',hum:'',en:0,pr:0,ab:0,age:{},absent:[],start:'',end:'',sfNg:null,sfAll:0,meal:'',late:[],staff:[]};
   var kids=classOf(klass),sh=(stGet('rec_登園シート',{})||{})[dk]||null,rows=(sh&&sh.rows)||{};
   if(sh){o.weather=sh.weather||'';o.temp=sh.temp||'';o.hum=sh.hum||'';}
   kids.forEach(function(c){
@@ -26930,7 +27031,11 @@ function nippoAuto(dk,klass){
     else if(r.att==='休'){o.ab++;g.a++;o.absent.push(childFullName(c)+(r.parentNote?'（'+String(r.parentNote).replace(/\s+/g,' ').slice(0,30)+'）':''));}
     if(r.come&&(!o.start||r.come<o.start))o.start=r.come;
     if(r.leave&&(!o.end||r.leave>o.end))o.end=r.leave;
+    /* 延長保育（札幌市などの様式の「時間外保育」の欄）。時刻で線を引くと園ごとに開所時間が違って外れるので、
+       登園シートで先生が付けた「延長保育」の印をそのまま数える */
+    if(r.att!=='休'&&r.opts&&r.opts['延長保育'])o.late.push(childFullName(c)+(r.leave?' '+r.leave:''));
   });
+  try{o.staff=nippoStaffOn(dk);}catch(e){o.staff=[];}
   var sf=(stGet('rec_安全点検',{})||{})[dk];
   if(sf&&sf.items){var ks=Object.keys(sf.items);o.sfAll=ks.length;o.sfNg=ks.filter(function(k){return sf.items[k]==='ng'||sf.items[k]==='issue';}).length;}
   var ks2=(stGet('rec_検食簿',{})||{})[dk];
@@ -26946,6 +27051,8 @@ function nippoAutoHTML(dk,klass,forPrint){
       +(ages.length>1||(ages[0]&&ages[0]!=='—')?'<div style="font-size:11.5px;margin-top:3px;">'+ages.map(function(k){var g=a.age[k];return esc(k)+'：'+g.e+'名中 出席'+g.p+'・欠席'+g.a;}).join('　')+'</div>':'')):'')
     +cell('欠席した子',a.absent.length?a.absent.map(esc).join('、'):(a.en&&(a.pr||a.ab)?'なし':''))
     +cell('保育の開始・終了',a.start||a.end?esc(a.start||'—')+' 〜 '+esc(a.end||'—')+'<span style="font-size:11px;color:#888;">（最初の登園・最後のお迎え）</span>':'')
+    +cell('延長保育',a.late.length?a.late.length+'名：'+a.late.map(esc).join('、'):(a.pr?'なし':''))
+    +cell('出勤した職員',a.staff.length?a.staff.map(esc).join('、'):'')
     +cell('安全点検',a.sfNg===null?'':(a.sfNg?'要対応 '+a.sfNg+'件（'+a.sfAll+'項目中）':'異常なし（'+a.sfAll+'項目）'))
     +cell('給食・おやつ',esc(a.meal))
     +'</tbody></table>';
@@ -34298,7 +34405,7 @@ function taskAddDel(name){var a=taskAddAll(),i;
 function taskNameUsed(n){var i;
   for(i=0;i<ANNUAL_TASKS.length;i++){if(ANNUAL_TASKS[i].name===n)return true;}
   return false;}
-var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'保育日誌・業務日報':['records','保育日誌・業務日報'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'保護者対応の記録':['carerec','保護者対応の記録'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
+var TASK_PAGE={'登園（出席）':['records','登園（出席）'],'安全点検':['records','安全点検'],'午睡チェック':['records','午睡チェック'],'健康チェック':['records','健康チェック'],'保育日誌・業務日報':['records','保育日誌・業務日報'],'身体測定':['carerec','身体測定'],'児童票（成長の記録）':['carerec','児童票（成長の記録）'],'事故・ヒヤリハットの記録':['carerec','事故・ヒヤリハットの記録'],'保護者対応の記録':['carerec','保護者対応の記録'],'散歩・園外活動':['carerec','散歩・園外活動'],'プール・水遊び':['carerec','プール・水遊び'],'避難訓練':['drill'],'研修・訓練':['bouka'],'カリキュラム':['curriculum'],'シフト表':['shift'],'出勤簿':['shift'],'経費管理':['expense'],'請求書発行':['billing'],'職員管理':['staff'],'監査対応':['audit'],'書類作成':['docgen'],'提出書類ナビ':['reqnav']};
 /* 記録の呼び名を変えたので、前の名前で保存されているものからも同じ画面へ行けるようにする */
 var TASK_PAGE_OLD={'生徒個人発達記録':'児童票（成長の記録）','ヒヤリハット・怪我':'事故・ヒヤリハットの記録'};
 function taskPageOf(n){return TASK_PAGE[n]||TASK_PAGE[TASK_PAGE_OLD[n]]||null;}
@@ -35693,7 +35800,7 @@ function dfWire(){
 var LOG_MAX=800, SNAP_MAX=7, LOG_SKIP={'cocoas_eventLog':1,'cocoas_snapshots':1,'cocoas_lastSnap':1,'cocoas_psession':1,'cocoas_apiToken':1};
 var LOG_LABEL={
   'cocoas_rec_登園シート':'登園（出席）','cocoas_rec_安全点検':'安全点検','cocoas_rec_午睡チェック':'午睡チェック',
-  'cocoas_rec_健康チェック':'健康チェック','cocoas_rec_身体測定':'身体測定','cocoas_rec_hiyari':'事故・ヒヤリハットの記録',
+  'cocoas_rec_健康チェック':'健康チェック','cocoas_rec_身体測定':'身体測定','cocoas_rec_hiyari':'事故・ヒヤリハットの記録','cocoas_rec_sanpo':'散歩・園外活動','cocoas_rec_pool':'プール・水遊び',
   'cocoas_rec_発達':'児童票（成長の記録）','cocoas_rec_日報':'保育日誌・業務日報','cocoas_curriculum':'カリキュラム',
   'cocoas_drills3':'避難訓練','cocoas_drill_proc_by_kind':'避難訓練の手順','cocoas_shifts':'シフト表',
   'cocoas_contacts':'連絡先','cocoas_staff':'職員','cocoas_studentProfiles':'生徒台帳','cocoas_enrollOptions':'請求書発行（契約・オプション）',
