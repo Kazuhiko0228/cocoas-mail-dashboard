@@ -17764,7 +17764,7 @@ function feedMaterials(day,cid,c){
      クラスみんなのメモは読まない */
   var nd=((stGet('rec_午睡チェック',{})||{})[day])||null;
   if(nd&&nd.cells){
-    var slots=[]; try{ slots=(typeof napSlots==='function')?napSlots():[]; }catch(e){ slots=[]; }
+    var slots=[]; try{ slots=(typeof napSlots==='function')?napSlots(nd.klass):[]; }catch(e){ slots=[]; }
     var f='',t2='',cnt=0,last='';
     slots.forEach(function(tm){
       var v=nd.cells[cid+'|'+tm];
@@ -23348,6 +23348,9 @@ var SET_SAVE={
     if(hm>0)stSet('haichiMin',hm);
     var ns=parseInt(($('#s_napStep')||{}).value,10);
     if(ns>0)stSet('napStep',ns);
+    /* クラスごとの間隔（空＝園の既定） */
+    var nsc={};document.querySelectorAll('[data-napcls]').forEach(function(x){var v=parseInt(x.value,10);if(napStepOk(v))nsc[x.getAttribute('data-napcls')]=v;});
+    if(document.querySelector('[data-napcls]'))stSet('napStepCls',nsc);
     return hng.length?('（'+hng.join('・')+'の配置基準は 1以上の数字ではないため、前の数字のままです）'):'';
   },
   invoice:function(){
@@ -23600,9 +23603,15 @@ function renderSettings(){
         return '<div class="field"><label>'+a+'歳児</label><input type="number" min="1" data-haichi="'+a+'" value="'+esc(haichiRatio()[a])+'"></div>';
       }).join('')+'</div>'+
       '<div class="field" style="max-width:220px;"><label>最低の人数（園全体）</label><input type="number" min="1" id="s_haichiMin" value="'+esc(haichiMin())+'"></div>'+
-      '<div class="field" style="max-width:260px;"><label>午睡を確かめる間隔</label><select id="s_napStep">'
+      '<div class="field" style="max-width:260px;"><label>午睡を確かめる間隔（園の既定）</label><select id="s_napStep">'
       +[5,10,15,20,30].map(function(n){return '<option value="'+n+'"'+(n===napStep()?' selected':'')+'>'+n+'分ごと</option>';}).join('')
-      +'</select></div>'+
+      +'</select></div>'
+      /* クラスごとの間隔。「園の既定」のクラスは上の間隔を使う */
+      +'<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 12px;margin-bottom:6px;">'
+      +CLASSES.map(function(k){var m=stGet('napStepCls',{})||{},cur=+m[k];
+        return '<div class="field" style="margin:0;"><label>'+esc(k)+'</label><select data-napcls="'+esc(k)+'">'
+          +'<option value="">園の既定</option>'+[5,10,15,20,30].map(function(n){return '<option value="'+n+'"'+(n===cur?' selected':'')+'>'+n+'分ごと</option>';}).join('')
+          +'</select></div>';}).join('')+'</div>'+
       '<div class="muted" style="font-size:11.5px;margin-bottom:10px;">午睡の国の目安は 0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回。'
       +'5分にすると午睡チェック表の列が増えるので、紙に出すときは横向きでお使いください。</div>'+
       '<div class="muted" style="font-size:11.5px;">登園（出席）の画面に、その日の必要人数と出勤人数を出します。足りない日は打刻の画面にまとめて出ます。</div>'+
@@ -24356,9 +24365,19 @@ function curQuarter(){var m=addDays(0).getMonth()+1;return addDays(0).getFullYea
    園が選べるようにして、既定はこれまでどおり10分にしてある。
    マスの鍵は「園児の番号|時刻」なので、刻みを変えても前の記録は消えない
    （その時刻の列が出なくなるだけで、値は残る）。 */
-function napStep(){var n=+stGet('napStep',10);return (n===5||n===10||n===15||n===20||n===30)?n:10;}
+/* 午睡を確かめる間隔。★クラスごとに決められるようにした（2026-09-26 安田さんのご指示：0歳児は5分、ほかは10分など）。
+   クラスの指定（napStepCls）が無いクラスは、園の既定（napStep）を使う */
+function napStepOk(n){return n===5||n===10||n===15||n===20||n===30;}
+function napStep(klass){
+  if(klass){var m=stGet('napStepCls',{})||{},c=+m[klass];if(napStepOk(c))return c;}
+  var n=+stGet('napStep',10);return napStepOk(n)?n:10;
+}
+function napStepSet(klass,v){
+  if(!klass){stSet('napStep',v);return;}
+  var m=stGet('napStepCls',{})||{};m[klass]=v;stSet('napStepCls',m);
+}
 function napSlotsFor(st){var a=[],t;for(t=11*60+30;t<=13*60+30;t+=st)a.push(pad(Math.floor(t/60))+':'+pad(t%60));return a;}
-function napSlots(){return napSlotsFor(napStep());}
+function napSlots(klass){return napSlotsFor(napStep(klass));}
 /* 何歳児かは、その年度の4月1日時点で決まる。
    ★過去の日を開いたときに今年度で数えると、去年の記録が1つ上の歳児になる。
      日付を渡せるようにし、渡されなければ今日で数える。 */
@@ -25658,7 +25677,7 @@ function napGuide(klass){
     }
     if(lo===null)return '';
     var need=(lo<=0)?'5分':(lo<=2?'10分':'15〜30分');
-    return '<br>このクラスは'+lo+'歳児がいるので、目安は<b>'+need+'に1回</b>です（いまの表は'+napStep()+'分ごと）。';
+    return '<br>このクラスは'+lo+'歳児がいるので、目安は<b>'+need+'に1回</b>です（いまの表は'+napStep(klass)+'分ごと）。';
   }catch(e){ return ''; }
 }
 /* ══ 健康チェック（登園の表の中） ═══════════════════
@@ -25713,7 +25732,7 @@ function napBlock(klass){
   var d=data[recDate]||{klass:klass,cells:{},charge:[]};
   if(!d.charge)d.charge=[];
   d.klass=klass;                       /* 登園側で選んだクラスに合わせる */
-  var slots=napSlots(),kids=classOf(klass);
+  var slots=napSlots(klass),kids=classOf(klass);
   /* 午睡も、確定のあとに直したら跡に積む（登園・健康と同じ形） */
   /* 担当は [{from:'12:30',by:'田村'},…] の並び。deep を付けないと
      生の JSON がそのまま監査の紙に刷られていた */
@@ -25757,8 +25776,8 @@ function napBlock(klass){
          変えられるのは設定と同じく園長・管理者だけ */
       +'<label class="npstep"><span>確認の間隔</span>'
         +((typeof isBoss!=='function'||isBoss())
-          ?'<select id="npStep">'+[5,10,15,20,30].map(function(n){return '<option value="'+n+'"'+(n===napStep()?' selected':'')+'>'+n+'分ごと</option>';}).join('')+'</select>'
-          :'<b title="変えられるのは園長・管理者です">'+napStep()+'分ごと</b>')
+          ?'<select id="npStep" title="'+esc(klass)+'の間隔（クラスごとに決められます）">'+[5,10,15,20,30].map(function(n){return '<option value="'+n+'"'+(n===napStep(klass)?' selected':'')+'>'+n+'分ごと</option>';}).join('')+'</select>'
+          :'<b title="変えられるのは園長・管理者です">'+napStep(klass)+'分ごと</b>')
       +'</label>'
       +'<button class="btn btn-sm" id="npPrint">'+ic('printer')+'午睡だけ出力</button></div>'
     +'<div class="muted" style="margin-bottom:10px;">マスを押すと記録します：仰向け ↑ → 横向き → → うつ伏せ ↓（要注意・赤） → 消す。<br>国の目安は 0歳児 5分に1回／1〜2歳児 10分に1回／3歳以上 15〜30分に1回。'+napGuide(klass)+'</div>'
@@ -25774,12 +25793,13 @@ function napBlock(klass){
   function wire(redraw){
     var nst=$('#npStep');
     if(nst)nst.onchange=function(){
-      var v=+nst.value,old=napStep();if(v===old)return;
+      var v=+nst.value,old=napStep(klass);if(v===old)return;
       /* 新しい間隔の表に出ないマスに記録があるときは、先に知らせる（記録は消さない。間隔を戻せばまた出る） */
       var keep={};napSlotsFor(v).forEach(function(t){keep[t]=1;});
       var hidden=Object.keys(d.cells||{}).filter(function(k){return !keep[k.split('|')[1]];}).length;
       if(hidden&&!confirm('この日の記録のうち '+hidden+'マスは、'+v+'分ごとの表には出なくなります（記録は残り、間隔を戻すとまた出ます）。\n\n確認の間隔を'+v+'分ごとに変えますか？\n※園全体の設定です。ほかのクラスの表も変わります。')){nst.value=String(old);return;}
-      stSet('napStep',v);
+      /* このクラスだけの間隔として残す（ほかのクラスは変えない） */
+      napStepSet(klass,v);
       if(typeof redraw==='function')redraw();
     };
     /* 担当をえらんでも画面は作り直さない（作り直すと、いちばん上に戻ってしまう） */
@@ -25796,7 +25816,7 @@ function napBlock(klass){
     if(pr)pr.onclick=function(){
       var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childFullName(c)+'</td>'+slots.map(function(t){return '<td>'+(NAP_MARK[d.cells[c.id+'|'+t]||'']||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'
         +(d.memo?'<p>メモ：'+esc(d.memo)+'</p>':'')
-        +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　この表は'+napStep()+'分ごと　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>'
+        +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　この表は'+napStep(klass)+'分ごと　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>'
         +lockFootHtml(d);
       printDoc('午睡チェック表（'+fmt(recDate)+'・'+klass+'）',body);
     };
@@ -26650,7 +26670,7 @@ function touenDayBody(dk,d,kids){
 function napDayBody(dk){
   var nd=stGet('rec_午睡チェック',{})[dk];
   if(!napHas(nd))return '';
-  var slots=napSlots(),cells=nd.cells||{};
+  var slots=napSlots(nd.klass),cells=nd.cells||{};
   var chg=(nd.charge||[]).slice().sort(function(a,b){return String(a.from)<String(b.from)?-1:1;});
   function chargeAt(t){var r='';chg.forEach(function(e){if(e&&e.from<=t&&e.by)r=e.by;});return r;}
   var kids=classOf(nd.klass||''),seen={};
@@ -26664,7 +26684,7 @@ function napDayBody(dk){
   });
   return '<h3>午睡チェック（'+esc(nd.klass||'')+'）</h3><table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td>'+slots.map(function(t){return '<td>'+esc(cells[c.id+'|'+t]||'')+'</td>';}).join('')+'</tr>';}).join('')+
-    '</tbody></table><p>確認間隔：'+napStep()+'分</p>';
+    '</tbody></table><p>確認間隔：'+napStep(nd.klass)+'分</p>';
 }
 /* 安全点検の月間表。もとは印刷ボタンの中に書いてあったものを、そのままここへ移した */
 function safetyMonthBody(mo){
