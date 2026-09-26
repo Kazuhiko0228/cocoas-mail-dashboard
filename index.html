@@ -7797,7 +7797,7 @@ function aiCraft(klass,opt){
 
    APIキーはサーバの中だけにある。この画面には持たせない
    （このファイルは公開しているので、置くと誰でも読めてしまう）。 */
-var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作',act:'活動提案',daily:'日々のまとめ'};
+var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作',act:'活動提案',daily:'日々のまとめ',weekday:'週の日案'};
 var AI_NET={busy:false, last:null, note:''};
 
 function aiCanServer(){
@@ -7957,7 +7957,7 @@ function aiAskServer(kind,klass,period,extra){
   if(_dl!=null)body.daysLeft=String(_dl);
   /* 「AIと活動を考える」で入れてもらった条件。サーバが受け取る名前と同じにしておく。
      空のものは送らない（送ると、指示文に空の行が増えるだけ）。 */
-  ['minutes','place','want','event','detail','past','rejected'].forEach(function(kk){
+  ['minutes','place','want','event','detail','past','rejected','policy','slots'].forEach(function(kk){
     if(extra&&extra[kk])body[kk]=String(extra[kk]);
   });
   return API.call('POST','/ai/plan',body)
@@ -8786,14 +8786,14 @@ function aipDayMonth(){
 }
 function aipDayHTML(k){
   var mk=aipDayMonth(),y=+mk.slice(0,4),mo=+mk.slice(5,7),types=actTypes(k);
-  var weeks=curWeeksOf(mk),empty=0,total=0,today=todayISO();
+  var weeks=curWeeksOf(mk),empty=0,emptyF=0,total=0,today=todayISO();
   var grid=weeks.map(function(w){
     return '<div class="aipwk">'+w.days.map(function(d){
       var dt=new Date(d+'T00:00:00');
       var cell=function(half){
         var b=curBodyGet(k,d,half),has=curBodyHas(b),sc=curSchedGet(k,d),txt=half==='pm'?sc.pmText:sc.amText;
         var on=has||!!txt; total++; if(!on)empty++;
-        var past=d<today;
+        var past=d<today; if(!on&&!past)emptyF++;
         return '<button type="button" class="aipslot'+(on?' done':(past?' past':' todo'))+'" data-aislot="'+d+'|'+half+'" title="'+esc(on?(curBodyLine(b)||txt):'まだ活動内容がありません。押すとAIと考えられます')+'">'
           +'<span class="aipslot-h">'+(half==='pm'?'午後':'午前')+'</span>'
           +'<span class="aipslot-t">'+esc(on?(b.name||curBodyLine(b)||txt):'AIとつくる')+'</span></button>';
@@ -8807,12 +8807,195 @@ function aipDayHTML(k){
       +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><h3 style="margin:0;flex:1;">'+ic('cal')+esc(k)+'　'+y+'年'+mo+'月の日案</h3>'
       +monthPickHTML('aipMonth',mk)+'</div>'
       +'<div class="muted" style="font-size:12.5px;line-height:1.85;">光っている欄は、まだ活動内容が入っていないところです（あと <b>'+empty+'</b> / '+total+'）。押すと、その日・その時間のための活動をAIと考え、選んだ案がそのまま<b>「月間の予定」のその欄</b>に入ります。</div>'
+      /* 1か月分をまとめてつくる・準備物の一覧（2026-09-25） */
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+      +(emptyF?'<button class="btn btn-primary btn-sm" id="aipBulk">'+ic('spark')+'1か月分をまとめてつくる（あと '+emptyF+' 欄）</button>':'')
+      +'<button class="btn btn-sm" id="aipMats">'+ic('printer')+'この月の準備物の一覧</button></div>'
     +'</div>'
     +'<div class="card" style="margin-bottom:14px;"><h3>'+ic('book')+'この月の活動内容</h3>'
       +(acts||'<div class="muted" style="font-size:12.5px;">この月の活動内容（ねらい）はまだ書かれていません。「月間の予定」タブの「月間の活動内容」に書くと、ここに出て、AIが参考にします。</div>')
     +'</div>'
     +'<div class="card"><div class="aipgrid">'+(grid||'<div class="muted">この月に平日がありません。</div>')+'</div>'
       +'<div class="aiplegend"><span class="aipslot todo sm"></span>まだ入っていない　<span class="aipslot done sm"></span>入っている　<span class="aipslot past sm"></span>過ぎた日（入っていない）</div></div>';
+}
+/* ══ 1か月分をまとめてつくる（2026-09-25 安田さんのご判断）════════════
+   「1ヶ月分一気に制作して、必要な準備とか材料を一覧で出してくれるくらいの機能」
+   「（週ごとの方針を先に入れる形で）手間は増えるけど、わかりやすくフローを作って」
+     ① 週ごとの方針を入れる → ② AI が週ごとに空いている午前・午後をうめる → ③ 準備物の一覧
+   ・うめるのは、まだ活動内容が入っていない欄だけ（書いてある欄・過ぎた日はさわらない）
+   ・1週間を1回で聞く（週の方針にそって、日々の活動がつながるように）
+   ・子どもの名前は送らない（aiAskServer が伏せ字にしてから送る） */
+var AIPB=null;
+function aipSlotLabel(x){var dt=new Date(x.d+'T00:00:00');return (+x.d.slice(5,7))+'/'+(+x.d.slice(8,10))+'('+WD[dt.getDay()]+')'+(x.h==='pm'?'午後':'午前');}
+function aipBulkSlots(k,days){
+  var out=[],today=todayISO();
+  days.forEach(function(d){
+    if(d<today)return;
+    ['am','pm'].forEach(function(h){
+      var b=curBodyGet(k,d,h),sc=curSchedGet(k,d),txt=h==='pm'?sc.pmText:sc.amText;
+      if(!curBodyHas(b)&&!txt)out.push({d:d,h:h});
+    });
+  });
+  return out;
+}
+function aipWeekEvents(days){
+  if(!days.length)return [];
+  var lo=days[0],hi=days[days.length-1];
+  /* 土日の行事も拾う（金曜の次の土曜の運動会など）。その週の月曜〜日曜 */
+  var e=new Date(hi+'T00:00:00');e.setDate(e.getDate()+2);
+  var hi2=e.getFullYear()+'-'+pad(e.getMonth()+1)+'-'+pad(e.getDate());
+  return homeEventsAll().filter(function(x){return x&&x.date>=lo&&x.date<=hi2;})
+    .map(function(x){return (+x.date.slice(5,7))+'/'+(+x.date.slice(8,10))+' '+x.name;});
+}
+function aipMonthAim(k,mk){
+  return actTypes(k).map(function(t){var m=curActMGet(k,t,mk);return m.goal?t+'：'+m.goal:'';}).filter(Boolean).join('／');
+}
+function aipBulkOpen(k){
+  var mk=aipDayMonth();
+  var weeks=curWeeksOf(mk).map(function(w,i){
+    return {n:i+1,days:w.days,slots:aipBulkSlots(k,w.days),policy:'',on:true,st:'',got:0,ev:aipWeekEvents(w.days)};
+  }).filter(function(w){return w.slots.length;});
+  if(!weeks.length){alert('この月に、まだ活動内容が入っていない欄はありません（過ぎた日は除きます）。');return;}
+  if(!aiCanServer()){alert('いまサーバにつながっていないため、AIには聞けません。');return;}
+  AIPB={k:k,mk:mk,weeks:weeks,step:1,stop:false,made:[],busy:false};
+  var m=el('div',{class:'modal-bg',id:'aipbBg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m&&!AIPB.busy){m.remove();AIPB=null;}});
+  aipBulkDraw();
+}
+function aipBulkDraw(){
+  var m=document.getElementById('aipbBg');if(!m||!AIPB)return;
+  var B=AIPB,mo=+B.mk.slice(5,7),h='';
+  var L=['週ごとの方針','AIがつくる','準備物の一覧'];
+  var steps='<div class="dfsteps">'+L.map(function(x,i){return '<span class="'+(i+1===B.step?'on':(i+1<B.step?'done':''))+'">'+'①②③'.charAt(i)+' '+x+'</span>';}).join('')+'</div>';
+  if(B.step===1){
+    var aim=aipMonthAim(B.k,B.mk),n=0;B.weeks.forEach(function(w){if(w.on)n+=w.slots.length;});
+    h+='<div style="font-size:13px;line-height:1.85;margin-bottom:10px;">週ごとに「その週に何をするか」を入れてください。AIはその方針にそって、1週間の午前・午後の活動をつなげて考えます。'
+      +'空のままの週は、月の活動内容（ねらい）と季節から考えます。</div>'
+      +(aim?'<div class="note-b" style="font-size:12px;margin-bottom:10px;"><b>'+mo+'月の活動内容</b>：'+esc(aim)+'</div>':'')
+      +B.weeks.map(function(w,i){
+        return '<div class="card" style="padding:12px 14px;margin-bottom:10px;'+(w.on?'':'opacity:.55;')+'">'
+          +'<label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;margin-bottom:8px;cursor:pointer;"><input type="checkbox" data-pbon="'+i+'"'+(w.on?' checked':'')+' style="width:auto;">'
+          +'第'+w.n+'週（'+(+w.days[0].slice(5,7))+'/'+(+w.days[0].slice(8,10))+'〜'+(+w.days[w.days.length-1].slice(5,7))+'/'+(+w.days[w.days.length-1].slice(8,10))+'）'
+          +'<span class="mini" style="font-weight:400;">まだ入っていない欄 '+w.slots.length+'</span></label>'
+          +(w.ev.length?'<div class="mini" style="margin-bottom:6px;">この週の行事：'+esc(w.ev.join('・'))+'</div>':'')
+          +'<input data-pbpol="'+i+'" value="'+esc(w.policy)+'" maxlength="100" placeholder="例：運動会に向けて、かけっこと体操を少しずつ練習する"'+(w.on?'':' disabled')+'>'
+          +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'
+          +['行事の練習','季節の制作','体を思いきり動かす','室内でゆったり','自然にふれる'].map(function(c){return '<button type="button" class="btn btn-sm btn-ghost" data-pbchip="'+i+'|'+esc(c)+'" style="font-size:11.5px;padding:2px 9px;"'+(w.on?'':' disabled')+'>'+esc(c)+'</button>';}).join('')
+          +'</div></div>';
+      }).join('')
+      +'<div class="mini" style="margin-top:4px;">つくるのは <b>'+n+'</b> 欄です。1週間につき20秒ほどかかります。書いてある欄と過ぎた日は、そのままです。</div>';
+  }else if(B.step===2){
+    h+='<div style="font-size:13px;line-height:1.85;margin-bottom:10px;">'+(B.busy?'AIが週ごとに考えています。このままお待ちください（途中で止めても、できた週は残ります）。':'つくり終えました。')+'</div>'
+      +B.weeks.filter(function(w){return w.on;}).map(function(w){
+        var st=w.st||'待っています',col=/できました/.test(st)?'#27500A':(/失敗|止め/.test(st)?'#A32D2D':'#5B6875');
+        return '<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px;">'
+          +'<b style="min-width:62px;">第'+w.n+'週</b><span style="flex:1;" class="mini">'+esc(w.policy||'おまかせ')+'</span>'
+          +'<span style="color:'+col+';font-weight:700;">'+(/考えています/.test(st)?'<span class="dfspin" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;"></span>':'')+esc(st)+'</span></div>';
+      }).join('');
+  }else{
+    h+=aipMatsHTML(B.made,'今回AIがつくった '+B.made.length+' 欄の準備物です。');
+  }
+  var foot='';
+  if(B.step===1)foot='<button class="btn" id="pbX">やめる</button><button class="btn btn-primary" id="pbGo">'+ic('spark')+'つくる</button>';
+  else if(B.step===2)foot=B.busy?'<button class="btn" id="pbStop">止める</button>':'<button class="btn" id="pbX">閉じる</button><button class="btn btn-primary" id="pbMat"'+(B.made.length?'':' disabled')+'>準備物の一覧を見る</button>';
+  else foot='<button class="btn" id="pbPrint">'+ic('printer')+'印刷する</button><button class="btn btn-primary" id="pbX">閉じる</button>';
+  m.innerHTML='<div class="modal" style="width:720px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(B.k)+'　'+mo+'月の日案を、まとめてつくる</h2>'+steps
+    +'<div style="margin-top:14px;max-height:62vh;overflow-y:auto;">'+h+'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;">'+foot+'</div></div>';
+  aipBulkWire(m);
+  try{langApply(m);}catch(e){}
+}
+function aipBulkWire(m){
+  var B=AIPB;
+  m.querySelectorAll('[data-pbon]').forEach(function(c){c.onchange=function(){B.weeks[+c.getAttribute('data-pbon')].on=c.checked;aipBulkDraw();};});
+  m.querySelectorAll('[data-pbpol]').forEach(function(c){c.oninput=function(){B.weeks[+c.getAttribute('data-pbpol')].policy=c.value;};});
+  m.querySelectorAll('[data-pbchip]').forEach(function(c){c.onclick=function(){
+    var p=c.getAttribute('data-pbchip').split('|'),w=B.weeks[+p[0]];
+    w.policy=w.policy?(w.policy.indexOf(p[1])<0?w.policy+'、'+p[1]:w.policy):p[1];aipBulkDraw();};});
+  var x=$('#pbX');if(x)x.onclick=function(){m.remove();AIPB=null;renderAIPlan();};
+  var st=$('#pbStop');if(st)st.onclick=function(){B.stop=true;st.disabled=true;st.textContent='止めています…';};
+  var mt=$('#pbMat');if(mt)mt.onclick=function(){B.step=3;aipBulkDraw();};
+  var pr=$('#pbPrint');if(pr)pr.onclick=function(){printDoc(B.k+'　'+(+B.mk.slice(5,7))+'月の準備物',aipMatsHTML(B.made,'',true));};
+  var go=$('#pbGo');if(go)go.onclick=function(){
+    if(!B.weeks.some(function(w){return w.on;})){alert('つくる週を1つ以上えらんでください。');return;}
+    B.step=2;B.busy=true;aipBulkDraw();aipBulkRun(0);
+  };
+}
+function aipBulkRun(i){
+  var B=AIPB;if(!B)return;
+  var list=B.weeks.filter(function(w){return w.on;});
+  if(i>=list.length||B.stop){
+    list.forEach(function(w){if(!w.st||/待って/.test(w.st))w.st=B.stop?'止めました':w.st;});
+    B.busy=false;
+    try{aiLog('1か月分をまとめてつくった',B.k+' '+B.mk+' '+B.made.length+'欄');}catch(e){}
+    aipBulkDraw();try{renderAIPlan();}catch(e){}
+    return;
+  }
+  var w=list[i],mo=+B.mk.slice(5,7);
+  /* 待っているあいだに先生が書き入れた欄は、つくらない */
+  w.slots=w.slots.filter(function(x){return !curBodyHas(curBodyGet(B.k,x.d,x.h));});
+  if(!w.slots.length){w.st='入れる欄がありません';aipBulkRun(i+1);return;}
+  w.st='考えています';aipBulkDraw();
+  var labels=w.slots.map(aipSlotLabel);
+  var dl=Math.max(0,Math.round((new Date(w.slots[0].d+'T00:00:00')-new Date(todayISO()+'T00:00:00'))/86400000));
+  aiAskServer('weekday',B.k,mo+'月',{aim:aipMonthAim(B.k,B.mk),policy:w.policy||'',slots:labels.join('・'),
+      event:w.ev.join('・'),daysLeft:dl}).then(function(got){
+    if(!AIPB)return;
+    var items=(got&&got.items)||[];
+    if(!items.length){w.st='失敗しました'+(AI_NET.note?'（'+AI_NET.note+'）':'');aipBulkRun(i+1);return;}
+    var n=0;
+    w.slots.forEach(function(x,j){
+      var lab=labels[j],it=null;
+      items.forEach(function(y){if(!it&&String(y.slot||'').replace(/\s/g,'')===lab)it=y;});
+      if(!it&&items.length===w.slots.length)it=items[j];
+      if(!it)return;
+      var b=curBodyGet(B.k,x.d,x.h);
+      if(curBodyHas(b))return;
+      var map={name:it.name||'',text:it.summary||'',aim:it.aim||'',
+        prep:(it.materials||[]).join('\n')+((it.prep&&it.prep.length)?('\n【準備】'+it.prep.join(' / ')):''),
+        steps:(it.steps||[]).join('\n'),care:(it.care||[]).join('\n')};
+      Object.keys(map).forEach(function(f){var v=String(map[f]||'').replace(/^\s+|\s+$/g,'');if(!v)return;b[f]=v;if(b.aiFields.indexOf(f)<0)b.aiFields.push(f);});
+      curBodySet(B.k,x.d,x.h,b);
+      B.made.push({d:x.d,h:x.h,name:it.name||'',materials:it.materials||[]});n++;
+    });
+    w.st='できました（'+n+'欄）';
+    aipBulkRun(i+1);
+  });
+}
+/* 準備物の一覧。同じ物をまとめて、使う日を並べる。rows … {d,h,name,materials} */
+function aipMatsHTML(rows,lead,print){
+  var by={},order=[];
+  rows.forEach(function(r){(r.materials||[]).forEach(function(mt){
+    var key=String(mt||'').replace(/^\s+|\s+$/g,'');if(!key)return;
+    if(!by[key]){by[key]=[];order.push(key);}
+    by[key].push(aipSlotLabel(r)+' '+r.name);
+  });});
+  if(!order.length)return (lead?'<div class="mini" style="margin-bottom:8px;">'+esc(lead)+'</div>':'')+'<div class="muted">準備物はありません（園にある物でできる活動です）。</div>';
+  return (lead?'<div class="mini" style="margin-bottom:8px;">'+esc(lead)+'同じ物はまとめています。</div>':'')
+    +'<table style="font-size:12.5px;'+(print?'width:100%;':'')+'"><thead><tr><th style="width:40%;">準備物</th><th>使う日と活動</th></tr></thead><tbody>'
+    +order.map(function(k){return '<tr><td>'+esc(k)+'</td><td style="line-height:1.7;">'+by[k].map(esc).join('<br>')+'</td></tr>';}).join('')
+    +'</tbody></table>';
+}
+/* 書いてある日案から、この月の準備物を集める（AIでつくったものも、先生が書いたものも） */
+function aipMatsOf(k,mk){
+  var out=[];
+  curWeeksOf(mk).forEach(function(w){w.days.forEach(function(d){['am','pm'].forEach(function(h){
+    var b=curBodyGet(k,d,h);if(!curBodyHas(b)||!b.prep)return;
+    var mats=String(b.prep).split('\n【準備】')[0].split('\n').filter(function(x){return x.replace(/\s/g,'');});
+    if(mats.length)out.push({d:d,h:h,name:b.name||curBodyLine(b)||'',materials:mats});
+  });});});
+  return out;
+}
+function aipMatsOpen(k){
+  var mk=aipDayMonth(),mo=+mk.slice(5,7),rows=aipMatsOf(k,mk);
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="width:720px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(k)+'　'+mo+'月の準備物</h2>'
+    +'<div style="max-height:62vh;overflow-y:auto;">'+aipMatsHTML(rows,'この月の日案に書いてある準備物です。')+'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"><button class="btn" id="amPr">'+ic('printer')+'印刷する</button><button class="btn btn-primary" id="amX">閉じる</button></div></div>';
+  $('#amX').onclick=function(){m.remove();};
+  $('#amPr').onclick=function(){printDoc(k+'　'+mo+'月の準備物',aipMatsHTML(rows,'',true));};
+  try{langApply(m);}catch(e){}
 }
 /* 選んだ案を、その日・その欄の活動内容（6つの欄）に入れる。書いてある欄は上書きしない */
 function aipDayPut(k,date,half,x){
@@ -8832,6 +9015,8 @@ function aipDayPut(k,date,half,x){
 function aipDayWire(k){
   var s=aipSec();
   var mp=$('#aipMonth');if(mp)mp.onchange=function(){AIP.month=mp.value;renderAIPlan();};
+  var bk=$('#aipBulk');if(bk)bk.onclick=function(){aipBulkOpen(k);};
+  var ms=$('#aipMats');if(ms)ms.onclick=function(){aipMatsOpen(k);};
   s.querySelectorAll('[data-aislot]').forEach(function(b){b.onclick=function(){
     var p=b.getAttribute('data-aislot').split('|'),date=p[0],half=p[1];
     var has=b.classList.contains('done');
