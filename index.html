@@ -1511,6 +1511,14 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-b{padding:6px;}
   /* 外した項目（rfHide）はボタンや欄の display 指定に負けないように隠す */
   [hidden]{display:none!important;}
+  /* 年間発達マップ */
+  .ymgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;}
+  .ymcard{margin:0;}
+  .ymrow,.ymfive>div{display:grid;grid-template-columns:96px 1fr;gap:8px;font-size:12.5px;line-height:1.8;}
+  .ymrow{margin-top:6px;}
+  .ymrow b,.ymfive b{color:var(--tx3);font-size:11.5px;}
+  .ymfive{margin-top:6px;padding:6px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  @media (max-width:560px){.ymgrid{grid-template-columns:1fr;}}
   /* 記録で使う項目のスイッチ */
   .rog{border-top:1px solid var(--line,#E6E2F0);padding:10px 0 4px;}
   .rog-h{font-weight:700;font-size:12.5px;margin-bottom:4px;}
@@ -7883,7 +7891,7 @@ function aiCraft(klass,opt){
 
    APIキーはサーバの中だけにある。この画面には持たせない
    （このファイルは公開しているので、置くと誰でも読めてしまう）。 */
-var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作',act:'活動提案',daily:'日々のまとめ',weekday:'週の日案'};
+var AI_KINDS={month:'月案',week:'週案',day:'日案',craft:'制作',act:'活動提案',daily:'日々のまとめ',weekday:'週の日案',year:'年間発達マップ'};
 var AI_NET={busy:false, last:null, note:''};
 
 function aiCanServer(){
@@ -8043,7 +8051,7 @@ function aiAskServer(kind,klass,period,extra){
   if(_dl!=null)body.daysLeft=String(_dl);
   /* 「AIと活動を考える」で入れてもらった条件。サーバが受け取る名前と同じにしておく。
      空のものは送らない（送ると、指示文に空の行が増えるだけ）。 */
-  ['minutes','place','want','event','detail','past','rejected','policy','slots'].forEach(function(kk){
+  ['minutes','place','want','event','detail','past','rejected','policy','slots','events'].forEach(function(kk){
     if(extra&&extra[kk])body[kk]=String(extra[kk]);
   });
   return API.call('POST','/ai/plan',body)
@@ -8842,7 +8850,7 @@ function renderAIPlan(){
   var cur=(AIP.host==='cur'&&!!document.getElementById('curAiHost'));
   var s=aipSec(), k=aiK();
   /* もう一方の側に描いた古い画面は消す（同じ番号の欄が2つあると、配線が隠れた方に付く） */
-  if(cur){var ap=$('section[data-page="aiplan"]');if(ap)ap.innerHTML='';AIP.tab=(CUR_TAB==='memo'?'memo':'day');}
+  if(cur){var ap=$('section[data-page="aiplan"]');if(ap)ap.innerHTML='';AIP.tab=(CUR_TAB==='memo'?'memo':CUR_TAB==='year'?'year':'day');}
   else{var h0=document.getElementById('curAiHost');if(h0)h0.innerHTML='';miraLanding();return;}
   var tabs=[];
   var html='<div class="card" style="margin-bottom:14px;">'
@@ -8865,12 +8873,14 @@ function renderAIPlan(){
     }).join('')+(tabs.length?'</div>':'');
 
   if(AIP.tab==='day'){ html+=aipDayHTML(k); }
+  else if(AIP.tab==='year'){ html+=aipYearMapHTML(k); }
   else if(AIP.tab==='chat') html+=aipChatHTML(k);
   else html+=aipMemoHTML(k);
 
   s.innerHTML=html;
   aipWire(k);
   if(AIP.tab==='day')aipDayWire(k);
+  if(AIP.tab==='year')aipYearMapWire(k);
 }
 
 /* ══ 日案をつくる（2026-09-25 安田さんのご指示）══════════════
@@ -8914,6 +8924,8 @@ function aipDayHTML(k){
       +'<button class="btn btn-sm" id="aipMats">'+ic('printer')+'この月の準備物の一覧</button></div>'
     +'</div>'
     +'<div class="card" style="margin-bottom:14px;"><h3>'+ic('book')+'この月の活動内容</h3>'
+      /* 年間発達マップのこの月のねらい（年間→月→日がつながるように。2026-09-26） */
+      +(ymAimOf(k,mk)?'<div style="font-size:12.5px;line-height:1.8;margin:-4px 0 10px;padding:8px 10px;background:var(--bg);border-radius:8px;"><b>年間発達マップ（'+mo+'月のねらい）</b>　'+esc(ymAimOf(k,mk))+'</div>':'')
       +(acts||'<div class="muted" style="font-size:12.5px;">この月の活動内容（ねらい）はまだ書かれていません。「月間の予定」タブの「月間の活動内容」に書くと、ここに出て、AIが参考にします。</div>')
     +'</div>'
     +'<div class="card"><div class="aipgrid">'+(grid||'<div class="muted">この月に平日がありません。</div>')+'</div>'
@@ -9309,6 +9321,112 @@ function aipList(t,arr){
     +arr.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
 }
 
+/* ══ 年間発達マップ（2026-09-26 安田さんのご判断「無くしてって指示がなかったなら、アップデートする形で作り直そう」）══════
+   ★前は画面の中の決まった文で作っていて（aiYearMap）、12か月とも5領域のねらい・援助・家庭との連携が同じ文だった。
+     月ごとに変わるのは季節の語だけで、安田さんから「内容が全て同じだから精査が必要」とご指摘をいただいた。
+     「アイディア自動生成」を外したときに、開く道ごと無くなっていた。
+   ・カリキュラム作成のタブ「年間発達マップ」から、クラス・年度ごとに AI が12か月ぶんを書く
+   ・送るのは クラスの年齢・年間スケジュールの行事・クラス方針と園の理念。子どもの名前は送らない
+   ・できたものは、月ごとに先生が直せる（直したものは、つくり直すまで残る）
+   ・日案をつくるタブの「この月の活動内容」に、その月のねらいを出す（年間→月→日がつながるように） */
+var YM={busy:false,err:'',fy:null};
+function ymFyNow(){var t=todayISO(),y=+t.slice(0,4),m=+t.slice(5,7);return m>=4?y:y-1;}
+function ymFy(){if(!YM.fy)YM.fy=ymFyNow();return YM.fy;}
+function ymKey(k,fy){return k+'|'+fy;}
+function ymAll(){var o=stGet('aiYearMaps',{});return (o&&typeof o==='object'&&!Array.isArray(o))?o:{};}
+function ymGet(k,fy){return ymAll()[ymKey(k,fy)]||null;}
+function ymSet(k,fy,v){var o=ymAll();if(v)o[ymKey(k,fy)]=v;else delete o[ymKey(k,fy)];stSet('aiYearMaps',o);}
+/* その年度（4月〜翌3月）の、年間スケジュールの行事を月ごとに並べる */
+function ymEventsOf(fy){
+  var by={},n=0;
+  homeEventsAll().forEach(function(e){
+    var d=String(e&&e.date||'');if(!/^\d{4}-\d{2}-\d{2}/.test(d))return;
+    var y=+d.slice(0,4),m=+d.slice(5,7),f=m>=4?y:y-1;if(f!==fy)return;
+    var nm=String(e.name||e.title||'').replace(/\s+/g,' ').slice(0,30);if(!nm)return;
+    (by[m]=by[m]||[]).push(nm);n++;
+  });
+  var lines=[];
+  [4,5,6,7,8,9,10,11,12,1,2,3].forEach(function(m){if(by[m])lines.push(m+'月：'+by[m].join('・'));});
+  return {text:lines.join('\n').slice(0,1500),n:n};
+}
+/* その月のねらい（日案をつくるタブに出す） */
+function ymAimOf(k,mk){
+  var y=+mk.slice(0,4),m=+mk.slice(5,7),fy=m>=4?y:y-1,v=ymGet(k,fy);if(!v||!v.months)return '';
+  var r=v.months.filter(function(x){return x&&x.month===m+'月';})[0];return r?(r.aim||''):'';
+}
+function aipYearMapHTML(k){
+  var fy=ymFy(),v=ymGet(k,fy),ev=ymEventsOf(fy);
+  var h='<div class="card" style="margin-bottom:14px;"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">'
+    +'<h3 style="margin:0;flex:1;">'+ic('cal')+esc(k)+'　年間発達マップ</h3>'
+    +'<select id="ymFy" style="width:auto;">'+[fy-1,fy,fy+1].concat([ymFyNow()]).filter(function(x,i,a){return a.indexOf(x)===i;}).sort().map(function(y){return '<option value="'+y+'"'+(y===fy?' selected':'')+'>'+y+'年度（'+y+'年4月〜'+(y+1)+'年3月）</option>';}).join('')+'</select></div>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.85;">クラスの年齢と、年間スケジュールの行事（この年度 <b>'+ev.n+'</b>件）から、4月〜3月の発達の見通しを月ごとにつくります。'
+    +'子どもの名前は送りません。</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+    +(YM.busy?'<button class="btn btn-primary btn-sm" disabled>'+ic('spark')+'つくっています（1分ほどかかります）…</button>'
+      :'<button class="btn btn-primary btn-sm" id="ymGo">'+ic('spark')+(v?'AIでつくり直す':'AIで12か月ぶんをつくる')+'</button>')
+    +(v?'<button class="btn btn-sm" id="ymPrint">'+ic('printer')+'印刷する</button>':'')+'</div>'
+    +(YM.err?'<div class="note-b" style="margin-top:10px;font-size:12.5px;color:#A32D2D;">'+esc(YM.err)+'</div>':'')
+    +'</div>';
+  if(!v)return h;
+  h+='<div class="muted" style="font-size:11.5px;margin:-4px 0 10px;">'+esc(v.at||'')+(v.by?'　'+esc(v.by):'')+'　AIがつくった下書きです。月ごとに「直す」で書き直せます。</div>';
+  h+='<div class="ymgrid">'+v.months.map(function(m,i){
+    return '<div class="card ymcard"><div style="display:flex;align-items:baseline;gap:10px;">'
+      +'<h3 style="margin:0;">'+esc(m.month)+'</h3>'+(m.edited?'<span class="tag" style="font-size:10.5px;">直した</span>':'')
+      +'<span style="flex:1;"></span><button class="btn btn-sm btn-ghost" data-ymed="'+i+'">'+ic('edit')+'直す</button></div>'
+      +'<div class="ymrow"><b>発達の見通し</b>'+esc(m.outlook||'')+'</div>'
+      +'<div class="ymrow"><b>月のねらい</b>'+esc(m.aim||'')+'</div>'
+      +'<div class="ymfive">'+YM_FIVE.map(function(f){return '<div><b>'+f+'</b>'+esc((m.five||{})[f]||'')+'</div>';}).join('')+'</div>'
+      +'<div class="ymrow"><b>保育者の援助</b>'+esc(m.help||'')+'</div>'
+      +'<div class="ymrow"><b>環境構成</b>'+esc(m.env||'')+'</div>'
+      +'<div class="ymrow"><b>家庭との連携</b>'+esc(m.home||'')+'</div>'
+      +'<div class="ymrow"><b>安全上の配慮</b>'+esc(m.safe||'')+'</div></div>';
+  }).join('')+'</div>';
+  return h;
+}
+var YM_FIVE=['健康','人間関係','環境','言葉','表現'];
+var YM_MONTHS=['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+function aipYearMapWire(k){
+  var fs=$('#ymFy');if(fs)fs.onchange=function(){YM.fy=+fs.value;YM.err='';renderAIPlan();};
+  var g=$('#ymGo');if(g)g.onclick=function(){
+    var fy=ymFy(),old=ymGet(k,fy);
+    if(old&&old.months.some(function(m){return m.edited;})&&!confirm('つくり直すと、直した月も含めて全部が新しい下書きに置きかわります。よろしいですか？'))return;
+    if(!aiCanServer()){YM.err='AIにつながっていません（設定の「AIの接続」をご確認ください）。';renderAIPlan();return;}
+    var ev=ymEventsOf(fy),p=aiProfile(k),c=aiClassOf(k),ph=aiSetup().philosophy;
+    var note=[c.policy?'クラス方針：'+c.policy:'',ph?'園の理念：'+ph:''].filter(Boolean).join('／').slice(0,480);
+    YM.busy=true;YM.err='';renderAIPlan();
+    aiAskServer('year',k,fy+'年度',{events:aiScrub(ev.text),note:note})
+      .then(function(d){
+        YM.busy=false;
+        var ms=d&&Array.isArray(d.months)?d.months:null;
+        if(!ms||ms.length<12){YM.err='うまくつくれませんでした。少し時間をおいて、もう一度押してください。'+(AI_NET.note?'（'+AI_NET.note+'）':'');renderAIPlan();return;}
+        /* 返ってきた並びに頼らず、4月〜3月の順に置き直す（月の名前で合わせ、無ければ順番で） */
+        var out=YM_MONTHS.map(function(mn,i){
+          var r=ms.filter(function(x){return x&&String(x.month||'').replace(/\s/g,'')===mn;})[0]||ms[i]||{};
+          var five={};YM_FIVE.forEach(function(f){five[f]=aiText((r.five||{})[f]);});
+          return {month:mn,outlook:aiText(r.outlook),aim:aiText(r.aim),five:five,help:aiText(r.help),env:aiText(r.env),home:aiText(r.home),safe:aiText(r.safe)};
+        });
+        var who='';try{who=(currentStaff()||{}).name||'';}catch(e){}
+        ymSet(k,fy,{klass:k,fy:fy,months:out,at:aiNow(),by:who,byAI:true});
+        aiLog('年間発達マップをつくった',k+' '+fy+'年度',k);renderAIPlan();
+      });
+  };
+  var pr=$('#ymPrint');if(pr)pr.onclick=function(){var v=ymGet(k,ymFy());if(v)aipPrint('year',v,k,{byAI:true});};
+  document.querySelectorAll('[data-ymed]').forEach(function(b){b.onclick=function(){ymEdit(k,+b.getAttribute('data-ymed'));};});
+}
+function ymEdit(k,i){
+  var fy=ymFy(),v=ymGet(k,fy);if(!v)return;var m=v.months[i];
+  var F=[['outlook','発達の見通し'],['aim','月のねらい']].concat(YM_FIVE.map(function(f){return ['five.'+f,f];})).concat([['help','保育者の援助'],['env','環境構成'],['home','家庭との連携'],['safe','安全上の配慮']]);
+  var get=function(p){return p.indexOf('five.')===0?(m.five||{})[p.slice(5)]:m[p];};
+  var md=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(md);
+  md.addEventListener('click',function(e){if(e.target===md)md.remove();});
+  md.innerHTML='<div class="modal" style="width:640px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(k)+'　'+esc(m.month)+'</h2>'
+    +F.map(function(f){return '<div class="field"><label>'+esc(f[1])+'</label><textarea data-ymf="'+f[0]+'" rows="2">'+esc(get(f[0])||'')+'</textarea></div>';}).join('')
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn" id="ymX">やめる</button><button class="btn btn-primary" id="ymS">保存</button></div></div>';
+  $('#ymX').onclick=function(){md.remove();};
+  $('#ymS').onclick=function(){
+    md.querySelectorAll('[data-ymf]').forEach(function(t){var p=t.getAttribute('data-ymf');if(p.indexOf('five.')===0){m.five=m.five||{};m.five[p.slice(5)]=t.value;}else m[p]=t.value;});
+    m.edited=true;v.months[i]=m;ymSet(k,fy,v);aiLog('年間発達マップを直した',k+' '+m.month,k);md.remove();renderAIPlan();};
+}
 function aipYearHTML(k){
   var y=(AIP.res&&AIP.res.kind==='year')?AIP.res.data:null;
   var h='<div class="card"><h3 style="margin-top:0;">年間発達マップ</h3>'
@@ -11231,7 +11349,7 @@ var EN_DICT={
 '9/1（日）':'9/1 (Sun)',
 '子育て支援員':'Childcare support worker',
 '連絡先を追加':'Add contact',
-'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','記録で使う項目':'Record items in use','保育記録のタブ':'Care record tabs','安全点検の項目':'Safety check items','すべて使っています':'All items in use','園で使わない項目を外すと、記録の画面と紙に出なくなります。外しても、書いた記録は消えません（入れ直せば元どおり出ます）。':'Items you turn off no longer appear on record screens or printouts. Existing entries are kept and come back if you turn the item on again.','カリキュラム作成':'Curriculum builder','月間の予定':'Monthly plan','AIで日案をつくる':'Day plans with AI','新年度の準備':'New school year','年度の切り替え':'School year switch','切り替える':'Switch','元に戻す':'Undo','クラスの進級':'Class promotion','年間行事':'Annual events','確かめて切り替える':'Review and switch','卒園の日':'Graduation date','全部えらぶ':'Select all','全部はずす':'Clear all','仮':'Draft','戻る':'Back','記録を選んで報告を作る':'Pick a record and create the report','最後に作った報告を開く':'Open the latest report','前の様式で作る':'Use the previous form','様式（Excel）を入れて作る':'Add the form (Excel) and create','記録を書く':'Write a record','自治体の様式':'Municipality form','送れませんでした（宛先の記録が無い古い予約です）。削除して、予約し直してください。':'Not sent (an old reservation without recipient records). Delete it and schedule again.','日案をつくる':'Build day plans','AIとつくる':'Plan with AI','この月の活動内容':'This month’s activities','今回使いたいもの（任意）':'What you want to use (optional)','やりたいこと（いくつでも選べます）':'What to do (choose any)','AI保育計画で日案をつくる':'Build day plans in AI Planning','販売状況':'Sales','買ったご家庭':'Buying families','写真を見たご家庭':'Families who viewed','認証キーを登録':'Registered keys','売れた写真':'Sold photos','さいきんの購入':'Recent purchases','認証キーを載せる':'Show the access key','チラシを出す':'Print flyer','チラシに載せるイベント名':'Event name on flyer','公開待ち':'Scheduled','公開中':'Live','公開終了':'Ended','下書き':'Draft','イベントと写真':'Event & photos','認証キー・お知らせ':'Access key & flyer','写っている顔':'Faces','写真をアップロードする':'Upload photos','アップロードする':'Upload','保存しました！':'Saved!','閲覧方法':'How to view','確認の間隔':'Check interval','この用紙を撮影して取り込む':'Photograph this sheet to import it','書いた用紙を撮影すると、この記録に取り込みます':'Take a photo of the filled-in sheet to attach it to this record','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
+'書類格納 →':'Document Storage →','ファイルを選んで格納':'Choose file to store','すべて開く':'Expand all','AIで12か月ぶんをつくる':'Create 12 months with AI','AIでつくり直す':'Recreate with AI','年間発達マップを直した':'Edited annual development map','記録で使う項目':'Record items in use','保育記録のタブ':'Care record tabs','安全点検の項目':'Safety check items','すべて使っています':'All items in use','園で使わない項目を外すと、記録の画面と紙に出なくなります。外しても、書いた記録は消えません（入れ直せば元どおり出ます）。':'Items you turn off no longer appear on record screens or printouts. Existing entries are kept and come back if you turn the item on again.','カリキュラム作成':'Curriculum builder','月間の予定':'Monthly plan','AIで日案をつくる':'Day plans with AI','新年度の準備':'New school year','年度の切り替え':'School year switch','切り替える':'Switch','元に戻す':'Undo','クラスの進級':'Class promotion','年間行事':'Annual events','確かめて切り替える':'Review and switch','卒園の日':'Graduation date','全部えらぶ':'Select all','全部はずす':'Clear all','仮':'Draft','戻る':'Back','記録を選んで報告を作る':'Pick a record and create the report','最後に作った報告を開く':'Open the latest report','前の様式で作る':'Use the previous form','様式（Excel）を入れて作る':'Add the form (Excel) and create','記録を書く':'Write a record','自治体の様式':'Municipality form','送れませんでした（宛先の記録が無い古い予約です）。削除して、予約し直してください。':'Not sent (an old reservation without recipient records). Delete it and schedule again.','日案をつくる':'Build day plans','AIとつくる':'Plan with AI','この月の活動内容':'This month’s activities','今回使いたいもの（任意）':'What you want to use (optional)','やりたいこと（いくつでも選べます）':'What to do (choose any)','AI保育計画で日案をつくる':'Build day plans in AI Planning','販売状況':'Sales','買ったご家庭':'Buying families','写真を見たご家庭':'Families who viewed','認証キーを登録':'Registered keys','売れた写真':'Sold photos','さいきんの購入':'Recent purchases','認証キーを載せる':'Show the access key','チラシを出す':'Print flyer','チラシに載せるイベント名':'Event name on flyer','公開待ち':'Scheduled','公開中':'Live','公開終了':'Ended','下書き':'Draft','イベントと写真':'Event & photos','認証キー・お知らせ':'Access key & flyer','写っている顔':'Faces','写真をアップロードする':'Upload photos','アップロードする':'Upload','保存しました！':'Saved!','閲覧方法':'How to view','確認の間隔':'Check interval','この用紙を撮影して取り込む':'Photograph this sheet to import it','書いた用紙を撮影すると、この記録に取り込みます':'Take a photo of the filled-in sheet to attach it to this record','やる月を選ぶ':'Choose months','はじめの月に戻す':'Reset to default months','決める':'Save','毎月':'Every month','用途で分ける':'Sort by use','体験・見学':'Trials & visits','入園の手続き':'Enrollment','保育料・お支払い':'Fees & payment','お知らせ（全体配信）':'Notices (broadcast)','園で作ったもの':'Made by school','中身を見る':'View content','閉じる':'Close','この予定を活動内容に入れる':'Use this plan as the activity','カリキュラムの予定で置き換える':'Replace with the curriculum plan','園の基本':'School basics','保育・記録':'Care & records','お金・請求':'Money & billing','アカウント・権限':'Accounts & permissions','データ・つなぎ先':'Data & connections','その他':'Other','差し込む語句（押すとカーソルの位置に入ります）':'Insert fields (inserted at the cursor)','園の情報から':'From school info','すべて閉じる':'Collapse all','検索で探す ↗':'Search ↗','検食簿':'Meal Tasting Log','検食した':'Tasted','検食した時刻':'Tasting time','喫食（配膳）の時刻':'Serving time',
 '主食の固さ':'Staple texture','味付け':'Seasoning','分量':'Portion','鮮度':'Freshness','色彩':'Color','盛り付け':'Presentation','衛生面':'Hygiene',
 '異物の混入':'Foreign matter','適切な加熱状況':'Proper heating','異味異臭':'Off taste/odor','感想・意見':'Comments','検食者（職・氏名）':'Taster (title, name)',
 '施設長の確認':'Director check','確認しました（施設長印）':'Checked (director seal)','1か月分を印刷':'Print the month','差し替え':'Replace',
@@ -22817,7 +22935,7 @@ var CUR_TAB='plan';
 function curAiOk(){return (typeof egPlanOfPage!=='function'||egPlanOfPage('aiplan'))&&(typeof canGoPage!=='function'||canGoPage('aiplan'));}
 function curTabsHTML(){
   if(!curAiOk())return '';
-  var t=[['plan','月間の予定'],['day','AIで日案をつくる'],['memo','AI記録管理']];
+  var t=[['plan','月間の予定'],['year','年間発達マップ'],['day','AIで日案をつくる'],['memo','AI記録管理']];
   return '<div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto;">'
     +t.map(function(x){return '<button type="button" data-curtab="'+x[0]+'" style="background:none;border:none;padding:10px 16px;cursor:pointer;font-size:13.5px;font-weight:700;white-space:nowrap;border-bottom:2px solid '
       +(CUR_TAB===x[0]?'var(--teal);color:var(--teal)':'transparent;color:var(--tx3)')+';">'+x[1]+'</button>';}).join('')+'</div>';
