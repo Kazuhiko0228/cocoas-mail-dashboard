@@ -3539,8 +3539,18 @@ var SAFETY_GROUPS=[
   {loc:'保育室',items:['前に使った用具が出したままになっていないか','教材やおもちゃが片づいているか','子どもの手が届く高さに危険な物を置いていないか','共用の備品がそろっているか','机やいすの並びは整い、ぐらつきはないか','床の傷みや落ちない汚れはないか','照明はすべて点くか（球切れはないか）']},
   {loc:'調理・給湯スペース',items:['置き場所が決まり、片づいているか','燃えやすい物を火気から離して保管しているか']},
   {loc:'トイレ・手洗い場',items:['手洗い場と鏡に汚れはないか','洗剤や消毒液を子どもの触れない場所に置いているか']},
-  {loc:'建物まわり・その他',items:['出入口の施錠具に不具合はないか','植え込みの枝が通路にはみ出していないか','扉の取っ手にゆるみや汚れはないか','屋外灯はすべて点くか','冷暖房の効き具合に異常はないか','裏口など普段使わない場所も見て回ったか','コード類はまとめられ、通行の邪魔になっていないか']}
+  {loc:'建物まわり・その他',items:['出入口の施錠具に不具合はないか','植え込みの枝が通路にはみ出していないか','扉の取っ手にゆるみや汚れはないか','屋外灯はすべて点くか','冷暖房の効き具合に異常はないか','裏口など普段使わない場所も見て回ったか','コード類はまとめられ、通行の邪魔になっていないか']},
+  /* ★国のガイドラインの参考例と自治体の様式にあって、ここに無かった項目（2026-09-26 安田さんのご判断「足らないものは全部入れて」）。
+     ★記録は「上から何番目の項目か」で残しているので、足すのは必ずいちばん下。途中に差し込むと、前の日の結果がずれる。
+     園に無いもの（砂場・ベランダなど）は、園長が「項目を選ぶ」で隠せる（safetyHide） */
+  {loc:'防犯・出入口',items:['門扉は施錠され、子どもが一人で開けられないか','不審者が入れない対策（インターホン・防犯カメラなど）が動いているか']},
+  {loc:'室内の事故防止',items:['口に入る小さな物（窒息のおそれ）が落ちていないか','薬品・医薬品を鍵のかかる場所にしまっているか','家具・棚に転倒防止をしているか','棚の上に落ちてきそうな物はないか','家具の角にガードが付いているか','コンセントにカバーが付いているか','窓やガラスにひび・破損はないか','扉に指はさみ防止が付いているか','トイレの床が濡れていないか','暖房器具に転倒・やけど防止をしているか','窓・ベランダから転落しない対策があるか','死角になる場所を見て回ったか']},
+  {loc:'避難・防火',items:['避難経路・非常口に物を置いていないか','消火器が決まった場所にあるか']},
+  {loc:'園庭（追加）',items:['砂場に異物や動物のふんがないか','害虫やハチの巣がないか','雨上がりの水たまりがないか']}
 ];
+/* 園に無い項目を隠す（園長が「項目を選ぶ」で決める。項目の文字で持つ） */
+function safetyHidden(){var a=stGet('safetyHide',[]);return Array.isArray(a)?a:[];}
+function safetyShown(it){return safetyHidden().indexOf(it)<0;}
 function safetyFlat(){var a=[];SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(it){a.push({loc:g.loc,item:it});});});return a;}
 var SYMPTOMS=[
   {cat:'鼻水',opts:['透明(さら)','透明(ねば)','黄色','緑色']},
@@ -25669,21 +25679,38 @@ function kenshokuMonthBody(mo){
     +(rows||'<tr><td colspan="15">この月の記録はありません</td></tr>')+'</tbody></table></div>'
     +'<p style="font-size:9px;">※ 検食は、施設長（不在のときは施設長が指名した職員）が、子どもが食べる前（喫食の30分前まで）に行う。</p>';
 }
+var SF_CHOOSE=false;
 function edSafety(){
   var K='rec_安全点検',data=stGet(K,{}),d=data[recDate]||{items:{},memo:'',by:''};
   /* ★日常記録5つのうち、安全点検だけ確定の帯が無かった。そのため
      一般の先生がいつでも過去の点検結果を書き換え・取り込んだ紙を削除でき、
      跡も残らなかった（wireScan の ro が常に false になっていた）。 */
   var SF_F=[{k:'items',l:'点検の結果',deep:true,keyer:'safety'},
-            {k:'memo',l:'メモ'},{k:'by',l:'点検者'}];
+            {k:'notes',l:'異常の内容と直したこと',deep:true,keyer:'safety'},
+            {k:'memo',l:'メモ'},{k:'by',l:'点検者'},{k:'approver',l:'施設長の確認'}];
   var _sfSnap=lockSnap(d,SF_F);
   var last7='';for(var i=6;i>=0;i--){var dt=iso(addDays(-i));var has=data[dt];last7+='<span class="tag" style="'+(has?'background:#EAF3DE;color:#27500A;':'')+'">'+dt.slice(5).replace('-','/')+(has?' ✓':' —')+'</span> ';}
-  var idx=-1;
-  var rows=SAFETY_GROUPS.map(function(g){return '<tr><td colspan="2" style="background:#F1EFE8;font-weight:600;font-size:12.5px;">'+g.loc+'</td></tr>'+
-    g.items.map(function(it){idx++;var i=idx,v=d.items[i];return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;width:160px;"><button class="btn btn-sm" data-si="'+esc(i)+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">良</button> <button class="btn btn-sm" data-si="'+esc(i)+'" data-v="ng" style="'+(v==='ng'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">要対応</button></td></tr>';}).join('');}).join('');
-  $('#recBody').innerHTML=lockBarHtml(d)+'<div class="card">'+recHead('園施設 安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="sfAllOk">'+ic('check')+'すべて「良」にする</button><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力（月間表）</button>')+
+  var idx=-1,choose=!!SF_CHOOSE,hid=safetyHidden();
+  if(!d.notes)d.notes={};
+  var rows=SAFETY_GROUPS.map(function(g){
+    var shownN=g.items.filter(function(it){return choose||hid.indexOf(it)<0;}).length;
+    return (shownN?'<tr><td colspan="2" style="background:#F1EFE8;font-weight:600;font-size:12.5px;">'+g.loc+'</td></tr>':'')+
+    g.items.map(function(it){idx++;var i=idx,v=d.items[i];
+      /* 項目を選ぶとき：チェックを外した項目は、毎日の表に出さない */
+      if(choose)return '<tr><td colspan="2"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" data-sfshow="'+esc(it)+'"'+(hid.indexOf(it)<0?' checked':'')+' style="width:auto;">'+esc(it)+'</label></td></tr>';
+      if(hid.indexOf(it)>-1)return '';
+      /* 要対応のときだけ、異常の内容と直したことを書く欄を出す（自治体の様式の「措置」欄） */
+      var note=v==='ng'?'<tr><td colspan="2" style="padding-top:0;"><input data-sn="'+esc(i)+'" value="'+esc(d.notes[i]||'')+'" placeholder="どんな異常か、どう直したか（例：すべり台の手すりのねじのゆるみ → 締め直した）" style="font-size:12.5px;"></td></tr>':'';
+      return '<tr><td>'+it+'</td><td style="text-align:right;white-space:nowrap;width:160px;"><button class="btn btn-sm" data-si="'+esc(i)+'" data-v="ok" style="'+(v==='ok'?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">良</button> <button class="btn btn-sm" data-si="'+esc(i)+'" data-v="ng" style="'+(v==='ng'?'background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;':'')+'">要対応</button></td></tr>'+note;}).join('');}).join('');
+  $('#recBody').innerHTML=lockBarHtml(d)+'<div class="card">'+recHead('園施設 安全点検チェック表（毎日）','<input type="date" id="sfDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm btn-primary" id="sfAllOk">'+ic('check')+'すべて「良」にする</button><button class="btn btn-sm" id="sfPrint">'+ic('printer')+'今月分を出力（月間表）</button>'
+      +((typeof isBoss!=='function'||isBoss())?'<button class="btn btn-sm'+(SF_CHOOSE?' btn-primary':'')+'" id="sfChoose">'+(SF_CHOOSE?'項目を選び終える':'項目を選ぶ')+'</button>':''))+
+    (SF_CHOOSE?'<div class="note-b" style="margin-bottom:10px;font-size:12.5px;">この園で点検する項目にチェックを入れてください。外した項目は、毎日の表と紙に出なくなります（前の記録は消えません）。</div>':'')+
     '<table><tbody>'+rows+'</tbody></table>'+
     '<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:12px;"><div class="field" style="margin:0;"><label>メモ（要対応の内容・対応など）</label><input id="sfMemo" value="'+esc((d.memo||''))+'"></div><div class="field" style="margin:0;"><label>点検者サイン</label><select id="sfBy"><option value="">選択</option>'+DB.staff.map(function(st){return '<option'+(st.name===d.by?' selected':'')+'>'+st.name+'</option>';}).join('')+'</select></div></div>'+
+    /* 施設長の確認（自治体の様式の「施設長」欄）。確定とは別に、見たことを残す */
+    '<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;">'
+      +(d.approver?'<span class="tag" style="background:#EAF3DE;color:#27500A;">施設長の確認：'+esc(d.approver)+'</span>'
+        :((typeof isBoss!=='function'||isBoss())?'<button class="btn btn-sm" id="sfApprove">'+ic('check')+'施設長として確認した</button>':'<span class="muted">施設長の確認：まだ</span>'))+'</div>'+
     '<div class="muted" style="margin-top:12px;">直近7日：'+last7+'</div></div>';
   function save(){
     lockDiff(d,_sfSnap,SF_F);
@@ -25692,7 +25719,15 @@ function edSafety(){
   $('#sfDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
   $('#sfMemo').onchange=function(e){d.memo=e.target.value;save();};
   $('#sfBy').onchange=function(e){d.by=e.target.value;save();};
-  $('#sfAllOk').onclick=function(){var n=0;SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(){d.items[n]='ok';n++;});});save();edSafety();};
+  /* 「すべて良」は、この園で点検している（隠していない）項目だけ */
+  $('#sfAllOk').onclick=function(){var n=0,hd=safetyHidden();SAFETY_GROUPS.forEach(function(g){g.items.forEach(function(it){if(hd.indexOf(it)<0&&d.items[n]!=='ng')d.items[n]='ok';n++;});});save();edSafety();};
+  document.querySelectorAll('[data-sn]').forEach(function(x){x.onchange=function(){d.notes[x.getAttribute('data-sn')]=x.value;save();};});
+  if($('#sfChoose'))$('#sfChoose').onclick=function(){SF_CHOOSE=!SF_CHOOSE;edSafety();};
+  document.querySelectorAll('[data-sfshow]').forEach(function(x){x.onchange=function(){
+    var h=safetyHidden(),it=x.getAttribute('data-sfshow'),k=h.indexOf(it);
+    if(x.checked&&k>-1)h.splice(k,1);else if(!x.checked&&k<0)h.push(it);stSet('safetyHide',h);};});
+  if($('#sfApprove'))$('#sfApprove').onclick=function(){var w='';try{w=(currentStaff()||{}).name||'';}catch(e){}
+    d.approver=(w||'施設長')+'（'+todayISO().slice(5).replace('-','/')+' '+pad(new Date().getHours())+':'+pad(new Date().getMinutes())+'）';save();edSafety();};
   document.querySelectorAll('[data-si]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-si'),v=b.getAttribute('data-v');d.items[i]=(d.items[i]===v?null:v);save();edSafety();};});
   $('#sfPrint').onclick=function(){
     /* 月間表の組み立ては safetyMonthBody にまとめた（期間まとめと同じ紙になる） */
@@ -26824,9 +26859,15 @@ function safetyMonthBody(mo){
   for(dd=1;dd<=dim;dd++)days.push(dd);
   var fi=-1;
   return '<div class="scrollx"><table><thead><tr><th>場所</th><th>安全点検項目</th>'+days.map(function(x){return '<th style="font-size:8px;">'+x+'</th>';}).join('')+'</tr></thead><tbody>'+
-    SAFETY_GROUPS.map(function(g){return g.items.map(function(it,gi){fi++;var i=fi;return '<tr>'+(gi===0?'<td rowspan="'+g.items.length+'">'+g.loc+'</td>':'')+'<td style="font-size:9px;">'+it+'</td>'+days.map(function(x){var r=data[mo+'-'+pad(x)];var v=(r&&r.items)?r.items[i]:null;return '<td style="font-size:8px;">'+(v==='ok'?'✓':v==='ng'?'✕':'')+'</td>';}).join('')+'</tr>';}).join('');}).join('')+
+    SAFETY_GROUPS.map(function(g){var hd=safetyHidden(),vis=g.items.filter(function(it){return hd.indexOf(it)<0;}),first=true;
+      return g.items.map(function(it,gi){fi++;var i=fi;if(hd.indexOf(it)>-1)return '';var top=first;first=false;return '<tr>'+(top?'<td rowspan="'+vis.length+'">'+g.loc+'</td>':'')+'<td style="font-size:9px;">'+it+'</td>'+days.map(function(x){var r=data[mo+'-'+pad(x)];var v=(r&&r.items)?r.items[i]:null;return '<td style="font-size:8px;">'+(v==='ok'?'✓':v==='ng'?'✕':'')+'</td>';}).join('')+'</tr>';}).join('');}).join('')+
     '<tr><td colspan="2">点検者サイン</td>'+days.map(function(x){var r=data[mo+'-'+pad(x)];return '<td style="font-size:7px;">'+esc(r&&r.by?r.by:'')+'</td>';}).join('')+'</tr>'+
-    '</tbody></table></div>';
+    '<tr><td colspan="2">施設長の確認</td>'+days.map(function(x){var r=data[mo+'-'+pad(x)];return '<td style="font-size:7px;">'+(r&&r.approver?'済':'')+'</td>';}).join('')+'</tr>'+
+    '</tbody></table></div>'
+    /* 要対応だった日の「異常の内容と直したこと」 */
+    +(function(){var flat=safetyFlat(),L=[];days.forEach(function(x){var k=mo+'-'+pad(x),r=data[k];if(!r||!r.items)return;
+      Object.keys(r.items).forEach(function(i){if(r.items[i]==='ng'&&flat[i])L.push('<tr><td>'+x+'日</td><td>'+esc(flat[i].item)+'</td><td>'+esc((r.notes||{})[i]||'')+'</td></tr>');});});
+      return L.length?'<h2>異常の内容と直したこと</h2><table><thead><tr><th style="width:40px;">日</th><th>項目</th><th>内容・措置</th></tr></thead><tbody>'+L.join('')+'</tbody></table>':'';})();
 }
 function healthDayBody(dk,d,showKids){
   if(!d)d=stGet('rec_健康チェック',{})[dk]||{entries:[],by:''};
