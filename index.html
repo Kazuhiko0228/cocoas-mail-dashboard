@@ -26505,6 +26505,9 @@ function edNippo(){
       +'<select id="npoKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select>'
       +'<button class="btn btn-sm" id="npoPrint">'+ic('printer')+'本日分を出力</button>')+
     lockBarHtml(d)+
+    /* 記録から自動で入る欄（入力は増やさない。書き直すときは元の記録で直す） */
+    '<details class="npoauto" open style="margin-bottom:12px;"><summary style="cursor:pointer;font-weight:700;font-size:13px;">この日の様子（登園シート・安全点検・検食簿から自動で入ります）</summary>'
+      +'<div style="margin-top:8px;">'+nippoAutoHTML(recDate,d.klass,false)+'</div></details>'+
     /* ★「カリキュラムから取り込む」が見出しの右はしの小さな枠だけで、押すものだと気づきにくかった
        （2026-09-25 安田さんのご指示）。欄が空のときは、欄のすぐ上にカリキュラムの予定を見せ、
        大きな「この予定を活動内容に入れる」を置く。書いたあとは「予定で置き換える」を小さく残す */
@@ -26749,6 +26752,43 @@ function healthDayBody(dk,d,showKids){
     '</tbody></table><p>記録者：'+esc(d.by||'　　　　')+'</p>'
     +lockFootHtml(d);
 }
+/* ══ 日誌の「記録から自動で入る欄」（2026-09-26 安田さんのご判断）═══════════
+   どの自治体の日誌の様式にもある 天候・在籍／出席／欠席（歳児別）・欠席した子・保育の開始と終了・
+   安全点検の結果・給食 は、登園シート・安全点検・検食簿にもう書いてあるので、先生はもう一度書かなくてよい。
+   （国と13の自治体の様式を見比べた結果。日誌だけに無かった欄） */
+function nippoAuto(dk,klass){
+  var o={weather:'',temp:'',hum:'',en:0,pr:0,ab:0,age:{},absent:[],start:'',end:'',sfNg:null,sfAll:0,meal:''};
+  var kids=classOf(klass),sh=(stGet('rec_登園シート',{})||{})[dk]||null,rows=(sh&&sh.rows)||{};
+  if(sh){o.weather=sh.weather||'';o.temp=sh.temp||'';o.hum=sh.hum||'';}
+  kids.forEach(function(c){
+    var r=rows[c.id]||{},a='';try{a=ageClassOf(c,dk)||'';}catch(e){a='';}
+    /* 生年月日の無い子は、ageClassOf がクラス名を返すので「年齢不明」にまとめる */
+    if(!/歳児/.test(a))a='年齢不明';
+    var g=o.age[a||'—']=o.age[a||'—']||{e:0,p:0,a:0};g.e++;o.en++;
+    if(r.att==='●'){o.pr++;g.p++;}
+    else if(r.att==='休'){o.ab++;g.a++;o.absent.push(childFullName(c)+(r.parentNote?'（'+String(r.parentNote).replace(/\s+/g,' ').slice(0,30)+'）':''));}
+    if(r.come&&(!o.start||r.come<o.start))o.start=r.come;
+    if(r.leave&&(!o.end||r.leave>o.end))o.end=r.leave;
+  });
+  var sf=(stGet('rec_安全点検',{})||{})[dk];
+  if(sf&&sf.items){var ks=Object.keys(sf.items);o.sfAll=ks.length;o.sfNg=ks.filter(function(k){return sf.items[k]==='ng'||sf.items[k]==='issue';}).length;}
+  var ks2=(stGet('rec_検食簿',{})||{})[dk];
+  if(ks2){o.meal=ks2.none?String(ks2.none):((ks2.meals||[]).map(function(m){return m.kind||'';}).filter(Boolean).join('・'));}
+  return o;
+}
+function nippoAutoHTML(dk,klass,forPrint){
+  var a=nippoAuto(dk,klass),ages=Object.keys(a.age).sort();
+  var cell=function(l,v){return '<tr><th style="width:150px;">'+l+'</th><td>'+(v||'<span style="color:#888;">（記録なし）</span>')+'</td></tr>';};
+  return (forPrint?'<h2>この日の様子（記録から）</h2>':'')+'<table><tbody>'
+    +cell('天候・室温・湿度',[a.weather,a.temp?a.temp+'℃':'',a.hum?a.hum+'%':''].filter(Boolean).map(esc).join('　'))
+    +cell('在籍・出席・欠席',a.en?('在籍 '+a.en+'名　出席 '+a.pr+'名　欠席 '+a.ab+'名'
+      +(ages.length>1||(ages[0]&&ages[0]!=='—')?'<div style="font-size:11.5px;margin-top:3px;">'+ages.map(function(k){var g=a.age[k];return esc(k)+'：'+g.e+'名中 出席'+g.p+'・欠席'+g.a;}).join('　')+'</div>':'')):'')
+    +cell('欠席した子',a.absent.length?a.absent.map(esc).join('、'):(a.en&&(a.pr||a.ab)?'なし':''))
+    +cell('保育の開始・終了',a.start||a.end?esc(a.start||'—')+' 〜 '+esc(a.end||'—')+'<span style="font-size:11px;color:#888;">（最初の登園・最後のお迎え）</span>':'')
+    +cell('安全点検',a.sfNg===null?'':(a.sfNg?'要対応 '+a.sfNg+'件（'+a.sfAll+'項目中）':'異常なし（'+a.sfAll+'項目）'))
+    +cell('給食・おやつ',esc(a.meal))
+    +'</tbody></table>';
+}
 function nippoDayBody(dk,d){
   if(!d)d=stGet('rec_日報',{})[dk]||{};
   /* ★活動内容が空のとき、カリキュラムの予定や既定の週の文を
@@ -26758,6 +26798,7 @@ function nippoDayBody(dk,d){
   var actual=d.actual||'';
   function or(v){ return v?esc(String(v)).replace(/\n/g,'<br>') : '<span style="color:#888;">（未記入）</span>'; }
   return (d.klass?'<p>クラス：'+esc(d.klass)+'</p>':'')
+    +(d.klass?nippoAutoHTML(dk,d.klass,true):'')
     +'<h2>活動内容</h2><p>'+or(actual)+'</p>'
     /* ★記入用紙には列があるのに、画面にも記録済みの紙にも出ていなかった（17-7）。 */
     +'<h2>使った絵本や玩具</h2><p>'+or(d.books)+'</p>'
