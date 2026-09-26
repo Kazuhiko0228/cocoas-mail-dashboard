@@ -35805,10 +35805,10 @@ function nyEvents(){
   var all=homeEventsAll(),out=[];
   all.forEach(function(e){
     if(!e||!e.date||e.date<lo||e.date>hi)return;
-    var nd=nyShift(e.date);
+    var auto=nyShift(e.date),nd=NY.evDate[e.id]||auto;
     /* 次の年度の同じ月に、同じ名前の行事がもうあれば写さない（2回押しても2つにならない） */
     var dup=all.some(function(x){return x&&x.name===e.name&&String(x.date||'').slice(0,7)===nd.slice(0,7);});
-    out.push({e:e,nd:nd,dup:dup});
+    out.push({e:e,nd:nd,auto:auto,fixed:nd!==auto,dup:dup});
   });
   return out.sort(function(a,b){return a.e.date<b.e.date?-1:1;});
 }
@@ -35841,7 +35841,7 @@ function nyPlan(){
 function nyOpen(){
   if(!nyCanUse()){alert('新年度の準備は、管理者・マネージャーの方が行います。');return;}
   var f=nyDefaultFrom();
-  NY={step:1,from:f,map:nyDefaultMap(),per:{},gradDate:(f+1)+'-03-31',evSel:{},moSel:{}};
+  NY={step:1,from:f,map:nyDefaultMap(),per:{},gradDate:(f+1)+'-03-31',evSel:{},evDate:{},moSel:{}};
   var m=el('div',{class:'modal-bg',id:'nyBg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   nyDraw();
@@ -35887,14 +35887,17 @@ function nyDraw(){
     h+='<div class="field" style="max-width:260px;"><label>卒園の日</label><input type="date" id="nyGrad" value="'+esc(NY.gradDate)+'"></div>';
   }else if(NY.step===3){
     var ev=nyEvents();
-    h+='<div style="font-size:13px;line-height:1.8;margin-bottom:10px;">'+NY.from+'年度の年間行事を、'+to+'年度へ写します。日にちは1年あとの同じ月・同じ曜日に寄せ、「仮」の印を付けます。年間スケジュールの画面で日にちを直すと、「仮」は外れます。</div>';
+    h+='<div style="font-size:13px;line-height:1.8;margin-bottom:10px;">'+NY.from+'年度の年間行事を、'+to+'年度へ写します。日にちは1年あとの同じ月・同じ曜日に寄せ、「仮」の印を付けます。日にちが違うものは、ここで直せます（直した行事は「仮」になりません）。写さない行事は、チェックを外してください。</div>';
     if(!ev.length)h+='<div class="muted">'+NY.from+'年度の行事が入っていません。</div>';
     else h+='<div style="display:flex;gap:8px;margin-bottom:8px;"><button class="btn btn-sm" id="nyEvAll">全部えらぶ</button><button class="btn btn-sm" id="nyEvNone">全部はずす</button></div>'
       +'<div style="max-height:360px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;">'
-      +'<table style="font-size:12.5px;"><thead><tr><th style="width:36px;"></th><th>行事</th><th>'+NY.from+'年度</th><th>'+to+'年度（仮）</th></tr></thead><tbody>'
+      +'<table style="font-size:12.5px;"><thead><tr><th style="width:56px;white-space:nowrap;">写す</th><th>行事</th><th>'+NY.from+'年度</th><th>'+to+'年度の日にち</th></tr></thead><tbody>'
       +ev.map(function(x){var on=!x.dup&&NY.evSel[x.e.id]!==false;
         return '<tr'+(x.dup?' style="opacity:.55;"':'')+'><td><input type="checkbox" data-nyev="'+esc(x.e.id)+'"'+(on?' checked':'')+(x.dup?' disabled':'')+' style="width:auto;"></td>'
-          +'<td>'+esc(x.e.name)+(x.dup?' <span class="mini">（'+to+'年度に同じ行事があります）</span>':'')+'</td><td>'+esc(fmt(x.e.date))+'</td><td>'+esc(fmt(x.nd))+'</td></tr>';}).join('')
+          +'<td>'+esc(x.e.name)+(x.dup?' <span class="mini">（'+to+'年度に同じ行事があります）</span>':'')+'</td><td>'+esc(fmt(x.e.date))+'</td>'
+          /* ★日にちが違うときに、ここで直せるように（2026-09-25 安田さんのご指摘） */
+          +'<td>'+(x.dup?esc(fmt(x.nd)):'<input type="date" data-nyevd="'+esc(x.e.id)+'" value="'+esc(x.nd)+'" min="'+to+'-04-01" max="'+(to+1)+'-03-31" style="width:auto;padding:3px 6px;font-size:12.5px;"'+(on?'':' disabled')+'>'
+            +(x.fixed?' <span class="pill" style="background:#EAF3DE;color:#27500A;font-size:10px;">直した</span>':' <span class="pill" style="background:#FAEEDA;color:#854F0B;font-size:10px;">仮</span>'))+'</td></tr>';}).join('')
       +'</tbody></table></div>';
   }else if(NY.step===4){
     var mo=nyMonths();
@@ -35912,7 +35915,8 @@ function nyDraw(){
       +(pl.moves.length?'<div class="mini" style="line-height:1.8;margin-top:4px;">'+pl.moves.map(function(x){return esc(childFullName(x.c))+'（'+esc(x.c.klass||'')+' → '+esc(x.to)+'）';}).join('、')+'</div>':'')+'</div>'
       +'<div class="card" style="padding:12px 14px;margin-bottom:10px;"><b>卒園</b>　'+pl.grads.length+'名（'+esc(fmt(NY.gradDate))+'）'
       +(pl.grads.length?'<div class="mini" style="line-height:1.8;margin-top:4px;">'+pl.grads.map(function(c){return esc(childFullName(c));}).join('、')+'</div>':'')+'</div>'
-      +'<div class="card" style="padding:12px 14px;margin-bottom:10px;"><b>年間行事を写す</b>　'+pl.ev.length+'件（'+to+'年度へ「仮」で）</div>'
+      +'<div class="card" style="padding:12px 14px;margin-bottom:10px;"><b>年間行事を写す</b>　'+pl.ev.length+'件'
+      +(pl.ev.length?'<div class="mini" style="line-height:1.8;margin-top:4px;">'+pl.ev.map(function(x){return esc(fmt(x.nd))+' '+esc(x.e.name)+(x.fixed?'':'（仮）');}).join('、')+'</div>':'')+'</div>'
       +'<div class="card" style="padding:12px 14px;margin-bottom:10px;"><b>月間のねらい・週の内容を写す</b>　'+pl.mo.length+'か月'
       +(pl.mo.length?'（'+pl.mo.map(function(x){return (+x.mk.slice(5))+'月';}).join('・')+'）':'')+'</div>'
       +'<div class="note-b" style="font-size:12.5px;line-height:1.8;">切り替える前の状態を残します。まちがえたときは、設定の「新年度の準備」から1回だけ元に戻せます（切り替えたあとに直した所は、そのまま残ります）。</div>';
@@ -35936,11 +35940,15 @@ function nyWire(m){
   var x=$('#nyX');if(x)x.onclick=function(){m.remove();NY=null;};
   var b=$('#nyBack');if(b)b.onclick=function(){NY.step--;nyDraw();};
   var n=$('#nyNext');if(n)n.onclick=function(){NY.step++;nyDraw();};
-  var fr=$('#nyFrom');if(fr)fr.onchange=function(){NY.from=+fr.value;NY.gradDate=(NY.from+1)+'-03-31';NY.evSel={};NY.moSel={};nyDraw();};
+  var fr=$('#nyFrom');if(fr)fr.onchange=function(){NY.from=+fr.value;NY.gradDate=(NY.from+1)+'-03-31';NY.evSel={};NY.evDate={};NY.moSel={};nyDraw();};
   m.querySelectorAll('[data-nymap]').forEach(function(s){s.onchange=function(){NY.map[s.getAttribute('data-nymap')]=s.value;nyDraw();};});
   m.querySelectorAll('[data-nyper]').forEach(function(s){s.onchange=function(){NY.per[s.getAttribute('data-nyper')]=s.value;};});
   var gd=$('#nyGrad');if(gd)gd.onchange=function(){if(/^\d{4}-\d{2}-\d{2}$/.test(gd.value))NY.gradDate=gd.value;};
-  m.querySelectorAll('[data-nyev]').forEach(function(c){c.onchange=function(){NY.evSel[c.getAttribute('data-nyev')]=c.checked;};});
+  m.querySelectorAll('[data-nyev]').forEach(function(c){c.onchange=function(){NY.evSel[c.getAttribute('data-nyev')]=c.checked;nyDraw();};});
+  m.querySelectorAll('[data-nyevd]').forEach(function(c){c.onchange=function(){
+    var id=c.getAttribute('data-nyevd'),to=NY.from+1;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.value)||c.value<to+'-04-01'||c.value>(to+1)+'-03-31'){alert(to+'年度（'+to+'年4月〜'+(to+1)+'年3月）の日にちを選んでください。');nyDraw();return;}
+    NY.evDate[id]=c.value;nyDraw();};});
   var ea=$('#nyEvAll');if(ea)ea.onclick=function(){NY.evSel={};nyDraw();};
   var en=$('#nyEvNone');if(en)en.onclick=function(){nyEvents().forEach(function(x){NY.evSel[x.e.id]=false;});nyDraw();};
   m.querySelectorAll('[data-nymo]').forEach(function(c){c.onchange=function(){NY.moSel[c.getAttribute('data-nymo')]=c.checked;};});
@@ -35984,7 +35992,7 @@ function nyApply(pl){
     c.kind='withdrawn';c.withdrawDate=NY.gradDate;c.withdrawReason='卒園';});
   DB.contacts=cs;
   var a=homeEventsAll(),t0=Date.now();
-  pl.ev.forEach(function(x,i){var ne={id:'ev'+t0+'_'+i,date:x.nd,name:x.e.name,draft:true};a.push(ne);u.events.push({id:ne.id,date:ne.date,name:ne.name});});
+  pl.ev.forEach(function(x,i){var ne={id:'ev'+t0+'_'+i,date:x.nd,name:x.e.name,draft:!x.fixed};a.push(ne);u.events.push({id:ne.id,date:ne.date,name:ne.name,draft:ne.draft});});
   if(pl.ev.length)stSet('homeEvents',a.slice(-400));
   var cn=0;
   pl.mo.forEach(function(x){
@@ -35997,6 +36005,8 @@ function nyApply(pl){
   });
   if(cn)DB.curriculum=CUR;
   stSet('nyUndo',u);
+  /* ★すぐ園の記録へ送る。押してすぐ画面を閉じると、端末にだけ残ってほかの端末と食い違う（2026-09-25 確認で発見） */
+  try{if(typeof SYNC!=='undefined'&&SYNC.push)SYNC.push();}catch(e){}
   return {moves:pl.moves.length,grads:pl.grads.length,ev:pl.ev.length,cur:cn};
 }
 /* 元に戻す。切り替えたあとに誰かが直した所は、そのまま残す */
@@ -36014,7 +36024,7 @@ function nyUndo(){
   var gone={};(u.events||[]).forEach(function(e){gone[e.id]=e;});
   var a=homeEventsAll().filter(function(x){var g=gone[x.id];
     if(!g)return true;
-    if(x.draft&&x.date===g.date&&x.name===g.name){back++;return false;}
+    if(!!x.draft===!!g.draft&&x.date===g.date&&x.name===g.name){back++;return false;}
     kept++;return true;});
   stSet('homeEvents',a);
   var cn=0;
@@ -36026,6 +36036,7 @@ function nyUndo(){
   if(cn)DB.curriculum=CUR;
   try{localStorage.removeItem('cocoas_nyUndo');}catch(e){}
   stSet('nyUndo',{});
+  try{if(typeof SYNC!=='undefined'&&SYNC.push)SYNC.push();}catch(e){}
   alert('元に戻しました（'+(back+cn)+'か所）。'+(kept?'\n切り替えたあとに直してあった '+kept+'か所は、そのまま残しました。':''));
   try{renderSettings();}catch(e){}
 }
