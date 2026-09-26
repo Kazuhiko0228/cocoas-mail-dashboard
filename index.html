@@ -34947,6 +34947,7 @@ function dfRowActions(dd,gov){
   return '<div style="display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:170px;">'
     +dfBadge(dd.status,dd.statusFrom==='legacy')
     +(dd.runId?'<button class="btn btn-sm btn-primary" data-dfopen="'+esc(dd.runId)+'">'+ic('edit')+'開く</button>':'')
+    +'<button class="btn btn-sm" data-dfsh="'+esc(dd.id)+'">'+ic('fileplus')+'運営の様式から作る</button>'
     +'<label class="btn btn-sm" style="cursor:pointer;margin:0;justify-content:center;">'+ic('fileplus')+'様式を入れ込む'
       +'<input type="file" data-dfimp="'+esc(dd.id)+'" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;"></label>'
     /* 行政に出す届出・報告は、自治体の様式でしか出せないので Miralink の様式は出さない */
@@ -34954,6 +34955,10 @@ function dfRowActions(dd,gov){
     +'</div>';
 }
 function dfRowWire(s){
+  s.querySelectorAll('[data-dfsh]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-dfsh'),dd=(DF.docs||[]).filter(function(x){return x.id===id;})[0];
+    if(dd)dfSharedPick(dd);
+  };});
   s.querySelectorAll('[data-dfrec]').forEach(function(b){b.onclick=function(){
     var id=b.getAttribute('data-dfrec'),dd=(DF.docs||[]).filter(function(x){return x.id===id;})[0];
     if(dd)dfRecPick(dd);
@@ -34988,6 +34993,34 @@ function dfRowWire(s){
 /* ── 事故報告：どの記録の報告を作るかを選ぶ（2026-09-25）──
    記録は園児を名前の文字で持っている（hyChildFind）。ここでは記録のとおりに並べるだけ。
    様式は一度入れればサーバが覚えている（lastForm）。2件目からは記録を選んで押すだけにする */
+/* 運営が用意した自治体の様式（2026-09-26）。書類ごとに1度だけ取りに行く。園の市町村のものが先頭 */
+function dfSharedOf(docId,cb){
+  DF.shared=DF.shared||{};
+  if(DF.shared[docId]){cb(DF.shared[docId]);return;}
+  API.call('GET','/docflow/shared?docId='+encodeURIComponent(docId)).then(function(j){DF.shared[docId]=(j&&j.forms)||[];cb(DF.shared[docId]);})
+    .catch(function(){cb([]);});
+}
+function dfSharedBtns(list){
+  return list.map(function(f){return '<button type="button" class="btn btn-sm'+(f.mine?' btn-primary':'')+'" data-dfshared="'+f.id+'" style="margin:0 6px 6px 0;">'
+    +ic('fileplus')+esc(f.pref+f.muni)+'の様式で作る'+(f.note?'（'+esc(f.note)+'）':'')+'</button>';}).join('');
+}
+function dfSharedGo(dd,sid,recId){
+  dfWait('運営が用意した様式に、記録から書き込んでいます…');
+  var body={docId:dd.id,sharedId:sid};if(recId!=null)body.recId=recId;
+  API.call('POST','/docflow/forms',body).then(function(r){dfLoad(true);dfShow(r.run.id,'shared');}).catch(function(e){dfClose();alert(e.message);});
+}
+/* 記録から作る書類ではないもの（職員名簿など）で、運営の様式を選ぶ窓 */
+function dfSharedPick(dd){
+  dfSharedOf(dd.id,function(list){
+    var m=dfBg();
+    m.innerHTML='<div class="modal" style="width:560px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(dd.name)+'</h2>'
+      +'<div class="muted" style="font-size:12.5px;margin-bottom:12px;">運営が用意した自治体の様式です。選ぶと、園の記録から書き込みます。</div>'
+      +(list.length?'<div>'+dfSharedBtns(list)+'</div>':'<div class="muted">この書類の様式は、まだ用意されていません。</div>')
+      +'<div style="display:flex;justify-content:flex-end;margin-top:12px;"><button class="btn" id="dfShX">閉じる</button></div></div>';
+    $('#dfShX').onclick=dfClose;
+    m.querySelectorAll('[data-dfshared]').forEach(function(b){b.onclick=function(){dfSharedGo(dd,+b.getAttribute('data-dfshared'),null);};});
+  });
+}
 function dfRecPick(dd){
   var log=(stGet(dd.record.key,[])||[]).filter(function(r){return r&&r.id!=null;})
     .sort(function(a,b){return (b.date+(b.time||''))<(a.date+(a.time||''))?-1:1;});
@@ -35008,6 +35041,7 @@ function dfRecPick(dd){
       +(log.length?'<div style="display:flex;flex-direction:column;gap:7px;max-height:320px;overflow-y:auto;margin-bottom:14px;">'+log.map(row).join('')+'</div>'
         :'<div class="note-b" style="margin-bottom:14px;">「'+esc(dd.record.label)+'」がまだありません。先に記録を書いてください。<div style="margin-top:8px;"><button class="btn btn-sm" id="dfRecGo">'+ic('edit')+'記録を書く</button></div></div>')
       +'<div style="font-weight:700;font-size:13px;margin-bottom:6px;">自治体の様式</div>'
+      +(DF.shared&&DF.shared[dd.id]&&DF.shared[dd.id].length?'<div class="muted" style="font-size:12px;margin-bottom:6px;">運営が用意した様式から選べます：</div><div style="margin-bottom:6px;">'+dfSharedBtns(DF.shared[dd.id])+'</div>':'')
       +(dd.lastForm?'<div class="muted" style="font-size:12px;margin-bottom:8px;">前に入れた様式：'+esc(dd.lastForm)+'</div>':'<div class="muted" style="font-size:12px;margin-bottom:8px;">自治体からもらった事故報告の様式（Excel）を入れてください。一度入れれば、次からは入れ直さなくて大丈夫です。</div>')
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">'
       +'<button class="btn" id="dfRecX">やめる</button>'
@@ -35018,6 +35052,7 @@ function dfRecPick(dd){
     m.querySelectorAll('input[name="dfrec"]').forEach(function(rb){rb.onchange=function(){sel=+rb.value;draw();};});
     var x=$('#dfRecX');if(x)x.onclick=dfClose;
     var g=$('#dfRecGo');if(g)g.onclick=function(){dfClose();goRec('carerec','事故・ヒヤリハットの記録');};
+    m.querySelectorAll('[data-dfshared]').forEach(function(b){b.onclick=function(){if(sel==null)return;dfSharedGo(dd,+b.getAttribute('data-dfshared'),sel);};});
     var ru=$('#dfRecReuse');if(ru)ru.onclick=function(){
       if(sel==null)return;
       dfWait('記録から値を集めています…');
@@ -35042,6 +35077,8 @@ function dfRecPick(dd){
     try{langApply(m);}catch(e){}
   }
   draw();
+  /* 運営の様式を取ってきたら描き直す */
+  dfSharedOf(dd.id,function(l){if(l.length&&document.getElementById('dfRecX'))draw();});
 }
 
 /* ── 窓 ── */
@@ -35209,7 +35246,8 @@ function dfRender(){
   var howTxt={reuse:'前に確かめた位置を、そのまま使いました（同じ様式です）。',skip:'様式の見出しから、書く位置を全部見つけました。',
     used:'見出しで見つからなかった欄だけ、AI に位置を推定させました（見出しだけを送り、中身は送っていません）。',
     off:'様式の見出しから、書く位置を探しました。',failed:'AI に聞けなかったので、見出しで見つかった欄だけ使っています。',
-    registered:'運営が登録ずみの様式です。書き込む場所は決まっているので、値と答えだけ確かめてください。'}[DF.how]||'';
+    registered:'運営が登録ずみの様式です。書き込む場所は決まっているので、値と答えだけ確かめてください。',
+    shared:'運営が用意した自治体の様式です。書き込む位置がずれていたら「書き込む位置を直す」で直せます。'}[DF.how]||'';
   if(!howTxt&&L.fixed)howTxt='運営が登録ずみの様式です（'+(L.label||'')+'）。';
 
   var h='<div class="modal"><div class="dfhead">'
