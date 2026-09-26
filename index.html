@@ -26649,6 +26649,8 @@ function edNippo(){
     /* ★「カリキュラムから取り込む」が見出しの右はしの小さな枠だけで、押すものだと気づきにくかった
        （2026-09-25 安田さんのご指示）。欄が空のときは、欄のすぐ上にカリキュラムの予定を見せ、
        大きな「この予定を活動内容に入れる」を置く。書いたあとは「予定で置き換える」を小さく残す */
+    /* ★自治体の日誌の様式にある「本日のねらい」「評価・反省」「行事」「保健」の欄が無かった（2026-09-26） */
+    '<div class="field"><label>本日のねらい</label><input id="npoAim" value="'+esc(d.aim||'')+'" placeholder="例：友だちと一緒に体を動かす楽しさを味わう"></div>'+
     '<div class="field"><label>活動内容</label>'
       +(currText&&!actualVal
         ?'<div class="npocur"><div class="npocur-t"><b>'+esc(recDate.slice(5).replace('-','/'))+'　'+esc(d.klass)+' のカリキュラムの予定</b><div class="npocur-x">'+esc(currText).replace(/\n/g,'<br>')+'</div></div>'
@@ -26661,11 +26663,21 @@ function edNippo(){
        紙で書いて取り込むと、画面で見たときに落ちてしまう。 */
     '<div class="field"><label>使った絵本や玩具</label><input id="npoBooks" value="'+esc((d.books||''))+'" placeholder="例：はらぺこあおむし／積み木"></div>'+
     '<div class="field"><label>クラスの様子・エピソード</label><textarea id="npoDiary" rows="3">'+esc((d.diary||''))+'</textarea></div>'+
+    '<div class="field"><label>評価・反省</label><textarea id="npoReview" rows="2" placeholder="ねらいに対して子どもの姿はどうだったか、次にどうするか">'+esc(d.review||'')+'</textarea></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
-      '<div class="field"><label>欠席</label><input id="npoAbsent" value="'+esc((d.absent||''))+'" placeholder="○○（発熱）"></div>'+
+      '<div class="field"><label>行事</label><input id="npoEvent" value="'+esc(d.event||'')+'" placeholder="例：誕生会"></div>'+
+      '<div class="field"><label>保健（健診・消毒など）</label><input id="npoHoken" value="'+esc(d.hoken||'')+'" placeholder="例：おもちゃの消毒"></div></div>'+
+    '<div class="grid" style="grid-template-columns:1fr 1fr;">'+
+      /* ★欠席は登園シートから「この日の様子」に自動で入るので、ここで書く欄は外した（2026-09-26。二重に書かせない）。
+         前に書いた欠席は、あればそのまま見せて直せるようにする */
+      (d.absent?'<div class="field"><label>欠席（前に書いたもの）</label><input id="npoAbsent" value="'+esc(d.absent)+'"></div>':'<div class="field"><label>欠席</label><div class="muted" style="font-size:12px;padding-top:8px;">登園シートの「休」から、上の「この日の様子」に自動で入ります</div></div>')+
       '<div class="field"><label>早退</label><input id="npoEarly" value="'+esc((d.early||''))+'"></div></div>'+
     '<div class="muted" style="margin-bottom:8px;">※ 体調不良・怪我は「健康チェック」「事故・ヒヤリハットの記録」で記録します（二重入力を避けるため業務日報からは削除）。</div>'+
-    '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+esc((d.note||''))+'"></div><div class="field"><label>記録者</label><input id="npoBy" value="'+esc((d.by||''))+'"></div></div>'+
+    '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>引き継ぎ・特記事項</label><input id="npoNote" value="'+esc((d.note||''))+'"></div><div class="field"><label>記録者</label><select id="npoBy"><option value="">—</option>'
+      /* 記録者は職員から選ぶ（自由に書くと、同じ人が何通りにも書かれる）。前に書いた名前は残す */
+      +(function(){var ns=(DB.staff||[]).filter(function(x){return x&&x.name&&!x.leaveDate;}).map(function(x){return x.name;});if(d.by&&ns.indexOf(d.by)<0)ns.unshift(d.by);
+        return ns.map(function(n){return '<option'+(n===d.by?' selected':'')+'>'+esc(n)+'</option>';}).join('');})()
+      +'</select></div></div>'+
     '<div class="muted">'+(isLocked(d)?'この記録は確定ずみです。':'')+'</div></div>';
   function save(){stampWho(d);data[recDate]=d;stSet(K,data);try{periodRefresh();}catch(e){}}
   $('#npoDate').onchange=function(e){recDate=e.target.value;renderRecGroup(recPageOf(recType),recPageOf(recType)==='carerec'?recCareList():REC_DAILY);};
@@ -26678,8 +26690,8 @@ function edNippo(){
     if(d.actual&&d.actual!==currText&&!confirm('いま書いてある活動内容を、カリキュラムの予定に置き換えます。よろしいですか？'))return;
     lockNote(d,'活動内容',d.actual,currText);d.actual=currText;save();edNippo();};
   /* 確定したあとに直したときは、どこを何から何に変えたかを残す（監査で見られる） */
-  var NPO_LABEL={actual:'活動内容',books:'使った絵本や玩具',diary:'クラスの様子・エピソード',absent:'欠席',early:'早退',note:'引き継ぎ・特記事項',by:'記録者'};
-  [['npoActual','actual'],['npoBooks','books'],['npoDiary','diary'],['npoAbsent','absent'],['npoEarly','early'],['npoNote','note'],['npoBy','by']].forEach(function(p){$('#'+p[0]).onchange=function(e){
+  var NPO_LABEL={actual:'活動内容',books:'使った絵本や玩具',diary:'クラスの様子・エピソード',absent:'欠席',early:'早退',note:'引き継ぎ・特記事項',by:'記録者',aim:'本日のねらい',review:'評価・反省',event:'行事',hoken:'保健'};
+  [['npoActual','actual'],['npoBooks','books'],['npoDiary','diary']].concat($('#npoAbsent')?[['npoAbsent','absent']]:[]).concat([['npoEarly','early'],['npoNote','note'],['npoBy','by'],['npoAim','aim'],['npoReview','review'],['npoEvent','event'],['npoHoken','hoken']]).forEach(function(p){$('#'+p[0]).onchange=function(e){
     lockNote(d,NPO_LABEL[p[1]],d[p[1]],e.target.value);
     d[p[1]]=e.target.value;save();};});
   $('#npoPrint').onclick=function(){
@@ -26948,10 +26960,13 @@ function nippoDayBody(dk,d){
   function or(v){ return v?esc(String(v)).replace(/\n/g,'<br>') : '<span style="color:#888;">（未記入）</span>'; }
   return (d.klass?'<p>クラス：'+esc(d.klass)+'</p>':'')
     +(d.klass?nippoAutoHTML(dk,d.klass,true):'')
+    +'<h2>本日のねらい</h2><p>'+or(d.aim)+'</p>'
     +'<h2>活動内容</h2><p>'+or(actual)+'</p>'
     /* ★記入用紙には列があるのに、画面にも記録済みの紙にも出ていなかった（17-7）。 */
     +'<h2>使った絵本や玩具</h2><p>'+or(d.books)+'</p>'
     +'<h2>クラスの様子・エピソード</h2><p>'+or(d.diary)+'</p>'
+    +'<h2>評価・反省</h2><p>'+or(d.review)+'</p>'
+    +((d.event||d.hoken)?'<table><tbody><tr><th>行事</th><td>'+or(d.event)+'</td></tr><tr><th>保健</th><td>'+or(d.hoken)+'</td></tr></tbody></table>':'')
     +'<h2>欠席・早退・引き継ぎ</h2><table><tbody>'
     +'<tr><th>欠席</th><td>'+or(d.absent)+'</td></tr>'
     +'<tr><th>早退</th><td>'+or(d.early)+'</td></tr>'
