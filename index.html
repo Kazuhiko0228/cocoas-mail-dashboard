@@ -1506,6 +1506,14 @@ button.hpr:hover{background:#FAF9F5}
 .kkch-n{font-size:11px;font-weight:600;color:var(--tx2);flex:none;}
 .kkch-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex:none;}
 .kkch-b{padding:6px;}
+.mira-kid{display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin:0 1px;}
+.mira-kid .avatar{flex:none;}
+.mira-src{margin-top:8px;font-size:11px;color:var(--tx3);border-top:1px dashed var(--line);padding-top:6px;}
+.mira-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.mira-chips button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 10px;font-size:12px;cursor:pointer;color:inherit;}
+.mira-wait{color:var(--tx3);}
+.mira-logo{background:#fff;border-radius:8px;padding:4px 6px;display:inline-flex;align-items:center;}
+.mira-logo img{height:16px;display:block;}
 .aipgrid{display:flex;flex-direction:column;gap:10px;}
 .aipwk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;}
 .aipday{border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;}
@@ -8736,13 +8744,13 @@ function aipSec(){
   if(AIP.host==='cur'&&h)return h;
   return $('section[data-page="aiplan"]');
 }
-function renderMiraAI(){AIP.host='ai';renderAIPlan();}
+function renderMiraAI(){AIP.host='ai';miraLanding();}
 function renderAIPlan(){
   var cur=(AIP.host==='cur'&&!!document.getElementById('curAiHost'));
   var s=aipSec(), k=aiK();
   /* もう一方の側に描いた古い画面は消す（同じ番号の欄が2つあると、配線が隠れた方に付く） */
   if(cur){var ap=$('section[data-page="aiplan"]');if(ap)ap.innerHTML='';AIP.tab=(CUR_TAB==='memo'?'memo':'day');}
-  else{var h0=document.getElementById('curAiHost');if(h0)h0.innerHTML='';AIP.tab='chat';}
+  else{var h0=document.getElementById('curAiHost');if(h0)h0.innerHTML='';miraLanding();return;}
   var tabs=[];
   var html='<div class="card" style="margin-bottom:14px;">'
     +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">'
@@ -23487,7 +23495,7 @@ var SET_NAV_GROUPS=[
   ['お金・請求',['振込口座','料金設定','請求書の体裁','経費管理']],
   ['アカウント・権限',['職員アカウント','権限管理','全体配信・お知らせのひな形']],
   ['年度の切り替え',['新年度の準備']],
-  ['データ・つなぎ先',['AIの接続','書類・写真の預け先','データのバックアップ']]
+  ['データ・つなぎ先',['Miralink AI','AIの接続','書類・写真の預け先','データのバックアップ']]
 ];
 var SET_NAV_OPEN={};
 function setupWarnHTML(){
@@ -23723,6 +23731,14 @@ function renderSettings(){
      && (typeof currentRole!=='function'||currentRole()==='管理者'))renderAiCheckSettings(s);
   /* 書類・写真の預け先。端末の中だけに残っているものを数えて、まとめて預ける。
      消えると困るものの話なので、バックアップのすぐ上に置く。 */
+  /* Miralink AI が園の記録を読むか（2026-09-25：既定はオン。オフにもできる） */
+  if(typeof isBoss!=='function'||isBoss()){
+    s.insertAdjacentHTML('beforeend','<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('spark')+'Miralink AI</h3>'
+      +'<label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:13px;line-height:1.8;"><input type="checkbox" id="miraDataSw" style="width:auto;margin-top:5px;"'+(miraDataOn()?' checked':'')+'>'
+      +'<span><b>園の記録を読んで答える</b><br><span class="muted" style="font-size:12px;">聞かれたクラスと期間の、出席・健康チェック・ヒヤリハット・日誌・活動をAIに渡して答えます。'
+      +'子どもの名前は「児A」のような仮の呼び名にしてから渡し、答えを出すときだけ名前と顔写真に戻します。住所・電話・アレルギー・保護者の情報は渡しません。</span></span></label></div>');
+    var msw=$('#miraDataSw');if(msw)msw.onchange=function(){stSet('miraData',!!msw.checked);};
+  }
   /* 新年度の準備（2026-09-25）。管理者・マネージャー */
   if(typeof renderNewYearSettings==='function')renderNewYearSettings(s);
   if(typeof renderFileMoveSettings==='function'
@@ -36595,7 +36611,7 @@ function renderHelpButton(page){
   var bar=document.querySelector('.topbar');if(!bar)return;
   var old=document.getElementById('helpBtn');if(old)old.remove();
   if(!helpFor(page))return;
-  var b=el('button',{id:'helpBtn',title:'この画面の使い方'},'?');
+  var b=el('button',{id:'helpBtn',title:'Miralink AI に聞く'},'?');
   /* 上の帯のいちばん最初の子はハンバーガー（#navToggle）。
      そこへ入れると「?」がボタンの上に重なるので、見出し（#pageTitle）の隣に置く */
   var titleBox=document.getElementById('pageTitle');
@@ -36604,7 +36620,8 @@ function renderHelpButton(page){
     if(!wrap){wrap=el('span',{id:'helpWrap'});wrap.style.cssText='display:inline-flex;align-items:center;margin-left:10px;';titleBox.appendChild(wrap);}
     wrap.innerHTML='';wrap.appendChild(b);
   }else bar.appendChild(b);
-  b.onclick=function(ev){ev.stopPropagation();toggleHelp(page);};
+  /* ★長い説明の窓をやめ、Miralink AI で短く答えて続けて聞けるようにした（2026-09-25 安田さんのご指示） */
+  b.onclick=function(ev){ev.stopPropagation();miraPageHelp(page);};
 }
 function toggleHelp(page){
   initHelp();
@@ -37040,18 +37057,195 @@ function helpEscalate(p){
   helpWire();
 }
 
+/* ══ Miralink AI（2026-09-25 安田さんのご判断）══════════════════════
+   「ChatGPT みたいな感じで。右下の紫ボタンも Miralink にして、機能のことも聞けるように。
+     各ページの ? も Miralink につなげる。園のデータまで答えられるように（顔情報も紐付けて）」
+   ・1つの会話で、保育の相談・Miralink の使い方・園の記録のことに答える。前のやりとりを覚えている
+   ・園の記録は、聞かれたクラスと期間のぶんだけ送る（出席・健康チェック・ヒヤリハット・日誌・活動）。
+     ★子どもの名前は「児A」のような仮の呼び名にしてから送り、答えを画面に出すときだけ
+       本当の名前と顔写真に戻す（顔写真そのものは送らない）。
+     ★住所・電話・アレルギー・保護者の情報・保護者からの連絡は送らない
+   ・園の記録を読むかどうかは設定で切り替えられる（既定はオン。stGet('miraData')）
+   ・いのちに関わる場面（園の手順書のシナリオに当たるもの）は、これまでどおり手順書を先に出す */
+var MIRA={msgs:[],busy:false};
+try{var _mh=JSON.parse(sessionStorage.getItem('mira_chat')||'null');if(_mh&&_mh.length)MIRA.msgs=_mh.slice(-30);}catch(e){}
+function miraSave(){try{sessionStorage.setItem('mira_chat',JSON.stringify(MIRA.msgs.slice(-30)));}catch(e){}}
+function miraDataOn(){var v=null;try{v=stGet('miraData',null);}catch(e){}return v!==false;}
+/* 仮の呼び名。クラスの並び→番号の順に、在園児全員へ A, B, … と振る（会話の途中で変わらないように） */
+function miraCode(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return '児'+s;}
+function miraMap(){
+  var ks=enrolled().slice().sort(function(a,b){var x=CLASSES.indexOf(a.klass),y=CLASSES.indexOf(b.klass);return x!==y?x-y:(+a.id>+b.id?1:-1);});
+  var m={byId:{},byCode:{},names:[]};
+  ks.forEach(function(c,i){var code=miraCode(i);m.byId[String(c.id)]=code;m.byCode[code]=c;
+    [childFullName(c),childName(c)].forEach(function(n){n=String(n||'').replace(/^\s+|\s+$/g,'');if(n.length>=2)m.names.push([n,code]);});});
+  m.names.sort(function(a,b){return b[0].length-a[0].length;});
+  return m;
+}
+/* 文の中の子どもの名前を、仮の呼び名にする（くん・ちゃん付きも） */
+function miraPseudo(t,m){
+  var s=String(t||'');
+  m.names.forEach(function(p){if(s.indexOf(p[0])>-1)s=s.split(p[0]+'ちゃん').join(p[1]).split(p[0]+'くん').join(p[1]).split(p[0]).join(p[1]);});
+  return s;
+}
+function miraAge(dob){var p=String(dob||'').split('-'),t=new Date();if(p.length<3)return null;var a=t.getFullYear()-(+p[0]);if(t.getMonth()+1<+p[1]||(t.getMonth()+1===+p[1]&&t.getDate()<+p[2]))a--;return a>=0?a:null;}
+function miraIso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+/* 聞かれた期間（書いていなければ今月） */
+function miraPeriod(q){
+  var t=new Date(),y=t.getFullYear(),mo=t.getMonth(),mm;
+  var dow=(t.getDay()+6)%7,mon=new Date(y,mo,t.getDate()-dow);
+  if(/今日|きょう|本日/.test(q))return {from:miraIso(t),to:miraIso(t),label:'今日'};
+  if(/昨日|きのう/.test(q)){var yd=new Date(y,mo,t.getDate()-1);return {from:miraIso(yd),to:miraIso(yd),label:'昨日'};}
+  if(/先週/.test(q))return {from:miraIso(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()-7)),to:miraIso(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()-1)),label:'先週'};
+  if(/今週/.test(q))return {from:miraIso(mon),to:miraIso(t),label:'今週'};
+  if(/先月/.test(q))return {from:miraIso(new Date(y,mo-1,1)),to:miraIso(new Date(y,mo,0)),label:'先月'};
+  if(/今年度|年度|年間|これまで/.test(q)){var fy=mo>=3?y:y-1;return {from:fy+'-04-01',to:miraIso(t),label:fy+'年度'};}
+  if((mm=/(\d{1,2})月/.exec(q))){var M=+mm[1];if(M>=1&&M<=12){var yy=(M-1>mo)?y-1:y;return {from:miraIso(new Date(yy,M-1,1)),to:miraIso(new Date(yy,M,0)),label:yy+'年'+M+'月'};}}
+  return {from:miraIso(new Date(y,mo,1)),to:miraIso(t),label:'今月'};
+}
+/* 園の記録のことを聞いているか（そうでない問いには記録を送らない） */
+function miraWantsData(q){
+  if(CLASSES.some(function(k){return k&&q.indexOf(k)>-1;}))return true;
+  if(/児[A-Z]/.test(q))return true;
+  /* ★「雨の日の活動」のような一般の相談にまで記録を渡していた。はっきり記録のことを聞いているとき、
+       または期間を言って「活動・様子・まとめ」などを聞いているときだけ渡す */
+  if(/(欠席|出席|休み|休んだ|遅刻|早退|登園|ヒヤリ|けが|怪我|事故|日誌|日報|体温|熱が|発熱|体調|記録|何人|誰|だれ|どの子|傾向|振り返|ふりかえ)/.test(q))return true;
+  return /(今日|きょう|昨日|きのう|今週|先週|今月|先月|\d{1,2}月|今年度)/.test(q)&&/(活動|様子|まとめ|子|園児|クラス|あった|どう)/.test(q);
+}
+function miraDataText(q,m){
+  var P=miraPeriod(q),cls=CLASSES.filter(function(k){return k&&q.indexOf(k)>-1;});
+  if(!cls.length)cls=CLASSES.slice();
+  var inCls=function(c){return c&&cls.indexOf(c.klass)>-1;};
+  var kids=enrolled().filter(inCls),L=[],md=function(d){return (+d.slice(5,7))+'/'+(+d.slice(8,10));};
+  L.push('期間：'+P.from+'〜'+P.to+'（'+P.label+'）／クラス：'+cls.join('・'));
+  L.push('【子ども】'+kids.map(function(c){var a=miraAge(c.dob);return m.byId[String(c.id)]+'（'+(c.klass||'')+(a!=null?'・'+a+'歳':'')+'）';}).join('、'));
+  /* 出席と健康チェック（体温・健康の印）。保護者からの連絡（parentNote）は送らない */
+  var sh=stGet('rec_登園シート',{})||{},tot={},att=[],hl=[];
+  Object.keys(sh).sort().forEach(function(k){
+    var d=sh[k];if(!d||!d.rows)return;var date=String(d.date||k).slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<P.from||date>P.to)return;
+    if(d.klass&&cls.indexOf(d.klass)<0)return;
+    var inN=0,out=[];
+    Object.keys(d.rows).forEach(function(id){var r=d.rows[id]||{},code=m.byId[String(id)];if(!code)return;
+      tot[code]=tot[code]||{p:0,a:0};
+      if(r.att==='●'){inN++;tot[code].p++;}else if(r.att==='休'){out.push(code);tot[code].a++;}
+      var t=parseFloat(r.temp),o=(r.opts||[]).filter(Boolean);
+      if((!isNaN(t)&&t>=37.5)||o.length)hl.push(md(date)+' '+code+'：'+(!isNaN(t)?t+'℃':'')+(o.length?' '+o.join('・'):''));
+    });
+    att.push(md(date)+' '+(d.klass||'')+'：出席'+inN+(out.length?'・欠席'+out.length+'（'+out.join('・')+'）':''));
+  });
+  if(att.length){L.push('【出席（日ごと）】\n'+att.join('\n'));
+    L.push('【出席（子どもごと）】\n'+Object.keys(tot).sort().map(function(c){return c+' 出席'+tot[c].p+'・欠席'+tot[c].a;}).join('\n'));}
+  else L.push('【出席】この期間の登園シートはありません。');
+  if(hl.length)L.push('【健康チェック（37.5℃以上・健康の印がついたもの）】\n'+hl.join('\n'));
+  /* ヒヤリハット・事故 */
+  var hy=(stGet('rec_hiyari',[])||[]).filter(function(r){return r&&r.date>=P.from&&r.date<=P.to;}).map(function(r){
+    var c=hyChildFind(enrolled(),r.child),code=c?m.byId[String(c.id)]:'';
+    if(c&&!inCls(c))return '';
+    return md(r.date)+' '+(r.time||'')+' '+(code||'（子ども不明）')+'〔'+(r.types||[]).join('・')+'〕'+miraPseudo(r.content||'',m)
+      +(r.treatment?'／対応：'+miraPseudo(r.treatment,m):'')+(r.future?'／今後：'+miraPseudo(r.future,m):'');
+  }).filter(Boolean);
+  L.push(hy.length?'【ヒヤリハット・事故】\n'+hy.join('\n'):'【ヒヤリハット・事故】この期間はありません。');
+  /* 保育日誌・業務日報 */
+  var np=stGet('rec_日報',{})||{},nl=[];
+  Object.keys(np).sort().forEach(function(k){var d=np[k];if(!d)return;var date=String(k).slice(0,10);
+    if(date<P.from||date>P.to||(d.klass&&cls.indexOf(d.klass)<0))return;
+    var s=[d.actual?'活動：'+d.actual:'',d.diary?'日誌：'+d.diary:'',d.sick?'体調：'+d.sick:'',d.note?'メモ：'+d.note:''].filter(Boolean).join('／');
+    if(s)nl.push(md(date)+' '+(d.klass||'')+'：'+miraPseudo(s,m).replace(/\s+/g,' ').slice(0,400));});
+  if(nl.length)L.push('【保育日誌】\n'+nl.join('\n'));
+  /* カリキュラムの活動 */
+  var al=[];
+  cls.forEach(function(k){var d=new Date(P.from+'T00:00:00'),end=new Date(P.to+'T00:00:00');
+    while(d<=end){var iso=miraIso(d);['am','pm'].forEach(function(h){var b=curBodyGet(k,iso,h);if(curBodyHas(b)&&b.name)al.push(md(iso)+' '+k+' '+(h==='pm'?'午後':'午前')+'：'+b.name);});d.setDate(d.getDate()+1);}});
+  if(al.length)L.push('【活動（カリキュラム）】\n'+al.slice(0,120).join('\n'));
+  return {text:L.join('\n\n').slice(0,15000),note:'読んだ記録：'+cls.join('・')+'・'+md(P.from)+'〜'+md(P.to)+'（出席・健康チェック・ヒヤリハット・日誌・活動）'};
+}
+/* Miralink の使い方。いま開いている画面の説明と、使い方の質問なら全画面の一覧 */
+function miraPage(){var s=document.querySelector('section[data-page]:not([hidden])');return s?s.getAttribute('data-page'):'';}
+function miraHelpText(q){
+  var pg=miraPage(),d=HELP_DATA[pg],out=[];
+  if(d){var t=TITLES[pg]?TITLES[pg][1]:pg;
+    out.push('いま開いている画面：「'+t+'」\n'+(d.summary||'')+'\n手順：'+(d.steps||[]).join(' ')+'\nコツ：'+(d.tips||[]).join(' ')
+      +((d.faq||[]).length?'\nよくある質問：'+d.faq.map(function(f){return 'Q '+f.q+' A '+f.a;}).join(' '):''));}
+  if(helpIsOperation(q)||/(どこ|どうやって|使い方|できる|ボタン|画面|設定|出し方|方法|やり方|機能|操作)/.test(q)){
+    out.push('Miralink の画面の一覧：\n'+Object.keys(HELP_DATA).map(function(k){var t=TITLES[k]?TITLES[k][1]:k;return '・'+t+'：'+String((HELP_DATA[k]||{}).summary||'').slice(0,110);}).join('\n'));
+  }
+  return out.join('\n\n').slice(0,8000);
+}
+/* 答えを画面に出す形へ。太字・改行と、仮の呼び名 → 顔写真＋本当の名前 */
+function miraHTML(t,m){
+  var h=esc(t).replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/^#{1,4}\s*(.+)$/mg,'<b>$1</b>');
+  h=h.replace(/児([A-Z]{1,3})/g,function(all){var c=m.byCode[all];if(!c)return all;
+    return '<span class="mira-kid">'+avatarHTML(c,20)+'<b>'+esc(childFullName(c))+'</b></span>';});
+  return h.replace(/\n/g,'<br>');
+}
+function miraSend(q){
+  if(MIRA.busy){aiPush('bot','前の質問に答えているところです。少しお待ちください。');return;}
+  MIRA.busy=true;
+  var m=miraMap(),useData=miraDataOn()&&miraWantsData(q),ctx=useData?miraDataText(q,m):null;
+  MIRA.msgs.push({role:'me',text:aiScrub(miraPseudo(q,m)).slice(0,1500)});miraSave();
+  aiPush('bot','<span class="mira-wait">'+(useData?'園の記録を読んで、考えています…':'考えています…')+'</span>');
+  var wait=$('#aiBody').lastChild;
+  function drop(){if(wait&&wait.parentNode)wait.parentNode.removeChild(wait);}
+  API.call('POST','/ai/chat',{messages:MIRA.msgs.slice(-12),help:miraHelpText(q),data:ctx?ctx.text:''}).then(function(j){
+    drop();
+    if(j&&j.code==='urgent'){MIRA.msgs.pop();miraSave();aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
+    var t=String((j&&j.text)||'');
+    MIRA.msgs.push({role:'ai',text:t});miraSave();
+    aiPush('bot',miraHTML(t,m)+(ctx?'<div class="mira-src">'+esc(ctx.note)+'</div>':''));
+    try{wireFileImgs($('#aiBody'));}catch(e){}
+  }).catch(function(e){
+    drop();MIRA.msgs.pop();miraSave();
+    aiPush('bot',esc((e&&e.message)||'AIに聞けませんでした。時間をおいてお試しください。'));
+  }).then(function(){MIRA.busy=false;});
+}
+function miraOpen(){
+  if(typeof initAI==='function')initAI();
+  if(!AI_OPEN){AI_OPEN=true;$('#aiPanel').classList.add('open');var dot=$('#aiFab .dot');if(dot)dot.style.display='none';if(!aiStarted){aiStarted=true;aiGreet();}}
+}
+function miraNew(){MIRA.msgs=[];miraSave();$('#aiBody').innerHTML='';aiGreet();}
+/* 各画面の「?」。長い説明の代わりに、その画面でできることを短く出し、続けて聞けるようにする */
+function miraPageHelp(page){
+  miraOpen();
+  var d=HELP_DATA[page];if(!d)return;
+  var t=TITLES[page]?TITLES[page][1]:'';
+  var sum=String(d.summary||'').split('。').filter(Boolean).slice(0,2).join('。')+'。';
+  aiPush('bot','<b>「'+esc(t)+'」でできること</b><br>'+esc(sum)
+    +'<div class="mira-chips">'+((d.faq||[]).slice(0,3).map(function(f){return f.q;}).concat(['この画面の使い方を順に教えて']))
+      .map(function(x){return '<button type="button" data-mirq="'+esc(x)+'">'+esc(x)+'</button>';}).join('')+'</div>');
+  $('#aiBody').lastChild.querySelectorAll('[data-mirq]').forEach(function(b){b.onclick=function(){aiAsk(b.getAttribute('data-mirq'));};});
+}
+/* 左のメニューの「Miralink AI」。右下と同じ会話を、大きく開く入口 */
+function miraLanding(){
+  var s=$('section[data-page="aiplan"]');if(!s)return;
+  var ex=['今月、欠席が多い子は？','先週のヒヤリハットをまとめて','雨の日に室内でできる活動は？','請求書はどこで出す？','保護者へのおたよりの書き出しを考えて','この画面でできることは？'];
+  s.innerHTML='<div class="card" style="max-width:820px;margin:0 auto;text-align:center;padding:34px 24px;">'
+    +'<img src="img/logo_miralink.png" alt="Miralink" style="height:34px;margin-bottom:10px;">'
+    +'<h2 style="margin:6px 0 8px;">Miralink AI</h2>'
+    +'<div class="muted" style="font-size:13px;line-height:1.9;">保育の相談、Miralink の使い方、園の記録のこと（出席・ヒヤリハット・日誌など）を、ふだんの言葉で聞けます。<br>右下の紫のボタンからも、どの画面でも開けます。</div>'
+    +'<div style="display:flex;gap:8px;margin:18px auto 12px;max-width:640px;"><textarea id="miraQ" rows="2" placeholder="なんでも聞いてください" style="flex:1;"></textarea><button class="btn btn-primary" id="miraGo">送る</button></div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">'+ex.map(function(x){return '<button class="btn btn-sm" data-mirex="'+esc(x)+'">'+esc(x)+'</button>';}).join('')+'</div>'
+    +'<div class="muted" style="margin-top:16px;line-height:1.8;font-size:11.5px;">子どもの名前は仮の呼び名にしてからAIに送ります。答えは下書きです。医療・緊急時の判断に代わるものではありません。'
+    +(miraDataOn()?'':'<br>いまは設定で「園の記録を読む」がオフになっています。')+'</div></div>';
+  function go(q){q=String(q||'').replace(/^\s+|\s+$/g,'');if(!q)return;miraOpen();
+    var p=$('#aiPanel');if(p&&!p.classList.contains('wide')){var w=$('#aiWide');if(w)w.click();}
+    aiAsk(q);}
+  $('#miraGo').onclick=function(){go($('#miraQ').value);$('#miraQ').value='';};
+  $('#miraQ').onkeydown=function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('#miraGo').click();}};
+  s.querySelectorAll('[data-mirex]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-mirex'));};});
+}
+
 var AI_OPEN=false, aiStarted=false, aiClip=[];
 function initAI(){
   if(document.getElementById('aiFab'))return;
-  var fab=el('button',{id:'aiFab',title:'保育アシスタント'},'💬<span class="dot"></span>');
+  var fab=el('button',{id:'aiFab',title:'Miralink AI'},'💬<span class="dot"></span>');
   var panel=el('div',{id:'aiPanel'});
-  panel.innerHTML='<div class="ai-head"><span style="font-size:20px;">🤖</span><div class="t">Miralink サポート<small>保育の相談と、使い方の案内</small></div>'
-    +'<button id="aiWide" title="大きく表示する">⤢</button><button id="aiClose">×</button></div>'
-    +'<div class="ai-tabs"><button id="aiTabCare" class="on">保育の相談</button><button id="aiTabHelp">使い方</button></div>'
+  /* ★「保育の相談」「使い方」の2つに分けていたのを、Miralink AI の1つの会話にまとめた（2026-09-25） */
+  panel.innerHTML='<div class="ai-head"><span class="mira-logo"><img src="img/logo_miralink.png" alt=""></span><div class="t">Miralink AI<small>保育の相談・使い方・園の記録</small></div>'
+    +'<button id="aiNew" title="新しい会話">＋</button><button id="aiWide" title="大きく表示する">⤢</button><button id="aiClose">×</button></div>'
     +'<div class="ai-body" id="aiBody"></div>'
     +'<div class="ai-chips" id="aiChips"></div>'
-    +'<div class="ai-foot"><input id="aiInput" placeholder="症状や相談を入力（例：転んで頭を打った）"><button id="aiSend">➤</button></div>'
-    +'<div class="ai-note">園の手順書と危機管理マニュアルからお答えします。見つからないときだけAIに聞きます（答えに印を付けます）。緊急時は必ず119番通報・受診・園の指示を優先してください。</div>';
+    +'<div class="ai-foot"><input id="aiInput" placeholder="なんでも聞いてください（例：今月、欠席が多い子は？）"><button id="aiSend">➤</button></div>'
+    +'<div class="ai-note">答えは下書きです。子どもの名前は仮の呼び名にしてAIに送ります。いのちに関わる場面は園の手順書を先に出します。緊急時は119番・園の指示を優先してください。</div>';
   document.body.appendChild(panel);document.body.appendChild(fab);
   /* ★せまい画面では、丸が画面のとちゅうにある押しどころ（勤務マス・承認者・作成など）に
      重なって、その下に何があるのか分からなかった。
@@ -37067,6 +37261,7 @@ function initAI(){
   });
   fab.onclick=function(){AI_OPEN=!AI_OPEN;panel.classList.toggle('open',AI_OPEN);var dot=fab.querySelector('.dot');if(dot)dot.style.display='none';if(AI_OPEN&&!aiStarted){aiStarted=true;aiGreet();}};
   $('#aiClose').onclick=function(){AI_OPEN=false;panel.classList.remove('open');};
+  $('#aiNew').onclick=miraNew;
   /* 大きく表示する。長い答えは、384px の枠では読みにくい（2026-08-27 のご依頼）。
      選んだ大きさは、この端末に覚えておく。 */
   function aiWideApply(on){
@@ -37079,10 +37274,11 @@ function initAI(){
   if($('#aiWide'))$('#aiWide').onclick=function(){aiWideApply(!panel.classList.contains('wide'));};
   $('#aiSend').onclick=aiSubmit;
   $('#aiInput').addEventListener('keydown',function(e){if(e.key==='Enter')aiSubmit();});
-  $('#aiTabCare').onclick=function(){helpMode=false;aiTabs();};
-  $('#aiTabHelp').onclick=function(){helpMode=true;aiTabs();
+  /* 「保育の相談」「使い方」のタブはやめた（Miralink AI の1つの会話）。窓が無いときは何もしない */
+  if($('#aiTabCare'))$('#aiTabCare').onclick=function(){helpMode=false;aiTabs();};
+  if($('#aiTabHelp'))$('#aiTabHelp').onclick=function(){helpMode=true;aiTabs();
     aiPush('bot','使い方をご案内します。\nいま開いているのは「'+helpTitle(helpPageNow())+'」です。\n知りたい操作を入れるか、下のボタンからお選びください。');};
-  var chips=['怪我の対応','睡眠中の異変','保護者への伝え方','雨の日の活動','配慮が必要な子','今日のタスク'];
+  var chips=['この画面でできることは？','今月、欠席が多い子は？','先週のヒヤリハットをまとめて','雨の日の活動','保護者への伝え方','怪我の対応'];
   $('#aiChips').innerHTML=chips.map(function(c){return '<button data-aichip="'+esc(c)+'">'+c+'</button>';}).join('');
   $('#aiChips').querySelectorAll('[data-aichip]').forEach(function(b){b.onclick=function(){if(!AI_OPEN){AI_OPEN=true;panel.classList.add('open');if(!aiStarted){aiStarted=true;aiGreet();}}aiAsk(b.getAttribute('data-aichip'));};});
 }
@@ -37090,10 +37286,19 @@ function aiPush(role,html){var b=$('#aiBody');var d=el('div',{class:role==='me'?
 /* ★ここに、できることの一覧と断り書きを全部出していた（10行）。同じ説明は「使い方」のタブにもあり、
    毎回いちばん上を占めて、肝心の入力欄まで遠かった（2026-09-23 安田さんのご指示）。
    ChatGPT や Claude と同じく、短い問いかけだけにする。下の断り書きは入力欄の下に出している。 */
-function aiGreet(){aiPush('bot','こんにちは。今日はどうしますか。\n下のボタンを押すか、気になることをそのまま書いてください。');}
+function aiGreet(){
+  aiPush('bot','こんにちは、Miralink AI です。保育の相談、Miralink の使い方、園の記録（出席・ヒヤリハット・日誌など）のことを、ふだんの言葉で聞いてください。');
+  /* 前に話していたことがあれば、続きから（同じタブの中だけ覚えている） */
+  if(MIRA.msgs.length){var m=miraMap();MIRA.msgs.slice(-10).forEach(function(x){aiPush(x.role==='me'?'me':'bot',x.role==='me'?miraHTML(x.text,m):miraHTML(x.text,m));});try{wireFileImgs($('#aiBody'));}catch(e){}}
+}
 function aiSubmit(){var v=$('#aiInput').value.trim();if(!v)return;$('#aiInput').value='';aiAsk(v);}
 function aiAsk(q){
   aiPush('me',aiEsc(q));
+  /* ★Miralink AI（2026-09-25）。いのちに関わる場面（手順書のシナリオ）だけ手順書を先に出し、
+     ほかは1つの会話で AI が答える（使い方も、園の記録も） */
+  var r0=aiRoute(q);
+  if(r0&&r0.scenario){setTimeout(function(){aiRender(r0);},160);return;}
+  if(aiCanServer()){miraSend(q);return;}
   /* 使い方モード、または操作についての質問なら、使い方で答える */
   if(helpMode||helpIsOperation(q)){
     setTimeout(function(){helpAnswer(q);},160);
@@ -37115,10 +37320,8 @@ function aiTabs(){
   if(c)c.className=helpMode?'':'on';
   if(h)h.className=helpMode?'on':'';
   var inp=$('#aiInput');
-  if(inp)inp.placeholder=helpMode?'操作の質問を入力（例：登園シートの出し方）':'症状や相談を入力（例：転んで頭を打った）';
-  var chips=helpMode
-    ? ['この画面の使い方','はじめての方へ','監査の準備','印刷のしかた','パスワードを変えたい','担当者に聞く']
-    : ['怪我の対応','睡眠中の異変','保護者への伝え方','雨の日の活動','配慮が必要な子','今日のタスク'];
+  if(inp)inp.placeholder='なんでも聞いてください（例：今月、欠席が多い子は？）';
+  var chips=['この画面でできることは？','今月、欠席が多い子は？','先週のヒヤリハットをまとめて','雨の日の活動','保護者への伝え方','怪我の対応'];
   $('#aiChips').innerHTML=chips.map(function(x){return '<button data-aichip="'+esc(x)+'">'+x+'</button>';}).join('');
   $('#aiChips').querySelectorAll('[data-aichip]').forEach(function(b){b.onclick=function(){
     if(!AI_OPEN){AI_OPEN=true;$('#aiPanel').classList.add('open');if(!aiStarted){aiStarted=true;aiGreet();}}
