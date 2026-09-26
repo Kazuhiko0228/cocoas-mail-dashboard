@@ -3548,7 +3548,13 @@ var SYMPTOMS=[
   {cat:'目',opts:['目ヤニ','充血','かゆみ']},
   {cat:'便',opts:['下痢','便秘']},
   {cat:'肌',opts:['あせも','かぶれ','水いぼ']},
-  {cat:'怪我',opts:['すり傷','切り傷']}
+  {cat:'怪我',opts:['すり傷','切り傷']},
+  /* ★自治体の様式にある症状の分類のうち、無かったもの（2026-09-26） */
+  {cat:'嘔吐',opts:['嘔吐','吐き気']},
+  {cat:'発しん',opts:['発しん','かゆみ']},
+  {cat:'耳',opts:['耳だれ','痛がる']},
+  {cat:'のど',opts:['痛がる','腫れ']},
+  {cat:'呼吸',opts:['ゼーゼー','息苦しそう']}
 ];
 function tempOf(id,date){var sh=stGet('rec_登園シート',{})[date||todayISO()];return (sh&&sh.rows&&sh.rows[id])?(sh.rows[id].temp||''):'';}
 var GYAKUTAI_ITEMS=['大声での叱責・威圧的な言動がないか','子どもの人格を尊重した声かけができているか','食事・午睡の強要がないか','長時間の放置・無視がないか','身体的な罰を与えていないか','特定の子どもへの差別的な対応がないか','記録・情報共有が適切に行われているか','気になる対応を職員間で相談できる雰囲気があるか'];
@@ -25326,7 +25332,8 @@ function edTouen(){
   var HK='rec_健康チェック',_hdata=stGet(HK,{}),_hd=_hdata[recDate]||{entries:[],by:''};
   if(!_hd.entries)_hd.entries=[];
   var HL_F=[{k:'by',l:'記録者'},{k:'allHealthy',l:'全員「症状なし」'},
-            {k:'entries',l:'症状の記録',deep:true,idKey:'childId',keyer:'kid'}];
+            {k:'entries',l:'症状の記録',deep:true,idKey:'childId',keyer:'kid'},
+            {k:'obs',l:'登園時の様子',deep:true,keyer:'kid'}];
   var _hlSnap=lockSnap(_hd,HL_F);
   function _hsave(){
     lockDiff(_hd,_hlSnap,HL_F);
@@ -25340,7 +25347,7 @@ function edTouen(){
     thermoBarHTML()+
     /* ★横に送ると園児名の列まで一緒に流れて、誰の記録か分からなくなっていた。
        stickycol で左の1列を貼り付け、hint で「横に送れる」影を出す。 */
-    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
+    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th><th style="white-space:nowrap;">登園時の様子</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
     kids.map(function(c){var r=viewOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席')+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
         /* 登園・降園の時刻（シート4行「登園時間」）。保護者が未来WAで押したものには「保護者」の札 */
@@ -25352,6 +25359,7 @@ function edTouen(){
         +'</td>'+
       '<td><input data-tt="'+esc(c.id)+'" data-temp36="1" type="number" inputmode="decimal" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
       '<td style="white-space:nowrap;">'+healthCellHtml(_hd,c)+'</td>'+
+      '<td>'+hobsCellHtml(_hd,c,r)+'</td>'+
       opts.map(function(op,oi){var on=!!r.opts[op];
         /* 給食・延長保育はその日の予定を読み取り専用で表示する。
            押しても反応しないので、点線の枠とグレーでタップできるボタンと見分けられるようにする */
@@ -25451,6 +25459,17 @@ function edTouen(){
     var kid=+b.getAttribute('data-hsym'),i=healthEntryIdx(_hd,kid);
     healthModal(i>-1?i:null,_hd,_hsave,kid);
   };});
+  $('#recBody').querySelectorAll('[data-hobs]').forEach(function(b){b.onclick=function(){
+    if(!_hlCanEdit()){alert('この記録は確定ずみです。直すには園長・管理者の許可が要ります。');return;}
+    var c=kids.filter(function(k){return String(k.id)===b.getAttribute('data-hobs');})[0];if(!c)return;
+    hobsModal(c,viewOf(c),_hd,_hsave,edTouen);};});
+  if($('#hlAllObs'))$('#hlAllObs').onclick=function(){
+    if(!_hlCanEdit()){alert('この記録は確定ずみです。直すには園長・管理者の許可が要ります。');return;}
+    var n=0,who=((currentStaff&&currentStaff())||{}).name||'';_hd.obs=_hd.obs||{};
+    kids.forEach(function(c){var r=viewOf(c);if(!r||r.att==='休'||!r.att)return;if(_hd.obs[String(c.id)])return;
+      _hd.obs[String(c.id)]=Object.assign({},HOBS_USUAL,{by:who});n++;});
+    if(!n){alert('入れる子がいません（出席の●が付いていて、まだ様子を入れていない子に入れます）。');return;}
+    _hsave();edTouen();};
   if($('#hlAllHealthy'))$('#hlAllHealthy').onclick=function(){
     if(!_hlCanEdit()){alert('この記録は確定ずみです。直すには園長・管理者の許可が要ります。');return;}
     _hd.allHealthy=!_hd.allHealthy;
@@ -25709,6 +25728,76 @@ function napGuide(klass){
    もとは日常チェックの別タブだったが、体温を入れた直後に症状を記録するので、
    登園（出席）の表の「体温」のとなりに置いた。
    保存先はこれまでと同じ rec_健康チェック。紙も監査の一覧もそのまま動く。 */
+/* ══ 登園時の様子（健康観察）2026-09-26 安田さんのご判断「Bの方向性（先生が登園時に入れる）で足らないものは全部入れていって」═══
+   国の資料（認可外保育施設指導監督基準）が名前を挙げる登園時の観察のうち、いままで無かったもの
+   （機嫌・顔色／表情・食事・睡眠・排便）と、自治体の様式にある 家庭での体温・保護者からの報告・降園時の様子・欠席の理由 を足す。
+   保存先は健康チェックと同じ rec_健康チェック の、その日の obs（園児の番号ごと）。
+   ★毎朝1人ずつ選ぶのは手間なので、「全員いつもどおり」で まだ入れていない出席の子に いつもどおりを入れる */
+var HOBS_KIGEN=['良','普','悪'],HOBS_KAO=['異常なし','あり'],HOBS_SHOKU=['多','普','少','食べていない'],
+    HOBS_BEN=['普','硬','軟','下痢','無'],HOBS_ABS=['病気','私用','健診・通院','その他'],HOBS_LEAVE=['異常なし','あり'];
+var HOBS_USUAL={kigen:'良',kao:'異常なし',shoku:'普',ben:'普'};
+function hobsOf(hd,id){hd.obs=hd.obs||{};return hd.obs[String(id)]||null;}
+function hobsText(o,absent){
+  if(!o)return '';
+  if(absent)return [o.absKind?'欠席：'+o.absKind:'',o.absNote||''].filter(Boolean).join(' ');
+  var a=[];
+  if(o.kigen)a.push('機嫌'+o.kigen);
+  if(o.kao)a.push(o.kao==='あり'?'顔色：'+(o.kaoNote||'気になる'):'顔色○');
+  if(o.shoku)a.push('食事'+o.shoku);
+  if(o.sleepFrom||o.sleepTo)a.push('睡眠'+(o.sleepFrom||'?')+'-'+(o.sleepTo||'?'));
+  if(o.ben)a.push('便'+o.ben+(o.benN?o.benN+'回':''));
+  if(o.homeTemp)a.push('家'+o.homeTemp+'℃');
+  if(o.leave)a.push(o.leave==='あり'?'降園時：'+(o.leaveNote||'気になる'):'降園時○');
+  return a.join('・');
+}
+function hobsCellHtml(hd,c,r){
+  var o=hobsOf(hd,c.id),absent=r&&r.att==='休',t=hobsText(o,absent);
+  var warn=o&&(o.kigen==='悪'||o.kao==='あり'||o.shoku==='食べていない'||o.ben==='下痢'||o.leave==='あり');
+  return '<button class="btn btn-sm" data-hobs="'+esc(c.id)+'" style="max-width:260px;white-space:normal;text-align:left;font-size:11.5px;'
+    +(t?(warn?'background:#FDF1E4;border-color:#E3A008;color:#8A5200;':'background:#EAF3DE;border-color:#9BC27A;color:#27500A;'):'')+'">'
+    +(t?esc(t):(absent?'欠席の理由':'様子を入れる'))+'</button>';
+}
+function hobsModal(c,r,hd,save,done){
+  var o=JSON.parse(JSON.stringify(hobsOf(hd,c.id)||{})),absent=r&&r.att==='休';
+  function seg(k,list){return '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+list.map(function(v){return '<button type="button" class="btn btn-sm'+(o[k]===v?' btn-primary':'')+'" data-hk="'+k+'" data-hv="'+esc(v)+'">'+esc(v)+'</button>';}).join('')+'</div>';}
+  function inp(k,ph,ty){return '<input data-hi="'+k+'" value="'+esc(o[k]||'')+'" placeholder="'+esc(ph||'')+'"'+(ty?' type="'+ty+'"':'')+' style="'+(ty==='time'?'width:130px;':'')+'">';}
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  function draw(){
+    m.innerHTML='<div class="modal" style="width:600px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(childFullName(c))+'　'+(absent?'欠席の理由':'登園時の様子')+'</h2>'
+      +(absent
+        ?'<div class="field"><label>欠席の理由</label>'+seg('absKind',HOBS_ABS)+'</div><div class="field"><label>病名・くわしく（任意）</label>'+inp('absNote','例：発熱、RSウイルス')+'</div>'
+        :'<div class="field"><label>機嫌</label>'+seg('kigen',HOBS_KIGEN)+'</div>'
+          +'<div class="field"><label>顔色・表情</label>'+seg('kao',HOBS_KAO)+(o.kao==='あり'?'<div style="margin-top:6px;">'+inp('kaoNote','気になったこと（例：顔色が悪い）')+'</div>':'')+'</div>'
+          +'<div class="field"><label>食事（朝食・食欲）</label>'+seg('shoku',HOBS_SHOKU)+'</div>'
+          +'<div class="field"><label>睡眠（前の夜）</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">寝た '+inp('sleepFrom','','time')+' 起きた '+inp('sleepTo','','time')+'</div></div>'
+          +'<div class="field"><label>排便</label>'+seg('ben',HOBS_BEN)+'<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">回数 '+inp('benN','例：1','number')+'</div></div>'
+          +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;"><div class="field" style="margin:0;"><label>家で測った体温</label>'+inp('homeTemp','例：36.6','number')+'</div>'
+          +'<div class="field" style="margin:0;"><label>測った時刻</label>'+inp('homeTempAt','','time')+'</div></div>'
+          +'<div class="field" style="margin-top:10px;"><label>保護者からの報告（家での様子）</label>'+inp('report','例：昨夜少し咳が出ていた')+'</div>'
+          +'<div class="field"><label>降園時の様子</label>'+seg('leave',HOBS_LEAVE)+(o.leave==='あり'?'<div style="margin-top:6px;">'+inp('leaveNote','保護者に伝えたこと')+'</div>':'')+'</div>')
+      +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;">'
+      +(absent?'':'<button class="btn" id="hoUsual">いつもどおりを入れる</button>')
+      +'<button class="btn" id="hoX">やめる</button><button class="btn btn-primary" id="hoSave">保存</button></div></div>';
+    m.querySelectorAll('[data-hk]').forEach(function(b){b.onclick=function(){collect();var k=b.getAttribute('data-hk'),v=b.getAttribute('data-hv');o[k]=(o[k]===v?'':v);draw();};});
+    var us=$('#hoUsual');if(us)us.onclick=function(){collect();Object.keys(HOBS_USUAL).forEach(function(k){if(!o[k])o[k]=HOBS_USUAL[k];});draw();};
+    $('#hoX').onclick=function(){m.remove();};
+    $('#hoSave').onclick=function(){collect();hd.obs=hd.obs||{};
+      var keep={};Object.keys(o).forEach(function(k){if(o[k]!==''&&o[k]!=null)keep[k]=o[k];});
+      if(Object.keys(keep).length){keep.by=keep.by||((currentStaff&&currentStaff())||{}).name||'';hd.obs[String(c.id)]=keep;}else delete hd.obs[String(c.id)];
+      save();m.remove();if(done)done();};
+  }
+  function collect(){m.querySelectorAll('[data-hi]').forEach(function(x){o[x.getAttribute('data-hi')]=x.value;});}
+  draw();
+}
+/* 紙に出す「登園時の様子」の表 */
+function hobsTableHTML(dk,d,kids){
+  var sh=(stGet('rec_登園シート',{})||{})[dk]||{},rows=sh.rows||{},any=false;
+  var body=kids.map(function(c){var o=(d.obs||{})[String(c.id)];if(o)any=true;var ab=(rows[c.id]||{}).att==='休';
+    return '<tr><td>'+esc(dayKidName?dayKidName(c):childFullName(c))+'</td><td>'+(o?esc(hobsText(o,ab)):'<span style="color:#888;">—</span>')+'</td><td>'+esc((o&&o.report)||'')+'</td></tr>';}).join('');
+  if(!any)return '';
+  return '<h2>登園時の様子</h2><table><thead><tr><th>園児</th><th>機嫌・顔色・食事・睡眠・排便・家庭での体温・降園時／欠席の理由</th><th>保護者からの報告</th></tr></thead><tbody>'+body+'</tbody></table>';
+}
 function healthDay(date){
   var d=stGet('rec_健康チェック',{})[date]||{entries:[],by:''};
   if(!d.entries)d.entries=[];
@@ -25747,6 +25836,7 @@ function healthBarHtml(hd,kids,fever){
     +'<div class="hlbar-b">'
     +'<button class="btn btn-sm" id="hlAllHealthy" style="'+(hd.allHealthy?'background:#EAF3DE;border-color:#639922;color:#27500A;font-weight:600;':'')+'">'
       +(hd.allHealthy?'✓ 全員に症状なし 記録済み':'全員に症状なし を記録')+'</button>'
+    +'<button class="btn btn-sm" id="hlAllObs" title="まだ入れていない出席の子に、機嫌 良・顔色 異常なし・食事 普・排便 普 を入れます">登園時の様子：全員いつもどおり</button>'
     +'<button class="btn btn-sm" id="hlPrint">'+ic('printer')+'健康チェックを出力</button>'
     +'<button class="btn btn-sm" id="hlBlank">'+ic('printer')+'記入用紙</button>'
     +'</div></div>'
@@ -25873,6 +25963,16 @@ function healthModal(idx,d,save,pre){
     SYMPTOMS.map(function(sy){return '<div class="field" style="margin-bottom:10px;"><label>'+sy.cat+'</label><div style="display:flex;gap:6px;flex-wrap:wrap;">'+sy.opts.map(function(o){var on=selOpts(sy.cat).indexOf(o)>-1;return '<span class="chip'+(on?' on':'')+'" data-sy="'+esc(sy.cat+'||'+o)+'">'+o+'</span>';}).join('')+'</div></div>';}).join('')+
     '<div class="field"><label>その他異常</label><input id="he_other" value="'+(en.other||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'+
     '<div class="field"><label>対応・処置</label><input id="he_action" value="'+(en.action||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"></div>'+
+    /* ★自治体の様式にある「処置者・家庭連絡・お迎え・感染症の疑い」の欄が無かった（2026-09-26） */
+    '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;">'
+      +'<div class="field" style="margin:0;"><label>処置した人</label><select id="he_by"><option value="">—</option>'+(DB.staff||[]).filter(function(x){return x&&x.name&&!x.leaveDate;}).map(function(x){return '<option'+(x.name===en.byStaff?' selected':'')+'>'+esc(x.name)+'</option>';}).join('')+'</select></div>'
+      +'<div class="field" style="margin:0;"><label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="he_infect" style="width:auto;"'+(en.infect?' checked':'')+'>感染症の疑いがある</label></div></div>'
+    +'<div class="grid" style="grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-top:10px;">'
+      +'<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="he_contact" style="width:auto;"'+(en.contact?' checked':'')+'>家庭に連絡した</label>'
+      +'<input id="he_contactAt" type="time" value="'+esc(en.contactAt||'')+'" style="width:130px;">'
+      +'<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="he_pickup" style="width:auto;"'+(en.pickup?' checked':'')+'>お迎えがあった</label>'
+      +'<div style="display:flex;gap:8px;"><input id="he_pickupAt" type="time" value="'+esc(en.pickupAt||'')+'" style="width:130px;"><input id="he_pickupBy" value="'+esc(en.pickupBy||'')+'" placeholder="迎えに来た人（例：母）"></div>'
+    +'</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;"><button class="btn" id="he_cancel">キャンセル</button><button class="btn btn-primary" id="he_save">保存</button></div></div>';
   $('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
@@ -25880,7 +25980,10 @@ function healthModal(idx,d,save,pre){
   showTemp();$('#he_child').onchange=showTemp;
   m.querySelectorAll('[data-sy]').forEach(function(chip){chip.onclick=function(){var p=chip.getAttribute('data-sy').split('||'),cat=p[0],o=p[1];var s=en.symptoms.filter(function(x){return x.cat===cat;})[0];if(!s){s={cat:cat,opts:[]};en.symptoms.push(s);}var k=s.opts.indexOf(o);if(k>-1)s.opts.splice(k,1);else s.opts.push(o);if(!s.opts.length)en.symptoms=en.symptoms.filter(function(x){return x.cat!==cat;});chip.classList.toggle('on');};});
   $('#he_cancel').onclick=function(){m.remove();};
-  $('#he_save').onclick=function(){en.childId=+$('#he_child').value;en.other=$('#he_other').value;en.action=$('#he_action').value;if(!en.childId){alert('園児を選択してください');return;}if(idx!=null)d.entries[idx]=en;else d.entries.push(en);save();m.remove();edTouen();};
+  $('#he_save').onclick=function(){en.childId=+$('#he_child').value;en.other=$('#he_other').value;en.action=$('#he_action').value;
+    en.byStaff=$('#he_by').value;en.infect=!!$('#he_infect').checked;
+    en.contact=!!$('#he_contact').checked;en.contactAt=$('#he_contactAt').value;
+    en.pickup=!!$('#he_pickup').checked;en.pickupAt=$('#he_pickupAt').value;en.pickupBy=$('#he_pickupBy').value;if(!en.childId){alert('園児を選択してください');return;}if(idx!=null)d.entries[idx]=en;else d.entries.push(en);save();m.remove();edTouen();};
 }
 function edBody(){
   var K='rec_身体測定',data=stGet(K,{}),d=data[recMonth]||{rows:{}};
@@ -26744,12 +26847,17 @@ function healthDayBody(dk,d,showKids){
     +(d.allHealthy?'<p><b>本日は全員の健康（症状の有無）を確認しました。</b></p>':'')+
     '<table><thead><tr><th>園児</th><th>体温</th><th>状態</th><th>対応</th></tr></thead><tbody>'+showKids.map(function(c){
       var idx=entryIdx(c.id),t=tempOf(c.id,dk)||'';
-      if(idx>-1){var en=d.entries[idx];return '<tr><td>'+esc(dayKidName(c))+'</td><td>'+esc(t)+'</td><td>症状あり：'+esc((en.symptoms||[]).map(function(sy){return sy.cat+'：'+sy.opts.join('・');}).join(' / '))+(en.other?'（'+esc(en.other)+'）':'')+'</td><td>'+esc(en.action||'')+'</td></tr>';}
+      if(idx>-1){var en=d.entries[idx];return '<tr><td>'+esc(dayKidName(c))+'</td><td>'+esc(t)+'</td><td>症状あり：'+esc((en.symptoms||[]).map(function(sy){return sy.cat+'：'+sy.opts.join('・');}).join(' / '))+(en.other?'（'+esc(en.other)+'）':'')+(en.infect?'<b style="color:#C00;">（感染症の疑い）</b>':'')+'</td><td>'+esc(en.action||'')
+        +(en.byStaff?'<div style="font-size:10px;">処置：'+esc(en.byStaff)+'</div>':'')
+        +(en.contact?'<div style="font-size:10px;">家庭連絡：'+esc(en.contactAt||'した')+'</div>':'')
+        +(en.pickup?'<div style="font-size:10px;">お迎え：'+esc([en.pickupAt,en.pickupBy].filter(Boolean).join(' ')||'あり')+'</div>':'')+'</td></tr>';}
       /* ★記録が無い園児を無条件に「症状なし」と刷っていた。
          「全員を確認しました」に印が付いた日だけ、そう書ける。 */
       return '<tr><td>'+esc(dayKidName(c))+'</td><td>'+esc(t)+'</td><td>'
         +(d.allHealthy?'症状なし':'<span style="color:#888;">—（未記録）</span>')+'</td><td></td></tr>';}).join('')+
-    '</tbody></table><p>記録者：'+esc(d.by||'　　　　')+'</p>'
+    '</tbody></table>'
+    +hobsTableHTML(dk,d,showKids)
+    +'<p>記録者：'+esc(d.by||'　　　　')+'</p>'
     +lockFootHtml(d);
 }
 /* ══ 日誌の「記録から自動で入る欄」（2026-09-26 安田さんのご判断）═══════════
