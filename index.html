@@ -8273,8 +8273,9 @@ var AIACT_WHEN =['今日','明日','今週','来週','今月','来月','日付�
    選んだものは「、」でつないだ1つの文字で持つ（これまでの保存・AIへの渡し方と同じ形のまま）。「おまかせ」は1つだけのとき */
 function aiWantList(i){var w=String((i&&i.want)||'');return (!w||w==='おまかせ')?[]:w.split('、');}
 function aiWantHas(i,x){return aiWantList(i).indexOf(x)>-1;}
+/* ★「食育」を足した（2026-09-26 安田さんのご指示）。選ぶと、クラスのアレルギー食材の欄が出て、その食材を抜いて考える */
 var AIACT_WANT =['制作','室内遊び','運動遊び','戸外遊び','感触遊び','音楽・リズム遊び',
-                 'ごっこ遊び','自然遊び','季節・行事','おまかせ'];
+                 'ごっこ遊び','自然遊び','季節・行事','食育','おまかせ'];
 /* 詳細設定（§6）。答えられないものは空のままでよい。 */
 var AIACT_DETAIL=[
   {k:'interest',l:'最近、興味を示しているもの'},
@@ -8284,11 +8285,18 @@ var AIACT_DETAIL=[
   {k:'prepMin', l:'準備にかけられる時間',opts:['','10分まで','30分まで','前日から','おまかせ']},
   {k:'dirty',   l:'汚れてよいか',opts:['','汚れてよい','少しなら','汚したくない','おまかせ']},
   {k:'takeHome',l:'持ち帰るか',opts:['','持ち帰る','園で飾る','どちらでも']},
-  {k:'useMat',  l:'今回使いたいもの',main:true},
-  {k:'noMat',   l:'使いたくない素材'},
-  {k:'avoid',   l:'避けたい活動'},
-  {k:'other',   l:'その他の希望'}
+  {k:'useMat',  l:'使いたい材料・用具',main:true},
+  /* ★「使いたくない素材」「その他の希望」は外した（2026-09-26 安田さんのご指示：使わない材料より「使いたい材料・用具」、希望・ひとことは要らない）。
+       アレルギーの食材は「食育」を選んだときの欄で伝える */
+  {k:'avoid',   l:'避けたい活動'}
 ];
+/* そのクラスのアレルギー食材（生徒台帳の〔アレルギー〕）。名前は付けず、食材の文字だけを重ねずに並べる */
+function aiClassAllergy(k){
+  var out=[];
+  try{classOf(k).forEach(function(c){var p=spGet(c.id)||{},a=String(p.allergy||'').replace(/^\s+|\s+$/g,'');
+    if(!a||a==='なし')return;a.split(/[、,，・\/／\s]+/).forEach(function(x){if(x&&out.indexOf(x)<0)out.push(x);});});}catch(e){}
+  return out.join('・');
+}
 /* 場所は園に登録されているものを先に出す（§5-2）。 */
 function aiActPlaces(){
   var base=['保育室','園庭','ホール','テラス','公園・散歩','その他','おまかせ'],out=[],i;
@@ -8552,8 +8560,12 @@ function aiActInner(){
         var on=(o==='おまかせ')?!aiWantList(i).length:aiWantHas(i,o);
         return '<button type="button" class="btn btn-sm'+(on?' btn-primary':'')+'" data-aiwant="'+esc(o)+'" style="margin:0 6px 6px 0;">'+esc(o)+'</button>';
       }).join('')+'</div>'
-      +'<input id="aia_free" placeholder="自由に書いてもかまいません（例：どんぐりを使いたい）" value="'+esc(i.free)+'" style="margin-top:6px;"></div>'
-    +'<div class="field"><label>今回使いたいもの（任意）</label>'
+      +'</div>'
+    /* 食育を選んだときだけ、クラスのアレルギー食材の欄を出す（はじめは生徒台帳から入れる。直してよい） */
+    +(aiWantHas(i,'食育')?'<div class="field"><label>クラスのアレルギー食材（この食材は使いません）</label>'
+      +'<input id="aia_allergy" value="'+esc(AIACT.det.allergy!=null?AIACT.det.allergy:aiClassAllergy(k))+'" placeholder="例：卵・乳・小麦">'
+      +'<div class="muted" style="font-size:11px;margin-top:4px;">生徒台帳のアレルギーから入れています。AIに送るのは食材の名前だけで、どの子のアレルギーかは送りません。</div></div>':'')
+    +'<div class="field"><label>使いたい材料・用具（任意）</label>'
       +'<input id="aia_use" value="'+esc(AIACT.det.useMat||'')+'" placeholder="例：牛乳パック・どんぐり・カラーポリ袋・フープ（思いつくものを自由に）"></div>'
     /* §6 くわしい条件。開いたときだけ出す。 */
     +'<div style="margin:14px 0 6px;"><button type="button" class="btn btn-sm" id="aia_more">'
@@ -8658,6 +8670,7 @@ function aiActSaveInputs(){
   var d=$('#aia_date'); if(d)AIACT.inp.date=d.value;
   var f=$('#aia_free'); if(f)AIACT.inp.free=f.value;
   var u=$('#aia_use'); if(u)AIACT.det.useMat=u.value;
+  var al=$('#aia_allergy'); if(al)AIACT.det.allergy=al.value;
   document.querySelectorAll('[data-aid]').forEach(function(e){AIACT.det[e.getAttribute('data-aid')]=e.value;});
 }
 /* くわしい条件を、1つの文にまとめる（空の項目は入れない） */
@@ -8677,8 +8690,10 @@ function aiActGo(){
   var k=AIACT.klass,i=AIACT.inp;
   var want=(i.want==='おまかせ'?'':i.want);
   if(i.free)want=(want?want+' ':'')+i.free;
+  /* ★「今回の条件」の欄（場所・時間・使わない材料・希望）は画面から無くなったので、前に入れた値を黙って送らない（2026-09-26） */
+  var alg=aiWantHas(i,'食育')?String(AIACT.det.allergy!=null?AIACT.det.allergy:aiClassAllergy(k)).replace(/^\s+|\s+$/g,''):'';
   aiAskServer('act',k,null,{
-    note:aiScrub(aiEnvNote(k)),
+    note:aiWantHas(i,'食育')?('食育の活動です。'+(alg?'次の食材は使わないでください（アレルギーがあります）：'+aiScrub(alg)+'。':'')):'',
     daysLeft:aiActDays(),
     minutes:i.minutes, place:i.place,
     want:aiScrub(want),
@@ -9803,8 +9818,17 @@ function aipMemoHTML(k){
   var canBoss=(typeof isBoss==='function')?isBoss():true;
   var canChief=(typeof isChief==='function')?isChief():true;
   var ps=aiPlans().filter(function(x){return x.klass===k;});
-  return aiActDoneHTML(k)
-    +aiActMemoryCard(k)
+  /* ★ベースの設定を入れる所なのか、AIで作った活動をふりかえる所なのかが分からなかった（2026-09-26 安田さんのご指摘）。
+     2つに分ける：①つくった活動とふりかえり（AIが作ったもの・やってみた様子・実施の記録・あしあと）
+                  ②AIに伝える園・クラスの情報（AIが毎回読むもの） */
+  var sub=AIP.memoSub==='base'?'base':'made';
+  var subBar='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+    +[['made','つくった活動とふりかえり'],['base','AIに伝える園・クラスの情報']].map(function(x){
+      return '<button type="button" class="btn btn-sm'+(sub===x[0]?' btn-primary':'')+'" data-aimsub="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div>'
+    +'<div class="muted" style="font-size:12px;line-height:1.8;margin:-4px 0 12px;">'
+    +(sub==='made'?'AIでつくった活動と、やってみたあとの様子です。ふりかえりを残すと、次の提案がそこから続きます。'
+                  :'AIが活動を考えるときに毎回読む、園とクラスの情報です。違うところは、ここで直してください。')+'</div>';
+  var baseH=aiActMemoryCard(k)
     +aiEnvSchoolCard()
     +'<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
     +'<div class="field"><label>スクール理念'+(canBoss?'':'（見るだけ）')+'</label>'
@@ -9842,12 +9866,12 @@ function aipMemoHTML(k){
     +'</tbody></table>'
     +'<div class="muted" style="margin-top:9px;font-size:11.5px;line-height:1.75;">'
     +'ここに出ているのは、Miralink に記録されている事実です。'
-    +'上の「クラス像」は、これをもとにAIが読み取ったものです。分けて見てください。</div></div>')
-
+    +'上の「クラス像」は、これをもとにAIが読み取ったものです。分けて見てください。</div></div>');
+  var madeH=aiActDoneHTML(k)
     +(function(){
       /* 覚えていること。1件ずつ直せて消せる。年度で分かれる */
       var fy=aiMemFY(k), ls=actRepList(k,fy), ys=actRepYears(k);
-      return '<div class="card"><h3 style="margin-top:0;">'+ic('clipboard')+'覚えていること（'+ls.length+'件）</h3>'
+      return '<div class="card"><h3 style="margin-top:0;">'+ic('clipboard')+'実施の記録（'+ls.length+'件）</h3>'
         +'<div class="muted" style="margin:-6px 0 10px;font-size:11.5px;line-height:1.75;">'
         +'カリキュラムの「実施」で書いた記録です。'
         +'<b>いまは、AIの提案づくりには使っていません</b>（見返す・紙に出すためのものです）。'
@@ -9917,12 +9941,14 @@ function aipMemoHTML(k){
           +'<td class="muted" style="padding:6px 0;">'+esc(x.who)+'</td></tr>';}).join('')
       +'</tbody></table>':'<div class="muted" style="text-align:center;padding:18px 0;">まだありません</div>')
     +'</div>';
+  return subBar+(sub==='base'?baseH:madeH);
 }
 
 
 /* ── 画面の配線 ─────────────────────────── */
 function aipWire(k){
   var s=aipSec();
+  s.querySelectorAll('[data-aimsub]').forEach(function(b){b.onclick=function(){AIP.memoSub=b.getAttribute('data-aimsub');renderAIPlan();};});
   var $$=function(sel){return s.querySelector(sel);};
 
   /* クラスを変えたときに年度が前のクラスのまま残ると、
