@@ -24632,6 +24632,8 @@ function childFullName(c){
   var ln=String(p.lastName||'').trim(),fn=String(p.firstName||'').trim();
   if(!ln){var nm=String(c.name||'').replace(/　/g,' ').trim().split(/\s+/);ln=nm[0]||'';}
   if(!fn)fn=c.child?childName(c):'';
+  /* ★お子様名に名字まで入っている園（「山田 こはる」）では、保護者の名字を前に足して「山田 山田 こはる」になっていた（2026-09-26） */
+  if(ln&&fn.replace(/\s/g,'').indexOf(ln.replace(/\s/g,''))===0)ln='';
   var full=((ln?ln+' ':'')+fn).trim();
   return full||(c.child?childName(c):(c.name||''));
 }
@@ -37755,6 +37757,10 @@ function miraPeriod(q){
 function miraWantsData(q){
   if(CLASSES.some(function(k){return k&&q.indexOf(k)>-1;}))return true;
   if(/児[A-Z]/.test(q))return true;
+  /* ★「発達記録ってどこから作成できる？」のような使い方の質問にも、「記録」の語で園の記録を読んで渡していた。
+     画面の場所・やり方を聞いているときは渡さない（期間を言っているときは除く） */
+  if(/(どこから|どこで|どこに|どうやって|使い方|やり方|方法|ボタン|どの画面|どうすれば)/.test(q)
+     &&!/(今日|きょう|昨日|きのう|今週|先週|今月|先月|\d{1,2}月|今年度)/.test(q))return false;
   /* ★「雨の日の活動」のような一般の相談にまで記録を渡していた。はっきり記録のことを聞いているとき、
        または期間を言って「活動・様子・まとめ」などを聞いているときだけ渡す */
   if(/(欠席|出席|休み|休んだ|遅刻|早退|登園|ヒヤリ|けが|怪我|事故|日誌|日報|体温|熱が|発熱|体調|記録|何人|誰|だれ|どの子|傾向|振り返|ふりかえ)/.test(q))return true;
@@ -37767,8 +37773,12 @@ function miraDataText(q,m){
   var kids=enrolled().filter(inCls),L=[],md=function(d){return (+d.slice(5,7))+'/'+(+d.slice(8,10));};
   L.push('期間：'+P.from+'〜'+P.to+'（'+P.label+'）／クラス：'+cls.join('・'));
   L.push('【子ども】'+kids.map(function(c){var a=miraAge(c.dob);return m.byId[String(c.id)]+'（'+(c.klass||'')+(a!=null?'・'+a+'歳':'')+'）';}).join('、'));
-  /* 出席と健康チェック（体温・健康の印）。保護者からの連絡（parentNote）は送らない */
-  var sh=stGet('rec_登園シート',{})||{},tot={},att=[],hl=[];
+  /* 出席と健康チェック（37.5℃以上と、健康チェックで症状を付けた子）。保護者からの連絡（parentNote）は送らない
+     ★行の opts（給食・延長保育の印）を「健康の印」として読み、しかも組（配列）として .filter していた。
+       opts は {給食:true} の形なので、印が付いた日が1日でもある園では、ここで止まっていた。
+       止まると miraSend の「答えているところ」が外れず、何を聞いても「少しお待ちください」になっていた（2026-09-26 安田さんのスクリーンショット）。
+       症状は健康チェックの記録（rec_健康チェック）から読む */
+  var sh=stGet('rec_登園シート',{})||{},tot={},att=[],hl=[],hc=stGet('rec_健康チェック',{})||{};
   Object.keys(sh).sort().forEach(function(k){
     var d=sh[k];if(!d||!d.rows)return;var date=String(d.date||k).slice(0,10);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<P.from||date>P.to)return;
@@ -37777,8 +37787,9 @@ function miraDataText(q,m){
     Object.keys(d.rows).forEach(function(id){var r=d.rows[id]||{},code=m.byId[String(id)];if(!code)return;
       tot[code]=tot[code]||{p:0,a:0};
       if(r.att==='●'){inN++;tot[code].p++;}else if(r.att==='休'){out.push(code);tot[code].a++;}
-      var t=parseFloat(r.temp),o=(r.opts||[]).filter(Boolean);
-      if((!isNaN(t)&&t>=37.5)||o.length)hl.push(md(date)+' '+code+'：'+(!isNaN(t)?t+'℃':'')+(o.length?' '+o.join('・'):''));
+      var t=parseFloat(r.temp),o=[];
+      (((hc[date]||{}).entries)||[]).forEach(function(en){if(en&&String(en.childId)===String(id))(en.symptoms||[]).forEach(function(sy){if(sy&&sy.cat)o.push(sy.cat);});});
+      if((!isNaN(t)&&t>=37.5)||o.length)hl.push(md(date)+' '+code+'：'+(!isNaN(t)&&t>=37.5?t+'℃':'')+(o.length?' '+o.join('・'):''));
     });
     att.push(md(date)+' '+(d.klass||'')+'：出席'+inN+(out.length?'・欠席'+out.length+'（'+out.join('・')+'）':''));
   });
@@ -37830,12 +37841,19 @@ function miraHTML(t,m){
 function miraSend(q){
   if(MIRA.busy){aiPush('bot','前の質問に答えているところです。少しお待ちください。');return;}
   MIRA.busy=true;
-  var m=miraMap(),useData=miraDataOn()&&miraWantsData(q),ctx=useData?miraDataText(q,m):null;
-  MIRA.msgs.push({role:'me',text:aiScrub(miraPseudo(q,m)).slice(0,1500),at:new Date().toISOString()});
+  /* ★ここで止まると busy が外れず、以後の質問が全部「少しお待ちください」になる。
+     記録を読めなかったときは、記録なしで答える（止めない） */
+  var m,useData=false,ctx=null;
+  try{m=miraMap();}catch(e){m={byId:{},byCode:{},names:[]};}
+  try{useData=miraDataOn()&&miraWantsData(q);ctx=useData?miraDataText(q,m):null;}catch(e){useData=false;ctx=null;}
+  var qs,help='';
+  try{qs=aiScrub(miraPseudo(q,m)).slice(0,1500);}catch(e){qs=aiScrub(q).slice(0,1500);}
+  try{help=miraHelpText(q);}catch(e){help='';}
+  MIRA.msgs.push({role:'me',text:qs,at:new Date().toISOString()});
   aiPush('bot','<span class="mira-wait">'+(useData?'園の記録を読んで、考えています…':'考えています…')+'</span>');
   var wait=$('#aiBody').lastChild;
   function drop(){if(wait&&wait.parentNode)wait.parentNode.removeChild(wait);}
-  API.call('POST','/ai/chat',{messages:MIRA.msgs.slice(-12),help:miraHelpText(q),data:ctx?ctx.text:''}).then(function(j){
+  API.call('POST','/ai/chat',{messages:MIRA.msgs.slice(-12),help:help,data:ctx?ctx.text:''}).then(function(j){
     drop();
     if(j&&j.code==='urgent'){MIRA.msgs.pop();aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
     var t=String((j&&j.text)||'');
