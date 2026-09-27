@@ -6276,7 +6276,8 @@ function missClassTable(k,days,t){
       return missCell(x,t,mk);}).join('')+'</tr>';}).join('');
   return {html:kids.length?'<div class="scrollx"><table class="mtbl">'+missHead(days,t)+'<tbody>'+body+'</tbody></table></div>':'<div class="muted" style="font-size:12.5px;">このクラスには園児がいません。</div>',miss:miss};
 }
-function renderMissing(){
+/* ★確認待ち（2026-09-27）。ご確認のあと renderMissing と入れ替える */
+function renderMissingChart(){
   var s=$('section[data-page="missing"]'),t=todayISO();
   if(!/^\d{4}-\d{2}$/.test(MISS_MONTH))MISS_MONTH=t.slice(0,7);
   if(MISS_CLS&&CLASSES.indexOf(MISS_CLS)<0)MISS_CLS='';
@@ -6300,6 +6301,47 @@ function renderMissing(){
   s.querySelectorAll('[data-mtpr]').forEach(function(b){b.onclick=function(){
     var k=b.getAttribute('data-mtpr'),html=k==='__park'?park.html:(cts.filter(function(x){return x.k===k;})[0]||{t:{html:''}}).t.html;
     printDoc('日常チェック表　'+(k==='__park'?'園全体の記録':k)+'（'+MISS_MONTH.slice(0,4)+'年'+mo+'月）','<style>.mtbl{border-collapse:collapse;font-size:9px;}.mtbl th,.mtbl td{border:1px solid #bbb;padding:2px;text-align:center;min-width:14px;}.mt-name{text-align:left;white-space:nowrap;}.sat{background:#EAF4FB;}.sun{background:#FCEDEF;}.mt-ng{color:#C0392B;font-weight:700;}.mt-dl{border:none;background:none;font:inherit;padding:0;}</style>'+html);};});
+}
+
+function renderMissing(){
+  var s=$('section[data-page="missing"]'), all=missingDocs();
+  var groups=MISS_CAT?all.filter(function(g){return g.cat===MISS_CAT;}):all;
+  if(MISS_CAT&&!groups.length)groups=all;
+  var total=groups.reduce(function(a,g){return a+g.items.length;},0);
+  var catChips='<div class="chips" style="margin:-4px 0 12px;">'
+    +['すべて'].concat(all.map(function(g){return g.cat;})).map(function(c){
+      var on=(c==='すべて')?!MISS_CAT:(MISS_CAT===c);
+      var n=(c==='すべて')?all.reduce(function(a,g){return a+g.items.length;},0):((all.filter(function(g){return g.cat===c;})[0]||{items:[]}).items.length);
+      return '<span class="chip'+(on?' on':'')+'" data-mcat="'+esc(c==='すべて'?'':c)+'"><span>'+esc(c)+'</span>'+(n?' <span data-nolang="1">'+n+'</span>':'')+'</span>';
+    }).join('')+'</div>';
+  s.innerHTML='<div class="card">'+recHead((MISS_CAT?esc(MISS_CAT)+'の':'')+'未入力書類（'+fmt(todayISO())+'）',
+      (MISS_CAT?'<button class="btn btn-sm" id="missAll">すべての組を見る</button> ':'')+
+      '<span class="pill" style="background:'+(total?'#FCEBEB;color:#A32D2D':'#EAF3DE;color:#27500A')+';">'+(total?'あと '+total+' 件':'すべて入っています')+'</span>')
+    +catChips+'<div class="muted" style="margin:-4px 0 12px;font-size:12.5px;line-height:1.9;">きょうの時点で、まだ入っていない記録・書類を組ごとに出しています。押すとその画面がひらきます。</div>'
+    +groups.map(function(g){
+      return '<div style="margin-bottom:14px;"><div style="font-weight:800;font-size:13.5px;margin-bottom:6px;">'+esc(g.cat)+'</div>'
+        +(g.items.length?g.items.map(function(it){
+            var can=(typeof canView!=='function'||canView(it.p))&&(typeof egPlanOfPage!=='function'||egPlanOfPage(it.p));
+            return '<'+(can?'button type="button"':'div')+' class="row-miss"'+(can?' data-mp="'+esc(it.p)+'"'+(it.rec?' data-mrec="'+esc(it.rec)+'"':'')
+              +(it.dg?' data-mdg="'+esc(it.dg)+'"':'')+(it.cls?' data-mcls="'+esc(it.cls)+'"':''):'')+'>'
+              +'<span style="flex:1;">'+esc(it.l)+(it.d?'<div class="row-sub">'+esc(it.d)+'</div>':'')+'</span>'
+              +'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">'+esc(it.n||'未入力')+'</span></'+(can?'button':'div')+'>';
+          }).join('')
+          :'<div class="muted" style="font-size:12px;padding:4px 0 2px;">この組は、きょうの分がすべて入っています</div>')
+        +'</div>';
+    }).join('')+'</div>';
+  var ma=document.getElementById('missAll'); if(ma)ma.onclick=function(){ MISS_CAT=''; renderMissing(); };
+  s.querySelectorAll('[data-mcat]').forEach(function(c){ c.onclick=function(){ MISS_CAT=c.getAttribute('data-mcat')||''; renderMissing(); }; });
+  s.querySelectorAll('[data-mp]').forEach(function(b){b.onclick=function(){
+    var r=b.getAttribute('data-mrec'), k=b.getAttribute('data-mcls'), dg=b.getAttribute('data-mdg');
+    /* ★記録の種類だけを変えて開いていたので、前に別の日（きのうの日報など）を見ていると
+       「きょうの分」を押してもその日の表が開き、そのまま入れるとその日の記録に入っていた。
+       カリキュラムも、最後に見たクラス・月のまま開いていた。ホームの本日のタスクと同じく、きょう・そのクラス・今月に合わせる。 */
+    if(r)recDate=todayISO();
+    if(k&&(CLASSES||[]).indexOf(k)>-1){ curClass=k; if(typeof CUR!=='undefined'&&CUR)CUR.month=todayISO().slice(0,7); }
+    if(dg)dgType=dg;
+    if(r&&typeof goRec==='function')goRec(b.getAttribute('data-mp'),r); else go(b.getAttribute('data-mp'));
+  };});
 }
 
 function planAllows(need){
