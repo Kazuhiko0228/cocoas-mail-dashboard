@@ -929,6 +929,9 @@ function childFullName(c){
   var ln=String(p.lastName||'').trim(),fn=String(p.firstName||'').trim();
   if(!ln){var nm=String(c.name||'').replace(/　/g,' ').trim().split(/\s+/);ln=nm[0]||'';}
   if(!fn)fn=c.child?childName(c):'';
+  /* ★お子様名に名字まで入っている園（「山田 こはる」）では、保護者の名字を前に足して「山田 山田 こはる」になっていた。
+     園の画面（index.html の childFullName）は 2026-09-26 に直してあり、こちらだけ残っていた（2026-09-30 発見） */
+  if(ln&&fn.replace(/\s/g,'').indexOf(ln.replace(/\s/g,''))===0)ln='';
   var full=((ln?ln+' ':'')+fn).trim();
   return full||(c.child?childName(c):(c.name||''));
 }
@@ -1180,12 +1183,14 @@ function sessionChild(){var id=sessionStorage.getItem('cocoas_psession');if(!id)
    園側は2人とも登録できる（兄弟は紐付けない、という決めのとおり）ので、
    保護者の画面だけが追いついていなかった。
    アカウントの形は変えず、同じメールのお子さまをその場でたどる。 */
+/* ★2026-09-30 から、ごきょうだいは「同じメール かつ 名字（保護者名のはじめの語）が同じ」在園児（園の画面・サーバと同じ決まり） */
+function famSurname(c){var n=String((c&&c.name)||'').replace(/\u3000/g,' ').replace(/^\s+|\s+$/g,'');return n?n.split(/\s+/)[0]:'';}
 function myChildren(){
   var me=sessionChild();
   if(!me)return [];
-  var mail=String(me.email||'').toLowerCase();
-  if(!mail)return [me];
-  var list=enrolled().filter(function(c){return String(c.email||'').toLowerCase()===mail;});
+  var mail=String(me.email||'').replace(/^\s+|\s+$/g,'').toLowerCase(),sur=famSurname(me);
+  if(!mail||!sur)return [me];
+  var list=enrolled().filter(function(c){return String(c.email||'').replace(/^\s+|\s+$/g,'').toLowerCase()===mail&&famSurname(c)===sur;});
   if(!list.length)return [me];
   /* 並びは、入園の早い順（上の子が先）。分からないときは番号順 */
   list.sort(function(a,b){
@@ -1200,6 +1205,22 @@ function hasSiblings(){ return myChildren().length>1; }
 function switchChild(id){
   var ok=myChildren().filter(function(c){return String(c.id)===String(id);})[0];
   if(!ok)return;
+  /* サーバにつながっているときは、サーバでもそのお子さまに切り替えてから読み込み直す（2026-09-30）。
+     切り替えないと、画面だけ下の子になり、記録やお知らせは上の子のまま届く */
+  if(WAPI.online()){
+    fetch(WAPI.base()+'/parent/switch',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+WAPI.token()},body:JSON.stringify({childId:String(ok.id)})})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+      .then(function(x){
+        if(!x.ok||!x.j||!x.j.token){alert((x.j&&x.j.error)||'切り替えられませんでした。もう一度お試しください。');return;}
+        WAPI.setToken(x.j.token);
+        sessionStorage.setItem('cocoas_psession',ok.id);
+        /* 前のお子さまの分として手元に置いている「保護者が書いた控え」（注文・連絡帳など）を片付ける。
+           残すと、下の子の画面に上の子の控えが出たり、下の子の分として園へ送られたりする。読み込み直すと、そのお子さまの分が園から届く */
+        try{Object.keys(localStorage).forEach(function(n){if(n.indexOf('cocoas_')===0&&WA_SEND.test(n.slice(7)))localStorage.removeItem(n);});}catch(e){}
+        location.reload();
+      }).catch(function(){alert('通信できませんでした。電波のよいところでもう一度お試しください。');});
+    return;
+  }
   sessionStorage.setItem('cocoas_psession',ok.id);
   /* 画面ぜんぶがそのお子さまのものに変わるので、読み込み直すのがいちばん確実。
      どのタブを見ていたかは残す。 */
@@ -4482,7 +4503,7 @@ var EN_DICT={
 'メッセージをひらく':'Open messages',
 'いま：止めています':'Currently: paused',
 'ログインが必要です':'Login required',
-'パスワードを変更する':'Change password','まえ':'Front','うしろ':'Back',
+'パスワードを変更する':'Change password','切り替えられませんでした。もう一度お試しください。':'Couldn’t switch. Please try again.','通信できませんでした。電波のよいところでもう一度お試しください。':'Couldn’t connect. Please try again where the signal is better.','まえ':'Front','うしろ':'Back',
 '「なぜ？」に答えたい':'Answering “Why?”',
 '記事が見つかりません':'Article not found',
 'この年齢のお子さまに':'For Children This Age',
