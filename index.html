@@ -1768,7 +1768,7 @@ button.hpr:hover{background:#FAF9F5}
 .rnf-opadd{align-self:flex-start;color:#5B4BD6;}
 .rnf-hint{font-size:12px;color:var(--tx3,#8A86A0);margin:8px 0 2px 4px;}
 .rnf-reqc{display:flex;align-items:center;gap:6px;font-size:12.5px;margin-top:8px;justify-content:flex-end;cursor:pointer;} .rnf-reqc input{width:auto;}
-.rnf-adds{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0 8px;} .rnf-adds select{width:auto;}
+.rnf-foot{flex-wrap:wrap;align-items:center;} .rnf-foot select{width:auto;}
 .rnf-pv{overflow:auto;min-height:0;border:1px solid var(--line);border-radius:14px;background:#FFF9FC;padding:12px 14px;}
 .rnf-pv-h{font-size:11px;font-weight:700;color:#C43478;letter-spacing:.04em;margin-bottom:8px;}
 .rnf-pv-i{padding:7px 0;border-bottom:1px dashed #F2D9E6;} .rnf-pv-i:last-child{border-bottom:0;}
@@ -19053,10 +19053,12 @@ function rnFormEditor(){
             :'<div class="rnf-hint">'+(it.type==='long'?'回答：何行でも書ける欄':'回答：1行の欄')+'</div>')
           +'<label class="rnf-reqc"><input type="checkbox" data-rnfr="'+i+'"'+(it.required?' checked':'')+'> 必須にする</label></div>';
       }).join('')
-      +'<div class="rnf-adds"><button type="button" class="btn btn-primary btn-sm" id="rnfAdd">'+ic('plus')+'質問を追加</button>'
-        +(gone.length?'<select id="rnfBack"><option value="">＋ 基本の項目を戻す</option>'+gone.map(function(b){return '<option value="'+b.key+'">'+esc(b.l)+'</option>';}).join('')+'</select>':'')+'</div>'
       +'</div><div class="rnf-pv"><div class="rnf-pv-h">未来WAでの見え方</div>'+preview()+'</div></div>'
-      +'<div class="scanai-foot"><button type="button" class="btn" id="rnfReset">はじめの形に戻す</button><span style="flex:1;"></span><button type="button" class="btn btn-primary" id="rnfSave">保存する</button></div></div>';
+      /* ★「質問を追加」が一覧のいちばん下にあり、下まで送らないと見えなかった（2026-10-01 安田さんのご質問「追加もできる？」）。
+         いつも見える下の帯に移した */
+      +'<div class="scanai-foot rnf-foot"><button type="button" class="btn btn-primary" id="rnfAdd">'+ic('plus')+'質問を追加</button>'
+        +(gone.length?'<select id="rnfBack"><option value="">＋ 基本の項目を戻す</option>'+gone.map(function(b){return '<option value="'+b.key+'">'+esc(b.l)+'</option>';}).join('')+'</select>':'')
+        +'<button type="button" class="btn btn-ghost" id="rnfReset">はじめの形に戻す</button><span style="flex:1;"></span><button type="button" class="btn btn-primary" id="rnfSave">保存する</button></div></div>';
     try{langApply(m);}catch(e){}
     wire();
   };
@@ -19072,7 +19074,7 @@ function rnFormEditor(){
     q('[data-rnfdn]',function(x){x.onclick=function(){var i=+x.getAttribute('data-rnfdn');if(i>=W.length-1)return;var t=W[i];W[i]=W[i+1];W[i+1]=t;draw();};});
     q('[data-rnfdel]',function(x){x.onclick=function(){var i=+x.getAttribute('data-rnfdel'),it=W[i];
       if(it.kind==='custom'&&it.label&&!confirm('「'+it.label+'」を消しますか？\n（これまでに届いた答えは、連絡帳に残ります）'))return;W.splice(i,1);draw();};});
-    $('#rnfAdd').onclick=function(){W.push({kind:'custom',id:qid(),type:'short',label:'',required:false});draw();var ins=m.querySelectorAll('[data-rnfl]');if(ins.length)ins[ins.length-1].focus();};
+    $('#rnfAdd').onclick=function(){W.push({kind:'custom',id:qid(),type:'short',label:'',required:false});draw();var ins=m.querySelectorAll('[data-rnfl]');if(ins.length){var last=ins[ins.length-1];last.scrollIntoView({block:'center'});last.focus();}};
     if($('#rnfBack'))$('#rnfBack').onchange=function(){if(this.value){W.push({kind:'base',key:this.value});draw();}};
     $('#rnfReset').onclick=function(){if(!confirm('基本の項目だけの、はじめの形に戻しますか？（足した質問は消えます）'))return;W=RN_BASE.map(function(b){return {kind:'base',key:b.key};});draw();};
     $('#rnfClose').onclick=function(){m.remove();};
