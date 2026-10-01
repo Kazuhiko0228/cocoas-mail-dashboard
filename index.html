@@ -1712,6 +1712,7 @@ button.hpr:hover{background:#FAF9F5}
 @media (max-width:760px){.rp-body{grid-template-columns:1fr;}}
 /* ── 教育の方向性・活動スケジュール・園の写真 ── */
 .edu-grid{display:flex;flex-wrap:wrap;gap:6px;}
+.edu-gh{font-size:11.5px;font-weight:700;color:#5E5B72;margin:10px 0 5px;} .edu-gh:first-of-type{margin-top:2px;}
 .edu-c{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:99px;padding:6px 12px;font-size:13px;cursor:pointer;background:#fff;}
 .edu-c input{width:auto;margin:0;} .edu-c.on{border-color:#5B4BD6;background:#F4F1FF;color:#3C3489;font-weight:700;}
 .sch-head,.sch-row{display:grid;grid-template-columns:92px 18px 92px minmax(0,1fr) 40px;gap:6px;align-items:center;}
@@ -11116,8 +11117,20 @@ function aiActMemoryCard(k){
    ・教育の方向性：園全体でいくつでも選ぶ（ai_setup.edu、そのほかは eduOther）。直せるのは園長・管理者
    ・活動スケジュール：クラスごとの1日の流れ（ai_class[k].schedule＝[{from,to,name}]）。「園ごとの決まりごと」の欄をこの形にした
    ・スクール理念・クラス方針の欄は外した（AIにも渡さない） */
-var AI_EDU=['モンテッソーリ','レッジョ・エミリア','シュタイナー','英語教育','リトミック・音楽','運動あそび','自然あそび','STEAM・知育','食育','アート・造形','絵本・読み聞かせ','異年齢保育','自由あそび中心','一斉保育（設定保育）'];
-function aiEduOf(){var s=aiSetup();return {list:(Array.isArray(s.edu)?s.edu:[]).filter(function(x){return AI_EDU.indexOf(x)>-1;}),other:String(s.eduOther||'')};}
+/* ★安田さんの一覧（2026-10-01）に合わせて3つの組に分けた。もとからあった 食育・アート・造形・絵本 は「そのほか」の組に残す。
+   ★サーバの scanread.js の EDU と同じ並び。直すときは両方 */
+var AI_EDU_GROUPS=[
+  ['教育理念・メソッド',['モンテッソーリ教育','シュタイナー教育','レッジョ・エミリア・アプローチ','ピラミッドメソッド','イエナプラン教育','ヨコミネ式教育法','七田式教育法','ドーマンメソッド']],
+  ['特化型カリキュラム（スキル・能力）',['英語教育・国際教育（インターナショナル）','体操・スポーツ（運動保育）','STEAM教育・知育（科学・数学・IT）','音楽・リトミック・芸術教育','漢字教育・早期言語教育','お受験対策・知能開発']],
+  ['保育方針・環境スタイル',['自由教育（のびのび系・見守り保育）','一斉保育（規律・しつけ重視系）','自然保育（森のようちえん・野外活動）','縦割り保育（異年齢保育）']],
+  ['そのほか',['食育','アート・造形','絵本・読み聞かせ']]
+];
+var AI_EDU=[];AI_EDU_GROUPS.forEach(function(g){AI_EDU=AI_EDU.concat(g[1]);});
+/* 前の名前で保存されているものを、新しい名前に読みかえる */
+var AI_EDU_OLD={'モンテッソーリ':'モンテッソーリ教育','レッジョ・エミリア':'レッジョ・エミリア・アプローチ','シュタイナー':'シュタイナー教育','英語教育':'英語教育・国際教育（インターナショナル）',
+  'リトミック・音楽':'音楽・リトミック・芸術教育','運動あそび':'体操・スポーツ（運動保育）','自然あそび':'自然保育（森のようちえん・野外活動）','STEAM・知育':'STEAM教育・知育（科学・数学・IT）',
+  '異年齢保育':'縦割り保育（異年齢保育）','自由あそび中心':'自由教育（のびのび系・見守り保育）','一斉保育（設定保育）':'一斉保育（規律・しつけ重視系）'};
+function aiEduOf(){var s=aiSetup(),out=[];(Array.isArray(s.edu)?s.edu:[]).forEach(function(x){var n=AI_EDU_OLD[x]||x;if(AI_EDU.indexOf(n)>-1&&out.indexOf(n)<0)out.push(n);});return {list:out,other:String(s.eduOther||'')};}
 function aiEduText(){var e=aiEduOf(),a=e.list.slice();if(e.other.trim())a.push(e.other.trim());return a.join('・');}
 function aiSchedOf(k){var c=aiClassOf(k);return (Array.isArray(c.schedule)?c.schedule:[]).filter(function(x){return x&&(x.from||x.to||x.name);});}
 function aiSchedText(k){return aiSchedOf(k).map(function(x){return (x.from||'')+(x.to?'-'+x.to:'')+' '+(x.name||'');}).join('、');}
@@ -11134,7 +11147,7 @@ function aiSchoolClassCard(k,canBoss,canChief){
   var c=aiClassOf(k),e=aiEduOf(),sch=aiSchedOf(k);if(!sch.length&&canChief)sch=[{from:'',to:'',name:''}];
   return '<div class="card"><h3 style="margin-top:0;">スクールとクラスの設定</h3>'
     +'<div class="field"><label>教育の方向性（いくつでも選べます・園全体）'+(canBoss?'':'<span>（見るだけ）</span>')+'</label>'
-      +'<div class="edu-grid">'+AI_EDU.map(function(x){return '<label class="edu-c'+(e.list.indexOf(x)>-1?' on':'')+'"><input type="checkbox" data-edu="'+esc(x)+'"'+(e.list.indexOf(x)>-1?' checked':'')+(canBoss?'':' disabled')+'><span>'+esc(x)+'</span></label>';}).join('')+'</div>'
+      +AI_EDU_GROUPS.map(function(g){return '<div class="edu-gh">'+esc(g[0])+'</div><div class="edu-grid">'+g[1].map(function(x){return '<label class="edu-c'+(e.list.indexOf(x)>-1?' on':'')+'"><input type="checkbox" data-edu="'+esc(x)+'"'+(e.list.indexOf(x)>-1?' checked':'')+(canBoss?'':' disabled')+'><span>'+esc(x)+'</span></label>';}).join('')+'</div>';}).join('')
       +'<input id="mEduOther" value="'+esc(e.other)+'" placeholder="そのほか（例：わらべうた、プロジェクト型の保育）" maxlength="80" style="margin-top:8px;"'+(canBoss?'':' readonly')+'></div>'
     +'<div class="field"><label><span>活動スケジュール</span>（<span data-nolang>'+esc(k)+'</span>）'+(canChief?'':'<span>（見るだけ）</span>')+'</label>'
       +'<div class="sch-head"><span>時間</span><span></span><span></span><span>活動名</span></div>'
