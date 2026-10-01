@@ -197,6 +197,13 @@
   .seg{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px;}
   .seg button{flex:1;min-width:66px;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:10px 6px;font-size:13px;font-weight:600;color:var(--tx2);}
   .seg button.on{background:var(--teal);border-color:var(--teal);color:#fff;}
+  /* 連絡帳の、園の独自の質問（2026-10-01） */
+  .rn-qs{flex-wrap:wrap;} .rn-qs button{flex:1 1 auto;}
+  .rn-cb{display:inline-block;width:13px;height:13px;border:1.5px solid currentColor;border-radius:3px;margin-right:6px;vertical-align:-2px;}
+  .rn-qs button.on .rn-cb{background:#fff;box-shadow:inset 0 0 0 2px var(--teal);}
+  .rn-req{font-size:10px;font-weight:700;color:#C43478;background:#FDECF4;border-radius:99px;padding:1px 7px;margin-left:4px;}
+  .rn-qa{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px;}
+  .rn-multi{font-size:11px;font-weight:500;color:var(--tx3);margin-left:4px;}
   .att-item{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line2);}
   .att-item .dt{font-weight:700;font-size:13px;min-width:64px;}
   .badge-k{font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px;}
@@ -830,7 +837,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
    園から届く鍵を増やしたら（園の記録の側の parent.js の PARENT_READ）、ここにも足す。
    保護者ご自身が書く鍵（WA_SEND）は、もともと未来WA だけの名前なので、ここには入れない。 */
 var WA_SRV_PFX='cocoas_wa_srv_';
-var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
+var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|renrakuForm|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
 function waSrvOn(){
   /* WAPI.enabled（接続先が入っているか）と同じ見方を、保存の中身から直に読む。
      WAPI はこのずっと後ろで作るので、起動の途中（同意の鍵の写し替えなど）で WAPI に頼ると、
@@ -4909,7 +4916,7 @@ var EN_DICT={
 'もう一度登園にする':'Record drop-off again',
 'まだ園に届いていない登園・降園があります。ログアウトすると、この端末から消えます。よろしいですか？':'Some drop-off/pick-up records haven’t reached the school yet. Logging out will remove them from this device. Continue?',
 '園に着いたら、いちばん上の「🚸 きょうの登園・降園」で「登園」を、お迎えのときに「降園」を押します。':'When you arrive, tap “Drop-off” in “🚸 Today’s drop-off & pick-up” at the top; tap “Pick-up” when you collect your child.',
-'押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
+'いくつでも選べます':'Choose all that apply','押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
 };
 
 
@@ -4920,13 +4927,33 @@ var EN_DICT={
    書き直せるのは、きょうときのうの分だけ（サーバでも同じ決まりで確かめる）。
    園からの返事（園から の欄）は、下の「きょうの様子」に同じ並びで届く。 */
 var RN_MEALK=['食事','ミルク','母乳','おやつ','薬','その他'],RN_STOOLK=['ふつう','やわらかい','ゆるい','かたい'];
+/* ★園が決める項目の並び（renrakuForm・2026-10-01）。RN_BASE と rnFormItems は index.html にも同じものがある。直すときは両方 */
+var RN_BASE=[{key:'temp',l:'体温・はかった時刻'},{key:'mood',l:'機嫌'},{key:'sleeps',l:'睡眠'},{key:'bath',l:'入浴'},{key:'stools',l:'排便'},
+  {key:'meals',l:'食事・薬・その他'},{key:'pickup',l:'お迎えの人・時刻'},{key:'writer',l:'記入者'},{key:'body',l:'からだの気になるところ'},{key:'note',l:'家庭での様子・連絡'}];
+function rnFormItems(){
+  var f=stGet('renrakuForm',null);
+  if(!f||!Array.isArray(f.items))return RN_BASE.map(function(b){return {kind:'base',key:b.key};});
+  return f.items;
+}
+/* 園の独自の質問を1つ描く（短文・長文・単一選択・複数選択） */
+function rnQHTML(it,e){
+  var a=(e.ans||{})[it.id],lab='<label>'+esc(it.label||'')+(it.required?' <span class="rn-req">必須</span>':'')+'</label>'+(it.help?'<div class="hint">'+esc(it.help)+'</div>':'');
+  if(it.type==='long')return '<div class="field">'+lab+'<textarea data-rnq="'+esc(it.id)+'" rows="3" maxlength="1000" data-nolang="1">'+esc(a||'')+'</textarea></div>';
+  if(it.type==='single'||it.type==='multi'){var multi=it.type==='multi',sel=multi?(Array.isArray(a)?a:[]):[a];
+    if(multi)lab=lab.replace('</label>',' <small class="rn-multi">いくつでも選べます</small></label>');
+    return '<div class="field">'+lab+'<div class="seg rn-qs" data-rnqs="'+esc(it.id)+'" data-multi="'+(multi?1:0)+'">'
+      +(it.options||[]).map(function(o){return '<button type="button" data-v="'+esc(o)+'" class="'+(sel.indexOf(o)>-1?'on':'')+'" data-nolang="1">'+(multi?'<span class="rn-cb"></span>':'')+esc(o)+'</button>';}).join('')+'</div></div>';}
+  return '<div class="field">'+lab+'<input data-rnq="'+esc(it.id)+'" value="'+esc(a||'')+'" maxlength="200" data-nolang="1"></div>';
+}
 var renrakuDay=null,renrakuDone=false,RN_DRAFT=null;
 function renrakuAll(){var a=stGet('wa_renraku',[]);return Array.isArray(a)?a:[];}
 function renrakuOf(c,d){return renrakuAll().filter(function(x){return String(x.childId)===String(c.id)&&x.date===d;})[0]||null;}
 function rnDraft(c){
   var key=c.id+'|'+renrakuDay;
   if(!RN_DRAFT||RN_DRAFT.key!==key){var e=renrakuOf(c,renrakuDay)||{};RN_DRAFT={key:key,e:JSON.parse(JSON.stringify(e))};
-    ['sleeps','stools','meals'].forEach(function(k){if(!Array.isArray(RN_DRAFT.e[k]))RN_DRAFT.e[k]=[];});}
+    ['sleeps','stools','meals'].forEach(function(k){if(!Array.isArray(RN_DRAFT.e[k]))RN_DRAFT.e[k]=[];});
+    /* 送ってある答え（qa）を、質問ごとの下書き（ans）に戻す */
+    RN_DRAFT.e.ans={};(RN_DRAFT.e.qa||[]).forEach(function(q){RN_DRAFT.e.ans[q.id]=q.a;});}
   return RN_DRAFT.e;
 }
 function renrakuHTML(c){
@@ -4941,18 +4968,24 @@ function renrakuHTML(c){
     +'<div class="info" style="margin-bottom:10px;">前の夜から朝までの様子を園へお知らせください。先生が登園のときに読みます。園からのお返事は、下の「きょうの様子」に届きます。</div>'
     +'<div class="field"><label>日付</label><div class="seg" id="rn_day">'
       +[[t,'きょう'],[y,'きのう']].map(function(d){return '<button type="button" data-d="'+d[0]+'" class="'+(renrakuDay===d[0]?'on':'')+'">'+d[1]+'（'+esc(d[0].slice(5).replace('-','/'))+'）</button>';}).join('')+'</div></div>'
-    +'<div class="grid2"><div class="field"><label>体温（℃）</label><input id="rn_temp" type="number" step="0.1" min="34" max="42" inputmode="decimal" value="'+esc(e.temp||'')+'" placeholder="36.5"></div>'
-    +'<div class="field"><label>はかった時刻</label><input id="rn_tempAt" type="time" value="'+esc(e.tempAt||'')+'"></div></div>'
-    +'<div class="field"><label>機嫌</label><div class="seg" data-rnk="mood">'+[['よい','良'],['ふつう','普'],['よくない','悪']].map(function(x){return '<button type="button" data-v="'+x[0]+'" class="'+(e.mood===x[0]?'on':'')+'">'+x[1]+'</button>';}).join('')+'</div></div>'
-    +'<div class="field"><label>睡眠</label>'+rows('sleeps',function(x,i){return tm('sleeps',i,'from',x.from)+'〜'+tm('sleeps',i,'to',x.to);},'睡眠')+'</div>'
-    +'<div class="grid2"><div class="field"><label>入浴</label><input id="rn_bath" type="time" value="'+esc(e.bath||'')+'"></div><div></div></div>'
-    +'<div class="field"><label>排便</label>'+rows('stools',function(x,i){return tm('stools',i,'t',x.t)+sel('stools',i,'kind',x.kind||'ふつう',RN_STOOLK);},'排便')+'</div>'
-    +'<div class="field"><label>食事・薬・その他</label>'+rows('meals',function(x,i){return tm('meals',i,'t',x.t)+sel('meals',i,'kind',x.kind||'食事',RN_MEALK)+'<input data-rnl="meals|'+i+'|what" value="'+esc(x.what||'')+'" placeholder="例：おかゆ・なっとう" style="flex:1;min-width:140px;">';},'食事・薬')+'</div>'
-    +'<div class="grid2"><div class="field"><label>お迎えの人</label><input id="rn_pb" value="'+esc(e.pickupBy||'')+'" maxlength="30" placeholder="例：母"></div>'
-    +'<div class="field"><label>お迎えの時刻</label><input id="rn_pa" type="time" value="'+esc(e.pickupAt||'')+'"></div></div>'
-    +'<div class="grid2"><div class="field"><label>記入者</label><input id="rn_wr" value="'+esc(e.writer||'')+'" maxlength="30" placeholder="例：母"></div>'
-    +'<div class="field"><label>からだの気になるところ</label><input id="rn_body" value="'+esc(e.body||'')+'" maxlength="200" placeholder="例：右手首に虫さされ"></div></div>'
-    +'<div class="field"><label>家庭での様子・連絡</label><textarea id="rn_note" rows="3" maxlength="500" placeholder="例：元気です。家ではずっと抱っこかおんぶでした">'+esc(e.note||'')+'</textarea></div>'
+    /* ★項目は園が決めた並び（renrakuForm）で出す（2026-10-01）。基本の項目は外されていれば出さない。園の独自の質問もここに混ざる */
+    +rnFormItems().map(function(it){
+      if(it.kind==='custom')return rnQHTML(it,e);
+      return ({
+        temp:'<div class="grid2"><div class="field"><label>体温（℃）</label><input id="rn_temp" type="number" step="0.1" min="34" max="42" inputmode="decimal" value="'+esc(e.temp||'')+'" placeholder="36.5"></div>'
+      +'<div class="field"><label>はかった時刻</label><input id="rn_tempAt" type="time" value="'+esc(e.tempAt||'')+'"></div></div>',
+        mood:'<div class="field"><label>機嫌</label><div class="seg" data-rnk="mood">'+[['よい','良'],['ふつう','普'],['よくない','悪']].map(function(x){return '<button type="button" data-v="'+x[0]+'" class="'+(e.mood===x[0]?'on':'')+'">'+x[1]+'</button>';}).join('')+'</div></div>',
+        sleeps:'<div class="field"><label>睡眠</label>'+rows('sleeps',function(x,i){return tm('sleeps',i,'from',x.from)+'〜'+tm('sleeps',i,'to',x.to);},'睡眠')+'</div>',
+        bath:'<div class="grid2"><div class="field"><label>入浴</label><input id="rn_bath" type="time" value="'+esc(e.bath||'')+'"></div><div></div></div>',
+        stools:'<div class="field"><label>排便</label>'+rows('stools',function(x,i){return tm('stools',i,'t',x.t)+sel('stools',i,'kind',x.kind||'ふつう',RN_STOOLK);},'排便')+'</div>',
+        meals:'<div class="field"><label>食事・薬・その他</label>'+rows('meals',function(x,i){return tm('meals',i,'t',x.t)+sel('meals',i,'kind',x.kind||'食事',RN_MEALK)+'<input data-rnl="meals|'+i+'|what" value="'+esc(x.what||'')+'" placeholder="例：おかゆ・なっとう" style="flex:1;min-width:140px;">';},'食事・薬')+'</div>',
+        pickup:'<div class="grid2"><div class="field"><label>お迎えの人</label><input id="rn_pb" value="'+esc(e.pickupBy||'')+'" maxlength="30" placeholder="例：母"></div>'
+      +'<div class="field"><label>お迎えの時刻</label><input id="rn_pa" type="time" value="'+esc(e.pickupAt||'')+'"></div></div>',
+        writer:'<div class="field"><label>記入者</label><input id="rn_wr" value="'+esc(e.writer||'')+'" maxlength="30" placeholder="例：母"></div>',
+        body:'<div class="field"><label>からだの気になるところ</label><input id="rn_body" value="'+esc(e.body||'')+'" maxlength="200" placeholder="例：右手首に虫さされ"></div>',
+        note:'<div class="field"><label>家庭での様子・連絡</label><textarea id="rn_note" rows="3" maxlength="500" placeholder="例：元気です。家ではずっと抱っこかおんぶでした">'+esc(e.note||'')+'</textarea></div>'
+      })[it.key]||'';
+    }).join('')
     +'<button class="btn" id="rn_send">'+(renrakuOf(c,renrakuDay)?'書き直して送る':'園へ送る')+'</button>'
     +'<div id="rn_done" class="sent-ok'+(renrakuDone?'':' hide')+'">送りました。先生が読みます。</div>'
     +'</div>';
@@ -4963,10 +4996,20 @@ function wireRenraku(c){
   var e=rnDraft(c);
   /* 行を足す・消すときは画面を描き直すので、その前に入れた値を下書きへ移す */
   function collect(){
-    e.temp=$('rn_temp').value;e.tempAt=$('rn_tempAt').value;e.bath=$('rn_bath').value;
-    e.pickupBy=$('rn_pb').value;e.pickupAt=$('rn_pa').value;e.writer=$('rn_wr').value;e.body=$('rn_body').value;e.note=$('rn_note').value;
+    /* 園が外した項目は画面に無いので、あるものだけ読む（無い欄は下書きの値のまま） */
+    var v=function(id,k){var x=$(id);if(x)e[k]=x.value;else if(e[k]==null)e[k]='';};
+    v('rn_temp','temp');v('rn_tempAt','tempAt');v('rn_bath','bath');v('rn_pb','pickupBy');v('rn_pa','pickupAt');v('rn_wr','writer');v('rn_body','body');v('rn_note','note');
     document.querySelectorAll('[data-rnl]').forEach(function(x){var q=x.getAttribute('data-rnl').split('|'),r=(e[q[0]]||[])[+q[1]];if(r)r[q[2]]=x.value;});
+    /* 園の独自の質問（短文・長文） */
+    if(!e.ans)e.ans={};
+    document.querySelectorAll('[data-rnq]').forEach(function(x){e.ans[x.getAttribute('data-rnq')]=x.value;});
   }
+  /* 単一選択は押したものだけ・もう一度押すと外す。複数選択は押すたびに付け外し */
+  document.querySelectorAll('[data-rnqs]').forEach(function(sg){var id=sg.getAttribute('data-rnqs'),multi=sg.getAttribute('data-multi')==='1';
+    sg.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){if(!e.ans)e.ans={};var val=b.getAttribute('data-v');
+      if(multi){var a=Array.isArray(e.ans[id])?e.ans[id]:[];var k=a.indexOf(val);if(k>-1)a.splice(k,1);else a.push(val);e.ans[id]=a;}
+      else e.ans[id]=(e.ans[id]===val?'':val);
+      sg.querySelectorAll('[data-v]').forEach(function(x){var on=multi?(e.ans[id]||[]).indexOf(x.getAttribute('data-v'))>-1:x.getAttribute('data-v')===e.ans[id];x.classList.toggle('on',on);});};});});
   document.querySelectorAll('[data-rnk]').forEach(function(sg){var k=sg.getAttribute('data-rnk');
     sg.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){var v=b.getAttribute('data-v');e[k]=(e[k]===v?'':v);
       sg.querySelectorAll('[data-v]').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-v')===e[k]);});};});});
@@ -4978,10 +5021,22 @@ function wireRenraku(c){
     collect();
     var tf=parseFloat(e.temp);
     if(e.temp&&!(tf>=34&&tf<=42)){toast('体温は 34〜42 のあいだで入れてください');return;}
-    var o={childId:c.id,date:renrakuDay,temp:e.temp?String(tf):'',tempAt:e.tempAt,mood:e.mood||'',bath:e.bath,pickupBy:e.pickupBy.trim(),pickupAt:e.pickupAt,
-      writer:e.writer.trim(),body:e.body.trim(),note:e.note.trim(),at:new Date().toISOString(),
+    var o={childId:c.id,date:renrakuDay,temp:e.temp?String(tf):'',tempAt:e.tempAt,mood:e.mood||'',bath:e.bath,pickupBy:String(e.pickupBy||'').trim(),pickupAt:e.pickupAt,
+      writer:String(e.writer||'').trim(),body:String(e.body||'').trim(),note:String(e.note||'').trim(),at:new Date().toISOString(),
       sleeps:e.sleeps.filter(function(x){return x.from||x.to;}),stools:e.stools.filter(function(x){return x.t;}),meals:e.meals.filter(function(x){return x.t||x.what;})};
-    if(!o.temp&&!o.mood&&!o.bath&&!o.pickupBy&&!o.note&&!o.body&&!o.sleeps.length&&!o.stools.length&&!o.meals.length){toast('どれか1つ入れてから送ってください');return;}
+    /* 園の独自の質問への答え。質問の文も一緒に送る（あとで園が質問を直しても、その日の聞き方が残る） */
+    var miss='';
+    o.qa=rnFormItems().filter(function(it){return it.kind==='custom';}).map(function(it){
+      var a=(e.ans||{})[it.id];
+      if(it.type==='multi')a=(Array.isArray(a)?a:[]).filter(function(x){return (it.options||[]).indexOf(x)>-1;});
+      else if(it.type==='single')a=(it.options||[]).indexOf(a)>-1?a:'';
+      else a=String(a||'').trim();
+      var has=Array.isArray(a)?a.length:a;
+      if(it.required&&!has&&!miss)miss=it.label;
+      return has?{id:it.id,q:it.label,t:it.type,a:a}:null;
+    }).filter(Boolean);
+    if(miss){toast('「'+miss+'」に答えてください');return;}
+    if(!o.temp&&!o.mood&&!o.bath&&!o.pickupBy&&!o.note&&!o.body&&!o.sleeps.length&&!o.stools.length&&!o.meals.length&&!o.qa.length){toast('どれか1つ入れてから送ってください');return;}
     var a=renrakuAll().filter(function(x){return !(String(x.childId)===String(c.id)&&x.date===renrakuDay);});
     a.push(o);stSet('wa_renraku',a.slice(-600));RN_DRAFT=null;
     try{WSYNC.mark('wa_renraku');if(WAPI.online()){clearTimeout(WSYNC.timer);WSYNC.push();}}catch(er){}
@@ -5027,7 +5082,10 @@ function renrakuSheetHTML(home,park,opt){
       +'<div class="rn-kv"><b>お迎え</b><div data-nolang="1">'+esc([home.pickupBy||'',home.pickupAt||''].filter(Boolean).join('　'))+'</div></div>'
       +'<div class="rn-kv"><b>記入者</b><div data-nolang="1">'+esc(home.writer||'')+'</div></div>'
       +(home.body?'<div class="rn-kv"><b>からだ</b><div data-nolang="1">'+esc(home.body)+'</div></div>':'')
-      +'<div class="rn-note"><b>家庭での様子・連絡</b><div data-nolang="1">'+esc(home.note||'')+'</div></div></div>'
+      +'<div class="rn-note"><b>家庭での様子・連絡</b><div data-nolang="1">'+esc(home.note||'')+'</div></div>'
+      /* 園が足した質問への答え（質問の文は、答えた日のものを出す） */
+      +((home.qa||[]).length?'<div class="rn-qa">'+home.qa.map(function(q){return '<div class="rn-kv"><b data-nolang="1">'+esc(q.q||'')+'</b><div data-nolang="1">'+esc(Array.isArray(q.a)?q.a.join('・'):(q.a||''))+'</div></div>';}).join('')+'</div>':'')
+      +'</div>'
     +RN_BODY_FIG
     +'<div class="rn-side"><div class="rn-sh">園から</div>'
       +'<div class="rn-kv"><b>体温</b>'+temps(park.temps)+'</div>'
