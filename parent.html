@@ -7036,13 +7036,27 @@ function qrCardOpen(){
       try{if(typeof langApply==='function')langApply(bg);}catch(e){}
     }).catch(function(){bg.querySelector('.qrc').innerHTML='<div class="qrc-load">通信できませんでした。電波のよいところでもう一度お試しください。</div>';});
 }
+/* 登園・退園の方法（園が設定で選ぶ・2026-10-01）。qr＝QRだけ／button＝ボタンだけ／both＝両方 */
+function waTouenMode(){var m=((stGet('settings',{})||{}).touenMode)||'';return (m==='qr'||m==='button')?m:'both';}
 function checkinHTML(c){
-  var kids=chkKids(c),today=todayISO();
+  var kids=chkKids(c),today=todayISO(),mode=waTouenMode();
   var h='<div class="card" id="chkCard"><h2 class="sec sec-g">🚸 きょうの登園・降園</h2>'
     +'<div class="muted" style="margin-bottom:4px;"><b>'+esc(fmtDate(today))+'</b></div>'
-    +'<div class="muted" style="margin-bottom:12px;line-height:1.7;">園に着いたら「登園」、お迎えのときに「降園」を押してください。</div>'
-    /* 園の入口の端末で読む、ご家庭のQR（2026-09-30） */
-    +'<button type="button" class="qrc-open" id="qrcOpen"><span class="qrc-open-ic">▦</span><span><b>登降園のQRコード</b><small>園の入口の端末にかざすだけで登園・降園</small></span><span class="qrc-open-ar">›</span></button>';
+    +'<div class="muted" style="margin-bottom:12px;line-height:1.7;">'+(mode==='qr'?'園の入口の端末に、下の「登降園のQRコード」をかざしてください。1回目が登園、2回目が降園になります。':'園に着いたら「登園」、お迎えのときに「降園」を押してください。')+'</div>'
+    /* 園の入口の端末で読む、ご家庭のQR（2026-09-30）。園が「ボタンだけ」にしているときは出さない */
+    +(mode!=='button'?'<button type="button" class="qrc-open" id="qrcOpen"><span class="qrc-open-ic">▦</span><span><b>登降園のQRコード</b><small>園の入口の端末にかざすだけで登園・降園</small></span><span class="qrc-open-ar">›</span></button>':'');
+  /* QRだけの園：ボタンは出さず、園の端末で読んだ時刻（登園シート）だけを見せる */
+  if(mode==='qr'){
+    var sh=((stGet('rec_登園シート',{})||{})[today]||{}).rows||{};
+    kids.forEach(function(k,i){var r=sh[k.id]||sh[String(k.id)]||{};
+      h+='<div style="'+(i?'border-top:1px solid var(--line);margin-top:12px;padding-top:12px;':'margin-top:12px;')+'">'
+        +(kids.length>1?'<div style="font-weight:800;font-size:14.5px;margin-bottom:6px;">'+esc(childFullName(k))+'</div>':'')
+        +'<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline;font-size:15px;">'
+        +(r.come?'<span><span style="color:#2C5A12;font-weight:700;">登園</span> <b style="font-size:19px;">'+esc(r.come)+'</b></span>'
+          +(r.leave?'<span><span style="color:#0C447C;font-weight:700;">降園</span> <b style="font-size:19px;">'+esc(r.leave)+'</b></span>':''):'<span class="muted">まだ記録がありません</span>')
+        +'</div></div>';});
+    return h+'</div>';
+  }
   kids.forEach(function(k,i){
     var st=chkStateOf(k.id),abs=chkAbsentToday(k);
     h+='<div style="'+(i?'border-top:1px solid var(--line);margin-top:14px;padding-top:14px;':'')+'">';
