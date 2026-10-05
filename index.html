@@ -29055,7 +29055,8 @@ function edTouen(){
         +touenTimeHtml(r)
         +touenCiLateHtml(recDate,c.id,r,d)
         /* 保護者からの連絡で入った印と、先生の入力と食い違っている印 */
-        +(r.attSrc==='保護者'?'<span class="tag" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'保護者からの連絡で入りました。押せば直せます。')+'" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:5px;font-size:10.5px;">保護者</span>':'')
+        /* ★未来WAで押した登園は、時刻の行にもう「保護者」の札が付いている。同じ札が2つ並ばないよう、そのときは出さない（2026-10-05） */
+        +(r.attSrc==='保護者'&&!(r.attCi&&(r.comeSrc==='保護者'||r.leaveSrc==='保護者'))?'<span class="tag" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'保護者からの連絡で入りました。押せば直せます。')+'" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:5px;font-size:10.5px;">保護者</span>':'')
         +(r.attDiff?'<span class="tag" title="保護者からは「'+esc(r.attDiff)+'」と連絡が届いています" style="background:#FCEBEB;border-color:#E8C9C9;color:#A32D2D;margin-left:5px;font-size:10.5px;">連絡は'+esc(r.attDiff)+'</span>':'')
         +'</td>'+
       '<td><input data-tt="'+esc(c.id)+'" data-temp36="1" type="number" inputmode="decimal" step="0.1" value="'+esc((r.temp||''))+'" style="width:80px;" placeholder="36.5"></td>'+
@@ -34829,9 +34830,10 @@ function touenDayView(date,d){
 function touenTimeHtml(r){
   if(!r||(!r.come&&!r.leave))return '';
   var fromP=(r.comeSrc==='保護者'||r.leaveSrc==='保護者');
-  return '<div class="row-sub" style="font-size:10.5px;white-space:nowrap;">'
-    +esc(r.come||'—')+(r.leave?'〜'+esc(r.leave):'')
-    +(fromP?'<span class="tag" title="保護者が未来WAで押した時刻です。先生が確定すると、この時刻で残ります。" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;margin-left:4px;font-size:9.5px;padding:0 5px;">保護者</span>':'')
+  /* 時刻と札の高さをそろえる（2026-10-05 安田さん「書体ずれているのが少し気になる」）。数字は等幅で */
+  return '<div class="row-sub" style="font-size:10.5px;white-space:nowrap;display:flex;align-items:center;gap:4px;margin-top:3px;">'
+    +'<span style="font-variant-numeric:tabular-nums;line-height:18px;">'+esc(r.come||'—')+(r.leave?'〜'+esc(r.leave):'')+'</span>'
+    +(fromP?'<span class="tag" title="保護者が未来WAで押した時刻です。先生が確定すると、この時刻で残ります。" style="background:#FAEEDA;border-color:#E9C88B;color:#854F0B;font-size:10.5px;line-height:16px;padding:0 6px;">保護者</span>':'')
     +'</div>';
 }
 /* 記録に入っていない、保護者が未来WAで押した時刻。記録には混ぜず、画面にだけ一言出す。
