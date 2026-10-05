@@ -20994,10 +20994,16 @@ function waManualLoad(){
      あとから出すときは空欄にして「園からお伝えしたもの」と書く
    ・アカウントはお子さま1人に1つなので、ご家族は同じIDで入っていただく旨を載せる
    Claude Opus 5.5 */
+/* 未来WAの住所。Miralink が mirai-wa.com の下（miralink.mirai-wa.com）で動いているときは https://mirai-wa.com/、
+   それ以外（github.io・手元の試し）は、これまでどおり同じ場所の parent.html（2026-10-05） */
+function waBaseUrl(){
+  if(/(^|\.)mirai-wa\.com$/i.test(location.hostname))return 'https://mirai-wa.com/';
+  return location.origin+location.pathname.replace(/[^\/]*$/,'')+'parent.html';
+}
 function waAppUrl(){
   var q=[];
   try{ var b=API.base(),t=(API.tenant()||{}).code; if(b)q.push('api='+encodeURIComponent(b)); if(t)q.push('tenant='+encodeURIComponent(t)); }catch(e){}
-  return location.origin+location.pathname.replace(/[^\/]*$/,'')+'parent.html'+(q.length?'?'+q.join('&'):'');
+  return waBaseUrl()+(q.length?'?'+q.join('&'):'');
 }
 var WAG_CSS=''
   +'.wag{-webkit-print-color-adjust:exact;print-color-adjust:exact;font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:#23262E;background:#fff;max-width:720px;margin:0 auto;}'
@@ -21512,7 +21518,7 @@ function psFlyerSet(id,o){var a=stGet('psFlyer',{})||{};a[String(id)]=o;stSet('p
 function psWaPhotoUrl(key){
   var q='photo=1'+(key?'&key='+encodeURIComponent(key):'');
   try{ var b=API.base(),t=(API.tenant()||{}).code; if(b)q+='&api='+encodeURIComponent(b); if(t)q+='&tenant='+encodeURIComponent(t); }catch(e){}
-  return location.origin+location.pathname.replace(/[^\/]*$/,'')+'parent.html?'+q;
+  return waBaseUrl()+'?'+q;
 }
 function psDrawOne(s){
   var e=PS.ev, boss=(typeof isBoss==='function')?isBoss():true;
