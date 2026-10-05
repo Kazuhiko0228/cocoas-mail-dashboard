@@ -642,6 +642,13 @@
   .qrc-sub{position:relative;margin-top:4px;font-size:11.5px;opacity:.9;line-height:1.6;}
   .qrc-load{color:#fff;padding:60px 10px;font-weight:700;}
   .qrc-close{border:0;background:#fff;color:#C43478;font-weight:800;font-size:15px;border-radius:99px;padding:12px 36px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.18);}
+
+/* 保育料のカード払い（2026-10-05） */
+.wtui{border:1px solid #D7E6F2;background:#F4F9FD;border-radius:14px;padding:12px 14px;margin-bottom:12px;}
+.wtui-btns{display:flex;gap:8px;margin-top:8px;}
+.wtui-btns .btn{width:auto;flex:0 0 auto;padding:5px 12px;font-size:12.5px;min-height:0;}
+.wtui-up{margin-top:8px;font-size:13px;background:#fff;border-radius:10px;padding:7px 10px;}
+.wtui-ng{margin-top:10px;background:#FCEBEB;color:#A32D2D;border-radius:10px;padding:10px 12px;}
 </style>
 </head>
 <body>
@@ -1423,6 +1430,7 @@ var tab='school', authView='login', resetEmail='';
 function isGuest(){return sessionStorage.getItem('cocoas_wa_guest')==='1';}
 var lastTab=null;
 function render(){
+  setTimeout(function(){try{wtuiWire();}catch(e){}},0);
   var c=sessionChild();
   /* 上の帯「デモ版（プロトタイプ）｜ログイン・データはこの端末内のみ」は、園とつながっていないときだけ出す。
      ★つながっているときも出していたので、園でお預かりしている本物の内容・園に確かめるログインの上に、
@@ -4976,7 +4984,7 @@ var EN_DICT={
 'もう一度登園にする':'Record drop-off again',
 'まだ園に届いていない登園・降園があります。ログアウトすると、この端末から消えます。よろしいですか？':'Some drop-off/pick-up records haven’t reached the school yet. Logging out will remove them from this device. Continue?',
 '園に着いたら、いちばん上の「🚸 きょうの登園・降園」で「登園」を、お迎えのときに「降園」を押します。':'When you arrive, tap “Drop-off” in “🚸 Today’s drop-off & pick-up” at the top; tap “Pick-up” when you collect your child.',
-'📅 園のカレンダー':'📅 School calendar','更新':'New','今日':'Today','これからの予定':'Coming up','持ち物':'Bring','📱 iPhone などのカレンダーに追加':'📱 Add to phone calendar','Google カレンダーに追加':'Add to Google Calendar','📅 園のカレンダーを更新しました':'📅 The school calendar was updated','「スクール」の「園のカレンダー」でご確認ください。予定を押すと、スマホのカレンダーに追加できます。':'See "School calendar" on the School tab. Tap an event to add it to your phone calendar.','気になる所を押すと、番号の印が付きます（10か所まで）':'Tap a spot to add a numbered mark (up to 10)','いくつでも選べます':'Choose all that apply','押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
+'📅 園のカレンダー':'📅 School calendar','更新':'New','今日':'Today','これからの予定':'Coming up','持ち物':'Bring','📱 iPhone などのカレンダーに追加':'📱 Add to phone calendar','Google カレンダーに追加':'Add to Google Calendar','📅 園のカレンダーを更新しました':'📅 The school calendar was updated','「スクール」の「園のカレンダー」でご確認ください。予定を押すと、スマホのカレンダーに追加できます。':'See "School calendar" on the School tab. Tap an event to add it to your phone calendar.','気になる所を押すと、番号の印が付きます（10か所まで）':'Tap a spot to add a numbered mark (up to 10)','カードで自動のお支払い':'Automatic card payment','カードを変える':'Change card','カードで自動のお支払いにできます':'You can pay automatically by card','カードを1回登録すると、毎月の保育料が支払期日に自動で引き落とされます。振込の手間がなくなります。カード番号は決済会社（Stripe）のページで入れていただき、園には届きません。':'Register a card once and the monthly tuition is charged automatically on the due date — no more bank transfers. You enter the card number on the payment company (Stripe) page; the school never sees it.','カードを登録する':'Register card','いま払い直す':'Pay now','を登録カードから引き落とします':'will be charged to your card','月分':' month','カードでお支払い済み':'Paid by card','カードで引き落とせませんでした':'Card charge failed','登録カードから引き落とします':'Will be charged to your card','カードを登録しました':'Card registered','カードの登録をやめました':'Card registration cancelled','お支払いをやめました':'Payment cancelled','カードでのお支払いをやめました':'Card payments turned off','お支払いが済みました':'Payment complete','お支払いを確かめています。少しあとでもう一度ご覧ください':'Checking your payment. Please look again shortly.','有効期限':'Expires','いくつでも選べます':'Choose all that apply','押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
 };
 
 
@@ -7454,15 +7462,78 @@ function growthHTML(c){
 
 
 /* ---- 請求（園からの請求書） ---- */
+/* ══ 保育料のカード払い（2026-10-05）══════════════
+   カードを1回登録すると、園が送った請求書の金額が支払期日に自動で引き落とされる。
+   カード番号は Stripe のページにしか無い（この画面・園・BJ のサーバは触らない）。
+   引き落とせなかったときは、ここから払い直せる（カード会社の確認もそのページで済む）。 */
+var WTUI={data:null,busy:false,at:0};
+function wtuiLoad(force){
+  if(!WAPI.online()||WTUI.busy)return;
+  if(!force&&WTUI.data&&Date.now()-WTUI.at<60000)return;
+  WTUI.busy=true;
+  WAPI.call('GET','/parent/tuition').then(function(j){WTUI.data=j;WTUI.at=Date.now();},function(){}).then(function(){WTUI.busy=false;try{render();}catch(e){}});
+}
+function wtuiPay(mk,cid){
+  var d=WTUI.data,hit=null;if(!d)return null;
+  (d.payments||[]).forEach(function(p){if(!hit&&p.kind==='請求書'&&p.month===mk&&(p.childIds||[]).indexOf(String(cid))>-1&&p.status!=='取消')hit=p;});
+  return hit;
+}
+function wtuiCardHTML(){
+  var d=WTUI.data;if(!d||!d.available)return '';
+  var pr=d.practice?'<div><span style="display:inline-block;background:#FAEEDA;color:#854F0B;border-radius:99px;padding:1px 8px;font-size:10.5px;font-weight:700;margin-top:3px;">お試し：実際の請求はありません</span></div>':'';
+  var ng=(d.payments||[]).filter(function(p){return p.status==='失敗';});
+  var h='<div class="wtui">';
+  if(d.card){
+    h+='<div style="display:flex;align-items:flex-start;gap:10px;"><span style="font-size:22px;line-height:1.2;">💳</span><div style="flex:1;min-width:0;"><div style="font-weight:700;">カードで自動のお支払い</div>'+pr
+      +'<div class="muted" style="font-size:12.5px;margin-top:2px;"><span data-nolang="1">'+esc(String(d.card.brand||'').toUpperCase())+' •••• '+esc(d.card.last4||'')+'</span>'+(d.card.exp?'　<span>有効期限</span> <span data-nolang="1">'+esc(d.card.exp)+'</span>':'')+'</div>'
+      +'<div class="wtui-btns"><button class="btn sec" id="wtuiChange">カードを変える</button><button class="btn sec" id="wtuiOff">やめる</button></div></div></div>';
+    (d.upcoming||[]).forEach(function(u){if(!u.due)return;
+      h+='<div class="wtui-up">📅 <b>'+esc(u.due.slice(5).replace('-','/'))+'</b> <span>に</span> <b>¥'+Number(u.amount||0).toLocaleString()+'</b> <span>を登録カードから引き落とします</span>（'+(+u.month.split('-')[1])+'<span>月分</span>）</div>';});
+  }else{
+    h+='<div style="font-weight:700;">💳 カードで自動のお支払いにできます</div>'+pr
+      +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin:4px 0 10px;">カードを1回登録すると、毎月の保育料が支払期日に自動で引き落とされます。振込の手間がなくなります。カード番号は決済会社（Stripe）のページで入れていただき、園には届きません。</div>'
+      +'<button class="btn" id="wtuiAdd">カードを登録する</button>';
+  }
+  ng.forEach(function(p){
+    h+='<div class="wtui-ng"><div style="font-weight:700;">⚠️ <span data-nolang="1">'+esc(p.name||'')+'</span>　¥'+Number(p.amount||0).toLocaleString()+'</div>'
+      +'<div style="font-size:12.5px;margin:3px 0 8px;">'+esc(p.error||'カードでお支払いできませんでした。')+'</div>'
+      +'<button class="btn" data-wtuipay="'+esc(p.id)+'" style="padding:6px 14px;font-size:13px;">いま払い直す</button></div>';});
+  return h+'</div>';
+}
+function wtuiWire(){
+  var ret=location.origin+location.pathname.replace(/\/(index\.html)?$/,'/parent.html');
+  var go=function(btn){btn.disabled=true;WAPI.call('POST','/parent/tuition/card',{returnUrl:ret}).then(function(j){
+    if(j.url){location.href=j.url;return;}
+    toast(langMsg('カードを登録しました（お試し）'));wtuiLoad(true);
+  }).catch(function(e){btn.disabled=false;alert(e.message);});};
+  var a=document.getElementById('wtuiAdd');if(a)a.onclick=function(){go(a);};
+  var c=document.getElementById('wtuiChange');if(c)c.onclick=function(){go(c);};
+  var o=document.getElementById('wtuiOff');if(o)o.onclick=function(){
+    if(!confirm('カードでの自動のお支払いをやめますか？\nやめたあとは、これまでどおり振込でのお支払いになります。'))return;
+    WAPI.call('DELETE','/parent/tuition/card').then(function(){toast(langMsg('カードでのお支払いをやめました'));wtuiLoad(true);}).catch(function(e){alert(e.message);});
+  };
+  document.querySelectorAll('[data-wtuipay]').forEach(function(b){b.onclick=function(){
+    b.disabled=true;
+    WAPI.call('POST','/parent/tuition/payments/'+b.getAttribute('data-wtuipay')+'/pay',{returnUrl:ret}).then(function(j){
+      if(j.url){location.href=j.url;return;}
+      toast(langMsg('お支払いが済みました（お試し）'));wtuiLoad(true);
+    }).catch(function(e){b.disabled=false;alert(e.message);});
+  };});
+}
 function billHTML(c){
+  wtuiLoad(false);
   var all=stGet('invoices',{})||{};
   var months=Object.keys(all).sort().reverse();
   var rows=[];
   months.forEach(function(mk){var r=(all[mk]||{})[c.id];if(r&&['送付済','入金済'].indexOf(r.status)>-1)rows.push({mk:mk,r:r});});
-  var head='<div class="card"><h2 class="sec sec-b">💴 保育料のご請求</h2>';
+  var head='<div class="card"><h2 class="sec sec-b">💴 保育料のご請求</h2>'+wtuiCardHTML();
   if(!rows.length)return head+'<div class="empty">現在お知らせしている請求はありません。<br>発行されるとこちらに表示されます。</div></div>';
   return head+rows.map(function(x){
-    var paid=x.r.status==='入金済';
+    var tp=wtuiPay(x.mk,c.id),cardPaid=!!(tp&&tp.status==='支払済');
+    var paid=x.r.status==='入金済'||cardPaid;
+    var note=cardPaid?'カードでお支払い済み'+(tp.mode==='練習'?'（お試し）':'')
+      :(tp&&tp.status==='失敗')?'カードで引き落とせませんでした'
+      :(WTUI.data&&WTUI.data.card&&x.r.status==='送付済'&&x.r.due)?'登録カードから引き落とします':'';
     var L=[];var P=(stGet('settings',{})||{}).pricing||{plans:{}};
     return '<div style="border:1px solid #e7e8e3;border-radius:14px;padding:13px 15px;margin-bottom:10px;">'
       +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
@@ -7473,6 +7544,7 @@ function billHTML(c){
          英語にしても見出しごと日本語のまま残っていた。見出しと日付を分ける。 */
       +'<div class="muted" style="font-size:12.5px;"><span>お支払期日：</span>'
         +'<span>'+esc(x.r.due?x.r.due:'園からのご案内をご確認ください')+'</span></div>'
+      +(note?'<div style="font-size:12.5px;margin-top:4px;color:'+(tp&&tp.status==='失敗'?'#A32D2D':'#1D5E86')+';">💳 <span>'+note+'</span></div>':'')
       +'</div>';
   }).join('')+'<div class="muted" style="margin-top:6px;font-size:12px;">内訳・お振込先は、園からの「おたより」または「メッセージ」でご案内します。ご不明な点は「メッセージ」からお問い合わせください。</div></div>';
 }
@@ -9089,6 +9161,23 @@ var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
     q.delete('photo');q.delete('key');
     history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():''));
     if(typeof tab!=='undefined')tab='school';
+  }catch(e){}
+})();
+
+/* 保育料のカード払い：カードの登録・払い直しのページから戻ってきたとき（2026-10-05）。
+   ?card=ok&sid=… は、サーバがセッションを確かめてからカードを残す。?tui=ok&id=… は払い直しの結果を確かめる。読んだら URL から消す */
+(function(){
+  try{
+    var q=new URLSearchParams(location.search),c=q.get('card'),sid=q.get('sid'),t=q.get('tui'),id=q.get('id');
+    if(c===null&&t===null)return;
+    q.delete('card');q.delete('sid');if(t!==null){q.delete('tui');q.delete('id');}
+    history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():''));
+    var after=function(msg){WTUI.at=0;setTimeout(function(){toast(langMsg(msg));wtuiLoad(true);},600);};
+    var wait=function(fn){var n=0;var tm=setInterval(function(){if(WAPI.online()||++n>20){clearInterval(tm);if(WAPI.online())fn();}},300);};
+    if(c==='ok'&&sid&&/^cs_[A-Za-z0-9_]{1,200}$/.test(sid))wait(function(){WAPI.call('POST','/parent/tuition/card/confirm',{sid:sid}).then(function(){after('カードを登録しました');},function(e){alert(e.message);});});
+    else if(c==='cancel')after('カードの登録をやめました');
+    if(t==='ok'&&id&&/^[0-9]{1,18}$/.test(id))wait(function(){WAPI.call('GET','/parent/tuition/payments/'+id).then(function(j){after(j.payment&&j.payment.status==='支払済'?'お支払いが済みました':'お支払いを確かめています。少しあとでもう一度ご覧ください');},function(e){alert(e.message);});});
+    else if(t==='cancel')after('お支払いをやめました');
   }catch(e){}
 })();
 

@@ -462,10 +462,37 @@ function payLines(x){
   }).join('　／　');
 }
 
+/* ══ 保育料のカード払い（Stripe Connect・2026-10-05）══════════
+   園→保護者の保育料。お金は園の Stripe に直接入り、BJ は手数料（application_fee）だけを受け取る。
+   ここで決めるのは手数料：全園の既定（率＋1回あたりの額）。園ごとに変えるときは、園の画面の契約で上書きする。 */
+function tuiAdminHTML(){
+  var t=DATA.tui;
+  if(!t)return '<div class="card"><h2>保育料のカード払い</h2><div class="lead">読み込めませんでした'+(DATA.tuiErr?'：'+esc(DATA.tuiErr):'')+'</div></div>';
+  var f=t.fee||{},list=t.tenants||[];
+  var yen=function(n){return '¥'+Number(n||0).toLocaleString();};
+  var on=list.filter(function(x){return x.state==='有効';});
+  return '<div class="card"><h2>保育料のカード払い（Stripe Connect）</h2>'
+    +'<div class="lead">保護者が未来WAでカードを登録すると、園の請求書の金額が支払期日に自動で引き落とされます。お金は園の Stripe に直接入り、BJ には下の手数料だけが入ります（園の入金から差し引き）。</div>'
+    +'<div style="margin:10px 0;font-size:12.5px;">いまの状態：<b>'+esc(t.paused?'止めています（'+t.mode+'）':t.mode==='練習'?'お試し（Stripe の鍵が未設定。実際の請求はありません）':t.mode)+'</b></div>'
+    +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">'
+      +'<div class="f" style="margin:0;"><label>手数料の率（％・全園の既定）</label><input id="tfPct" class="num" inputmode="decimal" value="'+esc(f.percent||0)+'" style="width:120px;"></div>'
+      +'<div class="f" style="margin:0;"><label>1回あたりの額（円・全園の既定）</label><input id="tfYen" class="num" inputmode="numeric" value="'+esc(f.yen||0)+'" style="width:140px;"></div>'
+      +'<button class="pri" id="tfSave">既定を保存</button><span class="msg" id="tfMsg"></span></div>'
+    +'<div class="note">例：3% と 50円 なら、30,000円の引き落としで 950円（900円＋50円）が BJ に入ります。園ごとに変えるときは、園の画面の「契約」で上書きしてください（空欄＝この既定）。'
+      +'カード会社への決済手数料（Stripe）は、これとは別に園の入金から差し引かれます。</div>'
+    +'<div style="overflow-x:auto;margin-top:12px;"><table><thead><tr><th>園</th><th>状態</th><th>手数料</th><th style="text-align:right;">カード登録</th><th style="text-align:right;">30日の引き落とし</th><th style="text-align:right;">30日の手数料</th><th style="text-align:right;">落ちなかった</th></tr></thead><tbody>'
+    +list.map(function(x){var own=x.feePercent!=null||x.feeYen!=null;
+      return '<tr><td>'+esc(x.name)+' <span style="color:var(--mute);font-size:11px;">'+esc(x.code)+'</span></td><td>'+esc(x.state)+'</td>'
+        +'<td>'+(own?esc((x.feePercent!=null?x.feePercent:f.percent)+'%＋'+yen(x.feeYen!=null?x.feeYen:f.yen))+' <span style="font-size:11px;color:#854F0B;">園ごと</span>':'<span style="color:var(--mute);">既定</span>')+'</td>'
+        +'<td style="text-align:right;">'+x.cards+'</td><td style="text-align:right;">'+yen(x.paid30)+'</td><td style="text-align:right;">'+yen(x.fee30)+'</td>'
+        +'<td style="text-align:right;'+(x.failed?'color:#A32D2D;font-weight:700;':'')+'">'+x.failed+'</td></tr>';}).join('')
+    +'</tbody></table></div>'
+    +'<div class="note">有効な園：'+on.length+' 園。売上の明細・返金は、各園の Stripe の画面（Express）で行います。</div></div>';
+}
 function payHTML(){
   var d=DATA.pay||{}, rows=d.payments||[];
   var STS=['','支払待ち','支払済','要確認','一部返金','返金','期限切れ','取消'];
-  var h=payStatusCard()
+  var h=tuiAdminHTML()+payStatusCard()
     +'<div class="card"><h2>保護者のカード払い</h2>'
     +'<div class="lead">未来WAストア・写真販売で保護者がお支払いになったものの台帳です。保育料はここには載りません。</div>'
     +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;">'
@@ -797,6 +824,11 @@ function tenantHTML(){
     +'<div class="f"><label>ストアの運営手数料（％）</label><input id="c_sfee" class="num" inputmode="numeric" placeholder="0＝仮の率" value="'+esc(c.store_fee_percent==null?'':c.store_fee_percent)+'"></div>'
     +'<div class="f"><label>ストアの園への還元（％）</label><input id="c_sback" class="num" inputmode="numeric" placeholder="0＝園の設定（既定20%）" value="'+esc(c.store_back_percent==null?'':c.store_back_percent)+'"></div>'
     +'</div>'
+    /* 保育料のカード払いの手数料（この園だけ変えるとき。空欄＝運営の既定・決済タブ） */
+    +'<div class="grid3">'
+    +'<div class="f"><label>保育料カード払いの手数料（％）</label><input id="c_tfee" class="num" inputmode="decimal" placeholder="空欄＝既定" value="'+esc(c.tuition_fee_percent==null?'':c.tuition_fee_percent)+'"></div>'
+    +'<div class="f"><label>保育料カード払い 1回あたり（円）</label><input id="c_tyen" class="num" inputmode="numeric" placeholder="空欄＝既定" value="'+esc(c.tuition_fee_yen==null?'':c.tuition_fee_yen)+'"></div>'
+    +'<div class="f"></div></div>'
     +'<div class="note">初期費用とストアの率は、まだ決まっていないので 0 のままにしてあります。'
     +'0 のあいだは、いままでと同じ請求です。決まったらここに入れてください。'
     +'手数料と還元を足して100%を超えると、出品者の取り分がなくなるので保存できません。<br>'
@@ -1485,6 +1517,8 @@ function load(){
       API.call('GET','/admin/pay/status').then(function(j){DATA.pstat=j;DATA.pstatErr='';})
         .catch(function(e){DATA.pstat=null;DATA.pstatErr=e.message;}),
       API.call('GET','/admin/payments'+qs).then(function(j){DATA.pay=j;}),
+      /* 保育料のカード払い（Connect）の手数料と園ごとの状態 */
+      API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;}),
       /* 通知の受信履歴。この口が無いサーバでは黙って出さない */
       API.call('GET','/admin/billing/events?limit=30').then(function(j){DATA.pevents=(j&&j.events)||null;})
         .catch(function(){DATA.pevents=null;})
@@ -1522,6 +1556,15 @@ function render(){
 function say(id,t,ok){var e=$(id);if(!e)return;e.textContent=t;e.className='msg '+(ok?'ok':'ng');}
 
 function wire(){
+  /* 保育料のカード払い：全園の既定の手数料 */
+  if($('tfSave'))$('tfSave').onclick=function(){
+    var pct=Number($('tfPct').value),yn=Number($('tfYen').value);
+    if(!(pct>=0&&pct<=30)){say('tfMsg','率は 0〜30 の％で入れてください');return;}
+    if(!(yn>=0&&yn<=10000&&Math.floor(yn)===yn)){say('tfMsg','1回あたりの額は 0〜10,000 円の整数で入れてください');return;}
+    if(!confirm('保育料のカード払いの手数料（全園の既定）を '+pct+'% ＋ '+yn+'円 にします。\n園ごとに上書きしていない園は、次の引き落としからこの額になります。よろしいですか？'))return;
+    say('tfMsg','保存中…',true);
+    API.call('PUT','/admin/tuition/fee',{percent:pct,yen:yn}).then(function(){render();}).catch(function(e){say('tfMsg',e.message);});
+  };
   /* 契約書 */
   document.querySelectorAll('[data-doc]').forEach(function(b){b.onclick=function(){
     var kind=b.getAttribute('data-doc');
@@ -1627,6 +1670,9 @@ function wire(){
       initial_fee_yen:v('c_init')===''?'':+v('c_init'),
       store_fee_percent:v('c_sfee')===''?'':+v('c_sfee'),
       store_back_percent:v('c_sback')===''?'':+v('c_sback'),
+      /* 空欄は「既定に従う」（サーバが null で残す） */
+      tuition_fee_percent:v('c_tfee')===''?'':+v('c_tfee'),
+      tuition_fee_yen:v('c_tyen')===''?'':+v('c_tyen'),
       note:v('c_note')
     }).then(function(){render();}).catch(function(e){say('sm',e.message);});
   };
