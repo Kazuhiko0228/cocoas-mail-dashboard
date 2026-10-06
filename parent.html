@@ -2016,6 +2016,8 @@ function loginHTML(){
     +'<div style="text-align:right;margin-bottom:6px;">'+langToggleHTML()+'</div>'
     +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div>'+(waSchoolSet()?'<div class="sub" style="margin-top:8px;">'+esc(waSchoolSet())+'</div>':'')+'</div>'
     +'<div class="err" id="loginErr"></div>'
+    /* 園コードが分からないとき（住所を打って来た・案内の二次元コードを使っていない）は、ここで聞く */
+    +(WAPI.enabled()&&!WAPI.tenant()?'<div class="field"><label>園コード</label><input id="li_tenant" placeholder="園からの案内に書いてあります" autocapitalize="none" autocorrect="off" spellcheck="false"></div>':'')
     +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<div class="field"><label>パスワード</label><input id="li_pw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<button class="btn" id="li_go">ログイン</button>'
@@ -2063,11 +2065,14 @@ function wireAuth(){
   if(authView==='login'){
     $('li_go').onclick=function(){
       var b=$('li_go'),e=$('loginErr');
+      var tc=$('li_tenant');
+      if(tc){var tv=String(tc.value||'').trim();if(!tv){e.textContent='園コードを入れてください（園からの案内に書いてあります）。';e.style.display='block';return;}WAPI.setTenant(tv);}
       e.style.display='none';b.disabled=true;b.textContent='確認中…';
       login($('li_email').value.toLowerCase(),$('li_pw').value,function(ok){
         b.disabled=false;b.textContent='ログイン';
         if(ok){render();return;}
-        e.textContent='メールアドレスまたはパスワードが違います。';e.style.display='block';
+        e.textContent=tc?'園コード・メールアドレス・パスワードのどれかが違います。':'メールアドレスまたはパスワードが違います。';e.style.display='block';
+        if(tc)WAPI.setTenant('');
       });
     };
     $('li_pw').addEventListener('keydown',function(e){if(e.key==='Enter')$('li_go').click();});
@@ -4984,7 +4989,7 @@ var EN_DICT={
 'もう一度登園にする':'Record drop-off again',
 'まだ園に届いていない登園・降園があります。ログアウトすると、この端末から消えます。よろしいですか？':'Some drop-off/pick-up records haven’t reached the school yet. Logging out will remove them from this device. Continue?',
 '園に着いたら、いちばん上の「🚸 きょうの登園・降園」で「登園」を、お迎えのときに「降園」を押します。':'When you arrive, tap “Drop-off” in “🚸 Today’s drop-off & pick-up” at the top; tap “Pick-up” when you collect your child.',
-'📅 園のカレンダー':'📅 School calendar','更新':'New','今日':'Today','これからの予定':'Coming up','持ち物':'Bring','📱 iPhone などのカレンダーに追加':'📱 Add to phone calendar','Google カレンダーに追加':'Add to Google Calendar','📅 園のカレンダーを更新しました':'📅 The school calendar was updated','「スクール」の「園のカレンダー」でご確認ください。予定を押すと、スマホのカレンダーに追加できます。':'See "School calendar" on the School tab. Tap an event to add it to your phone calendar.','気になる所を押すと、番号の印が付きます（10か所まで）':'Tap a spot to add a numbered mark (up to 10)','カードで自動のお支払い':'Automatic card payment','カードを変える':'Change card','カードで自動のお支払いにできます':'You can pay automatically by card','カードを1回登録すると、毎月の保育料が支払期日に自動で引き落とされます。振込の手間がなくなります。カード番号は決済会社（Stripe）のページで入れていただき、園には届きません。':'Register a card once and the monthly tuition is charged automatically on the due date — no more bank transfers. You enter the card number on the payment company (Stripe) page; the school never sees it.','カードを登録する':'Register card','いま払い直す':'Pay now','を登録カードから引き落とします':'will be charged to your card','月分':' month','カードでお支払い済み':'Paid by card','カードで引き落としできませんでした':'Card charge failed','登録カードから引き落とします':'Will be charged to your card','カードを登録しました':'Card registered','カードの登録をやめました':'Card registration cancelled','お支払いをやめました':'Payment cancelled','カードでのお支払いをやめました':'Card payments turned off','お支払いが済みました':'Payment complete','お支払いを確かめています。少しあとでもう一度ご覧ください':'Checking your payment. Please look again shortly.','有効期限':'Expires','いくつでも選べます':'Choose all that apply','押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
+'📅 園のカレンダー':'📅 School calendar','更新':'New','今日':'Today','これからの予定':'Coming up','持ち物':'Bring','📱 iPhone などのカレンダーに追加':'📱 Add to phone calendar','Google カレンダーに追加':'Add to Google Calendar','📅 園のカレンダーを更新しました':'📅 The school calendar was updated','「スクール」の「園のカレンダー」でご確認ください。予定を押すと、スマホのカレンダーに追加できます。':'See "School calendar" on the School tab. Tap an event to add it to your phone calendar.','気になる所を押すと、番号の印が付きます（10か所まで）':'Tap a spot to add a numbered mark (up to 10)','カードで自動のお支払い':'Automatic card payment','カードを変える':'Change card','カードで自動のお支払いにできます':'You can pay automatically by card','カードを1回登録すると、毎月の保育料が支払期日に自動で引き落とされます。振込の手間がなくなります。カード番号は決済会社（Stripe）のページで入れていただき、園には届きません。':'Register a card once and the monthly tuition is charged automatically on the due date — no more bank transfers. You enter the card number on the payment company (Stripe) page; the school never sees it.','カードを登録する':'Register card','いま払い直す':'Pay now','を登録カードから引き落とします':'will be charged to your card','月分':' month','カードでお支払い済み':'Paid by card','カードで引き落としできませんでした':'Card charge failed','登録カードから引き落とします':'Will be charged to your card','カードを登録しました':'Card registered','カードの登録をやめました':'Card registration cancelled','お支払いをやめました':'Payment cancelled','カードでのお支払いをやめました':'Card payments turned off','お支払いが済みました':'Payment complete','お支払いを確かめています。少しあとでもう一度ご覧ください':'Checking your payment. Please look again shortly.','有効期限':'Expires','園からの案内に書いてあります':'Shown on the guide from your school','園コードを入れてください（園からの案内に書いてあります）。':'Please enter the school code (shown on the guide from your school).','園コード・メールアドレス・パスワードのどれかが違います。':'The school code, email, or password is incorrect.','いくつでも選べます':'Choose all that apply','押しまちがえたときは、10分のあいだなら「取り消す」で戻せます。':'If you tapped by mistake, use “Undo” within 10 minutes.',
 };
 
 
@@ -9147,6 +9152,12 @@ var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
       history.replaceState(null,'',u);
     }
   }catch(e){}
+})();
+
+/* ★mirai-wa.com（本番の住所）で開いたときは、まだどこにもつないでいなければ当社の本番サーバにつなぐ（2026-10-06）。
+   つながないと、住所を打って来た保護者に「デモ版」が出てログインできなかった。園コードはログインの画面で聞く */
+(function(){
+  try{ if(/(^|\.)mirai-wa\.com$/i.test(location.hostname)&&!WAPI.base())WAPI.setBase(WA_API_OFFICIAL); }catch(e){}
 })();
 
 /* 写真販売のチラシの二次元コードから来たとき。?photo=1（&key=0-0000-0000）
