@@ -465,6 +465,24 @@ function payLines(x){
 /* ══ 保育料のカード払い（Stripe Connect・2026-10-05）══════════
    園→保護者の保育料。お金は園の Stripe に直接入り、BJ は手数料（application_fee）だけを受け取る。
    ここで決めるのは手数料：全園の既定（率＋1回あたりの額）。園ごとに変えるときは、園の画面の契約で上書きする。 */
+/* ══ 消費税の設定（2026-10-06 安田さんのご指示「Tax は後から必要に応じて調整できるように」）══
+   園→BJ の月額にかける消費税と、保育料カード払いの BJ の取り分の税の扱い。変えると次に作る請求から新しい値になる */
+function taxHTML(){
+  var t=DATA.tax&&DATA.tax.tax;
+  if(!t)return '<div class="card"><h2>消費税</h2><div class="lead">読み込めませんでした'+(DATA.taxErr?'：'+esc(DATA.taxErr):'')+'</div></div>';
+  var smp=DATA.tax.sample||{};
+  var sel=function(id,cur,opts){return '<select id="'+id+'">'+opts.map(function(o){return '<option value="'+o[0]+'"'+(String(cur)===String(o[0])?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';};
+  return '<div class="card"><h2>消費税</h2>'
+    +'<div class="lead">園→BJ の月額（請求・契約書）と、保育料カード払いの BJ の取り分にかかる消費税です。変えると、次に作る請求から新しい値になります（作ってある請求は変わりません）。</div>'
+    +'<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;">'
+      +'<div class="f" style="margin:0;"><label>月額に消費税を</label>'+sel('txOn',t.taxable?'1':'0',[['1','足す（税別で表示）'],['0','足さない']])+'</div>'
+      +'<div class="f" style="margin:0;"><label>税率（％）</label><input id="txPct" class="num" inputmode="decimal" value="'+esc(t.percent)+'" style="width:90px;"></div>'
+      +'<div class="f" style="margin:0;"><label>1円未満の端数</label>'+sel('txRnd',t.rounding,[['ceil','切り上げ'],['floor','切り捨て'],['round','四捨五入']])+'</div>'
+      +'<div class="f" style="margin:0;"><label>保育料カード払いの BJ の取り分</label>'+sel('txFee',t.tuitionFee,[['inclusive','入れた額が税込'],['exclusive','入れた額に消費税を足す']])+'</div>'
+      +'<button class="pri" id="txSave">保存</button><span class="msg" id="txMsg"></span></div>'
+    +'<div class="note">いまの設定だと、税別 ¥10,000 の月額は 税 ¥'+Number(smp.tax||0).toLocaleString()+' ・税込 ¥'+Number(smp.gross||0).toLocaleString()+' です。'
+      +'保育料そのもの（園→保護者）の税は、園の請求書の金額のとおりで、ここでは変わりません。Stripe Tax（自動計算）を使うときは、ここに切り替えを足します。</div></div>';
+}
 function tuiFeeTxt(p,y){p=+p||0;y=+y||0;return y>0?'1回 ¥'+y.toLocaleString():p>0?p+'%':'なし';}
 function tuiAdminHTML(){
   var t=DATA.tui;
@@ -494,7 +512,7 @@ function tuiAdminHTML(){
 function payHTML(){
   var d=DATA.pay||{}, rows=d.payments||[];
   var STS=['','支払待ち','支払済','要確認','一部返金','返金','期限切れ','取消'];
-  var h=tuiAdminHTML()+payStatusCard()
+  var h=taxHTML()+tuiAdminHTML()+payStatusCard()
     +'<div class="card"><h2>保護者のカード払い</h2>'
     +'<div class="lead">未来WAストア・写真販売で保護者がお支払いになったものの台帳です。保育料はここには載りません。</div>'
     +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;">'
@@ -1524,6 +1542,7 @@ function load(){
       API.call('GET','/admin/payments'+qs).then(function(j){DATA.pay=j;}),
       /* 保育料のカード払い（Connect）の手数料と園ごとの状態 */
       API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;}),
+      API.call('GET','/admin/tax').then(function(j){DATA.tax=j;DATA.taxErr='';}).catch(function(e){DATA.tax=null;DATA.taxErr=e.message;}),
       /* 通知の受信履歴。この口が無いサーバでは黙って出さない */
       API.call('GET','/admin/billing/events?limit=30').then(function(j){DATA.pevents=(j&&j.events)||null;})
         .catch(function(){DATA.pevents=null;})
@@ -1561,6 +1580,15 @@ function render(){
 function say(id,t,ok){var e=$(id);if(!e)return;e.textContent=t;e.className='msg '+(ok?'ok':'ng');}
 
 function wire(){
+  /* 消費税の設定 */
+  if($('txSave'))$('txSave').onclick=function(){
+    var pct=Number($('txPct').value);
+    if(!(pct>=0&&pct<=30)){say('txMsg','税率は 0〜30 の％で入れてください');return;}
+    var body={taxable:$('txOn').value==='1',percent:pct,rounding:$('txRnd').value,tuitionFee:$('txFee').value};
+    if(!confirm('消費税の設定を変えます。\n月額：'+(body.taxable?pct+'%（'+$('txRnd').selectedOptions[0].text+'）':'足さない')+'\n保育料の取り分：'+$('txFee').selectedOptions[0].text+'\n次に作る請求から新しい値になります。よろしいですか？'))return;
+    say('txMsg','保存中…',true);
+    API.call('PUT','/admin/tax',body).then(function(){render();}).catch(function(e){say('txMsg',e.message);});
+  };
   /* 保育料のカード払い：全園の既定の手数料 */
   if($('tfMode'))$('tfMode').onchange=function(){$('tfLab').textContent=$('tfMode').value==='yen'?'1回あたり（円）':'率（％）';$('tfVal').value='0';};
   if($('tfSave'))$('tfSave').onclick=function(){
