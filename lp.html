@@ -348,12 +348,11 @@ footer a:hover{color:#fff}
 
       <div class="done" id="done">
         <div class="mark"></div>
-        <h3>送信しました（モック）</h3>
-        <p>実際の公開版では、この内容が担当あてのメールと Miralink の顧客リストに同時に登録されます。<br>
-          いまはモックのため、どこにも送られていません。</p>
+        <h3 id="doneH">送っています…</h3>
+        <p id="sendState">しばらくお待ちください。</p>
         <div class="echo" id="echo"></div>
         <button class="send" id="again" style="margin-top:22px;background:var(--ink);box-shadow:none">
-          もう一度ためす</button>
+          入力の画面にもどる</button>
       </div>
     </div>
 
@@ -456,6 +455,11 @@ footer a:hover{color:#fff}
     el.addEventListener('change',function(){ if(m[1](el.value)) el.closest('.f').classList.remove('ng'); });
   });
 
+  /* 送り先。?api= で手元の試し用に向けられる（apply.html と同じ） */
+  var API_BASE=(function(){
+    var m=/[?&]api=([^&]+)/.exec(location.search);
+    return m?decodeURIComponent(m[1]):'https://cocoas-api-production.up.railway.app';
+  })();
   f.addEventListener('submit',function(e){
     e.preventDefault();
     var bad=check();
@@ -488,6 +492,32 @@ footer a:hover{color:#fff}
 
     document.getElementById('formZone').style.display='none';
     document.getElementById('done').style.display='block';
+
+    /* 運営に送る（2026-10-08）。
+       ★それまでは上の控えを画面に出すだけで、どこにも送っていなかった（お問い合わせが1件も届いていなかった）。
+       送れなかったときは、控えをそのまま残して電話かメールをお願いする（書いた内容を失わせない） */
+    /* 並びを保つため、[見出し, 中身] の並びで送る（項目の名前で持つと、保存のときに並びが変わる） */
+    var pay={items:out};
+    var val=function(id){var el=document.getElementById(id);return el?el.value.trim():'';};
+    var H=document.getElementById('doneH'), st=document.getElementById('sendState');
+    H.textContent='送っています…';st.textContent='しばらくお待ちください。';
+    fetch(API_BASE+'/inquiry',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({kinds:kinds.join('・'),corp:val('q_corp'),school:val('q_school'),person:val('q_name'),
+        role:val('q_role'),email:val('q_mail'),tel:val('q_tel'),pref:val('q_pref'),payload:pay})})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+      .then(function(x){
+        if(x.ok&&x.j&&x.j.ok){
+          H.textContent='送信しました';
+          st.innerHTML='お問い合わせありがとうございます（受付番号 '+x.j.id+'）。担当より、2営業日以内にご連絡します。<br>お送りいただいた内容は下のとおりです。';
+        } else {
+          H.textContent='送れませんでした';
+          st.textContent=((x.j&&x.j.error)?x.j.error+'。':'')+'お手数ですが、時間をおいてもう一度お試しください。';
+        }
+      })
+      .catch(function(){
+        H.textContent='送れませんでした';
+        st.textContent='通信の状態をご確認のうえ、もう一度お試しください。下の内容はそのまま残っています。';
+      });
     window.scrollTo({top:document.getElementById('form').offsetTop-90,behavior:'smooth'});
   });
 
