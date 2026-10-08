@@ -271,8 +271,15 @@ function yen(n){return n==null?'—':'¥'+Math.round(n).toLocaleString('ja-JP');
 function $(id){return document.getElementById(id);}
 
 /* ── 接続 ───────────────────────────── */
+var ADM_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
 var API={
-  base:function(){return String(localStorage.getItem('adm_api')||'').replace(/\/$/,'');},
+  /* ★本番の住所（miralink.mirai-wa.com・github.io）で開いたときは、まだ何も入れていなければ当社の本番サーバにつなぐ。
+     ログインのたびに接続先を打たせていた（2026-10-08 安田さんのご指摘）。入れたものがあればそちらが勝つ */
+  base:function(){
+    var v=null;try{v=localStorage.getItem('adm_api');}catch(e){}
+    if(v===null&&/(^|\.)mirai-wa\.com$|\.github\.io$/i.test(location.hostname))v=ADM_API_OFFICIAL;
+    return String(v||'').replace(/\/$/,'');
+  },
   setBase:function(v){localStorage.setItem('adm_api',String(v||'').replace(/\/$/,''));},
   /* 札はこのタブの中だけ。端末に残さない。 */
   token:function(){try{return sessionStorage.getItem('adm_token')||'';}catch(e){return '';}},
