@@ -389,7 +389,7 @@ function shell(inner){
 var tTab='overview';
 var ROUTES={home:'home',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
   tuition:'tuition',pipe:'onboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
-var T_TABS=[['overview','概要'],['contract','契約・請求'],['accounts','アカウント'],['docs','書類'],['log','変更ログ']];
+var T_TABS=[['overview','概要'],['contract','契約・請求'],['accounts','アカウント'],['docs','書類'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
   return '#/'+(ROUTES[view]||'home');
@@ -1204,6 +1204,7 @@ function tenantHTML(){
     +'書類そのものは Drive などに置き、ここには所在と締結日だけを持ちます。</div>'
     +'</div>';
   P.log=tLogHTML();
+  P.support=supTabHTML();
   return head+'<div class="tabs" role="tablist">'+T_TABS.map(function(t){
       return '<button role="tab" data-tt="'+t[0]+'" class="'+(tTab===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
     +(P[tTab]||P.overview);
@@ -1273,6 +1274,70 @@ function pipeHTML(){
         +'<td class="r num" style="'+(x.overdue?'color:var(--warn);font-weight:700;':'')+'">'+x.stalledDays+'日</td>'
         +'<td>'+(x.next?esc(x.next.label):'—')+'</td><td>'+(x.next?(x.next.side==='school'?'園':'運営'):'—')+'</td></tr>';
     }).join('')+'</tbody></table></div>';
+}
+/* ══ サポート閲覧（2026-10-08 安田さんのご判断）══════════════
+   園から頼まれたときだけ、理由を書いて30〜60分、園の記録を「読むだけ」で見る。サーバ（src/support.js）が線を引く：
+   ・見られる範囲は決まった7つだけ ・健康・事故・アレルギー・体温・口座は、もう一度理由を書くまで伏せる
+   ・始めた／開いた／終えたは園の変更ログに残り、何を見たかは園の設定に出る。見ているあいだは園のホームにも出る */
+var SUP={tid:null,list:null,mine:null,view:'',data:null,err:''};
+function supLoad(){
+  if(SUP.tid!==openId){SUP={tid:openId,list:null,mine:null,view:'',data:null,err:''};}
+  return API.call('GET','/admin/tenants/'+openId+'/support').then(function(j){SUP.list=j.sessions;SUP.mine=j.mine;
+    if(!SUP.mine){SUP.view='';SUP.data=null;return;}
+    if(SUP.view)return API.call('GET','/admin/support/'+SUP.mine.session.id+'/view/'+SUP.view).then(function(d){SUP.data=d;SUP.err='';},function(e){SUP.data=null;SUP.err=e.message;});
+  });
+}
+function supCell(v){
+  if(v==null)return '';
+  if(typeof v==='object')return '<span style="font-size:11px;color:var(--mute);">'+esc(JSON.stringify(v).slice(0,160))+'</span>';
+  var t=String(v);return t==='（伏せています）'?'<span class="st off" style="margin:0;">伏せています</span>':esc(t);
+}
+function supTable(rows,cols){
+  if(!rows.length)return '<div class="empty">記録がありません</div>';
+  return '<div class="tw"><table style="min-width:'+Math.max(520,cols.length*110)+'px;"><thead><tr>'+cols.map(function(c){return '<th>'+esc(c[1])+'</th>';}).join('')+'</tr></thead><tbody>'
+    +rows.map(function(r){return '<tr style="cursor:default;">'+cols.map(function(c){return '<td>'+supCell(r[c[0]])+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div>';
+}
+function supDataHTML(){
+  var d=SUP.data;if(SUP.err)return '<div class="note bad">'+esc(SUP.err)+'</div>';if(!d)return '';
+  var x=d.data,h='<h3 style="margin:14px 0 8px;">'+esc(d.label)+(d.masked?' <span class="st off">要配慮の項目は伏せています</span>':'')+'</h3>';
+  if(d.view==='contacts')return h+supTable((x.contacts||[]).filter(function(c){return c&&typeof c==='object';}),[['id','番号'],['kind','種類'],['child','園児'],['name','保護者'],['kana','かな'],['klass','クラス'],['phone','電話'],['email','メール'],['days','曜日'],['note','メモ']]);
+  if(d.view==='profiles'){var P=x.studentProfiles||{};return h+supTable(Object.keys(P).map(function(k){return Object.assign({id:k},P[k]);}),[['id','番号'],['lastName','名前'],['klass','クラス'],['dob','生年月日'],['address','住所'],['mName','保護者'],['mTel','電話'],['allergy','アレルギー'],['history','既往歴'],['hospital','かかりつけ'],['febrile','熱性けいれん'],['respiratory','呼吸器'],['bank','口座']]);}
+  if(d.view==='attendance'){var A=x['rec_登園シート']||{},ds=Object.keys(A).sort().reverse().slice(0,14),rows=[];
+    ds.forEach(function(dt){var r=(A[dt]&&A[dt].rows)||{};Object.keys(r).forEach(function(id){rows.push({date:dt,id:id,att:r[id].att,temp:r[id].temp,inAt:r[id].inAt||r[id].in,outAt:r[id].outAt||r[id].out});});});
+    return h+'<div class="lead">新しい14日ぶん</div>'+supTable(rows,[['date','日付'],['id','園児の番号'],['att','出欠'],['inAt','登園'],['outAt','降園'],['temp','体温']]);}
+  if(d.view==='invoices'){var I=x.invoices||{},rows2=[];Object.keys(I).sort().reverse().slice(0,6).forEach(function(mk){var m=I[mk]||{};Object.keys(m).forEach(function(id){var r=m[id]||{};rows2.push({month:mk,id:id,total:r.total!=null?yen(r.total):'',status:r.status,due:r.due,paidAt:r.paidAt});});});
+    return h+'<div class="lead">新しい6か月ぶん</div>'+supTable(rows2,[['month','月'],['id','園児の番号'],['total','金額'],['status','状態'],['due','支払期日'],['paidAt','入金日']]);}
+  if(d.view==='log')return h+supTable((x||[]).map(function(r){return {at:fmtAt(r.created_at),who:r.user_name,what:r.key};}),[['at','日時'],['who','操作者'],['what','操作']]);
+  return h+Object.keys(x||{}).map(function(k){return '<div style="font-weight:700;font-size:12px;margin:8px 0 4px;">'+esc(k)+'</div><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11.5px;background:var(--line2);padding:10px;border-radius:8px;max-height:420px;overflow:auto;">'+esc(JSON.stringify(x[k],null,1)||'（記録なし）')+'</pre>';}).join('');
+}
+function supTabHTML(){
+  if(SUP.tid!==openId||!SUP.list)return '<div class="empty">読み込んでいます…</div>';
+  var m=SUP.mine,h='';
+  if(m){
+    var ss=m.session;
+    h+='<div class="card" style="border-color:#E3BDBC;"><div class="row" style="justify-content:space-between;"><h3 style="margin:0;">サポート閲覧中（読むだけ）</h3>'
+      +'<span><span class="st warn">'+esc(fmtAt(ss.expiresAt).slice(11))+' まで</span> <button class="btn warn sm" id="supEnd">終える</button></span></div>'
+      +'<div style="font-size:12px;color:var(--mute);margin:6px 0 10px;">理由：'+esc(ss.reason)+(ss.sensitiveReason?'　／　要配慮を開いた理由：'+esc(ss.sensitiveReason):'')+'<br>この園の変更ログに残り、園の設定「運営がアクセスした履歴」に、何を見たかまで出ます。</div>'
+      +'<div class="row">'+m.views.map(function(v){
+        return '<button class="btn '+(SUP.view===v.key?'':'sec ')+'sm" data-supv="'+v.key+'"'+(v.locked?' disabled title="要配慮の記録です"':'')+'>'+(v.locked?'🔒 ':'')+esc(v.label)+'</button>';}).join('')+'</div>'
+      +(m.views.some(function(v){return v.locked||v.masked;})?'<div class="row" style="margin-top:10px;"><input id="supUr" style="flex:1;min-width:220px;" maxlength="300" placeholder="健康・事故・アレルギーなどを開く理由（園の変更ログに残ります）"><button class="btn sec sm" id="supUnlock">要配慮の記録も開く</button><span class="msg" id="supUm"></span></div>':'')
+      +supDataHTML()+'</div>';
+  }else{
+    h+='<div class="card"><h3>サポート閲覧を始める</h3>'
+      +'<div class="lead" style="margin-bottom:8px;">園から頼まれたときだけ使います。読むだけで、書き換えはできません。見られるのは 連絡先・生徒台帳・登園シート・請求書・園の変更ログ と、理由を足したときだけ 健康・事故の記録 です。'
+      +'始めたこと・理由・何を見たかは園に残り、見ているあいだは園のホームにも出ます。</div>'
+      +'<div class="f"><label>見る理由（園の方が読みます）</label><input id="supR" maxlength="300" placeholder="例：保護者の連絡先が消えたとのお問い合わせ（10/8 園長より電話）"></div>'
+      +'<div class="row"><select id="supMin"><option value="30">30分</option><option value="45">45分</option><option value="60">60分</option></select>'
+      +'<button class="btn sm" id="supGo">理由を残して見はじめる</button><span class="msg" id="supM"></span></div></div>';
+  }
+  var L=SUP.list||[];
+  h+='<div class="card"><h3>この園のサポート閲覧の記録</h3>'
+    +(L.length?'<div class="tw"><table style="min-width:620px;"><thead><tr><th>日時</th><th>運営</th><th>理由</th><th>見た記録</th></tr></thead><tbody>'
+      +L.map(function(x){return '<tr style="cursor:default;"><td class="num" style="white-space:nowrap;">'+esc(fmtAt(x.startedAt))+(x.active?' <span class="st warn">中</span>':'')+'</td><td>'+esc(x.adminName)+'</td>'
+        +'<td>'+esc(x.reason)+(x.sensitiveReason?'<div style="font-size:11px;color:var(--mute);">要配慮：'+esc(x.sensitiveReason)+'</div>':'')+'</td>'
+        +'<td>'+((x.reads||[]).map(function(r){return esc(r.label)+'×'+r.n;}).join('、')||'—')+'</td></tr>';}).join('')+'</tbody></table></div>'
+      :'<div class="empty">まだありません</div>')+'</div>';
+  return h;
 }
 /* 園の変更ログのうち、運営がこの園にしたこと（/admin/oplog を園で絞る） */
 function tLogHTML(){
@@ -1928,6 +1993,7 @@ function load(){
   if(view==='one')   return Promise.all([
       API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;}),
       tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null,
+      tTab==='support'?supLoad():null,
       tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
     ]);
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
@@ -2083,6 +2149,20 @@ function wire(){
   if($('navT'))$('navT').onclick=function(){document.body.classList.toggle('navopen');};
   if($('scrim'))$('scrim').onclick=function(){document.body.classList.remove('navopen');};
   gqWire();
+  /* サポート閲覧 */
+  if($('supGo'))$('supGo').onclick=function(){
+    var r=$('supR').value.trim();if(r.length<4){say('supM','見る理由を書いてください（園の方が読みます）');return;}
+    if(!confirm('この園の記録を、理由を残して '+$('supMin').value+'分 見ます（読むだけ）。\n園の変更ログとホームに出ます。よろしいですか？'))return;
+    say('supM','開いています…',true);
+    API.call('POST','/admin/tenants/'+openId+'/support',{reason:r,minutes:+$('supMin').value}).then(function(){SUP.view='contacts';render();}).catch(function(e){say('supM',e.message);});
+  };
+  document.querySelectorAll('[data-supv]').forEach(function(b){b.onclick=function(){SUP.view=b.getAttribute('data-supv');render();};});
+  if($('supUnlock'))$('supUnlock').onclick=function(){
+    var r=$('supUr').value.trim();if(r.length<4){say('supUm','開く理由を書いてください');return;}
+    if(!confirm('健康・事故・アレルギーなどの要配慮の記録も開きます。\n理由は園の変更ログに残ります。よろしいですか？'))return;
+    API.call('POST','/admin/support/'+SUP.mine.session.id+'/unlock',{reason:r}).then(function(){render();}).catch(function(e){say('supUm',e.message);});
+  };
+  if($('supEnd'))$('supEnd').onclick=function(){API.call('POST','/admin/support/'+SUP.mine.session.id+'/end',{}).then(function(){SUP.view='';SUP.data=null;render();}).catch(function(e){alert(e.message);});};
   /* 導入 */
   document.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){pipeMode=b.getAttribute('data-pm');render();};});
   document.querySelectorAll('[data-obs]').forEach(function(b){b.onclick=function(){
