@@ -379,11 +379,12 @@ function homeHTML(){
    園の画面（設定 → データのバックアップ・変更ログ）にあるものを、
    本部からも見られるようにしたところ。
 
-   ★ いまは、ここに中身は出ない。
-     控え（自動保存）と変更ログは、園の端末（ブラウザ）の中にしか無く、
-     サーバへ送っていない（index.html の SYNC.mark が
-     eventLog・snapshots・lastSnap を送らないようにしてある）。
-     受け口（/org/backups）も、まだサーバに無い。
+   ★ 2026-10-08 まで、受け口（/org/backups）がサーバに無く、ここには何も出なかった。
+     《この時点に戻す》も、BK.canRestore を誰も入れないので、ずっと押せないままだった。
+     いまはサーバ（cocoas-api の /org/backups・/org/backups/restore）が、
+     園の管理者が設定から使っている「時点の保存」（snapshots）と変更ログ（change_log）をそのまま返す。
+     押せるかどうか（canRestore）もサーバが決める。画面で勝手に押せるようにしない。
+     届くのは、いつ・なぜ・大きさ・誰が・どの項目 だけで、帳簿の中身は届かない。
      「集まっているように見える」表示は作らない。空なら空と書く。 */
 function schoolOf(id){
   var a=(DATA&&DATA.schools)||[];
@@ -426,7 +427,7 @@ function bkSnapHTML(){
   var sn=(BK&&BK.snapshots)||[];
   var can=!!(BK&&BK.canRestore);
   var h='<div class="card"><h3>自動保存（控え）</h3>'
-    +'<div class="lead" style="margin-bottom:10px;">園の端末で1日1回、そのままの状態が控えとして残ります</div>';
+    +'<div class="lead" style="margin-bottom:10px;">サーバに残っている、その時点の園の帳簿の控えです（戻す直前の状態も、控えとして残ります）</div>';
   if(!sn.length){
     h+='<div class="empty">この園の控えは、まだ本部に届いていません。</div></div>';
     return h;
@@ -439,7 +440,8 @@ function bkSnapHTML(){
         +'<td class="r num">'+kb(x.size)+'</td>'
         +'<td style="text-align:right;">'
         +(can
-          ? '<button class="btn sm warn" data-bkres="'+esc(x.at)+'">この時点に戻す</button>'
+          /* 戻す時点は番号（id）で指す。日時は同じ分に2つあることがあり、取り違えるため */
+          ? '<button class="btn sm warn" data-bkres="'+esc(x.id)+'" data-bkat="'+esc(x.at)+'">この時点に戻す</button>'
           : '<button class="btn sm" disabled>この時点に戻す</button>')
         +'</td></tr>';
     }).join('')
@@ -448,7 +450,7 @@ function bkSnapHTML(){
     /* 押せないボタンを、理由も書かずに置かない */
     h+='<div class="note" style="margin:12px 0 0;">'
       +'《この時点に戻す》は、いまは押せません。'
-      +'本部から園の帳簿を書き換える操作なので、サーバ側にその受け口ができるまで止めてあります。'
+      +'サーバが、この園の控えを本部から戻すことを許していません。'
       +'園の画面（設定 → データのバックアップ・変更ログ）からは、これまでどおり戻せます。</div>';
   }else{
     h+='<div class="note bad" style="margin:12px 0 0;">'
@@ -562,7 +564,7 @@ function changePassword(){
 /* 控えを戻す。本部から園の帳簿を書き換える、ただ1つの操作。
    押す前に「何が起きるか」をぜんぶ出し、そのうえで園の名前を打ってもらう。
    一覧のとなりのボタンなので、指が当たっただけで進むことがないようにする。 */
-function bkRestore(at){
+function bkRestore(id,at){
   var s=schoolOf(bkTenant),name=s?s.name:'';
   if(!name){alert('園が選ばれていません。');return;}
   var msg='【押すとどうなるか】\n'
@@ -578,8 +580,8 @@ function bkRestore(at){
   var typed=prompt('取り違えを防ぐため、園の名前を入れてください。\n「'+name+'」と入れると実行します。');
   if(typed==null)return;
   if(String(typed).trim()!==name){alert('園の名前が違いました。何もしていません。');return;}
-  API.call('POST','/org/backups/restore',{tenant:bkTenant,at:at})
-    .then(function(){alert(name+' を '+at+' の時点に戻しました。園の画面は、次に読み込んだときに入れ替わります。');render();})
+  API.call('POST','/org/backups/restore',{tenant:bkTenant,id:id})
+    .then(function(){alert(name+' を '+at+' の時点に戻しました。園の画面は、次に読み込んだときに入れ替わります。\n園の変更ログにも、本部が戻したことが残ります。');BK=null;bkState='load';render();})
     .catch(function(e){alert('戻せませんでした：'+e.message);});
 }
 
@@ -599,7 +601,7 @@ function wire(){
   var sel=$('bkSel');
   if(sel)sel.onchange=function(){bkTenant=sel.value;BK=null;bkState='load';render();};
   document.querySelectorAll('[data-bkres]').forEach(function(b){b.onclick=function(){
-    bkRestore(b.getAttribute('data-bkres'));};});
+    bkRestore(b.getAttribute('data-bkres'),b.getAttribute('data-bkat'));};});
 }
 
 render();
