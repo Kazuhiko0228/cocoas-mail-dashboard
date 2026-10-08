@@ -1985,7 +1985,12 @@ function showDoc(j){
 function load(){
   if(view==='home')  return API.call('GET','/admin/kpi').then(function(j){DATA.kpi=j;});
   if(view==='sys')   return API.call('GET','/admin/billing/events?limit=30').then(function(j){DATA.pevents=(j&&j.events)||null;}).catch(function(){DATA.pevents=null;});
-  if(view==='fees')  return API.call('GET','/admin/tax').then(function(j){DATA.tax=j;DATA.taxErr='';}).catch(function(e){DATA.tax=null;DATA.taxErr=e.message;});
+  /* ★保育料の手数料（DATA.tui）は5分に1回だけ読む共通の入れ物から出していたので、
+     2% にして保存しても、5分たつまで画面が 0 のままだった（2026-10-08 安田さんのご指摘）。この画面では毎回読む */
+  if(view==='fees')  return Promise.all([
+      API.call('GET','/admin/tax').then(function(j){DATA.tax=j;DATA.taxErr='';}).catch(function(e){DATA.tax=null;DATA.taxErr=e.message;}),
+      API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;})
+    ]);
   if(view==='tuition')return Promise.resolve();
   if(view==='pipe')  return API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;});
   if(view==='oplog') return API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;});
@@ -2066,7 +2071,7 @@ function wire(){
     if(!(yn>=0&&yn<=10000&&Math.floor(yn)===yn)){say('tfMsg','1回あたりの額は 0〜10,000 円の整数で入れてください');return;}
     if(!confirm('保育料のカード払いの BJ の取り分（全園の既定）を '+tuiFeeTxt(pct,yn)+' にします。\n園ごとに上書きしていない園は、次の引き落としからこの額になります。よろしいですか？'))return;
     say('tfMsg','保存中…',true);
-    API.call('PUT','/admin/tuition/fee',{percent:pct,yen:yn}).then(function(){render();}).catch(function(e){say('tfMsg',e.message);});
+    API.call('PUT','/admin/tuition/fee',{percent:pct,yen:yn}).then(function(){GLB_AT=0;render();}).catch(function(e){say('tfMsg',e.message);});
   };
   /* 契約書 */
   document.querySelectorAll('[data-doc]').forEach(function(b){b.onclick=function(){
