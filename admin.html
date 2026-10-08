@@ -349,7 +349,7 @@ function wireLogin(){
    機能は1つも消していない。移しただけ（同じ口を呼ぶ）。 */
 var NAV=[
   ['',[['home','ホーム']]],
-  ['導入',[['apply','申込']]],
+  ['導入',[['apply','申込'],['pipe','導入パイプライン']]],
   ['園',[['tenants','園の一覧'],['docs','書類（全園）']]],
   ['売上',[['bill','請求']]],
   ['決済・広告',[['pay','ストアのカード払い'],['tuition','保育料のカード払い'],['ads','広告']]],
@@ -359,6 +359,8 @@ var NAV=[
 function navBadge(v){
   if(v==='home'){var a=computeAttentionItems();if(!a.length)return '';
     var ng=a.some(function(x){return x.sev==='ng';});return '<span class="bd '+(ng?'ng':'warn')+'">'+a.length+'</span>';}
+  if(v==='pipe'){var o=((DATA.pipe&&DATA.pipe.schools)||[]).filter(function(x){return x.overdue;}).length;
+    return o?'<span class="bd warn">'+o+'</span>':'';}
   if(v==='apply'){var n=((DATA.apply&&DATA.apply.applications)||[]).filter(function(x){return x.status==='未対応';}).length;
     return n?'<span class="bd warn">'+n+'</span>':'';}
   return '';
@@ -386,7 +388,7 @@ function shell(inner){
 /* ── 画面の住所（#/…）。再読み込み・戻る・進むで同じ画面に戻れるように ── */
 var tTab='overview';
 var ROUTES={home:'home',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
-  tuition:'tuition',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
+  tuition:'tuition',pipe:'onboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
 var T_TABS=[['overview','概要'],['contract','契約・請求'],['accounts','アカウント'],['docs','書類'],['log','変更ログ']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
@@ -400,12 +402,18 @@ function readHash(){
   for(var k in ROUTES){if(ROUTES[k]===h){view=k;break;}}
 }
 function nav(v,id,tab){
+  /* ★先に view を書き替えてから # を変えていたので、hashchange が「変わっていない」と見て描き直さず、
+     左のナビを押しても画面が変わらなかった。行き先の # だけを作り、状態は hashchange で読み直す */
+  var pv=view,pi=openId,pt=tTab;
   view=v;openId=id||null;tTab=tab||'overview';
+  var h0=viewHash();
+  if(location.hash!==h0){view=pv;openId=pi;tTab=pt;}
   try{document.body.classList.remove('navopen');}catch(e){}
   /* 書きかけの広告は、画面を移ったら畳む（前の書きかけをうっかり保存しないように） */
   adsDraft=null;adsMsg='';
-  var h=viewHash();
-  if(location.hash!==h)location.hash=h; else render();
+  /* ★初期パスワードは画面を移ったら手元からも消す（戻っても二度と出さない） */
+  if(v!=='apply')apOpened=null;
+  if(location.hash!==h0)location.hash=h0; else render();
 }
 window.addEventListener('hashchange',function(){
   var v0=view,i0=openId,t0=tTab; readHash();
@@ -425,7 +433,8 @@ function loadGlobal(force){
     API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;}),
     API.call('GET','/admin/applications').then(function(j){DATA.apply=j;}).catch(function(){}),
     API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;DATA.tenantsToday=j.today;}).catch(function(){}),
-    API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(ym)).then(function(j){DATA.binvNow=j;}).catch(function(){})
+    API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(ym)).then(function(j){DATA.binvNow=j;}).catch(function(){}),
+    API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}).catch(function(){})
   ]);
 }
 function jstToday(){return new Date(Date.now()+9*3600*1000).toISOString().slice(0,10);}
@@ -849,6 +858,8 @@ function computeAttentionItems(){
   if(stl.length)it.push({sev:'warn',n:stl.length,text:'「商談中」「モニター」のまま '+ATT_STALE_DAYS+'日以上 契約が動いていない園（'+nm(stl)+'）',go:stl.length===1?['one',stl[0].id,'contract']:['tenants']});
   var end=ts.filter(function(t){return t.status==='解約予定';}).sort(function(a,b){return String(a.cancel_on||'9')<String(b.cancel_on||'9')?-1:1;});
   if(end.length)it.push({sev:'warn',n:end.length,text:'解約予定の園（'+end.slice(0,3).map(function(t){return t.name+(t.cancel_on?' '+t.cancel_on:'');}).join('・')+'）。記録の書き出しを案内する',go:end.length===1?['one',end[0].id,'overview']:['tenants']});
+  var ob=((DATA.pipe&&DATA.pipe.schools)||[]).filter(function(x){return x.overdue;});
+  if(ob.length)it.push({sev:'warn',n:ob.length,text:'導入が止まっている園（'+ob.slice(0,3).map(function(x){return x.name+'：'+x.stageName;}).join('・')+'）',go:ob.length===1?['one',ob[0].id,'overview']:['pipe']});
   var tf=((DATA.tui&&DATA.tui.tenants)||[]).filter(function(x){return x.failed>0;});
   if(tf.length)it.push({sev:'warn',n:tf.length,text:'保育料の引き落としに失敗した園がある（この30日）',go:['tuition']});
   it.sort(function(a,b){return (a.sev==='ng'?0:1)-(b.sev==='ng'?0:1);});
@@ -1002,7 +1013,7 @@ function tenantHTML(){
   /* ★1枚に11の箱が縦に並び、「園名を直す」「利用を止める」が契約の上にあって押し間違えやすかった。
      タブに分け、危険な操作は「概要」のいちばん下の赤枠へ（2026-10-08 段1）。ボタンの id は前のまま */
   var P={};
-  P.overview=''
+  P.overview=obCardHTML()
     +'<div class="tiles">'
     +tile('在籍園児',d.seats,'名','いまの帳簿から')
     +tile('当月の請求（税別）',yen(q.total),'',q.inCampaign?'キャンペーン適用中':'通常料金')
@@ -1198,6 +1209,71 @@ function tenantHTML(){
     +(P[tTab]||P.overview);
 }
 
+/* ══ 導入（オンボーディング）2026-10-08 段2 ══════════════
+   手順の中身・段階・関門はサーバ（src/onboard.js）が決める。ここでは出すだけ。
+   ★課金開始は関門つきの「課金を始める」からだけ。契約の状態を手で「契約中」にしても、関門が済むまでサーバが断る */
+var OB_WORD={todo:'まだ',doing:'進めている',done:'済',skipped:'飛ばした',blocked:'止まっている'};
+var OB_ST={todo:'off',doing:'info',done:'ok',skipped:'off',blocked:'ng'};
+var pipeMode='list';
+function obCardHTML(){
+  var o=(DATA.obId===openId)?DATA.ob:null;
+  if(!o)return '';
+  if(!o.tracked)return '<div class="card"><h3>導入の進み具合</h3><div class="row"><span class="lead" style="margin:0;">この園はまだ導入の手順を持っていません（この仕組みより前からいる園）。</span>'
+    +'<button class="btn sec sm" id="obBegin">導入の手順を始める</button><span class="msg" id="obM"></span></div></div>';
+  var last=0;
+  var rows=o.steps.map(function(x){
+    var head=x.stage!==last?'<div style="font-size:11px;font-weight:700;color:var(--mute);margin:10px 0 2px;">'+x.stage+'. '+esc(x.stageName)+'</div>':'';last=x.stage;
+    var acts='';
+    if(x.key==='billing'){acts='';}
+    else if(x.status==='done'&&!x.auto&&x.autoCheck==null)acts='<button class="btn sec sm" data-obs="'+x.key+'" data-to="todo">戻す</button>';
+    else if(x.status!=='done'&&x.status!=='skipped')acts=(x.autoCheck?'':'<button class="btn sm" data-obs="'+x.key+'" data-to="done">済にする</button> ')+'<button class="btn sec sm" data-obs="'+x.key+'" data-to="skipped">飛ばす</button>';
+    else if(x.status==='skipped')acts='<button class="btn sec sm" data-obs="'+x.key+'" data-to="todo">戻す</button>';
+    return head+'<div class="att" style="padding:7px 0;"><span class="t"><span class="st '+OB_ST[x.status]+'" style="margin:0 8px 0 0;">'+OB_WORD[x.status]+'</span>'+esc(x.label)
+      +(x.required?'':' <span style="font-size:11px;color:var(--mute);">（任意）</span>')
+      +' <span style="font-size:11px;color:var(--mute);">'+(x.side==='school'?'園':'運営')+(x.autoCheck?'・自動':'')+'</span>'
+      +(x.note?'<div style="font-size:11.5px;color:var(--mute);">'+esc(x.note)+'</div>':'')
+      +'<div style="font-size:11px;color:var(--mute);">'+esc(x.help)+'</div></span><span style="white-space:nowrap;">'+acts+'</span></div>';
+  }).join('');
+  var g=o.gate||{};
+  var billed=o.stageName==='稼働中';
+  return '<div class="card"><h3>導入の進み具合　<span class="st '+(billed?'ok':(o.overdue?'warn':'info'))+'">'+esc(o.stageName)+'</span>'
+    +(o.next?'<span style="font-weight:400;font-size:12px;color:var(--mute);margin-left:8px;">次：'+esc(o.next.label)+'（'+(o.next.side==='school'?'園':'運営')+'）・'+o.stalledDays+'日動きなし</span>':'')+'</h3>'
+    +rows
+    +(billed?'':'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">'
+      +(g.ok?'<div class="row"><select id="obBillSt"><option>契約中</option><option>モニター</option></select><input id="obBillOn" type="date" title="開始日（空なら今日）">'
+          +'<button class="btn sm" id="obBill">課金を始める</button><span class="msg" id="obM"></span></div>'
+          +'<div style="font-size:11.5px;color:var(--mute);margin-top:6px;">押すと、契約の状態と開始日が入り、次の請求から対象になります。</div>'
+        :'<div class="note" style="margin:0;"><b>課金はまだ始められません。</b>残っている手順：'+g.missing.map(esc).join('／')+'</div>')
+      +'</div>')
+    +'</div>';
+}
+function pipeHTML(){
+  var d=DATA.pipe;
+  if(!d)return '<h2>導入パイプライン</h2><div class="empty">読み込んでいます…</div>';
+  var L=d.schools||[];
+  var head='<h2>導入パイプライン</h2><div class="lead">申込から課金開始まで。段階は手順から自動で決まります。止まっている園はホームの要対応にも出ます。</div>'
+    +'<div class="row" style="margin-bottom:12px;"><button class="btn '+(pipeMode==='list'?'':'sec ')+'sm" data-pm="list">一覧</button><button class="btn '+(pipeMode==='kanban'?'':'sec ')+'sm" data-pm="kanban">段階ごと</button></div>';
+  if(!L.length)return head+'<div class="card"><div class="empty">導入中の園はありません。<br>申込を開いて「この申込から園を開く」を押すと、ここに並びます。</div>'
+    +'<div class="row" style="justify-content:center;"><button class="btn sm" data-v="apply">申込を見る</button></div></div>';
+  if(pipeMode==='kanban'){
+    var cols=d.stages.concat(['稼働中']);
+    return head+'<div style="overflow-x:auto;"><div style="display:grid;grid-template-columns:repeat('+cols.length+',minmax(170px,1fr));gap:10px;min-width:'+(cols.length*180)+'px;">'
+      +cols.map(function(c,i){
+        var inC=L.filter(function(x){return x.stage===i+1;});
+        return '<div style="background:var(--line2);border-radius:10px;padding:9px;min-height:120px;"><div style="font-size:11.5px;font-weight:800;color:var(--ink2);margin-bottom:7px;">'+(i<7?(i+1)+'. ':'')+esc(c)+' <span class="num" style="color:var(--mute);">'+inC.length+'</span></div>'
+          +inC.map(function(x){return '<div class="card" data-t="'+x.id+'" style="padding:9px 10px;margin-bottom:7px;cursor:pointer;'+(x.overdue?'border-color:var(--warn);':'')+'"><b style="font-size:12.5px;">'+esc(x.name)+'</b>'
+            +'<div style="font-size:11px;color:var(--mute);">'+(x.next?esc(x.next.label):'')+'</div><div style="font-size:11px;color:'+(x.overdue?'var(--warn)':'var(--mute)')+';">'+x.stalledDays+'日動きなし</div></div>';}).join('')
+          +'</div>';
+      }).join('')+'</div></div>';
+  }
+  return head+'<div class="tw"><table style="min-width:640px;"><thead><tr><th>園</th><th>段階</th><th class="r">動きなし</th><th>次にやること</th><th>担当</th></tr></thead><tbody>'
+    +L.map(function(x){
+      return '<tr data-t="'+x.id+'"><td><b>'+esc(x.name)+'</b><div style="font-size:11px;color:var(--mute);">'+esc(x.code)+'</div></td>'
+        +'<td><span class="st '+(x.stageName==='稼働中'?'ok':(x.overdue?'warn':'info'))+'" style="margin:0;">'+esc(x.stageName)+'</span><div style="font-size:11px;color:var(--mute);" class="num">'+x.done+'/'+x.total+'</div></td>'
+        +'<td class="r num" style="'+(x.overdue?'color:var(--warn);font-weight:700;':'')+'">'+x.stalledDays+'日</td>'
+        +'<td>'+(x.next?esc(x.next.label):'—')+'</td><td>'+(x.next?(x.next.side==='school'?'園':'運営'):'—')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
 /* 園の変更ログのうち、運営がこの園にしたこと（/admin/oplog を園で絞る） */
 function tLogHTML(){
   var L=(DATA.oplog||[]).filter(function(x){return String(x.tenantId)===String(openId);});
@@ -1274,7 +1350,8 @@ function applyHTML(){
       +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.7;">'
       +'届いた日時：'+esc(String(a.created_at).slice(0,16).replace('T',' '))
       +(a.mail_sent_at?'　／　お知らせメール：送信ずみ':'　／　お知らせメール：'+esc(a.mail_error||'送っていません'))
-      +'</div></div>';
+      +'</div></div>'
+      +applyOpenHTML(a);
     return h;
   }
 
@@ -1302,6 +1379,32 @@ function applyHTML(){
   return h;
 }
 
+/* 申込から園を開く（2026-10-08 段2）。園を作る→管理者を発行→導入の手順、を1回で。
+   ★初期パスワードはこの画面に1回だけ出す（サーバも二度は返さない。ログにも残さない） */
+var apOpened=null;
+function applyOpenHTML(a){
+  if(apOpened&&apOpened.appId===a.id){
+    var r=apOpened.r;
+    if(r.existed)return '<div class="card"><h3>この申込の園</h3><div class="note ok">すでに園を開いています：<b>'+esc(r.tenant&&r.tenant.name)+'</b>（'+esc(r.tenant&&r.tenant.code)+'）</div>'
+      +'<button class="btn sm" data-t="'+esc(r.tenant&&r.tenant.id)+'">園の詳細を開く</button></div>';
+    return '<div class="card"><h3>園を開きました</h3>'
+      +'<div class="note ok">園コード <b>'+esc(r.tenant.code)+'</b>　ログインID <b>'+esc(r.loginId)+'</b>　初期パスワード <b class="num" id="apPw" style="font-size:15px;letter-spacing:.06em;">'+esc(r.initialPassword)+'</b>'
+      +' <button class="btn sec sm" id="apPwCopy">コピー</button></div>'
+      +'<div class="note bad" style="margin-top:8px;">'+esc(r.guide)+'</div>'
+      +'<button class="btn sm" data-t="'+esc(r.tenant.id)+'">園の詳細（導入の進み具合）を開く</button></div>';
+  }
+  if(a.tenant_id)return '<div class="card"><h3>この申込の園</h3><div class="row"><span>この申込から開いた園があります（id '+esc(a.tenant_id)+'）。</span><button class="btn sec sm" data-t="'+esc(a.tenant_id)+'">園の詳細を開く</button></div></div>';
+  var guess=String(a.email||'').split('@')[1]||'';guess=guess.split('.')[0].toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,32);
+  return '<div class="card"><h3>この申込から園を開く</h3>'
+    +'<div class="lead" style="margin-bottom:8px;">園を作り、管理者のアカウントを発行し、導入の手順を始めます。二度押しても園は1つです。</div>'
+    +'<div class="grid2">'
+    +'<div class="f"><label>園コード（ログインに使う・あとから変えられません）</label><input id="ao_code" value="'+esc(guess)+'" placeholder="omiya"></div>'
+    +'<div class="f"><label>園名</label><input id="ao_name" value="'+esc(a.school||a.corp||'')+'"></div>'
+    +'<div class="f"><label>管理者のログインID</label><input id="ao_login" value="admin"></div>'
+    +'<div class="f"><label>管理者のお名前</label><input id="ao_who" value="'+esc(a.person||'園長')+'"></div>'
+    +'</div><div class="row"><button class="btn sm" id="ao_go">この申込から園を開く</button><span class="msg" id="ao_m"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;">初期パスワードはサーバが作り、この画面に1回だけ出します。初回ログインで園の方が必ず変更します。</div></div>';
+}
 function docsHTML(){
   if(!DATA.docs)return '<div class="empty">読み込んでいます…</div>';
   return '<h2>書類（全園）</h2><div class="lead">園ごとの契約書・同意書。新しい順</div>'
@@ -1819,11 +1922,13 @@ function load(){
   if(view==='sys')   return API.call('GET','/admin/billing/events?limit=30').then(function(j){DATA.pevents=(j&&j.events)||null;}).catch(function(){DATA.pevents=null;});
   if(view==='fees')  return API.call('GET','/admin/tax').then(function(j){DATA.tax=j;DATA.taxErr='';}).catch(function(e){DATA.tax=null;DATA.taxErr=e.message;});
   if(view==='tuition')return Promise.resolve();
+  if(view==='pipe')  return API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;});
   if(view==='oplog') return API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;});
   if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
   if(view==='one')   return Promise.all([
       API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;}),
-      tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null
+      tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null,
+      tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
     ]);
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
   if(view==='forms') return API.call('GET','/admin/docflow/forms').then(function(j){DATA.forms=j;});
@@ -1861,7 +1966,7 @@ function render(){
   var r=$('root');
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
   var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,ads:adsHTML,me:meHTML,
-    sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML}[view]||homeHTML;
+    sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML}[view]||homeHTML;
   r.innerHTML=shell(inner());
   wire();
   /* ホームとシステム接続は、開くたびに最新の状態を読む（ほかの画面は5分に1回） */
@@ -1978,6 +2083,34 @@ function wire(){
   if($('navT'))$('navT').onclick=function(){document.body.classList.toggle('navopen');};
   if($('scrim'))$('scrim').onclick=function(){document.body.classList.remove('navopen');};
   gqWire();
+  /* 導入 */
+  document.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){pipeMode=b.getAttribute('data-pm');render();};});
+  document.querySelectorAll('[data-obs]').forEach(function(b){b.onclick=function(){
+    var to=b.getAttribute('data-to'),note='';
+    if(to==='skipped'){note=prompt('飛ばす理由を書いてください（園の変更ログに残ります）','');if(note===null)return;}
+    b.disabled=true;
+    API.call('PUT','/admin/tenants/'+openId+'/onboarding/'+b.getAttribute('data-obs'),{status:to,note:note||''})
+      .then(function(j){DATA.ob=j;DATA.obId=openId;GLB_AT=0;render();}).catch(function(e){alert(e.message);b.disabled=false;});
+  };});
+  if($('obBegin'))$('obBegin').onclick=function(){API.call('POST','/admin/tenants/'+openId+'/onboarding',{}).then(function(j){DATA.ob=j;DATA.obId=openId;render();}).catch(function(e){say('obM',e.message);});};
+  if($('obBill'))$('obBill').onclick=function(){
+    var st=$('obBillSt').value,on=$('obBillOn').value;
+    if(!confirm('「'+st+'」として課金を始めます（開始日 '+(on||'今日')+'）。\n次の請求からこの園が対象になります。よろしいですか？'))return;
+    say('obM','保存中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/onboarding/start-billing',{status:st,startedOn:on||''})
+      .then(function(){GLB_AT=0;render();}).catch(function(e){say('obM',e.message);});
+  };
+  if($('ao_go'))$('ao_go').onclick=function(){
+    var a=applyOpen;if(!a)return;
+    if(!confirm('この申込から園「'+$('ao_name').value.trim()+'」（園コード '+$('ao_code').value.trim()+'）を開き、管理者アカウントを発行します。よろしいですか？'))return;
+    say('ao_m','作成中…',true);$('ao_go').disabled=true;
+    API.call('POST','/admin/applications/'+a.id+'/open',{code:$('ao_code').value.trim(),name:$('ao_name').value.trim(),loginId:$('ao_login').value.trim(),adminName:$('ao_who').value.trim()})
+      .then(function(r){apOpened={appId:a.id,r:r};GLB_AT=0;render();}).catch(function(e){$('ao_go').disabled=false;say('ao_m',e.message);});
+  };
+  if($('apPwCopy'))$('apPwCopy').onclick=function(){
+    var t=$('apPw').textContent;
+    try{navigator.clipboard.writeText(t).then(function(){$('apPwCopy').textContent='コピーしました';});}catch(e){}
+  };
   if($('out'))$('out').onclick=function(){API.setToken('');render();};
 
   /* 園の一覧 */
