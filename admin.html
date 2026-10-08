@@ -1210,7 +1210,7 @@ function tenantHTML(){
     +'お子さまのIDは、Miralink の「生徒情報一覧・連絡先」で確認できます。'
     +'発行したパスワードは、保護者の方が最初のログインのあとに変更できます。</div>'
     +'</div>';
-  P.docs=''
+  P.docs=agreeAdminHTML()+''
     +'<div class="card"><h3>書類</h3>'
     +docListHTML(d.documents,false)
     +'<div class="grid3" style="margin-top:12px;">'
@@ -1408,6 +1408,34 @@ function mfaCardHTML(){
 }
 var opF={admin:'',tenant:'',from:'',to:'',q:''};
 function opQs(){var a=[];Object.keys(opF).forEach(function(k){if(opF[k])a.push(k+'='+encodeURIComponent(opF[k]));});return a.length?'?'+a.join('&'):'';}
+/* ══ 契約の同意と証跡（2026-10-08 段4）══════════════
+   ここで送ると、その時点の中身で固まり（指紋つき）、園の管理者が Miralink で全文を読んで同意する。
+   ★送ったあとは書き換えられない。直すときは同じ種類をもう一度送る（新しい版。前の版は置き換わる）。
+   外部の電子契約サービスは、園が求めたときだけ（いまは「外部で締結済みにする」で手で記録） */
+var AG_KIND=[['normal','利用契約書'],['monitor','3カ月モニター利用契約書'],['memo','個人情報の取扱いに関する覚書'],['consent','園名掲載同意書'],['quote','お見積書']];
+var AG_ST={sent:['未確認','info'],viewed:['確認中','info'],signed:['締結済み','ok'],superseded:['新しい版に置き換え','off'],expired:['取り下げ','off'],declined:['断られた','ng'],draft:['下書き','off']};
+function agreeAdminHTML(){
+  var a=(DATA.agreeId===openId)?DATA.agree:null;
+  if(!a)return '<div class="card"><h3>契約（同意と証跡）</h3><div class="empty">読み込んでいます…</div></div>';
+  if(a.err)return '<div class="card"><h3>契約（同意と証跡）</h3><div class="note bad">'+esc(a.err)+'</div></div>';
+  var L=a.docs||[];
+  return '<div class="card"><h3>契約（同意と証跡）</h3>'
+    +'<div class="note" style="margin-bottom:10px;">文面は弁護士の確認前のたたき台です（社内向けの注記は園には出しません）。送ると、その時点の中身で固まり、書き換えられません。直すときはもう一度送ると新しい版になります。</div>'
+    +'<div class="row" style="align-items:flex-end;"><div class="f" style="margin:0;"><label>送る書類</label><select id="agKind">'+AG_KIND.map(function(k){return '<option value="'+k[0]+'">'+esc(k[1])+'</option>';}).join('')+'</select></div>'
+    +'<div class="f" style="margin:0;flex:1;min-width:220px;"><label>園の連絡先メール（お知らせ・確認コード。空なら申込のアドレス）</label><input id="agEmail" type="email"></div>'
+    +'<button class="btn sm" id="agSend">園に送る</button><span class="msg" id="agM"></span></div>'
+    +(L.length?'<div class="tw" style="margin-top:12px;"><table style="min-width:760px;"><thead><tr><th>書類</th><th>版</th><th>状態</th><th>同意した人</th><th>日時</th><th></th></tr></thead><tbody>'
+      +L.map(function(d){var st=AG_ST[d.status]||[d.status,'off'];var ac=d.acceptance;
+        return '<tr style="cursor:default;"><td><b>'+esc(d.title)+'</b><div class="num" style="font-size:10.5px;color:var(--mute);" title="文書の指紋（SHA-256）">'+esc(String(d.hash).slice(0,16))+'…</div></td>'
+          +'<td class="num">第'+esc(d.version)+'版</td><td><span class="st '+st[1]+'" style="margin:0;">'+st[0]+'</span>'+(d.provider&&d.provider!=='internal'?'<div style="font-size:10.5px;color:var(--mute);">'+esc(d.provider.replace('external:','外部：'))+'</div>':'')+'</td>'
+          +'<td>'+(ac?esc(ac.signerName)+'（'+esc(ac.signerTitle)+'）<div style="font-size:10.5px;color:var(--mute);">'+(ac.otpMethod==='email'?'メールの確認コード':'ログイン')+'</div>':(d.note?'<span style="font-size:11px;color:var(--mute);">'+esc(d.note)+'</span>':'—'))+'</td>'
+          +'<td class="num" style="font-size:11.5px;white-space:nowrap;">'+esc(fmtAt(d.signedAt||d.viewedAt||d.sentAt))+'</td>'
+          +'<td class="r" style="white-space:nowrap;"><button class="btn sec sm" data-agp="'+d.id+'">PDF</button> '
+            +(d.status==='signed'||d.status==='superseded'?'<button class="btn sec sm" data-agv="'+d.id+'">指紋を照合</button>':'')
+            +(d.status==='sent'||d.status==='viewed'?'<button class="btn sec sm" data-agx="'+d.id+'">外部で締結済みにする</button> <button class="btn warn sm" data-agw="'+d.id+'">取り下げ</button>':'')+'</td></tr>';}).join('')
+      +'</tbody></table></div>':'<div class="empty">まだ送った契約書はありません</div>')
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;">利用契約（またはモニター契約）と覚書の両方が締結済みになると、導入の手順「契約・覚書」が自動で済になります。</div></div>';
+}
 /* 園の変更ログのうち、運営がこの園にしたこと（/admin/oplog を園で絞る） */
 function tLogHTML(){
   var L=(DATA.oplog||[]).filter(function(x){return String(x.tenantId)===String(openId);});
@@ -2079,6 +2107,7 @@ function load(){
       DATA.names?null:API.call('GET','/admin/admins/names').then(function(j){DATA.names=j.admins;}).catch(function(){}),
       tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null,
       tTab==='support'?supLoad():null,
+      tTab==='docs'?API.call('GET','/admin/tenants/'+openId+'/contracts').then(function(j){DATA.agree=j;DATA.agreeId=openId;}).catch(function(e){DATA.agree={err:e.message};DATA.agreeId=openId;}):null,
       tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
     ]);
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
@@ -2256,6 +2285,33 @@ function wire(){
   if($('navT'))$('navT').onclick=function(){document.body.classList.toggle('navopen');};
   if($('scrim'))$('scrim').onclick=function(){document.body.classList.remove('navopen');};
   gqWire();
+  /* 段4：契約の同意と証跡 */
+  if($('agSend'))$('agSend').onclick=function(){
+    var kind=$('agKind').value,em=$('agEmail').value.trim(),nm=$('agKind').selectedOptions[0].text;
+    if(!confirm('「'+nm+'」を園に送ります。送ったあとは書き換えられません（直すときは新しい版を送ります）。よろしいですか？'))return;
+    var send=function(allow){say('agM','送っています…',true);
+      API.call('POST','/admin/tenants/'+openId+'/contracts',{kind:kind,email:em,allowTbd:!!allow}).then(function(){render();}).catch(function(e){
+        if(e.code==='tbd'){if(confirm(e.message+'\n\nこのまま送りますか？'))send(true);else say('agM','送るのをやめました');return;}
+        say('agM',e.message);});};
+    send(false);
+  };
+  document.querySelectorAll('[data-agp]').forEach(function(b){b.onclick=function(){
+    fetch(API.base()+'/admin/contracts/'+b.getAttribute('data-agp')+'/pdf',{headers:{Authorization:'Bearer '+API.token()}})
+      .then(function(r){if(!r.ok)throw new Error('PDFを取り出せませんでした（'+r.status+'）');var n=(r.headers.get('content-disposition')||'').match(/filename\*=UTF-8''([^;]+)/);return r.blob().then(function(x){return {b:x,n:n?decodeURIComponent(n[1]):'契約書.pdf'};});})
+      .then(function(x){var a=document.createElement('a');a.href=URL.createObjectURL(x.b);a.download=x.n;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);})
+      .catch(function(e){alert(e.message);});};});
+  document.querySelectorAll('[data-agv]').forEach(function(b){b.onclick=function(){
+    API.call('GET','/admin/contracts/'+b.getAttribute('data-agv')+'/verify').then(function(j){
+      alert((j.bodyOk&&j.pdfOk!==false&&j.acceptanceOk!==false?'一致しました。':'一致しないものがあります。')+'\n\n中身：'+(j.bodyOk?'一致':'不一致')+'\n締結済みPDF：'+(j.pdfOk==null?'なし':(j.pdfOk?'一致':'不一致'))+'\n同意の記録：'+(j.acceptanceOk==null?'なし':(j.acceptanceOk?'一致':'不一致'))+'\n\n指紋（SHA-256）：'+j.hash);
+    }).catch(function(e){alert(e.message);});};});
+  document.querySelectorAll('[data-agw]').forEach(function(b){b.onclick=function(){
+    var why=prompt('取り下げる理由を書いてください','');if(why===null)return;
+    API.call('POST','/admin/contracts/'+b.getAttribute('data-agw')+'/withdraw',{reason:why}).then(function(){render();}).catch(function(e){alert(e.message);});};});
+  document.querySelectorAll('[data-agx]').forEach(function(b){b.onclick=function(){
+    var pv=prompt('外部のサービスの名前（例：クラウドサイン）','クラウドサイン');if(pv===null)return;
+    var why=prompt('外部で結んだ理由（例：法人の規程で電子署名が必要）','');if(why===null)return;
+    var url=prompt('締結済みの控えの場所（任意・Drive などのリンク）','');
+    API.call('POST','/admin/contracts/'+b.getAttribute('data-agx')+'/external',{provider:pv,reason:why,url:url||''}).then(function(){render();}).catch(function(e){alert(e.message);});};});
   /* 段3：担当・要対応の絞り・運営メンバー・2段階認証・操作ログの絞り込み */
   if($('attMine'))$('attMine').onchange=function(){ATT_MINE=this.checked;try{localStorage.setItem('adm_attMine',ATT_MINE?'1':'0');}catch(e){}render();};
   if($('tOwner'))$('tOwner').onchange=function(){var v=this.value;
