@@ -364,10 +364,10 @@ function wireLogin(){
 var NAV=[
   ['',[['home','ホーム']]],
   ['導入',[['apply','申込'],['pipe','導入パイプライン']]],
-  ['園',[['tenants','園の一覧'],['docs','書類（全園）']]],
+  ['園',[['tenants','園の一覧'],['docs','書類（全園）'],['offboard','解約・データ返却']]],
   ['売上',[['bill','請求']]],
   ['決済・広告',[['pay','ストアのカード払い'],['tuition','保育料のカード払い'],['ads','広告']]],
-  ['運用',[['forms','自治体の様式'],['oplog','操作ログ']]],
+  ['運用',[['incidents','インシデント台帳'],['forms','自治体の様式'],['oplog','操作ログ']]],
   ['設定',[['fees','料金・税'],['sys','システム接続'],['members','運営メンバー'],['me','アカウント']]]
 ];
 function navBadge(v){
@@ -403,7 +403,7 @@ function shell(inner){
 /* ── 画面の住所（#/…）。再読み込み・戻る・進むで同じ画面に戻れるように ── */
 var tTab='overview';
 var ROUTES={home:'home',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
-  tuition:'tuition',pipe:'onboarding',members:'settings/members',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
+  tuition:'tuition',pipe:'onboarding',members:'settings/members',incidents:'incidents',offboard:'offboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
 var T_TABS=[['overview','概要'],['contract','契約・請求'],['accounts','アカウント'],['docs','書類'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
@@ -450,7 +450,10 @@ function loadGlobal(force){
     API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;DATA.tenantsToday=j.today;}).catch(function(){}),
     API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(ym)).then(function(j){DATA.binvNow=j;}).catch(function(){}),
     API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}).catch(function(){}),
-    API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){})
+    API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){}),
+    API.call('GET','/admin/incidents').then(function(j){DATA.inc=j;}).catch(function(){}),
+    API.call('GET','/admin/offboarding').then(function(j){DATA.off=j;}).catch(function(){}),
+    API.call('GET','/admin/ops-settings').then(function(j){DATA.ops=j;}).catch(function(){})
   ]);
 }
 function jstToday(){return new Date(Date.now()+9*3600*1000).toISOString().slice(0,10);}
@@ -875,8 +878,20 @@ function computeAttentionItems(){
   }
   var stl=ts.filter(function(t){return (t.status==='商談中'||t.status==='モニター')&&t.contract_updated_at&&daysSince(t.contract_updated_at,today)>=ATT_STALE_DAYS;});
   if(stl.length)it.push({sev:'warn',n:stl.length,text:'「商談中」「モニター」のまま '+ATT_STALE_DAYS+'日以上 契約が動いていない園（'+nm(stl)+'）',go:stl.length===1?['one',stl[0].id,'contract']:['tenants']});
-  var end=ts.filter(function(t){return t.status==='解約予定';}).sort(function(a,b){return String(a.cancel_on||'9')<String(b.cancel_on||'9')?-1:1;});
-  if(end.length)it.push({sev:'warn',n:end.length,text:'解約予定の園（'+end.slice(0,3).map(function(t){return t.name+(t.cancel_on?' '+t.cancel_on:'');}).join('・')+'）。記録の書き出しを案内する',go:end.length===1?['one',end[0].id,'overview']:['tenants']});
+  /* 解約・データ返却（段5）：返却の手順が残っている園と、保存期限が来た園 */
+  var offs=((DATA.off&&DATA.off.schools)||[]).filter(function(x){return !ATT_MINE||ts.some(function(t){return String(t.id)===String(x.id);});});
+  var ot=offs.filter(function(x){return x.todo.length&&!x.expired;});
+  if(ot.length)it.push({sev:'warn',n:ot.length,text:'解約予定・解約済で、データ返却の手順が残っている園（'+ot.slice(0,3).map(function(x){return x.name+'：'+x.todo[0];}).join('・')+'）',go:['offboard']});
+  var ox=offs.filter(function(x){return x.expired;});
+  if(ox.length)it.push({sev:'warn',n:ox.length,text:'保存期限（'+((DATA.off&&DATA.off.years)||7)+'年）が来た園。消すかどうかは安田さんの判断（消す操作は用意していません）',go:['offboard']});
+  /* インシデントの期限（段5）。近い・過ぎたは赤 */
+  ((DATA.inc&&DATA.inc.incidents)||[]).forEach(function(x){
+    if(x.status==='終了')return;
+    [['quick','速報'],['final','確報']].forEach(function(k){
+      if(x[k[0]]==='near'||x[k[0]]==='over')it.push({sev:'ng',n:1,text:'インシデント #'+x.id+' の'+k[1]+'の期限'+(x[k[0]]==='over'?'を過ぎています':'まであと'+Math.max(0,x[k[0]+'Left'])+'日')+'（'+x.kind+'・発覚 '+fmtAt(x.foundAt).slice(0,10)+'）',go:['incidents']});
+    });
+  });
+  if(DATA.ops&&DATA.ops.invoice&&!DATA.ops.invoice.regNo)it.push({sev:'warn',n:1,text:'インボイス登録番号（T番号）が未設定です（見積書・契約書・請求書に入ります）',go:['fees']});
   var ob=((DATA.pipe&&DATA.pipe.schools)||[]).filter(function(x){return x.overdue;});
   if(ob.length)it.push({sev:'warn',n:ob.length,text:'導入が止まっている園（'+ob.slice(0,3).map(function(x){return x.name+'：'+x.stageName;}).join('・')+'）',go:ob.length===1?['one',ob[0].id,'overview']:['pipe']});
   var tf=((DATA.tui&&DATA.tui.tenants)||[]).filter(function(x){return x.failed>0;});
@@ -1408,6 +1423,79 @@ function mfaCardHTML(){
 }
 var opF={admin:'',tenant:'',from:'',to:'',q:''};
 function opQs(){var a=[];Object.keys(opF).forEach(function(k){if(opF[k])a.push(k+'='+encodeURIComponent(opF[k]));});return a.length?'?'+a.join('&'):'';}
+/* ══ インシデント台帳・解約とデータ返却・運用の設定（2026-10-08 段5）══════════════
+   期限の日数・保存年数はサーバの設定値（法律の期限をここに書かない。要確認：個人情報保護委員会の最新資料・弁護士）。
+   台帳も返却の記録も消す操作は無い。変えたことは操作ログに残る */
+var incOpen=null,incNew=false;
+var INC_FLAG={ok:['期限内','info'],near:['期限が近い','ng'],over:['期限を過ぎた','ng'],done:['済','ok']};
+function incTenantNames(ids){return (ids||[]).map(function(id){var t=(DATA.tenants||[]).filter(function(x){return String(x.id)===String(id);})[0];return t?t.name:('園 '+id);}).join('・');}
+function incidentsHTML(){
+  var d=DATA.inc;if(!d)return '<h2>インシデント台帳</h2><div class="empty">読み込んでいます…</div>';
+  var S=d.settings||{};
+  var h='<h2>インシデント台帳</h2><div class="lead">個人情報の漏えい・滅失・毀損などが起きたときの記録です。期限が近いもの・過ぎたものはホームの要対応に赤で出ます。行は消せません。</div>'
+    +'<div class="note">期限の目安（設定値）：速報 発覚から '+esc(S.quickDays)+'日／確報 '+esc(S.finalDays)+'日（不正の目的のおそれがあるとき '+esc(S.finalDaysMalicious)+'日）。'
+    +'BIM JAPAN は園から委託を受けた立場なので、まず園へ知らせ、委員会への報告は園と相談して行います。<b>日数と流れは、個人情報保護委員会の最新の資料と弁護士に確認してください。</b></div>'
+    +'<div class="row" style="margin-bottom:12px;"><button class="btn sm" id="incAdd">新しく記録する</button></div>';
+  if(incNew)h+=incFormHTML(null);
+  var L=d.incidents||[];
+  h+=L.length?'<div class="tw"><table style="min-width:820px;"><thead><tr><th>#</th><th>発覚</th><th>種別</th><th>対象の園・件数</th><th>速報</th><th>確報</th><th>状態</th><th></th></tr></thead><tbody>'
+    +L.map(function(x){var q=INC_FLAG[x.quick]||['—','off'],f=INC_FLAG[x.final]||['—','off'];
+      return '<tr style="cursor:default;"><td class="num">'+x.id+'</td><td class="num" style="white-space:nowrap;">'+esc(fmtAt(x.foundAt))+'</td><td>'+esc(x.kind)+(x.sensitive?' <span class="st ng" style="margin:0;">要配慮</span>':'')+(x.malicious?' <span class="st ng" style="margin:0;">不正のおそれ</span>':'')+'</td>'
+        +'<td>'+esc(incTenantNames(x.tenantIds)||'—')+'<div style="font-size:11px;color:var(--mute);">'+esc(x.affectedCount)+'件</div></td>'
+        +'<td><span class="st '+q[1]+'" style="margin:0;">'+q[0]+'</span><div class="num" style="font-size:11px;color:var(--mute);">'+esc(fmtAt(x.quickDue).slice(0,10))+'</div></td>'
+        +'<td><span class="st '+f[1]+'" style="margin:0;">'+f[0]+'</span><div class="num" style="font-size:11px;color:var(--mute);">'+esc(fmtAt(x.finalDue).slice(0,10))+'</div></td>'
+        +'<td>'+esc(x.status)+'</td><td class="r"><button class="btn sec sm" data-inco="'+x.id+'">'+(incOpen===x.id?'閉じる':'開く')+'</button></td></tr>'
+        +(incOpen===x.id?'<tr style="cursor:default;"><td colspan="8">'+incFormHTML(x)+'</td></tr>':'');
+    }).join('')+'</tbody></table></div>':'<div class="card"><div class="empty">記録はありません（何も起きていないのが一番です）</div></div>';
+  return h;
+}
+function incFormHTML(x){
+  var d=DATA.inc||{},v=x||{kind:'その他',status:'対応中',tenantIds:[]};
+  var sel=function(id,cur,opts){return '<select id="'+id+'">'+opts.map(function(o){return '<option'+(o===cur?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>';};
+  var dt=function(iso){if(!iso)return '';return new Date(Date.parse(iso)+9*3600000).toISOString().slice(0,16);};
+  var h='<div class="card" style="margin:8px 0;">'+(x?'':'<h3>新しく記録する</h3>')
+    +'<div class="grid3"><div class="f"><label>発覚した日時</label><input id="if_found" type="datetime-local" value="'+esc(x?dt(v.foundAt):dt(new Date().toISOString()))+'"></div>'
+    +'<div class="f"><label>種別</label>'+sel('if_kind',v.kind,d.kinds||[])+'</div>'
+    +'<div class="f"><label>状態</label>'+sel('if_status',v.status,d.statuses||[])+'</div></div>'
+    +'<div class="f"><label>発覚の経緯</label><textarea id="if_how" rows="2">'+esc(v.howFound||'')+'</textarea></div>'
+    +'<div class="grid3"><div class="f"><label>対象の園（複数可）</label><select id="if_t" multiple size="3">'+(DATA.tenants||[]).map(function(t){return '<option value="'+t.id+'"'+((v.tenantIds||[]).map(String).indexOf(String(t.id))>-1?' selected':'')+'>'+esc(t.name)+'</option>';}).join('')+'</select></div>'
+    +'<div class="f"><label>影響を受けた人数・件数</label><input id="if_n" class="num" inputmode="numeric" value="'+esc(v.affectedCount||0)+'"></div>'
+    +'<div class="f"><label>個人データの種類</label><input id="if_types" value="'+esc(v.dataTypes||'')+'" placeholder="例：保護者の氏名・電話"></div></div>'
+    +'<div class="row"><label style="font-size:13px;"><input type="checkbox" id="if_sen"'+(v.sensitive?' checked':'')+'> 要配慮個人情報（健康・アレルギー・事故の記録など）を含む</label>'
+    +'<label style="font-size:13px;margin-left:14px;"><input type="checkbox" id="if_mal"'+(v.malicious?' checked':'')+'> 不正の目的によるおそれがある</label></div>';
+  if(x){
+    h+='<div class="grid2" style="margin-top:8px;"><div class="f"><label>本人への通知</label><input id="if_person" value="'+esc(v.personNotice||'')+'"></div><div class="f"><label>原因</label><input id="if_cause" value="'+esc(v.cause||'')+'"></div></div>'
+      +'<div class="f"><label>再発防止</label><textarea id="if_prev" rows="2">'+esc(v.prevention||'')+'</textarea></div>'
+      +'<div class="f"><label>対応メモ</label><textarea id="if_memo" rows="3">'+esc(v.memo||'')+'</textarea></div>'
+      +'<div style="font-weight:700;font-size:13px;margin:8px 0 4px;">対応の手順</div>'
+      +(v.steps||[]).map(function(st){return '<label style="display:block;font-size:12.5px;margin:0 0 5px;"><input type="checkbox" data-incs="'+st.key+'"'+(st.done?' checked':'')+'> '+esc(st.label)+(st.done?' <span style="color:var(--mute);font-size:11px;">'+esc(fmtAt(st.at))+'・'+esc(st.by||'')+'</span>':'')+'</label>';}).join('');
+  }
+  return h+'<div class="row" style="margin-top:8px;"><button class="btn sm" id="if_save" data-id="'+(x?x.id:'')+'">'+(x?'変更を保存':'記録する')+'</button><span class="msg" id="if_m"></span></div></div>';
+}
+function offboardHTML(){
+  var d=DATA.off;if(!d)return '<h2>解約・データ返却</h2><div class="empty">読み込んでいます…</div>';
+  var L=d.schools||[];
+  return '<h2>解約・データ返却</h2><div class="lead">解約予定・解約済の園の、記録の返却と保存期限です。止めても記録は消しません（'+esc(d.years)+'年保存）。解約した園から「記録を出したい」と言われたら、いったん再開して園に書き出してもらい、また止めます。</div>'
+    +'<div class="note">保存期限が来ても、自動では消しません。消すかどうかは安田さんの判断で、消す操作もここには用意していません。</div>'
+    +(L.length?'<div class="tw"><table style="min-width:820px;"><thead><tr><th>園</th><th>状態</th><th>契約の終了日</th><th>保存期限</th><th>返却の手順</th></tr></thead><tbody>'
+      +L.map(function(x){return '<tr style="cursor:default;"><td><a href="#/schools/'+x.id+'"><b>'+esc(x.name)+'</b></a><div style="font-size:11px;color:var(--mute);">'+esc(x.code)+(x.active===false?'・利用停止中':'')+'</div></td>'
+        +'<td>'+esc(x.status||'—')+'</td><td class="num">'+esc(x.cancelOn?String(x.cancelOn).slice(0,10):'—')+'</td>'
+        +'<td class="num">'+(x.retentionUntil?'<span class="st '+(x.expired?'warn':'off')+'" style="margin:0;">'+esc(x.retentionUntil)+(x.expired?' 期限':'')+'</span>':'—')+'</td>'
+        +'<td>'+x.steps.map(function(st){return '<label style="display:block;font-size:12px;"><input type="checkbox" data-offs="'+x.id+'" data-step="'+st.key+'"'+(st.done?' checked':'')+'> '+esc(st.label)+(st.done?' <span style="color:var(--mute);font-size:10.5px;">'+esc(fmtAt(st.at).slice(0,10))+'</span>':'')+'</label>';}).join('')+'</td></tr>';}).join('')
+      +'</tbody></table></div>':'<div class="card"><div class="empty">解約予定・解約済の園はありません</div></div>');
+}
+function opsSettingsHTML(){
+  var o=DATA.ops;if(!o)return '';
+  var i=o.incident||{},v=o.invoice||{};
+  return '<div class="card"><h2>インボイス・保存・インシデントの設定</h2>'
+    +'<div class="lead">変えられるのはオーナーだけです。法律に関わる日数・年数は、弁護士・税理士に確認してから入れてください。</div>'
+    +'<div class="grid3"><div class="f"><label>インボイス登録番号（T＋13けた）</label><input id="os_reg" value="'+esc(v.regNo||'')+'" placeholder="T1234567890123"></div>'
+    +'<div class="f"><label>記録の保存年数（5年以上）</label><input id="os_ret" class="num" inputmode="numeric" value="'+esc(i.retentionYears)+'"></div><div class="f"></div></div>'
+    +'<div class="grid3"><div class="f"><label>インシデントの速報の目安（日）</label><input id="os_q" class="num" inputmode="numeric" value="'+esc(i.quickDays)+'"></div>'
+    +'<div class="f"><label>確報（日）</label><input id="os_f" class="num" inputmode="numeric" value="'+esc(i.finalDays)+'"></div>'
+    +'<div class="f"><label>確報・不正の目的のおそれ（日）</label><input id="os_fm" class="num" inputmode="numeric" value="'+esc(i.finalDaysMalicious)+'"></div></div>'
+    +'<div class="row"><button class="btn sm" id="os_save">保存</button><span class="msg" id="os_m"></span></div></div>';
+}
 /* ══ 契約の同意と証跡（2026-10-08 段4）══════════════
    ここで送ると、その時点の中身で固まり（指紋つき）、園の管理者が Miralink で全文を読んで同意する。
    ★送ったあとは書き換えられない。直すときは同じ種類をもう一度送る（新しい版。前の版は置き換わる）。
@@ -1982,7 +2070,7 @@ function plansHTML(){
 /* 設定 › 料金・税：料金プラン・消費税・保育料カード払いの BJ の取り分を1か所に（2026-10-08） */
 function feesHTML(){
   return '<h2>料金・税</h2><div class="lead">変えると、次に作る請求・次の引き落としから新しい値になります（作ってある請求は変わりません）。</div>'
-    +taxHTML()+tuiFeeHTML()+plansHTML();
+    +opsSettingsHTML()+taxHTML()+tuiFeeHTML()+plansHTML();
 }
 function tuitionHTML(){
   return sysLine('tui')+tuiListHTML();
@@ -2004,7 +2092,7 @@ function docSign(co){
     +'<p>&nbsp;</p>'
     +'<p>　　　　年　　月　　日</p>'
     +'<p>&nbsp;</p>'
-    +'<p>（甲）'+esc(co.addr)+'</p>'
+    +'<p>（甲）'+esc(co.addr)+'</p>'+(co.regNo?'<p>　　　登録番号 '+esc(co.regNo)+'</p>':'')
     +'<p>　　　'+esc(co.name)+'</p>'
     +'<p>　　　'+esc(co.rep)+'　　　　　　　　　　　　印</p>'
     +'<p>&nbsp;</p>'
@@ -2057,7 +2145,7 @@ function showDoc(j){
       h+='<h2>'+esc(x.h)+'</h2><ol>'+x.b.map(function(b){return '<li>'+esc(b)+'</li>';}).join('')+'</ol>';
     });
     h+='<div class="sign"><p>'+esc(j.company.name)+'</p><p>'+esc(j.company.addr)+'</p>'
-      +'<p>'+esc(j.company.rep)+'</p><p>'+esc(j.company.mail)+'</p></div>';
+      +'<p>'+esc(j.company.rep)+'</p><p>'+esc(j.company.mail)+'</p>'+(j.company.regNo?'<p>登録番号 '+esc(j.company.regNo)+'</p>':'')+'</div>';
   }
 
   if(j.checks){
@@ -2091,9 +2179,12 @@ function load(){
   if(view==='sys')   return API.call('GET','/admin/billing/events?limit=30').then(function(j){DATA.pevents=(j&&j.events)||null;}).catch(function(){DATA.pevents=null;});
   /* ★保育料の手数料（DATA.tui）は5分に1回だけ読む共通の入れ物から出していたので、
      2% にして保存しても、5分たつまで画面が 0 のままだった（2026-10-08 安田さんのご指摘）。この画面では毎回読む */
+  if(view==='incidents')return Promise.all([API.call('GET','/admin/incidents').then(function(j){DATA.inc=j;}),DATA.tenants?null:API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;})]);
+  if(view==='offboard')return API.call('GET','/admin/offboarding').then(function(j){DATA.off=j;});
   if(view==='fees')  return Promise.all([
       API.call('GET','/admin/tax').then(function(j){DATA.tax=j;DATA.taxErr='';}).catch(function(e){DATA.tax=null;DATA.taxErr=e.message;}),
-      API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;})
+      API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;}),
+      API.call('GET','/admin/ops-settings').then(function(j){DATA.ops=j;}).catch(function(){})
     ]);
   if(view==='tuition')return Promise.resolve();
   if(view==='pipe')  return API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;});
@@ -2166,7 +2257,7 @@ function render(){
   if(INVITE){r.innerHTML=inviteHTML();wireInvite();return;}
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
   var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,ads:adsHTML,me:meHTML,
-    sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML,members:membersHTML}[view]||homeHTML;
+    sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML,members:membersHTML,incidents:incidentsHTML,offboard:offboardHTML}[view]||homeHTML;
   r.innerHTML=shell(inner());
   wire();
   /* ホームとシステム接続は、開くたびに最新の状態を読む（ほかの画面は5分に1回） */
@@ -2285,6 +2376,28 @@ function wire(){
   if($('navT'))$('navT').onclick=function(){document.body.classList.toggle('navopen');};
   if($('scrim'))$('scrim').onclick=function(){document.body.classList.remove('navopen');};
   gqWire();
+  /* 段5：インシデント・データ返却・運用の設定 */
+  if($('incAdd'))$('incAdd').onclick=function(){incNew=!incNew;incOpen=null;render();};
+  document.querySelectorAll('[data-inco]').forEach(function(b){b.onclick=function(){var id=+b.getAttribute('data-inco');incOpen=incOpen===id?null:id;incNew=false;render();};});
+  if($('if_save'))$('if_save').onclick=function(){
+    var id=this.getAttribute('data-id'),v=function(k){var e=$(k);return e?e.value:undefined;};
+    var body={foundAt:v('if_found')?new Date(v('if_found')+':00+09:00').toISOString():'',kind:v('if_kind'),status:v('if_status'),howFound:v('if_how'),
+      tenantIds:[].map.call(($('if_t')||{}).selectedOptions||[],function(o){return +o.value;}),affectedCount:+(v('if_n')||0),dataTypes:v('if_types'),
+      sensitive:$('if_sen').checked,malicious:$('if_mal').checked};
+    if(id){body.personNotice=v('if_person');body.cause=v('if_cause');body.prevention=v('if_prev');body.memo=v('if_memo');}
+    say('if_m','保存中…',true);
+    (id?API.call('PUT','/admin/incidents/'+id,body):API.call('POST','/admin/incidents',body)).then(function(){incNew=false;GLB_AT=0;render();}).catch(function(e){say('if_m',e.message);});
+  };
+  document.querySelectorAll('[data-incs]').forEach(function(c){c.onchange=function(){
+    API.call('POST','/admin/incidents/'+incOpen+'/check',{step:c.getAttribute('data-incs'),done:c.checked}).then(function(){GLB_AT=0;render();}).catch(function(e){alert(e.message);render();});};});
+  document.querySelectorAll('[data-offs]').forEach(function(c){c.onchange=function(){
+    var note=c.checked?prompt('ひとこと（任意。例：園長から書き出し済みと連絡）',''):'';if(note===null){render();return;}
+    API.call('POST','/admin/tenants/'+c.getAttribute('data-offs')+'/offboarding',{step:c.getAttribute('data-step'),done:c.checked,note:note||''}).then(function(){GLB_AT=0;render();}).catch(function(e){alert(e.message);render();});};});
+  if($('os_save'))$('os_save').onclick=function(){
+    say('os_m','保存中…',true);
+    API.call('PUT','/admin/ops-settings',{regNo:$('os_reg').value.trim(),retentionYears:+$('os_ret').value,quickDays:+$('os_q').value,finalDays:+$('os_f').value,finalDaysMalicious:+$('os_fm').value})
+      .then(function(){GLB_AT=0;render();}).catch(function(e){say('os_m',e.message);});
+  };
   /* 段4：契約の同意と証跡 */
   if($('agSend'))$('agSend').onclick=function(){
     var kind=$('agKind').value,em=$('agEmail').value.trim(),nm=$('agKind').selectedOptions[0].text;
