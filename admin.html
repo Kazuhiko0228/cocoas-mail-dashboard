@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" type="image/png" href="img/icon_miralink.png">
 <title>未来WA／Miralink 運営管理</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
 :root{
   --bg:#F4F5F7; --card:#FFF; --ink:#131A22; --ink2:#3C4654; --mute:#6C7686;
@@ -292,7 +293,7 @@ var API={
         /* ログインそのものが 401 のときは「期限切れ」ではない。
            入れ違いの文言を出すと、正しいパスワードを疑って何度も試すことになる。 */
         if(r.status===401&&p!=='/admin/login'){API.setToken('');throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');}
-        if(!r.ok)throw new Error(j.error||('通信に失敗しました（'+r.status+'）'));
+        if(!r.ok){var er=new Error(j.error||('通信に失敗しました（'+r.status+'）'));er.status=r.status;er.code=j.code||'';throw er;}
         return j;});});
   }
 };
@@ -323,6 +324,7 @@ function loginHTML(){
     +'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>'
     +'<div class="f"><label>メールアドレス</label><input id="em" type="email" autocomplete="username"></div>'
     +'<div class="f"><label>パスワード</label><input id="pw" type="password" autocomplete="current-password"></div>'
+    +'<div class="f" id="mfaBox" hidden><label>2段階認証のコード（認証アプリの6けた）</label><input id="mc" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>'
     +'<button class="btn" id="go" style="width:100%;margin-top:6px;">ログイン</button>'
     +'<div style="margin-top:15px;font-size:11.5px;color:var(--mute);line-height:1.75;">'
     +'この画面は運営のためのものです。園の職員・保護者のアカウントでは入れません。</div>'
@@ -334,7 +336,9 @@ function wireLogin(){
     API.setBase($('ap').value.trim());
     if(!API.base()){e.textContent='接続先を入れてください。';e.style.display='block';return;}
     e.style.display='none';b.disabled=true;b.textContent='確認中…';
-    API.call('POST','/admin/login',{email:$('em').value.trim(),password:$('pw').value})
+    var body={email:$('em').value.trim(),password:$('pw').value};
+    if(!$('mfaBox').hidden)body.code=$('mc').value.trim();
+    API.call('POST','/admin/login',body)
       .then(function(j){
         API.setToken(j.token);DATA.me=j.admin;readHash();GLB_AT=0;
         /* 料金表を先に読む。読めなくても画面は出す。 */
@@ -343,10 +347,13 @@ function wireLogin(){
           .then(function(){render();});
       })
       .catch(function(x){b.disabled=false;b.textContent='ログイン';
+        /* 2段階認証を設定した人には、コードの欄を出す */
+        if(x.code==='mfa_required'||x.code==='mfa_bad'){$('mfaBox').hidden=false;setTimeout(function(){$('mc').focus();},50);}
         e.textContent=x.message;e.style.display='block';});
   }
   $('go').onclick=go;
   $('pw').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
+  $('mc').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
 }
 
 /* ── 全体の骨組み ───────────────────── */
@@ -361,7 +368,7 @@ var NAV=[
   ['売上',[['bill','請求']]],
   ['決済・広告',[['pay','ストアのカード払い'],['tuition','保育料のカード払い'],['ads','広告']]],
   ['運用',[['forms','自治体の様式'],['oplog','操作ログ']]],
-  ['設定',[['fees','料金・税'],['sys','システム接続'],['me','アカウント']]]
+  ['設定',[['fees','料金・税'],['sys','システム接続'],['members','運営メンバー'],['me','アカウント']]]
 ];
 function navBadge(v){
   if(v==='home'){var a=computeAttentionItems();if(!a.length)return '';
@@ -379,12 +386,13 @@ function shell(inner){
     +'<div><div class="lg">運営管理</div><div class="sub">未来WA ／ Miralink</div></div>'
     +'<div class="gq"><input id="gq" placeholder="園名・園コード・メール・cs_／pi_（/ キー）" autocomplete="off" aria-label="検索"><div id="gres" hidden></div></div>'
     +'<div class="sp"></div>'
+    +'<span class="sysdot" style="font-size:11.5px;opacity:.85;">'+esc((DATA.me&&(DATA.me.name||DATA.me.email))||'')+(DATA.me&&DATA.me.roleLabel?'・'+esc(DATA.me.roleLabel):'')+'</span>'
     +'<button class="sysdot" id="sysdot" title="システムの状態"><i style="background:'+col+'"></i><b>'+lab+'</b></button>'
     +'<button id="out">ログアウト</button></div>'
     +'<div class="layout"><nav class="side" aria-label="運営のメニュー">'
     +NAV.map(function(g){
       return (g[0]?'<div class="g">'+esc(g[0])+'</div>':'')
-        +g[1].map(function(t){
+        +g[1].filter(function(t){return t[0]!=='members'||myRole()==='owner';}).map(function(t){
           return '<button data-v="'+t[0]+'" class="'+(cur===t[0]?'on':'')+'"><span>'+esc(t[1])+'</span>'+navBadge(t[0])+'</button>';
         }).join('');
     }).join('')
@@ -395,7 +403,7 @@ function shell(inner){
 /* ── 画面の住所（#/…）。再読み込み・戻る・進むで同じ画面に戻れるように ── */
 var tTab='overview';
 var ROUTES={home:'home',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
-  tuition:'tuition',pipe:'onboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
+  tuition:'tuition',pipe:'onboarding',members:'settings/members',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
 var T_TABS=[['overview','概要'],['contract','契約・請求'],['accounts','アカウント'],['docs','書類'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
@@ -441,7 +449,8 @@ function loadGlobal(force){
     API.call('GET','/admin/applications').then(function(j){DATA.apply=j;}).catch(function(){}),
     API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;DATA.tenantsToday=j.today;}).catch(function(){}),
     API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(ym)).then(function(j){DATA.binvNow=j;}).catch(function(){}),
-    API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}).catch(function(){})
+    API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}).catch(function(){}),
+    API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){})
   ]);
 }
 function jstToday(){return new Date(Date.now()+9*3600*1000).toISOString().slice(0,10);}
@@ -844,8 +853,11 @@ function peventsHTML(){
    いま手を動かす必要があるものを、重い順に1行ずつ。数字の KPI はその下に補助として残す。
    判定はこの1つの関数にまとめ、しきい値は定数（あとでサーバへ移しやすいように）。 */
 var ATT_STALE_DAYS=30;       /* 「商談中」「モニター」のまま契約が動いていない日数 */
+var ATT_MINE=(function(){try{return localStorage.getItem('adm_attMine')==='1';}catch(e){return false;}})();
 function computeAttentionItems(){
   var it=[], ts=DATA.tenants||[], today=DATA.tenantsToday||jstToday();
+  /* 「自分の担当のみ」（園ごとの項目だけを絞る。お金の異常・申込はいつも出す） */
+  if(ATT_MINE&&DATA.me)ts=ts.filter(function(t){return String(t.owner_admin_id||'')===String(DATA.me.id);});
   var nm=function(a){return a.slice(0,3).map(function(t){return t.name;}).join('・')+(a.length>3?' ほか':'');};
   sysCards().filter(function(c){return c.st==='ng';}).forEach(function(c){
     it.push({sev:'ng',n:1,text:c.label+'：'+(c.why?String(c.why).replace(/<[^>]*>/g,''):c.now),go:['sys']});
@@ -874,7 +886,7 @@ function computeAttentionItems(){
 }
 function attentionHTML(){
   var it=computeAttentionItems();
-  return '<div class="card"><h3>要対応</h3>'
+  return '<div class="card"><h3 style="display:flex;justify-content:space-between;align-items:center;">要対応<label style="font-size:12px;font-weight:600;color:var(--mute);"><input type="checkbox" id="attMine"'+(ATT_MINE?' checked':'')+'> 自分の担当の園だけ</label></h3>'
     +(it.length?it.map(function(x,i){
       return '<div class="att"><span class="sev '+x.sev+'"></span><span class="n">'+x.n+'</span><span class="t">'+esc(x.text)+'</span>'
         +'<button class="btn sec sm" data-att="'+i+'">開く</button></div>';
@@ -1016,7 +1028,10 @@ function tenantHTML(){
     +'<h2>'+esc(d.tenant.name)+'</h2>'
     +'<div class="lead">'+esc(d.tenant.code)+'　'+statusPill(c.status)+'　'+planTag(c.plan)
       +(d.tenant.active===false?'　<span class="pill" style="background:#FBEBEB;color:#9C3535;border:1px solid #EDCDCD;">利用停止中</span>':'')
-      +'　当月 <b class="num">'+yen(q.total)+'</b>（税別）</div>';
+      +'　当月 <b class="num">'+yen(q.total)+'</b>（税別）'
+      +'　担当 <select id="tOwner" style="font-size:12px;padding:2px 6px;"><option value="">（なし）</option>'+(DATA.names||[]).map(function(a){
+        var cur=((DATA.tenants||[]).filter(function(x){return String(x.id)===String(openId);})[0]||{}).owner_admin_id;
+        return '<option value="'+a.id+'"'+(String(cur)===String(a.id)?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select></div>';
   /* ★1枚に11の箱が縦に並び、「園名を直す」「利用を止める」が契約の上にあって押し間違えやすかった。
      タブに分け、危険な操作は「概要」のいちばん下の赤枠へ（2026-10-08 段1）。ボタンの id は前のまま */
   var P={};
@@ -1346,6 +1361,53 @@ function supTabHTML(){
       :'<div class="empty">まだありません</div>')+'</div>';
   return h;
 }
+/* ══ 運営メンバー・2段階認証（2026-10-08 段3）══════════════
+   役職の線・最後のオーナー・招待の札はサーバ（admin.js / server.js）が守る。ここでは出すだけ。 */
+function myRole(){return (DATA.me&&DATA.me.role)||'owner';}
+var invLast=null;
+function membersHTML(){
+  var d=DATA.members;if(!d)return '<h2>運営メンバー</h2><div class="empty">読み込んでいます…</div>';
+  var roles=d.roles||[];
+  var sel=function(id,cur){return '<select data-mrole="'+id+'">'+roles.map(function(r){return '<option value="'+r.key+'"'+(r.key===cur?' selected':'')+'>'+esc(r.label)+'</option>';}).join('')+'</select>';};
+  return '<h2>運営メンバー</h2><div class="lead">役職で、できることが変わります（サーバで止めます）。最後のオーナーは外せません。</div>'
+    +'<div class="card"><h3>役職でできること</h3><div class="lines">'
+      +'<div><span class="l"><b>オーナー</b>　すべて（メンバー・料金と税・決済の設定・利用停止・書類の片付け）</span></div>'
+      +'<div><span class="l"><b>サポート</b>　園・導入・アカウント・書類・サポート閲覧・広告・様式（料金・決済の設定とメンバーは不可）</span></div>'
+      +'<div><span class="l"><b>経理</b>　請求・入金・滞り・決済の台帳・契約（園のアカウント操作は不可）</span></div>'
+      +'<div><span class="l"><b>閲覧のみ</b>　見るだけ</span></div></div></div>'
+    +'<div class="card"><h3>メンバー</h3><div class="tw"><table style="min-width:720px;"><thead><tr><th>お名前</th><th>役職</th><th>2段階認証</th><th>最終ログイン</th><th>状態</th><th></th></tr></thead><tbody>'
+    +(d.admins||[]).map(function(a){
+      return '<tr style="cursor:default;"><td><b>'+esc(a.name||'')+'</b><div style="font-size:11px;color:var(--mute);">'+esc(a.email)+'</div></td>'
+        +'<td>'+sel(a.id,a.role)+'</td><td>'+(a.mfa_enabled?'<span class="st ok" style="margin:0;">設定ずみ</span> <button class="btn sec sm" data-mfr="'+a.id+'">外す</button>':'<span class="st off" style="margin:0;">なし</span>')+'</td>'
+        +'<td class="num" style="font-size:11.5px;">'+esc(a.last_login_at?fmtAt(a.last_login_at):'—')+'</td>'
+        +'<td>'+(a.active?'<span class="st ok" style="margin:0;">使える</span>':'<span class="st off" style="margin:0;">止めている</span>')+'</td>'
+        +'<td class="r"><button class="btn '+(a.active?'warn':'sec')+' sm" data-mact="'+a.id+'" data-on="'+(a.active?0:1)+'">'+(a.active?'止める':'戻す')+'</button></td></tr>';
+    }).join('')+'</tbody></table></div><span class="msg" id="mbM"></span></div>'
+    +'<div class="card"><h3>招待する</h3>'
+    +(invLast?'<div class="note ok">招待のリンク（72時間・1回だけ）：<b class="num" id="invUrl" style="overflow-wrap:anywhere;">'+esc(invLast)+'</b> <button class="btn sec sm" id="invCopy">コピー</button><br>この画面を閉じると二度と出ません。招待する方に直接お渡しください。</div>':'')
+    +'<div class="grid3"><div class="f"><label>メールアドレス</label><input id="iv_em" type="email"></div><div class="f"><label>お名前</label><input id="iv_name"></div>'
+    +'<div class="f"><label>役職</label><select id="iv_role">'+roles.map(function(r){return '<option value="'+r.key+'"'+(r.key==='cs'?' selected':'')+'>'+esc(r.label)+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="row"><button class="btn sm" id="iv_send">招待のリンクを作る</button><span class="msg" id="ivM"></span></div>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;">メールの送信元が未設定のため、いまはリンクを画面に出します。</div></div>'
+    +'<div class="card"><h3>セキュリティ</h3><label style="font-size:13px;"><input type="checkbox" id="secMfa"'+(DATA.sec&&DATA.sec.mfaRequired?' checked':'')+'> オーナーと経理は、2段階認証を必須にする</label>'
+    +'<div style="font-size:11.5px;color:var(--mute);margin-top:6px;">必須にすると、未設定の人はログインしても「アカウント」で2段階認証を設定するまで、ほかの画面を使えません。先にご自身の設定が要ります。</div><span class="msg" id="secM"></span></div>';
+}
+var mfaSetup=null;
+function mfaCardHTML(){
+  var me=DATA.me||{};
+  var h='<div class="card"><h3>2段階認証</h3>';
+  if(me.mfa_enabled)return h+'<div class="note ok" style="margin-bottom:10px;">設定ずみです。ログインのときに認証アプリの6けたのコードを入れます。</div>'
+    +'<div class="row"><input id="mfOff" inputmode="numeric" maxlength="6" placeholder="いまのコード（6けた）" style="width:180px;"><button class="btn sec sm" id="mfOffGo">2段階認証を外す</button><span class="msg" id="mfM"></span></div></div>';
+  if(!mfaSetup)return h+(me.mfaRequired?'<div class="note bad">あなたの役職は、2段階認証の設定が必要です。設定するまで、ほかの画面は使えません。</div>':'')
+    +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:10px;">スマホの認証アプリ（Google Authenticator・Microsoft Authenticator など）で、ログインのときに6けたのコードを入れるようにします。</div>'
+    +'<button class="btn sm" id="mfStart">設定を始める</button><span class="msg" id="mfM"></span></div>';
+  return h+'<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;"><div id="mfQr" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:8px;"></div>'
+    +'<div style="flex:1;min-width:220px;font-size:12.5px;line-height:1.9;">① 認証アプリで左の二次元コードを読みます。<br>読めないときは、この鍵を手で入れます：<br><b class="num" style="overflow-wrap:anywhere;letter-spacing:.05em;">'+esc(mfaSetup.secret)+'</b>'
+    +'<br>② アプリに出た6けたを入れて「有効にする」</div></div>'
+    +'<div class="row" style="margin-top:10px;"><input id="mfCode" inputmode="numeric" maxlength="6" placeholder="6けたのコード" style="width:160px;"><button class="btn sm" id="mfOn">有効にする</button><span class="msg" id="mfM"></span></div></div>';
+}
+var opF={admin:'',tenant:'',from:'',to:'',q:''};
+function opQs(){var a=[];Object.keys(opF).forEach(function(k){if(opF[k])a.push(k+'='+encodeURIComponent(opF[k]));});return a.length?'?'+a.join('&'):'';}
 /* 園の変更ログのうち、運営がこの園にしたこと（/admin/oplog を園で絞る） */
 function tLogHTML(){
   var L=(DATA.oplog||[]).filter(function(x){return String(x.tenantId)===String(openId);});
@@ -1357,15 +1419,22 @@ function oplogTable(L,withTenant){
   return '<div class="tw"><table style="min-width:'+(withTenant?640:520)+'px;"><thead><tr><th>日時</th><th>操作者</th><th>操作</th>'+(withTenant?'<th>対象の園</th>':'')+'</tr></thead><tbody>'
     +L.map(function(x){
       return '<tr style="cursor:default;"><td class="num" style="white-space:nowrap;">'+esc(fmtAt(x.at))+'</td><td style="white-space:nowrap;">'+esc(x.who||'')+'</td>'
-        +'<td>'+esc(x.what||'')+'</td>'+(withTenant?'<td>'+(x.tenantId?'<a href="#/schools/'+esc(x.tenantId)+'/log">'+esc(x.tenantName||'')+'</a>':'<span class="st info">'+esc(x.src||'')+'</span>')+'</td>':'')+'</tr>';
+        +'<td>'+esc(x.what||'')+(x.reason?'<div style="font-size:11px;color:var(--mute);">理由：'+esc(x.reason)+'</div>':'')+'</td>'+(withTenant?'<td>'+(x.tenantId?'<a href="#/schools/'+esc(x.tenantId)+'/log">'+esc(x.tenantName||'')+'</a>':(x.src&&x.src!=='運営'?'<span class="st info">'+esc(x.src)+'</span>':'<span style="color:var(--mute);">—</span>'))+'</td>':'')+'</tr>';
     }).join('')+'</tbody></table></div>';
 }
 /* 運用 › 操作ログ。★いま記録されているのは「園名の修正・書類の片付け・広告」だけ。
    契約の変更・利用停止・パスワードの作り直し・請求の作成は、まだ記録されていない（段3で足す） */
 function oplogHTML(){
   if(!DATA.oplog)return '<h2>操作ログ</h2><div class="empty">読み込んでいます…</div>';
-  return '<h2>操作ログ</h2><div class="lead">運営がしたことの記録（新しい順・300件まで）。いまは園名の修正・預かった書類の片付け・広告の入稿が残ります。契約の変更や利用停止なども残すようにする予定です。</div>'
-    +'<div class="card">'+(DATA.oplog.length?oplogTable(DATA.oplog,true):'<div class="empty">まだ記録はありません</div>')+'</div>';
+  return '<h2>操作ログ</h2><div class="lead">運営がしたことの記録（新しい順・300件まで）。運営の書く操作はすべて、誰が・どの園に・なぜ、が自動で残ります（追記のみで、書き換え・削除はできません）。</div>'
+    +'<div class="card"><div class="row" style="align-items:flex-end;">'
+      +'<div class="f" style="margin:0;"><label>操作者</label><input id="ofA" value="'+esc(opF.admin)+'" style="width:140px;"></div>'
+      +'<div class="f" style="margin:0;"><label>園</label><select id="ofT"><option value="">すべて</option>'+(DATA.tenants||[]).map(function(t){return '<option value="'+t.id+'"'+(String(opF.tenant)===String(t.id)?' selected':'')+'>'+esc(t.name)+'</option>';}).join('')+'</select></div>'
+      +'<div class="f" style="margin:0;"><label>から</label><input id="ofF" type="date" value="'+esc(opF.from)+'"></div>'
+      +'<div class="f" style="margin:0;"><label>まで</label><input id="ofTo" type="date" value="'+esc(opF.to)+'"></div>'
+      +'<div class="f" style="margin:0;"><label>操作・理由の言葉</label><input id="ofQ" value="'+esc(opF.q)+'" style="width:160px;"></div>'
+      +'<button class="btn sm" id="ofGo">絞る</button>'+(myRole()==='owner'?'<button class="btn sec sm" id="ofCsv">CSV で書き出す</button>':'')+'</div></div>'
+    +'<div class="card">'+(DATA.oplog.length?oplogTable(DATA.oplog,true):'<div class="empty">条件に合う記録はありません</div>')+'</div>';
 }
 function docListHTML(docs,withTenant){
   if(!docs||!docs.length)return '<div class="empty">まだ書類がありません</div>';
@@ -1833,7 +1902,7 @@ function adsWire(){
 
 /* ── 設定 ───────────────────────────── */
 function meHTML(){
-  return '<h2>アカウント</h2><div class="lead">'+esc((DATA.me&&DATA.me.email)||'')+'</div>'
+  return '<h2>アカウント</h2><div class="lead">'+esc((DATA.me&&DATA.me.email)||'')+((DATA.me&&DATA.me.roleLabel)?'　役職：'+esc(DATA.me.roleLabel):'')+'</div>'+mfaCardHTML()
     +'<div class="card"><h3>接続先</h3>'
     +'<div class="f"><input id="s_api" value="'+esc(API.base())+'"></div>'
     +'<div class="row"><button class="btn sec sm" id="s_save">保存して読み直す</button></div></div>'
@@ -2000,10 +2069,14 @@ function load(){
     ]);
   if(view==='tuition')return Promise.resolve();
   if(view==='pipe')  return API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;});
-  if(view==='oplog') return API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;});
+  if(view==='oplog') return Promise.all([API.call('GET','/admin/oplog'+opQs()).then(function(j){DATA.oplog=j.log;}),
+    DATA.tenants?null:API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;})]);
+  if(view==='members')return Promise.all([API.call('GET','/admin/admins').then(function(j){DATA.members=j;}),API.call('GET','/admin/security').then(function(j){DATA.sec=j;})]);
+  if(view==='me')    return API.call('GET','/admin/me').then(function(j){DATA.me=j;});
   if(view==='tenants')return API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;});
   if(view==='one')   return Promise.all([
       API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;}),
+      DATA.names?null:API.call('GET','/admin/admins/names').then(function(j){DATA.names=j.admins;}).catch(function(){}),
       tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null,
       tTab==='support'?supLoad():null,
       tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
@@ -2040,11 +2113,31 @@ function load(){
   },120);
 })();
 
+/* 招待を受ける画面（?invite=… のリンクで開いたとき）。ログインの前 */
+var INVITE=(function(){try{var m=String(location.search).match(/[?&]invite=([A-Za-z0-9_-]{20,80})/);return m?m[1]:'';}catch(e){return '';}})();
+function inviteHTML(){
+  return '<div class="login"><div class="card"><h1>運営メンバーの招待</h1><div class="s">未来WA ／ Miralink 運営管理</div>'
+    +'<div class="err" id="e"></div>'
+    +'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>'
+    +'<div class="f"><label>お名前</label><input id="iv_nm" autocomplete="name"></div>'
+    +'<div class="f"><label>パスワード（10文字以上）</label><input id="iv_pw" type="password" autocomplete="new-password"></div>'
+    +'<button class="btn" id="iv_go" style="width:100%;margin-top:6px;">メンバーになる</button>'
+    +'<div style="margin-top:15px;font-size:11.5px;color:var(--mute);line-height:1.75;">このリンクは72時間・1回だけ使えます。使ったあとは、招待されたメールアドレスとこのパスワードでログインします。</div></div></div>';
+}
+function wireInvite(){
+  $('iv_go').onclick=function(){
+    var e=$('e');API.setBase($('ap').value.trim());
+    API.call('POST','/admin/invite/accept',{token:INVITE,name:$('iv_nm').value.trim(),password:$('iv_pw').value})
+      .then(function(j){INVITE='';history.replaceState(null,'',location.pathname);alert('メンバーになりました（'+j.email+'）。このメールアドレスでログインしてください。');render();})
+      .catch(function(x){e.textContent=x.message;e.style.display='block';});
+  };
+}
 function render(){
   var r=$('root');
+  if(INVITE){r.innerHTML=inviteHTML();wireInvite();return;}
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
   var inner={home:homeHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,ads:adsHTML,me:meHTML,
-    sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML}[view]||homeHTML;
+    sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML,members:membersHTML}[view]||homeHTML;
   r.innerHTML=shell(inner());
   wire();
   /* ホームとシステム接続は、開くたびに最新の状態を読む（ほかの画面は5分に1回） */
@@ -2052,6 +2145,8 @@ function render(){
     r.innerHTML=shell(inner());
     wire();
   }).catch(function(e){
+    /* 2段階認証が必須で未設定なら、設定の画面へ */
+    if(e.code==='mfa_setup'&&view!=='me'){nav('me');return;}
     r.innerHTML=shell('<div class="note bad">'+esc(e.message)+'</div>');
     wire();
     if(!API.token()){r.innerHTML=loginHTML();wireLogin();}
@@ -2161,6 +2256,36 @@ function wire(){
   if($('navT'))$('navT').onclick=function(){document.body.classList.toggle('navopen');};
   if($('scrim'))$('scrim').onclick=function(){document.body.classList.remove('navopen');};
   gqWire();
+  /* 段3：担当・要対応の絞り・運営メンバー・2段階認証・操作ログの絞り込み */
+  if($('attMine'))$('attMine').onchange=function(){ATT_MINE=this.checked;try{localStorage.setItem('adm_attMine',ATT_MINE?'1':'0');}catch(e){}render();};
+  if($('tOwner'))$('tOwner').onchange=function(){var v=this.value;
+    API.call('PUT','/admin/tenants/'+openId+'/owner',{adminId:v?+v:null}).then(function(){GLB_AT=0;DATA.tenants=null;render();}).catch(function(e){alert(e.message);});};
+  document.querySelectorAll('[data-mrole]').forEach(function(sl){sl.onchange=function(){
+    var why=prompt('役職を変える理由を書いてください（操作ログに残ります）','');if(why===null){render();return;}
+    API.call('PUT','/admin/admins/'+sl.getAttribute('data-mrole'),{role:sl.value,reason:why}).then(function(){render();}).catch(function(e){alert(e.message);render();});};});
+  document.querySelectorAll('[data-mact]').forEach(function(b){b.onclick=function(){
+    var on=b.getAttribute('data-on')==='1';var why=prompt((on?'戻す':'止める')+'理由を書いてください（操作ログに残ります）','');if(why===null)return;
+    API.call('PUT','/admin/admins/'+b.getAttribute('data-mact'),{active:on,reason:why}).then(function(){render();}).catch(function(e){alert(e.message);});};});
+  document.querySelectorAll('[data-mfr]').forEach(function(b){b.onclick=function(){
+    var why=prompt('2段階認証を外す理由を書いてください（例：スマホを替えた）','');if(why===null)return;
+    API.call('POST','/admin/admins/'+b.getAttribute('data-mfr')+'/mfa-reset',{reason:why}).then(function(){render();}).catch(function(e){alert(e.message);});};});
+  if($('iv_send'))$('iv_send').onclick=function(){
+    say('ivM','作成中…',true);
+    API.call('POST','/admin/admins/invite',{email:$('iv_em').value.trim(),name:$('iv_name').value.trim(),role:$('iv_role').value})
+      .then(function(j){invLast=location.origin+location.pathname+'?invite='+j.token;render();}).catch(function(e){say('ivM',e.message);});};
+  if($('invCopy'))$('invCopy').onclick=function(){try{navigator.clipboard.writeText($('invUrl').textContent).then(function(){$('invCopy').textContent='コピーしました';});}catch(e){}};
+  if($('secMfa'))$('secMfa').onchange=function(){var on=this.checked;
+    if(!confirm(on?'オーナーと経理の2段階認証を必須にします。よろしいですか？':'2段階認証の必須をやめます。よろしいですか？')){render();return;}
+    API.call('PUT','/admin/security',{mfaRequired:on}).then(function(){render();}).catch(function(e){alert(e.message);render();});};
+  if($('mfStart'))$('mfStart').onclick=function(){API.call('POST','/admin/mfa/setup',{}).then(function(j){mfaSetup=j;render();}).catch(function(e){say('mfM',e.message);});};
+  if($('mfQr')&&mfaSetup){try{var qr=window.qrcode(0,'M');qr.addData(mfaSetup.uri);qr.make();$('mfQr').innerHTML=qr.createSvgTag(4,0);}catch(e){$('mfQr').textContent='二次元コードを出せませんでした。右の鍵を手で入れてください。';}}
+  if($('mfOn'))$('mfOn').onclick=function(){API.call('POST','/admin/mfa/enable',{code:$('mfCode').value.trim()}).then(function(){mfaSetup=null;alert('2段階認証を有効にしました。次のログインからコードが要ります。');render();}).catch(function(e){say('mfM',e.message);});};
+  if($('mfOffGo'))$('mfOffGo').onclick=function(){if(!confirm('2段階認証を外します。よろしいですか？'))return;API.call('POST','/admin/mfa/disable',{code:$('mfOff').value.trim()}).then(function(){render();}).catch(function(e){say('mfM',e.message);});};
+  if($('ofGo'))$('ofGo').onclick=function(){opF={admin:$('ofA').value.trim(),tenant:$('ofT').value,from:$('ofF').value,to:$('ofTo').value,q:$('ofQ').value.trim()};render();};
+  if($('ofCsv'))$('ofCsv').onclick=function(){
+    fetch(API.base()+'/admin/oplog.csv'+opQs(),{headers:{Authorization:'Bearer '+API.token()}}).then(function(r){if(!r.ok)throw new Error('書き出せませんでした（'+r.status+'）');return r.blob();})
+      .then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='運営の操作ログ_'+jstToday()+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);})
+      .catch(function(e){alert(e.message);});};
   /* サポート閲覧 */
   if($('supGo'))$('supGo').onclick=function(){
     var r=$('supR').value.trim();if(r.length<4){say('supM','見る理由を書いてください（園の方が読みます）');return;}
@@ -2277,7 +2402,9 @@ function wire(){
       +'園の方は、次にログインしたときに必ず変更を求められます。','');
     if(pw===null)return;
     if(String(pw).length<8){alert('パスワードは8文字以上にしてください。');return;}
-    API.call('POST','/admin/tenants/'+openId+'/users/'+uid+'/password',{password:pw})
+    var why=prompt('作り直す理由を書いてください（操作ログに残ります）\n例：園長より電話・パスワードを忘れた','');
+    if(why===null)return;why=String(why).trim();if(why.length<2){alert('理由を書いてください。');return;}
+    API.call('POST','/admin/tenants/'+openId+'/users/'+uid+'/password',{password:pw,reason:why})
       .then(function(j){
         alert('作り直しました。\n\n園コード： '+j.tenantCode+'\nログインID： '+j.user.loginId
           +'\n新しいパスワード： '+pw+'\n\nこの3つを園の方へお伝えください。\n初回ログインで変更を求めます。');
@@ -2330,8 +2457,11 @@ function wire(){
         +'記録は消しません。あとから再開できます。\n\nよろしいですか？'
       : nm+' の利用を再開します。\n\nまたログインできるようになります。\n\nよろしいですか？';
     if(!confirm(msg))return;
+    /* ★止めるときは理由が要る（操作ログに残る・2026-10-08 段3） */
+    var why='';
+    if(now){why=prompt('止める理由を書いてください（操作ログに残ります）','');if(why===null)return;why=String(why).trim();if(why.length<2){alert('理由を書いてください。');return;}}
     say('tn_m',now?'停止中…':'再開中…',true);
-    API.call('POST','/admin/tenants/'+openId+'/active',{active:!now})
+    API.call('POST','/admin/tenants/'+openId+'/active',{active:!now,reason:why})
       .then(function(){render();})
       .catch(function(e){say('tn_m',e.message);});
   };
