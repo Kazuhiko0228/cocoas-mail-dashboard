@@ -412,7 +412,7 @@ function shell(inner){
 var tTab='overview';
 var ROUTES={home:'home',inq:'inquiries',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
   tuition:'tuition',pipe:'onboarding',members:'settings/members',incidents:'incidents',offboard:'offboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
-var T_TABS=[['overview','概要'],['contract','契約・請求'],['accounts','アカウント'],['docs','書類'],['log','変更ログ'],['support','サポート閲覧']];
+var T_TABS=[['overview','概要'],['contract','契約・請求'],['subsidy','補助金'],['accounts','アカウント'],['docs','書類'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
   return '#/'+(ROUTES[view]||'home');
@@ -1261,6 +1261,7 @@ function tenantHTML(){
     +'</div>';
   P.log=tLogHTML();
   P.support=supTabHTML();
+  P.subsidy=subTabHTML();
   return head+'<div class="tabs" role="tablist">'+T_TABS.map(function(t){
       return '<button role="tab" data-tt="'+t[0]+'" class="'+(tTab===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
     +(P[tTab]||P.overview);
@@ -1367,6 +1368,55 @@ function supDataHTML(){
     return h+'<div class="lead">新しい6か月ぶん</div>'+supTable(rows2,[['month','月'],['id','園児の番号'],['total','金額'],['status','状態'],['due','支払期日'],['paidAt','入金日']]);}
   if(d.view==='log')return h+supTable((x||[]).map(function(r){return {at:fmtAt(r.created_at),who:r.user_name,what:r.key};}),[['at','日時'],['who','操作者'],['what','操作']]);
   return h+Object.keys(x||{}).map(function(k){return '<div style="font-weight:700;font-size:12px;margin:8px 0 4px;">'+esc(k)+'</div><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11.5px;background:var(--line2);padding:10px;border-radius:8px;max-height:420px;overflow:auto;">'+esc(JSON.stringify(x[k],null,1)||'（記録なし）')+'</pre>';}).join('');
+}
+/* ══ 補助金（2026-10-09 安田さんのご依頼）══════════════
+   ① 園ごとの記録 ② 交付決定のあと、対象の期間の月の請求から差し引く ③ まとめて請求 ④ 申請に使う書類。
+   金額の計算はサーバ（subsidy.js）。画面では計算しない */
+var subEdit=null;
+function subVal(x,k){return x&&x[k]!=null?x[k]:'';}
+function subFormHTML(x){
+  var st=(DATA.sub&&DATA.sub.statuses)||[];
+  var f=function(id,label,val,type,ph){return '<div class="f"><label>'+label+'</label><input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val)+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'></div>';};
+  return '<div class="card" style="margin-top:10px;"><h3>'+(x?'補助金の記録を直す':'補助金の記録を足す')+'</h3>'
+    +'<div class="grid3">'+f('sb_name','制度名',subVal(x,'name'),'','例：保育所等におけるICT化推進事業')
+    +f('sb_auth','実施する自治体・機関',subVal(x,'authority'),'','例：那覇市')
+    +f('sb_fy','年度',subVal(x,'fiscalYear'),'','2026')+'</div>'
+    +'<div class="grid3"><div class="f"><label>状態</label><select id="sb_st">'+st.map(function(v){return '<option'+((x?x.status:'検討中')===v?' selected':'')+'>'+esc(v)+'</option>';}).join('')+'</select></div>'
+    +f('sb_app','申請した日',subVal(x,'appliedOn')?String(x.appliedOn).slice(0,10):'','date')
+    +f('sb_dec','交付が決まった日',subVal(x,'decidedOn')?String(x.decidedOn).slice(0,10):'','date')+'</div>'
+    +'<div class="grid3">'+f('sb_req','申請した額（円）',subVal(x,'amountRequested'),'number')+f('sb_gr','交付が決まった額（円）',subVal(x,'amountGranted'),'number')
+    +f('sb_ded','月の請求から差し引く額（円・税別）',subVal(x,'deductMonthlyYen')||0,'number')+'</div>'
+    +'<div class="grid3">'+f('sb_from','対象の期間（はじめ）',subVal(x,'coveredFrom'),'month')+f('sb_to','対象の期間（おわり）',subVal(x,'coveredTo'),'month')+'<div class="f"></div></div>'
+    +'<div class="f"><label>メモ</label><textarea id="sb_note" rows="2">'+esc(subVal(x,'note'))+'</textarea></div>'
+    +'<div class="note">差し引くのは、状態が「交付決定」より後のときだけです。対象の期間の月の請求に「補助金（制度名）」の行を足して引きます。補助金を BJ が受け取らない制度なら、差し引く額は 0 のままにしてください。</div>'
+    +'<div class="row"><button class="btn sm" id="sbSave">保存する</button><button class="btn sec sm" id="sbCancel">やめる</button><span class="msg" id="sbM"></span></div></div>';
+}
+function subTabHTML(){
+  var d=DATA.sub;
+  if(!d||DATA.subId!==openId)return '<div class="card"><div class="empty">読み込んでいます…</div></div>';
+  if(d.err)return '<div class="card"><div class="note bad">'+esc(d.err)+'</div></div>';
+  var L=d.subsidies||[];
+  var ym=new Date(Date.now()+9*3600000).toISOString().slice(0,7);
+  var h='<div class="card"><h3>補助金の記録</h3>'
+    +'<div class="lead" style="margin-bottom:8px;">この園が使う（使った）補助金です。状態を進めると、交付決定のあとから請求の差し引きが効きます。</div>'
+    +(L.length?'<div class="tw"><table style="min-width:760px;"><thead><tr><th>制度名</th><th>自治体・年度</th><th>状態</th><th>申請額／交付額</th><th>対象の期間</th><th>月の差し引き</th><th></th></tr></thead><tbody>'
+      +L.map(function(x){return '<tr style="cursor:default;"><td>'+esc(x.name)+'</td><td>'+esc(x.authority)+(x.fiscalYear?'・'+esc(x.fiscalYear)+'年度':'')+'</td><td>'+esc(x.status)+'</td>'
+        +'<td class="num">'+(x.amountRequested!=null?yen(x.amountRequested):'—')+' ／ '+(x.amountGranted!=null?yen(x.amountGranted):'—')+'</td>'
+        +'<td class="num">'+(x.coveredFrom?esc(x.coveredFrom)+'〜'+esc(x.coveredTo):'—')+'</td><td class="num">'+(x.deductMonthlyYen?yen(x.deductMonthlyYen):'なし')+'</td>'
+        +'<td class="r"><button class="btn sec sm" data-sbedit="'+x.id+'">直す</button></td></tr>';}).join('')+'</tbody></table></div>'
+      :'<div class="empty">まだ記録はありません</div>')
+    +(subEdit==null?'<div class="row" style="margin-top:10px;"><button class="btn sm" id="sbNew">補助金の記録を足す</button></div>':'')
+    +'</div>';
+  if(subEdit!=null)h+=subFormHTML(subEdit==='new'?null:L.filter(function(x){return String(x.id)===String(subEdit);})[0]);
+  h+='<div class="card"><h3>申請に使う書類</h3>'
+    +'<div class="lead" style="margin-bottom:8px;">見積書は、補助金を差し引く前の金額で、月ごとの内訳をつけて出します。請求書は送った請求、領収書は入金済みの請求から作ります。</div>'
+    +'<div class="grid3"><div class="f"><label>期間（はじめ）</label><input id="sd_from" type="month" value="'+esc(ym)+'"></div><div class="f"><label>期間（おわり）</label><input id="sd_to" type="month" value="'+esc(ym)+'"></div><div class="f"></div></div>'
+    +'<div class="row"><button class="btn sm" data-sdoc="quote">見積書</button><button class="btn sm" data-sdoc="invoice">請求書</button><button class="btn sm" data-sdoc="receipt">領収書</button><span class="msg" id="sdM"></span></div></div>';
+  h+='<div class="card"><h3>まとめて請求する</h3>'
+    +'<div class="lead" style="margin-bottom:8px;">1年分などを1回で請求します（補助金の差し引きも月ごとに効きます）。まとめて請求した月は、毎月の請求を作りません。すでに請求した月とは重ねられません。</div>'
+    +'<div class="grid3"><div class="f"><label>期間（はじめ）</label><input id="pp_from" type="month"></div><div class="f"><label>期間（おわり）</label><input id="pp_to" type="month"></div><div class="f"></div></div>'
+    +'<div class="row"><button class="btn sm" id="ppGo">まとめて請求を作る</button><span class="msg" id="ppM"></span></div></div>';
+  return h;
 }
 function supTabHTML(){
   if(SUP.tid!==openId||!SUP.list)return '<div class="empty">読み込んでいます…</div>';
@@ -2281,6 +2331,7 @@ function load(){
       DATA.names?null:API.call('GET','/admin/admins/names').then(function(j){DATA.names=j.admins;}).catch(function(){}),
       tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null,
       tTab==='support'?supLoad():null,
+      tTab==='subsidy'?API.call('GET','/admin/tenants/'+openId+'/subsidies').then(function(j){DATA.sub=j;DATA.subId=openId;}).catch(function(e){DATA.sub={err:e.message};DATA.subId=openId;}):null,
       tTab==='docs'?API.call('GET','/admin/tenants/'+openId+'/contracts').then(function(j){DATA.agree=j;DATA.agreeId=openId;}).catch(function(e){DATA.agree={err:e.message};DATA.agreeId=openId;}):null,
       tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
     ]);
@@ -2454,6 +2505,32 @@ function wire(){
     /* 書きかけの広告は、画面を移ったら畳む（nav の中で）。残すと前の書きかけをうっかり保存してしまう */
     nav(b.getAttribute('data-v'));};});
   document.querySelectorAll('[data-tt]').forEach(function(b){b.onclick=function(){nav('one',openId,b.getAttribute('data-tt'));};});
+  /* 補助金 */
+  if($('sbNew'))$('sbNew').onclick=function(){subEdit='new';render();};
+  if($('sbCancel'))$('sbCancel').onclick=function(){subEdit=null;render();};
+  document.querySelectorAll('[data-sbedit]').forEach(function(b){b.onclick=function(){subEdit=b.getAttribute('data-sbedit');render();};});
+  if($('sbSave'))$('sbSave').onclick=function(){
+    var v=function(id){return $(id).value.trim();};
+    var body={name:v('sb_name'),authority:v('sb_auth'),fiscalYear:v('sb_fy'),status:v('sb_st'),appliedOn:v('sb_app'),decidedOn:v('sb_dec'),
+      amountRequested:v('sb_req'),amountGranted:v('sb_gr'),deductMonthlyYen:v('sb_ded')||'0',coveredFrom:v('sb_from'),coveredTo:v('sb_to'),note:v('sb_note')};
+    say('sbM','保存中…',true);
+    (subEdit==='new'?API.call('POST','/admin/tenants/'+openId+'/subsidies',body):API.call('PUT','/admin/tenants/'+openId+'/subsidies/'+subEdit,body))
+      .then(function(){subEdit=null;DATA.subId=null;render();}).catch(function(e){say('sbM',e.message);});
+  };
+  document.querySelectorAll('[data-sdoc]').forEach(function(b){b.onclick=function(){
+    var f=$('sd_from').value,t=$('sd_to').value;if(!f||!t){say('sdM','期間を選んでください');return;}
+    API.call('GET','/admin/tenants/'+openId+'/subsidy-doc?kind='+b.getAttribute('data-sdoc')+'&from='+f+'&to='+t)
+      .then(function(j){showDoc(j);}).catch(function(e){say('sdM',e.message);});
+  };});
+  if($('ppGo'))$('ppGo').onclick=function(){
+    var f=$('pp_from').value,t=$('pp_to').value;if(!f||!t){say('ppM','期間を選んでください');return;}
+    var live=DATA.bstat&&DATA.bstat.charging;
+    if(!confirm(f+'〜'+t+' をまとめて請求します。'+(live?'Stripe で実際に請求します。':'（いまは練習用のため、金額を記録するだけです）')+'よろしいですか？'))return;
+    say('ppM','作っています…',true);
+    API.call('POST','/admin/tenants/'+openId+'/prepay',{from:f,to:t})
+      .then(function(j){var x=j.invoice;say('ppM',x.months+'か月ぶん '+yen(x.gross)+'（税込）を作りました。'+(x.note||''),true);})
+      .catch(function(e){say('ppM',e.message);});
+  };
   document.querySelectorAll('[data-gotab]').forEach(function(a){a.onclick=function(e){e.preventDefault();nav('one',openId,a.getAttribute('data-gotab'));};});
   /* 新しい園の契約の既定値（料金・税） */
   if($('cdSave'))$('cdSave').onclick=function(){
