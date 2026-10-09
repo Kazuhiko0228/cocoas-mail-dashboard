@@ -89,6 +89,10 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:26px}
 .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--edu);outline:none}
 .f textarea{min-height:112px;resize:vertical;line-height:1.9}
 .f .hint{font-size:11.5px;color:var(--muted-2);line-height:1.7}
+.zipRow{display:flex;gap:8px}
+.zipBtn{flex:none;font-family:inherit;font-size:13px;font-weight:700;padding:0 16px;border-radius:9px;
+  border:1.5px solid var(--edu);background:#F2F8FC;color:var(--edu-deep);cursor:pointer;white-space:nowrap}
+.zipBtn:disabled{opacity:.6;cursor:default}
 .f .bad{font-size:11.5px;color:var(--err);display:none}
 .f.ng input,.f.ng select,.f.ng textarea{border-color:var(--err)}
 .f.ng .bad{display:block}
@@ -249,6 +253,12 @@ footer a:hover{color:#fff}
                 <option>60〜99名</option><option>100名以上</option>
               </select><div class="bad">園児数をお選びください</div></div>
 
+            <!-- 郵便番号から住所を入れる（2026-10-09。申込フォームと同じ） -->
+            <div class="f full"><label for="q_zip">郵便番号 <span class="opt">任意</span></label>
+              <div class="zipRow"><input id="q_zip" name="郵便番号" placeholder="1500001" inputmode="numeric" autocomplete="postal-code">
+                <button type="button" class="zipBtn" id="zipGo">住所を入れる</button></div>
+              <div class="hint" id="zipMsg">7けたを入れて「住所を入れる」を押すと、都道府県と市区町村まで入ります。</div></div>
+
             <div class="f"><label for="q_pref">都道府県 <span class="req">必須</span></label>
               <select id="q_pref" name="都道府県">
                 <option value="">選んでください</option>
@@ -406,6 +416,31 @@ footer a:hover{color:#fff}
     PREF.forEach(function(x){var o=document.createElement('option');o.textContent=x;sel.appendChild(o);});
   })();
 
+  /* 郵便番号から都道府県・市区町村・町名を入れる（zipcloud。日本郵便のデータ）。番地は郵便番号からは分からない。
+     市区町村の欄には市区町村まで、町名は「それ以降の住所」の頭に入れる。書いてあるものは確かめてから置きかえる */
+  (function(){
+    var zip=document.getElementById('q_zip'), btn=document.getElementById('zipGo'), msg=document.getElementById('zipMsg');
+    if(!zip||!btn)return;
+    var pref=document.getElementById('q_pref'), city=document.getElementById('q_city'), addr=document.getElementById('q_addr'), HINT=msg.textContent;
+    function say(t,bad){ msg.textContent=t; msg.style.color=bad?'var(--err)':''; }
+    btn.addEventListener('click',function(){
+      var z=String(zip.value||'').replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);}).replace(/[^0-9]/g,'');
+      if(z.length!==7){ say('郵便番号は7けたの数字でご記入ください',true); zip.focus(); return; }
+      zip.value=z; btn.disabled=true; say('さがしています…');
+      fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode='+z).then(function(r){return r.json();}).then(function(j){
+        btn.disabled=false;
+        var r=j&&j.results&&j.results[0];
+        if(!r){ say('この郵便番号の住所が見つかりませんでした。直接ご記入ください',true); return; }
+        if(city.value.trim()&&city.value.trim()!==r.address2&&!confirm('いま書いてある市区町村を「'+r.address2+'」に置きかえます。よろしいですか？')){ say(HINT); return; }
+        pref.value=r.address1||''; city.value=r.address2||'';
+        if(addr&&!addr.value.trim())addr.value=r.address3||'';
+        [pref,city].forEach(function(el){ var b=el.closest('.f'); if(b)b.classList.remove('ng'); });
+        say('「'+(r.address1||'')+(r.address2||'')+(r.address3||'')+'」まで入れました。');
+      }).catch(function(){ btn.disabled=false; say('住所をさがせませんでした（通信）。直接ご記入ください',true); });
+    });
+    zip.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); btn.click(); } });
+  })();
+
   var notEmpty=function(v){return String(v||'').trim().length>0;};
   var MUST=[
     ['q_corp',  notEmpty],
@@ -471,7 +506,7 @@ footer a:hover{color:#fff}
     var kinds=[].slice.call(document.querySelectorAll('#formZone input[name="kind"]:checked'))
                  .map(function(x){return x.value;});
     if(kinds.length) out.push(['ご用件', kinds.join('・')]);
-    ['q_corp','q_school','q_type','q_schools','q_kids','q_pref','q_city','q_addr',
+    ['q_corp','q_school','q_type','q_schools','q_kids','q_zip','q_pref','q_city','q_addr',
      'q_name','q_role','q_mail','q_tel','q_when','q_now','q_msg','q_from'].forEach(function(id){
       var el=document.getElementById(id);
       if(el&&el.value.trim()) out.push([el.name, el.value.trim()]);
