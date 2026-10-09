@@ -79,6 +79,11 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
 .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--edu);outline:none}
 .f textarea{min-height:96px;resize:vertical;line-height:1.9}
 .f .hint{font-size:11.5px;color:var(--muted-2);line-height:1.7}
+.zipRow{display:flex;gap:8px}
+.zipBtn{flex:none;font-family:inherit;font-size:13px;font-weight:700;padding:0 16px;border-radius:9px;
+  border:1.5px solid var(--edu);background:#F2F8FC;color:var(--edu-deep);cursor:pointer;white-space:nowrap}
+.zipBtn:hover{background:#E4F0F9}
+.zipBtn:disabled{opacity:.6;cursor:default}
 .f .bad{font-size:11.5px;color:var(--err);display:none}
 .f.ng input,.f.ng select,.f.ng textarea{border-color:var(--err)}
 .f.ng .bad{display:block}
@@ -231,21 +236,11 @@ footer a:hover{color:#fff}
               <div class="hint">この日から日割りでご請求します。</div>
               <div class="bad">開始日をお選びください</div>
             </div>
-            <div class="f">
-              <label>ローンチキャンペーン <span class="opt">任意</span></label>
-              <div class="radios" id="campPick">
-                <label><input type="radio" name="キャンペーン" value="適用する" checked>適用する（3カ月50%OFF）</label>
-                <label><input type="radio" name="キャンペーン" value="適用しない">適用しない</label>
-              </div>
-              <div class="hint">利用後のヒアリング・導入事例への掲載にご協力いただける園が対象です。</div>
-            </div>
+            <!-- ★キャンペーンと未来WAの選択は外した（2026-10-09 安田さんのご判断「いらない」）。
+                 新しい園は定価（キャンペーンなし）。割引はモニターの園にだけ、運営が契約で入れる。
+                 未来WA は保護者への連絡の土台で、導入の手順でも必須なので「あとで決める」は選べない -->
             <div class="f full">
-              <label>未来WA（保護者向けアプリ） <span class="opt">任意</span></label>
-              <div class="radios">
-                <label><input type="radio" name="未来WA" value="使う" checked>使う</label>
-                <label><input type="radio" name="未来WA" value="あとで決める">あとで決める</label>
-              </div>
-              <div class="hint">未来WA は保護者の方が無料でお使いいただけます。園に追加の費用はかかりません。</div>
+              <div class="hint">未来WA（保護者向けアプリ）は、どのプランにも含まれています。保護者の方は無料でお使いいただけ、園に追加の費用はかかりません。</div>
             </div>
           </div>
 
@@ -275,7 +270,9 @@ footer a:hover{color:#fff}
             </div>
             <div class="f">
               <label for="q_zip">郵便番号 <span class="req">必須</span></label>
-              <input id="q_zip" name="法人の郵便番号" placeholder="1500001" inputmode="numeric" autocomplete="postal-code">
+              <div class="zipRow"><input id="q_zip" name="法人の郵便番号" placeholder="1500001" inputmode="numeric" autocomplete="postal-code">
+                <button type="button" class="zipBtn" id="zipGo">住所を入れる</button></div>
+              <div class="hint" id="zipMsg">7けたを入れて「住所を入れる」を押すと、都道府県と町名まで入ります。</div>
               <div class="bad">郵便番号をご記入ください（7けた）</div>
             </div>
             <div class="f">
@@ -383,10 +380,10 @@ footer a:hover{color:#fff}
             <label><input type="checkbox" id="ok1">
               <span><a href="terms.html" target="_blank" rel="noopener">利用規約</a>と
                 <a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意します。
-                キャンペーン後の最低契約期間は6カ月で、途中解約の場合は残りの期間ぶんを一括でお支払いいただくことに同意します。<span class="req">必須</span></span></label>
+                最低契約期間は6カ月で、途中解約の場合は残りの期間ぶんを一括でお支払いいただくことに同意します。<span class="req">必須</span></span></label>
             <label><input type="checkbox" id="ok2">
               <span>園名・導入実績を、当社のホームページや資料に掲載することに同意します。<span class="opt">任意</span>
-                （キャンペーンの適用条件のひとつです。あとから取り下げることもできます）</span></label>
+                （あとから取り下げることもできます）</span></label>
           </div>
 
           <button class="send" id="go" type="submit" disabled>この内容でお申し込みする</button>
@@ -444,6 +441,41 @@ footer a:hover{color:#fff}
     PREF.forEach(function(x){var o=document.createElement('option');o.textContent=x;sel.appendChild(o);});
   }
   fillPref(document.getElementById('q_pref'));
+
+  /* ── 郵便番号から住所を入れる（2026-10-09 安田さんのご依頼）──
+     郵便番号の検索（zipcloud。日本郵便のデータ）に聞いて、都道府県と町名までを入れる。
+     番地・建物は郵便番号からは分からないので、そのあとにご記入いただく。
+     すでに住所が書いてあるときは、上書きしてよいか確かめる（書いたものを黙って消さない）。
+     見つからない・つながらないときは、手で書いていただけるようにそう伝えるだけにする */
+  (function(){
+    var zip=document.getElementById('q_zip'), btn=document.getElementById('zipGo'),
+        msg=document.getElementById('zipMsg'), pref=document.getElementById('q_pref'), addr=document.getElementById('q_addr');
+    var HINT=msg.textContent;
+    function say(t,bad){ msg.textContent=t; msg.style.color=bad?'var(--err)':''; }
+    btn.addEventListener('click',function(){
+      /* 全角の数字・ハイフン入りでも受ける */
+      var z=String(zip.value||'').replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);}).replace(/[^0-9]/g,'');
+      if(z.length!==7){ say('郵便番号は7けたの数字でご記入ください',true); zip.focus(); return; }
+      zip.value=z;
+      btn.disabled=true; say('さがしています…');
+      fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode='+z)
+        .then(function(r){return r.json();})
+        .then(function(j){
+          btn.disabled=false;
+          var r=j&&j.results&&j.results[0];
+          if(!r){ say('この郵便番号の住所が見つかりませんでした。都道府県と住所を直接ご記入ください',true); return; }
+          var town=(r.address2||'')+(r.address3||'');
+          if(addr.value.trim()&&addr.value.indexOf(town)!==0&&!confirm('いま書いてある住所を「'+town+'」に置きかえます。よろしいですか？')){ say(HINT); return; }
+          pref.value=r.address1||'';
+          if(addr.value.indexOf(town)!==0)addr.value=town;
+          [pref,addr].forEach(function(el){ var b=el.closest('.f'); if(b)b.classList.remove('ng'); });
+          say('「'+(r.address1||'')+town+'」まで入れました。続けて番地・建物名をご記入ください');
+          addr.focus(); try{ addr.setSelectionRange(addr.value.length,addr.value.length); }catch(e){}
+        })
+        .catch(function(){ btn.disabled=false; say('住所をさがせませんでした（通信）。都道府県と住所を直接ご記入ください',true); });
+    });
+    zip.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); btn.click(); } });
+  })();
 
   /* ── 施設のくりかえし ───────────────── */
   var TYPES=['認可保育園','認可外保育園','小規模保育事業','認定こども園','幼稚園',
@@ -513,7 +545,6 @@ footer a:hover{color:#fff}
   function quote(){
     var plan=picked('プラン')||'Standard';
     var base=PRICE[plan]||0;
-    var camp=picked('キャンペーン')==='適用する';
     var rows=[], sum=0, n=0;
     document.querySelectorAll('#sites .site').forEach(function(d){
       n++;
@@ -522,23 +553,21 @@ footer a:hover{color:#fff}
       sum+=base+over;
       if(over)rows.push(['施設 '+n+'　園児数の超過（'+(kids-OVER_FREE)+'名）',over]);
     });
-    var half=camp?Math.round(sum*0.5):0;
+    var half=0;   /* キャンペーンは外した（2026-10-09）。新しい園は定価 */
     var tax=Math.floor((sum-half)*0.1);
     var h='<h3>ひと月ぶんのお見つもり（概算）</h3><table><tbody>'
       +'<tr><td>'+plan+'　'+yen(base)+' × '+n+'施設</td><td>'+yen(base*n)+'</td></tr>'
       +rows.map(function(r){return '<tr><td>'+r[0]+'</td><td>'+yen(r[1])+'</td></tr>';}).join('')
-      +(camp?'<tr><td>ローンチキャンペーン（3カ月間 50%OFF）</td><td>−'+yen(half)+'</td></tr>':'')
       +'<tr><td>消費税（10%）</td><td>'+yen(tax)+'</td></tr>'
       +'<tr class="tot"><td><b>合計（月額・税込）</b></td><td>'+yen(sum-half+tax)+'</td></tr>'
       +'</tbody></table>'
       +'<div class="note">初期費用はいただきません。'
-      +(camp?'キャンペーンは最初の3カ月です。4カ月目からは '+yen(sum+Math.floor(sum*0.1))+'（税込）になります。':'')
       +'<br>ご利用開始が月の途中の場合、初月は日割りでご請求します。'
       +'正式なお見つもりは、お申し込みのあと担当よりお送りします。</div>';
     document.getElementById('quote').innerHTML=h;
   }
   f.addEventListener('change',function(e){
-    if(e.target&&(e.target.name==='プラン'||e.target.name==='キャンペーン'))quote();
+    if(e.target&&e.target.name==='プラン')quote();
     if(e.target&&e.target.name==='ご請求先')
       document.getElementById('billBox').style.display=(e.target.value==='別にする')?'flex':'none';
   });
@@ -600,8 +629,6 @@ footer a:hover{color:#fff}
     sec('ご利用プラン');
     add('プラン',picked('プラン'));
     add('ご利用開始日',byId('q_start'));
-    add('キャンペーン',picked('キャンペーン'));
-    add('未来WA',picked('未来WA'));
 
     sec('ご契約者');
     ['q_corp','q_corpkana','q_rep','q_reprole','q_zip','q_pref','q_addr','q_corptel','q_corpno']
