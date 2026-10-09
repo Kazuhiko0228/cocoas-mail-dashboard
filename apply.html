@@ -140,9 +140,12 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
   border-bottom:3px solid var(--grow);transform:rotate(-45deg);margin-top:-5px}
 .done h3{font-family:var(--serif);font-size:22px;font-weight:600}
 .done p{font-size:13.5px;color:var(--muted);margin-top:14px;line-height:2}
-.done .sent{margin:0 auto;max-width:52ch;font-size:13px;line-height:1.85;padding:12px 16px;
+.done .sent{margin:0 auto;max-width:52ch;font-size:13px;line-height:1.85;padding:16px 20px;
   border-radius:10px;background:var(--paper);border:1px solid var(--line);color:var(--muted)}
 .done .sent.ok{background:#EFF6EC;border-color:#C6E0BC;color:#2C5E23}
+.done .sent .rno{display:flex;align-items:baseline;justify-content:center;gap:10px;margin-bottom:6px}
+.done .sent .rno span{font-size:12px;font-weight:700;letter-spacing:.08em}
+.done .sent .rno b{font-family:var(--serif);font-size:26px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums}
 .done .sent.ng{background:#FDECEA;border-color:#F3C8C1;color:#8E2F22}
 .done .echo{margin-top:22px;text-align:left;background:var(--paper);border:1px solid var(--line);
   border-radius:11px;padding:18px;font-size:12.5px;line-height:2;color:var(--ink-2)}
@@ -690,8 +693,10 @@ footer a:hover{color:#fff}
       .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(x){
         if(x.ok&&x.j&&x.j.ok){
-          st.innerHTML='運営に届きました。<b>受付番号 '+x.j.id+'</b>　'
-            +'2営業日以内に、担当より利用契約書をお送りします。';
+          /* ★受付番号を文の途中に太字で入れていたので、行の折り返しで番号と文がちぎれて見えた（2026-10-09）。
+             番号を上に1行で大きく、案内をその下に分ける */
+          st.innerHTML='<div class="rno"><span>受付番号</span><b>'+String(x.j.id).replace(/[^0-9]/g,'')+'</b></div>'
+            +'<div>運営に届きました。<br>2営業日以内に、担当より利用契約書をお送りします。</div>';
           st.className='sent ok';
         } else {
           st.innerHTML='<b>運営に送れませんでした。</b>'
