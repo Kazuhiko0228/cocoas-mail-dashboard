@@ -98,6 +98,7 @@ td.r,th.r{text-align:right}
 }
 .f input:focus,.f select:focus,.f textarea:focus{outline:2px solid var(--eg);outline-offset:-1px;border-color:var(--eg)}
 .grid2{display:grid;gap:0 13px;grid-template-columns:1fr 1fr}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--line2);color:var(--ink2);vertical-align:1px}
 .grid3{display:grid;gap:0 13px;grid-template-columns:1fr 1fr 1fr}
 @media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
 /* ★入力する所の字が 16px より小さいと、iPhone は触れた瞬間に画面ごと拡大します。
@@ -525,7 +526,8 @@ function sysWorst(){
 function sysLine(k,extra){
   var c=sysCards().filter(function(x){return x.k===k;})[0];if(!c)return '';
   var cls=c.st==='ng'?'ng':(c.st==='ok'?'ok':'');
-  return '<div class="line1 '+cls+'">'+esc(c.now)+(extra?'　'+extra:'')+'<a href="#/settings/system">くわしく</a></div>';
+  /* ★以前は状態だけ（「送られません」）を出していて、何が送られないのか分からなかった（2026-10-09 安田さん「ここわかりにくい」） */
+  return '<div class="line1 '+cls+'"><b>'+esc(c.label)+'：</b>'+esc(c.now)+(extra?'　'+extra:'')+'　<a href="#/settings/system">くわしく</a></div>';
 }
 function sysHTML(){
   var cs=sysCards();
@@ -1312,7 +1314,7 @@ function pipeHTML(){
   if(!d)return '<h2>導入パイプライン</h2><div class="empty">読み込んでいます…</div>';
   var L=d.schools||[];
   var head='<h2>導入パイプライン</h2><div class="lead">申込から課金開始まで。段階は手順から自動で決まります。止まっている園はホームの要対応にも出ます。</div>'
-    +'<div class="row" style="margin-bottom:12px;"><button class="btn '+(pipeMode==='list'?'':'sec ')+'sm" data-pm="list">一覧</button><button class="btn '+(pipeMode==='kanban'?'':'sec ')+'sm" data-pm="kanban">段階ごと</button></div>';
+    +'<div class="row" style="margin-bottom:12px;"><button class="btn '+(pipeMode==='list'?'':'sec ')+'sm" data-pm="list">一覧</button><button class="btn '+(pipeMode==='kanban'?'':'sec ')+'sm" data-pm="kanban">段階ごと</button><button class="btn sm" id="pipeShodan" style="margin-left:auto;">申込なしで始める（商談の内容を入れる）</button></div>';
   if(!L.length)return head+'<div class="card"><div class="empty">導入中の園はありません。<br>申込を開いて「この申込から園を開く」を押すと、ここに並びます。</div>'
     +'<div class="row" style="justify-content:center;"><button class="btn sm" data-v="apply">申込を見る</button></div></div>';
   if(pipeMode==='kanban'){
@@ -1692,7 +1694,8 @@ function applyHTML(){
   var d=DATA.apply||{}, list=d.applications||[], m=d.mail||{};
   var h='';
   /* メールの設定の状態は1行だけ。変数名はシステム接続へ（2026-10-08） */
-  h+=sysLine('mail');
+  if(!applyOpen)h+='<h2>申込</h2><div class="lead">園から届いた申込と、運営が商談の内容から作った申込が並びます。どちらも「ひらく」→「この申込から園を開く」で導入が始まります。</div>';
+  h+=sysLine('mail',(m.ok&&m.to)?'':'メールが届かなくても、申込はこの一覧に必ず残ります。');
 
   if(applyOpen){
     var a=applyOpen;
@@ -1703,7 +1706,8 @@ function applyHTML(){
       +'<span class="tag">受付番号 '+esc(a.id)+'</span></div>'
       +'<h3 style="margin-top:12px;">'+esc(a.corp||'')+'　'+esc(a.person||'')+' 様</h3>'
       +'<div class="lines">'
-      +Object.keys(pay).map(function(k){
+      /* 商談から入れたものは空の欄が多いので、空は出さない（2026-10-09） */
+      +Object.keys(pay).filter(function(k){return pay[k]!==''&&pay[k]!=null;}).map(function(k){
         return '<div><span class="l">'+esc(k)+'</span><span class="y" style="font-weight:400;text-align:right;">'
           +esc(String(pay[k]).slice(0,300))+'</span></div>';
       }).join('')
@@ -1725,6 +1729,7 @@ function applyHTML(){
     return h;
   }
 
+  h+=applyUrlCardHTML()+shodanHTML();
   var yet=list.filter(function(x){return x.status==='未対応';}).length;
   h+='<div class="card"><h3>申込 '+list.length+'件'+(yet?'（未対応 '+yet+'件）':'')+'</h3>'
     +(list.length
@@ -1732,6 +1737,7 @@ function applyHTML(){
           var col=a.status==='未対応'?'#A8701A':(a.status==='見送り'?'#8C8A82':'#2C6B43');
           return '<div style="align-items:flex-start;">'
             +'<span class="l"><b>'+esc(a.corp||'')+'</b>'
+            +(a.source==='sales'?' <span class="tag">商談から入力</span>':'')
             +(a.school?'　'+esc(a.school):'')
             +'<div style="font-size:11.5px;color:var(--mute);margin-top:2px;">'
             +esc(a.person||'')+'　'+esc(a.email||'')
@@ -1743,10 +1749,45 @@ function applyHTML(){
             +'<button class="btn sec sm" data-apopen="'+esc(a.id)+'" style="margin-left:8px;">ひらく</button>'
             +'</div>';
         }).join('')+'</div>'
-      : '<div class="note">まだ申込はありません。'
-        +'園にお渡しするURLは、園の画面の「申込フォームのURLをコピー」から取れます。</div>')
+      : '<div class="note">まだ申込はありません。上の「申込フォーム」のURLを園にお送りいただくか、'
+        +'「申込なしで始める」に商談の内容を入れてください。</div>')
     +'</div>';
   return h;
+}
+
+/* 申込フォームのURL（2026-10-09 安田さん「申込のところからもURLにアクセスできるように」）。
+   ★以前は location.href の最後の / から後ろを差し替えていたので、#/apply のような住所のときに
+   「admin.html#/apply.html」になり、コピーしたURLを開いても申込フォームが出なかった */
+function applyUrl(){return location.origin+location.pathname.replace(/[^/]*$/,'')+'apply.html';}
+function applyUrlCardHTML(){
+  return '<div class="card"><h3>申込フォーム（園にお渡しするURL）</h3>'
+    +'<div class="lead" style="margin-bottom:8px;">商談のあと、このURLを園にお送りください。園が入力すると、下の一覧に届きます。検索には出ないので、URLを知っている人だけが開けます。</div>'
+    +'<div class="row"><input id="applyUrl" readonly value="'+esc(applyUrl())+'" style="flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--line2);" onclick="this.select()">'
+    +'<a class="btn sec sm" href="apply.html" target="_blank" rel="noopener">開いて確かめる</a>'
+    +'<button class="btn sm" id="applyCopy">申込フォームのURLをコピー</button></div></div>';
+}
+/* 申込なしで始める（2026-10-09 安田さんのご依頼「申込がなくても、運営が商談の情報を入れて導入を始められるように」）。
+   入れた内容で申込を1件作り（POST /admin/applications）、そのまま「この申込から園を開く」の画面に進む。
+   ★園を作る口は1つのまま（申込から開く）。ここで園まで作ってしまうと、導入の「申込を受け取った」が付かない */
+var shodanOn=false;
+function shodanHTML(){
+  if(!shodanOn)return '<div class="card"><div class="row"><div style="flex:1;min-width:220px;"><h3 style="margin:0 0 4px;">申込なしで始める</h3>'
+    +'<div style="font-size:12.5px;color:var(--mute);">園に申込フォームを書いてもらわずに、商談で聞いた内容から導入を始めます。</div></div>'
+    +'<button class="btn sm" id="sdOpen">商談の内容を入れる</button></div></div>';
+  var pl=Object.keys(PLANS||{});
+  function f(id,label,ph,type){return '<div class="f"><label>'+label+'</label><input id="'+id+'"'+(type?' type="'+type+'"':'')+' placeholder="'+esc(ph||'')+'"></div>';}
+  return '<div class="card"><h3>申込なしで始める（商談の内容）</h3>'
+    +'<div class="lead" style="margin-bottom:8px;">分かっているところだけで大丈夫です（<b>園名か法人名</b>と<b>先方のご担当者</b>は必須）。作ったあと、そのまま「この申込から園を開く」に進みます。</div>'
+    +'<div class="grid2">'
+    +f('sd_corp','法人名','社会福祉法人 〇〇会')+f('sd_school','園名','〇〇保育園')
+    +f('sd_person','先方のご担当者（必須）','山田 花子')+f('sd_role','役職','園長')
+    +f('sd_email','メール','info@example.jp','email')+f('sd_tel','電話','03-0000-0000','tel')
+    +'<div class="f"><label>プラン</label><select id="sd_plan"><option value="">未定</option>'+pl.map(function(k){return '<option value="'+esc(k)+'">'+esc((PLANS[k]&&PLANS[k].name)||k)+'</option>';}).join('')+'</select></div>'
+    +f('sd_starts','ご利用開始の予定','','date')
+    +f('sd_kids','園児数の目安','40')
+    +'</div>'
+    +'<div class="f"><label>商談のメモ（社内だけ）</label><textarea id="sd_memo" rows="3" placeholder="例：10/9 訪問。連絡帳と請求を先に使いたい。補助金を申請予定"></textarea></div>'
+    +'<div class="row"><button class="btn sm" id="sdGo">この内容で始める</button><button class="btn sec sm" id="sdCancel">やめる</button><span class="msg" id="sdM"></span></div></div>';
 }
 
 /* 申込から園を開く（2026-10-08 段2）。園を作る→管理者を発行→導入の手順、を1回で。
@@ -2834,8 +2875,21 @@ function wire(){
       .then(function(){ applyOpen=null; render(); })
       .catch(function(e){ say('apM',e.message); });
   };
+  if($('pipeShodan'))$('pipeShodan').onclick=function(){shodanOn=true;applyOpen=null;nav('apply');};
+  if($('sdOpen'))$('sdOpen').onclick=function(){shodanOn=true;render();};
+  if($('sdCancel'))$('sdCancel').onclick=function(){shodanOn=false;render();};
+  if($('sdGo'))$('sdGo').onclick=function(){
+    var v=function(id){return $(id).value.trim();};
+    if(!v('sd_corp')&&!v('sd_school')){say('sdM','園名か法人名を入れてください');return;}
+    if(!v('sd_person')){say('sdM','先方のご担当者を入れてください');return;}
+    say('sdM','作成中…',true);$('sdGo').disabled=true;
+    API.call('POST','/admin/applications',{corp:v('sd_corp'),school:v('sd_school'),person:v('sd_person'),role:v('sd_role'),
+      email:v('sd_email'),tel:v('sd_tel'),plan:v('sd_plan'),startsOn:v('sd_starts'),kids:v('sd_kids'),memo:v('sd_memo')})
+      .then(function(j){shodanOn=false;applyOpen=j.application;render();})
+      .catch(function(e){$('sdGo').disabled=false;say('sdM',e.message);});
+  };
   if($('applyCopy'))$('applyCopy').onclick=function(){
-    var u=location.href.replace(/[^/]*$/,'')+'apply.html';
+    var u=applyUrl();
     var b=this;
     function ok(){ b.textContent='コピーしました'; setTimeout(function(){b.textContent='申込フォームのURLをコピー';},1800); }
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(ok,function(){prompt('このURLをお渡しください',u);});
