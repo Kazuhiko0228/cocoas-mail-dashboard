@@ -877,7 +877,7 @@ function computeAttentionItems(){
     it.push({sev:'ng',n:1,text:c.label+'：'+(c.why?String(c.why).replace(/<[^>]*>/g,''):c.now),go:['sys']});
   });
   var due=ts.filter(function(t){return t.past_due_since&&t.status!=='解約済';});
-  if(due.length)it.push({sev:'ng',n:due.length,text:'お支払いが滞っている園（'+nm(due)+'）',go:due.length===1?['one',due[0].id,'contract']:['tenants']});
+  if(due.length)it.push({sev:'ng',n:due.length,text:'ご利用料が未納の園（'+nm(due)+'）',go:due.length===1?['one',due[0].id,'contract']:['tenants']});
   var ap=((DATA.apply&&DATA.apply.applications)||[]).filter(function(a){return a.status==='未対応';});
   if(ap.length)it.push({sev:'warn',n:ap.length,text:'未対応の申込',go:['apply']});
   var iq=((DATA.inq&&DATA.inq.inquiries)||[]).filter(function(a){return a.status==='未対応';});
@@ -991,16 +991,17 @@ function tenantsHTML(){
    日数と段はサーバ（admin.js の DUNNING_STEPS）が決める。ここでは出すだけ。 */
 function dunHTML(d){
   var p=d.dunning||{}, log=d.dunningLog||[];
-  var h='<div class="card"><h3>お支払いが滞ったときの連絡</h3>';
+  /* 「滞り」は「未納」に言いかえた（2026-10-09 安田さんのご指示） */
+  var h='<div class="card"><h3>未納のときの連絡</h3>';
   if(!p.active){
-    h+='<div class="note">いまのところ、滞っているお支払いはありません。</div>'
+    h+='<div class="note">いまのところ、未納はありません。</div>'
       +'<div class="row" style="margin-top:11px;">'
-      +'<label style="font-size:12px;">滞りはじめた日<input type="date" id="pdOn" style="margin-left:6px;"></label>'
-      +'<button class="btn sec sm" id="pdSet">滞っていることにする</button>'
+      +'<label style="font-size:12px;">未納になった日（支払期日の翌日）<input type="date" id="pdOn" style="margin-left:6px;"></label>'
+      +'<button class="btn sec sm" id="pdSet">未納として記録する</button>'
       +'<span class="msg" id="pdM"></span></div>'
       +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
-      +'カード決済の失敗は自動で入りますが、銀行振込・口座振替は自動で分からないので、'
-      +'ここから入れてください。</div></div>';
+      +'カード払いの失敗は自動で入ります。請求書払い（振込）は期日を過ぎても自動では分からないので、'
+      +'入金がないときはここから入れてください。記録すると、下の連絡の段の日数が数えはじめられます。</div></div>';
     return h;
   }
   var warn=(p.daysToStop!=null&&p.daysToStop<=7);
@@ -1034,7 +1035,7 @@ function dunHTML(d){
     +'<button class="btn sec sm" id="dunGo">連絡したことを記録する</button>'
     +'<span class="msg" id="dunM"></span></div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.7;">'
-    +'入金が確認できたら「解除」を選んでください。滞りの数え直しが止まります。</div>';
+    +'入金が確認できたら「解除」を選んでください。未納の日数の数えが止まります。</div>';
   if(log.length){
     h+='<div class="lines" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px;">'
       +log.map(function(r){
@@ -1207,7 +1208,7 @@ function tenantHTML(){
       .map(function(x){return '<button class="btn sec sm" data-doc="'+x[0]+'">'+esc(x[1])+'</button>';}).join('')
     +'</div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.75;">'
-    +'まだ弁護士の確認を受けていないたたき台です。赤い注記は社内向けで、印刷には出ません。</div></div>';
+    +'赤い注記は運営だけに見えるメモで、印刷には出ません。</div></div>';
   P.accounts=''
     /* ★園を作っても、その園の職員アカウントを作る口は「園の管理者としてログイン済み」を
        求めるので、最初のひとりが永久に作れなかった。運営がここで作る。 */
@@ -1461,7 +1462,7 @@ function membersHTML(){
     +'<div class="card"><h3>役職でできること</h3><div class="lines">'
       +'<div><span class="l"><b>オーナー</b>　すべて（メンバー・料金と税・決済の設定・利用停止・書類の片付け）</span></div>'
       +'<div><span class="l"><b>サポート</b>　園・導入・アカウント・書類・サポート閲覧・広告・様式（料金・決済の設定とメンバーは不可）</span></div>'
-      +'<div><span class="l"><b>経理</b>　請求・入金・滞り・決済の台帳・契約（園のアカウント操作は不可）</span></div>'
+      +'<div><span class="l"><b>経理</b>　請求・入金・未納・決済の台帳・契約（園のアカウント操作は不可）</span></div>'
       +'<div><span class="l"><b>閲覧のみ</b>　見るだけ</span></div></div></div>'
     +'<div class="card"><h3>メンバー</h3><div class="tw"><table style="min-width:720px;"><thead><tr><th>お名前</th><th>役職</th><th>2段階認証</th><th>最終ログイン</th><th>状態</th><th></th></tr></thead><tbody>'
     +(d.admins||[]).map(function(a){
@@ -1581,7 +1582,8 @@ function agreeAdminHTML(){
   if(a.err)return '<div class="card"><h3>契約（同意と証跡）</h3><div class="note bad">'+esc(a.err)+'</div></div>';
   var L=a.docs||[];
   return '<div class="card"><h3>契約（同意と証跡）</h3>'
-    +'<div class="note" style="margin-bottom:10px;">文面は弁護士の確認前のたたき台です（社内向けの注記は園には出しません）。送ると、その時点の中身で固まり、書き換えられません。直すときはもう一度送ると新しい版になります。</div>'
+    /* 弁護士の確認の注意書きは外した（2026-10-09 安田さん「いらない」） */
+    +'<div style="font-size:12px;color:var(--mute);margin-bottom:10px;">送った書類は、あとから書き換えられません。内容を直すときは、直した書類をあらためて送ってください。</div>'
     +'<div class="row" style="align-items:flex-end;"><div class="f" style="margin:0;"><label>送る書類</label><select id="agKind">'+AG_KIND.map(function(k){return '<option value="'+k[0]+'">'+esc(k[1])+'</option>';}).join('')+'</select></div>'
     +'<div class="f" style="margin:0;flex:1;min-width:220px;"><label>園の連絡先メール（お知らせ・確認コード。空なら申込のアドレス）</label><input id="agEmail" type="email"></div>'
     +'<button class="btn sm" id="agSend">園に送る</button><span class="msg" id="agM"></span></div>'
@@ -2751,7 +2753,7 @@ function wire(){
   /* ══ 支払いが滞ったときの連絡（タスクシート56行）════ */
   if($('pdSet'))$('pdSet').onclick=function(){
     var on=$('pdOn')?$('pdOn').value:'';
-    if(!on){say('pdM','滞りはじめた日を入れてください');return;}
+    if(!on){say('pdM','未納になった日を入れてください');return;}
     say('pdM','記録中…',true);
     API.call('POST','/admin/tenants/'+openId+'/past-due',{on:on})
       .then(function(){render();}).catch(function(e){say('pdM',e.message);});
