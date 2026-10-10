@@ -120,7 +120,12 @@ td.r,th.r{text-align:right}
 .wzStepL{font-size:11.5px;font-weight:800;color:var(--eg);letter-spacing:.06em}
 .wzT{font-size:18px !important;margin:3px 0 8px !important}
 .wzNav{display:flex;align-items:center;gap:10px;justify-content:space-between;margin:4px 0 20px}
-.wzQuote{margin:4px 0 8px;padding:10px 14px;background:var(--line2);border-radius:10px}.wzQuote b{font-size:18px}
+.wzQuote{margin:4px 0 8px;padding:10px 14px;background:var(--line2);border-radius:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wzProxy{margin-top:10px;padding:10px 12px;background:var(--line2);border-radius:10px}
+.wzKRow{display:grid;grid-template-columns:1.3fr 1.1fr .7fr 1.4fr;gap:6px;margin-top:6px}
+.wzKRow input,.wzKRow2 input{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;min-width:0;background:#fff}
+@media(max-width:760px){.wzKRow{grid-template-columns:1fr 1fr}}
+.wzKRow2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--line)}.wzQuote b{font-size:18px}
 .wzMsg{margin-top:14px;padding:12px 14px;background:var(--line2);border-radius:10px}
 .wzMsg textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
 .wzNew{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
@@ -1450,9 +1455,11 @@ var ROLE_LABEL_A={'管理者':'管理者','マネージャー':'園長','主任'
    ・園がやること（園児・保護者・払い方）は、園の Miralink に同じ並びの案内が出る（index.html の obWizard）。ここでは見守る
    ・入力の欄・送るボタンは園の詳細のものを使い回す（DATA.one／DATA.ob／DATA.agree を同じ園で埋めておく） */
 var WZ={tid:null,app:null,step:-1,created:null};
+/* ★2026-10-11 並べ替え（安田さん「契約と同時期くらいに決済登録ができるべき」）。お支払いの登録は契約と同じステップ、
+   課金開始は園の準備より前（サーバの関門も 1〜4段だけにした） */
 var WZ_STEPS=[
-  ['app','申込を確かめる'],['acct','園のアカウントを作る'],['terms','プランと金額を決める'],['contract','契約書を送って同意をもらう'],
-  ['school','園の準備を見守る'],['live','使いはじめを確かめる'],['bill','課金を始める']];
+  ['app','申込を確かめる'],['acct','園のアカウントを作る'],['terms','プランと金額を決める'],['contract','契約とお支払いの登録'],
+  ['bill','課金を始める'],['school','園の準備'],['live','使いはじめを確かめる']];
 function wizLoad(){
   if(!openId){
     WZ.tid=null;
@@ -1478,8 +1485,8 @@ function wizDone(i){
   if(k==='app')return !!WZ.app||wizFin('application');
   if(k==='acct')return !!WZ.tid;
   if(k==='terms')return wizFin('hearing');
-  if(k==='contract')return wizFin('contract');
-  if(k==='school')return ['kids','parents','school_pay'].every(wizFin);
+  if(k==='contract')return wizFin('contract')&&wizFin('school_pay');
+  if(k==='school')return ['kids','parents'].every(wizFin);
   if(k==='live')return ['first_login','parent_login'].every(wizFin);
   if(k==='bill')return wizFin('billing');
   return false;
@@ -1530,7 +1537,7 @@ function wizBody(k){
   var d=openId?DATA.one:null;
   if(k==='app'){
     if(!WZ.app)return '<div class="lead">この園は申込を通らずに作られました。次へ進んでください。</div>';
-    return '<div class="lead">届いた内容を確かめます。足りないところは、このあと先方に確かめながら進めます。</div>'+apGroupsHTML(WZ.app);
+    return '<div class="lead">届いた内容を確かめます。違っているところは「内容を直す」で直せます（届いたままの内容も残ります）。</div>'+apEditHTML(WZ.app,'wz');
   }
   if(k==='acct'){
     if(!openId){var a=WZ.app||{};
@@ -1558,23 +1565,37 @@ function wizBody(k){
       +'<div class="f"><label>割引する月数（なしは 0）</label><input id="wz_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
       +'<div class="f"><label>その間の割引（何％引き）</label><input id="wz_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
       +'<div class="f"><label>最低契約期間（か月）</label><input id="wz_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div></div>'
-      +'<div class="wzQuote">いまの条件でのひと月の金額 <b class="num">'+yen(q.total||0)+'</b>（税別・在籍 '+esc(d.seats||0)+'名）</div>'
+      +'<div class="wzQuote"><span style="flex:1;min-width:200px;">いまの条件でのひと月の金額 <b class="num">'+yen(q.total||0)+'</b>（税別・在籍 '+esc(d.seats||0)+'名）</span>'
+      /* 2026-10-11：入れた条件で金額を出し直す（保存はするが、このステップは済にしない） */
+      +'<button class="btn sec sm" id="wzRecalc">入れた条件で金額を出し直す</button><span class="msg" id="wzRM"></span></div>'
       +'<div class="hint">補助金を使う園は、<a href="#" data-gotab2="subsidy">補助金タブ</a>で記録を足します（交付決定のあとから請求で差し引かれます）。ストアや保育料カード払いの率は<a href="#" data-gotab2="contract">契約・請求タブ</a>で。</div>'
       +'<div class="row" style="margin-top:12px;"><button class="btn" id="wzTerms">この条件で決めて次へ →</button></div>';
   }
   if(k==='contract'){
-    return '<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。</div>'+agreeAdminHTML();
+    var c2=d.contract||{}, pm=c2.pay_method;
+    var payBox='<div class="card" style="margin-top:4px;"><h3 style="font-size:16px;">ご利用料のお支払いの登録</h3>'
+      +'<div style="color:var(--ink2);margin-bottom:8px;">契約と同じころに、毎月のご利用料の払い方（カードか請求書払い）を登録します。これがそろうと課金を始められます。</div>'
+      +(pm?'<div class="note ok" style="margin:0;">登録ずみ：'+(pm==='card'?'カード（'+esc(String(c2.card_brand||'').toUpperCase())+' •••• '+esc(c2.card_last4||'')+'）':'請求書払い（'+esc(c2.billing_email||'')+'）')+'</div>'
+        :'<div class="hint" style="margin:0 0 8px;">園長が Miralink の案内（ご利用料の払い方を選ぶ）で登録します。園長の代わりに運営が登録することもできます。</div>'
+          +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">代理で請求書払いにする</div><div class="row"><input id="wzBillMail" type="email" placeholder="請求書の送り先メール" value="'+esc(c2.billing_email||((WZ.app&&WZ.app.email)||''))+'" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;">'
+          +'<button class="btn sm" id="wzInv">請求書払いで登録する</button></div></div>'
+          +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">カードで払う園</div><div class="hint" style="margin:0 0 6px;">カード番号は園長が入れます。登録ページの URL を作って園長に送ってください。</div>'
+          +'<div class="row"><button class="btn sec sm" id="wzCardLink">カード登録のページを作る</button><input id="wzCardUrl" readonly placeholder="ここに URL が出ます" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--line2);" onclick="this.select()"></div></div>'
+          +'<span class="msg" id="wzPM"></span>')
+      +'</div>';
+    return '<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。書類の「中身を見る」で、送る前に文面を確かめられます。</div>'+agreeAdminHTML()+payBox;
   }
   if(k==='school'){
-    /* ログインの確かめは次の「使いはじめを確かめる」で見る */
-    var S=((DATA.ob&&DATA.ob.steps)||[]).filter(function(x){return x.side==='school'&&x.key!=='first_login'&&x.key!=='parent_login';});
+    /* ログインの確かめは次の「使いはじめを確かめる」で見る。お支払いは「契約とお支払いの登録」で見る */
+    var S=((DATA.ob&&DATA.ob.steps)||[]).filter(function(x){return x.side==='school'&&['first_login','parent_login','school_pay'].indexOf(x.key)<0;});
     var fin=function(x){return x.status==='done'||x.status==='skipped';};
-    var msg='Miralink のホームに「オンボーディング」の案内が出ています。上から順に（園児の登録 → 保護者の招待 → ご利用料の払い方）進めてください。わからないところは、いつでもご連絡ください。';
+    var msg='Miralink のホームに「オンボーディング」の案内が出ています。上から順に（ご利用料の払い方 → 園児の登録 → 保護者の招待）進めてください。わからないところは、いつでもご連絡ください。';
     var a=WZ.app||{};
-    return '<div class="lead">ここは園がやるステップです。園長の Miralink に同じ並びの案内が出ています。済むと自動でチェックが付きます。</div>'
+    return '<div class="lead">ここは園がやるステップです。園長の Miralink に同じ並びの案内が出ています。済むと自動でチェックが付きます。下の「代理で登録する」で運営が代わりに入れることもできます。</div>'
       +S.map(function(x){return '<div class="obItem'+(fin(x)?' fin':'')+'"><span class="obMark'+(fin(x)?' on':'')+'">'+(fin(x)?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+esc(x.label)+'</span>'+(x.required?'':' <span class="hint" style="display:inline;">任意</span>')+'<div class="hint" style="margin:0;">'+esc(x.help||'')+'</div></span></div>';}).join('')
       +'<div class="row" style="margin-top:10px;"><button class="btn sec sm" id="wzRefresh">最新の状態にする</button>'
       +(DATA.ob&&DATA.ob.stalledDays>=7?'<span class="chip bad">'+DATA.ob.stalledDays+'日動きがありません</span>':'')+'</div>'
+      +wizProxyHTML()
       +'<div class="wzMsg"><div style="font-weight:800;font-size:12.5px;">止まっているときは園に連絡します</div>'
       +'<div class="hint" style="margin:2px 0 6px;">先方：'+esc(a.person||'—')+(a.email?'　'+esc(a.email):'')+(a.tel?'　'+esc(a.tel):'')+'</div>'
       +'<textarea id="wzMsgT" rows="3" style="width:100%;">'+esc(msg)+'</textarea><div class="row" style="margin-top:6px;"><button class="btn sec sm" id="wzCopyMsg">この文をコピー</button></div></div>';
@@ -1597,6 +1618,41 @@ function wizBody(k){
       +'<button class="btn" id="obBill">課金を始める</button><span class="msg" id="obM"></span></div>';
   }
   return '';
+}
+/* ══ 運営の代理登録（2026-10-11 安田さん「こっちからも代理登録できるような形に」）══
+   園児の登録と、保護者アカウントの発行を、オンボーディングの「園の準備」から運営がそのまま行う。
+   入れたことは園の変更ログに残る（サーバ src/proxy.js）。職員のアカウントは 園の詳細 › アカウント から */
+var WZK={tid:null,kids:null,rows:3,made:{}};
+function wizProxyHTML(){
+  if(WZK.tid!==openId){WZK={tid:openId,kids:null,rows:3,made:{}};
+    API.call('GET','/admin/tenants/'+openId+'/kids').then(function(j){WZK.kids=j.kids;if(view==='wiz')render();}).catch(function(){WZK.kids=[];});}
+  var a=WZ.app||{}, K=WZK.kids;
+  var rows='';for(var i=0;i<WZK.rows;i++){rows+='<div class="wzKRow"><input data-wk="child" placeholder="園児のお名前（例：山田 はなこ）"><input data-wk="name" placeholder="保護者のお名前"><input data-wk="klass" placeholder="クラス"><input data-wk="email" type="email" placeholder="保護者のメール"></div>';}
+  return '<div class="wzMsg" style="background:var(--eg-w);"><div style="font-weight:800;font-size:13px;">代理で登録する</div>'
+    +'<div class="hint" style="margin:2px 0 8px;">園の代わりに運営が入れます。入れたことは園の変更ログに「運営（名前）が代理で…」と残ります。</div>'
+    +'<div style="font-weight:700;font-size:12.5px;margin-top:6px;">園児を登録する</div>'+rows
+    +'<div class="row" style="margin-top:6px;"><button class="btn sec sm" id="wzKMore">行を足す</button><button class="btn sm" id="wzKAdd">この園児を登録する</button><span class="msg" id="wzKM"></span></div>'
+    +'<div style="font-weight:700;font-size:12.5px;margin-top:14px;">保護者を未来WAに招待する（アカウントを作る）</div>'
+    +(K==null?'<div class="hint">読み込んでいます…</div>':!K.length?'<div class="hint">先に園児を登録してください。</div>'
+      :K.map(function(k){var made=WZK.made[k.id];
+        return '<div class="wzKRow2"><span style="flex:1;min-width:160px;"><b>'+esc(k.child)+'</b> <span class="hint" style="display:inline;">'+esc(k.name)+(k.klass?'・'+esc(k.klass):'')+'</span></span>'
+          +(k.hasParent?'<span class="chip ok">アカウントあり</span>'
+            :made?'<span class="chip ok">作りました</span><span class="hint" style="display:inline;margin:0;">'+esc(made.email)+'　仮のパスワード <b class="num">'+esc(made.pw)+'</b></span>'
+            :'<input data-pe="'+esc(k.id)+'" type="email" placeholder="保護者のメール" value="'+esc(k.email||'')+'" style="min-width:200px;"><button class="btn sm" data-pmk="'+esc(k.id)+'" data-pn="'+esc(k.name)+'">アカウントを作る</button>')+'</div>';}).join(''))
+    +'<div class="hint" style="margin-top:8px;">仮のパスワードは、この画面に出たときに控えて保護者の方に伝えてください（案内の紙は園の Miralink から印刷できます）。</div></div>';
+}
+function wizPw(){var c='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789',o='';var a=new window.Uint32Array(12);(window.crypto||window.msCrypto).getRandomValues(a);for(var i=0;i<12;i++)o+=c[a[i]%c.length];return o;}
+/* 申込の中身を直す（2026-10-11 安田さん「内容が違っても編集が一応できるように」）。
+   直した中身は items（見出しつきの並び）で保存し、届いたままの中身はサーバが _original に残す */
+var APE={on:false};
+function apEditHTML(a,px){
+  var g=apGroups(a), ed=a.payload&&a.payload._edited;
+  var note=ed?'<div class="hint" style="margin:0 0 6px;">'+esc(ed.by||'運営')+' が '+esc(fmtAt(ed.at))+' に直しました</div>':'';
+  if(!APE.on)return note+apGroupsHTML(a)+'<div class="row" style="margin-top:10px;"><button class="btn sec sm" id="apEdOn">内容を直す</button></div>';
+  return note+'<div class="apGroups">'+g.map(function(x,gi){
+    return '<div class="apBox"><div class="apBoxT">'+esc(x.t)+'</div>'
+      +x.rows.map(function(r,ri){return '<div class="apKV"><span>'+esc(r[0])+'</span><input data-ape="'+gi+'_'+ri+'" value="'+esc(r[1])+'" style="width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font:inherit;"></div>';}).join('')+'</div>';
+  }).join('')+'</div><div class="row" style="margin-top:10px;"><button class="btn sm" id="apEdSave">直した内容を保存する</button><button class="btn sec sm" id="apEdOff">やめる</button><span class="msg" id="apEdM"></span></div>';
 }
 function pipeHTML(){
   var d=DATA.pipe;
@@ -1884,6 +1940,8 @@ function agreeAdminHTML(){
     return '<div class="agRow"><span style="flex:1;min-width:220px;"><b>'+esc(k[1])+'</b><div class="hint" style="margin:0;">'+esc(k[2])
       +(cur?'　／　第'+esc(cur.version)+'版・'+esc(fmtAt(cur.signedAt||cur.viewedAt||cur.sentAt)):'')+'</div></span>'
       +'<span class="chip '+st[1]+'">'+st[0]+'</span>'
+      /* 送る前に文面を確かめる（2026-10-11）。契約・請求タブの「契約書をつくる」と同じ中身 */
+      +'<button class="btn sec sm" data-doc="'+k[0]+'">中身を見る</button>'
       +(!cur?'<button class="btn sm" data-agk="'+k[0]+'" data-agn="'+esc(k[1])+'">園に送る</button>'
         :cur.status==='signed'?'<button class="btn sec sm" data-agp="'+cur.id+'">PDF</button>'
         :'<button class="btn sec sm" data-agk="'+k[0]+'" data-agn="'+esc(k[1])+'">送り直す</button>')+'</div>';
@@ -2022,7 +2080,7 @@ function applyHTML(){
       +'<div class="apSteps">'+apStep(1,'申込を受け取る','done')+'<i></i>'+apStep(2,'園のアカウントを作る',opened?'done':'now')+'<i></i>'+apStep(3,'導入の手順を進める',opened?'now':'todo')+'</div></div>'
       +applyOpenHTML(a)
       +apSitesHTML(a)
-      +'<div class="card"><details open><summary class="apSum">申込の内容</summary>'+apGroupsHTML(a)+'</details>'
+      +'<div class="card"><details open><summary class="apSum">申込の内容</summary>'+apEditHTML(a,'ap')+'</details>'
       +'<div class="apFoot"><div class="f"><label>状態（運営のなかの目印）</label><select id="apSt">'+APPLY_STATUS.map(function(x){
         return '<option'+(x===a.status?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'
       +'<div class="f" style="flex:1;min-width:220px;"><label>メモ（運営だけ）</label><input id="apNote" value="'+esc(a.note||'')+'" placeholder="例：10/9 電話済。11/1 開始で確定"></div>'
@@ -2124,7 +2182,7 @@ function apGroups(a){
     });
     return out.filter(function(g){return g.rows.length;});
   }
-  var used={}, keys=Object.keys(pay).filter(function(k){return pay[k]!==''&&pay[k]!=null&&typeof pay[k]!=='object';});
+  var used={}, keys=Object.keys(pay).filter(function(k){return k.charAt(0)!=='_'&&pay[k]!==''&&pay[k]!=null&&typeof pay[k]!=='object';});
   Object.keys(AP_GROUP).forEach(function(g){
     var rows=AP_GROUP[g].filter(function(k){return keys.indexOf(k)>-1;}).map(function(k){used[k]=1;return [k,String(pay[k])];});
     if(rows.length)out.push({t:g,rows:rows});
@@ -3339,12 +3397,61 @@ function wire(){
   };
   if($('wzTerms'))$('wzTerms').onclick=function(){
     var v=function(id){return $(id).value.trim();}, cs=campSave(v('wz_cm'),v('wz_coff'));
+    if(+v('wz_cm')>36||+v('wz_coff')>100){say('wzM','割引する月数は 0〜36、割引は 0〜100％で入れてください');return;}
     say('wzM','保存中…',true);
     API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),
         campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm')})
       .then(function(){return wizFin('hearing')?null:API.call('PUT','/admin/tenants/'+openId+'/onboarding/hearing',{status:'done',note:''});})
       .then(function(){WZ.step=3;GLB_AT=0;render();window.scrollTo(0,0);})
       .catch(function(e){say('wzM',e.message);});
+  };
+  if($('wzRecalc'))$('wzRecalc').onclick=function(){
+    var v=function(id){return $(id).value.trim();};
+    if(+v('wz_cm')>36){say('wzRM','割引する月数は 0〜36 で入れてください');return;}
+    if(+v('wz_coff')>100){say('wzRM','割引は 0〜100％で入れてください');return;}
+    var cs=campSave(v('wz_cm'),v('wz_coff'));say('wzRM','計算中…',true);
+    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm')})
+      .then(function(){render();}).catch(function(e){say('wzRM',e.message);});
+  };
+  if($('wzInv'))$('wzInv').onclick=function(){var em=$('wzBillMail').value.trim();
+    if(!confirm('園の代わりに「請求書払い」で登録します（送り先 '+em+'）。よろしいですか？'))return;
+    say('wzPM','登録中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/school-billing/invoice',{email:em}).then(function(){render();}).catch(function(e){say('wzPM',e.message);});};
+  if($('wzCardLink'))$('wzCardLink').onclick=function(){say('wzPM','作成中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/school-billing/card-link',{returnUrl:apLoginUrl(),email:($('wzBillMail')||{}).value||''})
+      .then(function(j){$('wzCardUrl').value=j.url;$('wzCardUrl').select();say('wzPM','できました。この URL を園長に送ってください（カードを入れると自動で登録されます）',true);})
+      .catch(function(e){say('wzPM',e.message);});};
+  if($('wzKMore'))$('wzKMore').onclick=function(){WZK.rows+=3;render();};
+  if($('wzKAdd'))$('wzKAdd').onclick=function(){
+    var rows=[].map.call(document.querySelectorAll('.wzKRow'),function(r){var o={};r.querySelectorAll('[data-wk]').forEach(function(i){o[i.getAttribute('data-wk')]=i.value.trim();});return o;}).filter(function(o){return o.child;});
+    if(!rows.length){say('wzKM','園児のお名前を入れてください');return;}
+    if(!confirm(rows.length+'名の園児を、園の代わりに登録します。よろしいですか？'))return;
+    say('wzKM','登録中…',true);
+    API.call('POST','/admin/tenants/'+openId+'/kids',{rows:rows}).then(function(j){WZK.kids=j.kids;WZK.rows=3;render();}).catch(function(e){say('wzKM',e.message);});
+  };
+  document.querySelectorAll('[data-pmk]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-pmk'), em=(document.querySelector('[data-pe="'+id+'"]')||{}).value||'', pw=wizPw();
+    if(!em){alert('保護者のメールを入れてください');return;}
+    b.disabled=true;
+    API.call('POST','/admin/tenants/'+openId+'/parents',{email:em.trim(),password:pw,childId:+id,name:b.getAttribute('data-pn')||''})
+      .then(function(){WZK.made[id]={email:em.trim(),pw:pw};(WZK.kids||[]).forEach(function(k){if(String(k.id)===String(id))k.made=true;});render();})
+      .catch(function(e){b.disabled=false;alert(e.message);});
+  };});
+  /* 申込の中身を直す */
+  if($('apEdOn'))$('apEdOn').onclick=function(){APE.on=true;render();};
+  if($('apEdOff'))$('apEdOff').onclick=function(){APE.on=false;render();};
+  if($('apEdSave'))$('apEdSave').onclick=function(){
+    var a=(view==='wiz')?WZ.app:applyOpen;if(!a)return;
+    var g=apGroups(a), items=[];
+    g.forEach(function(x,gi){items.push(['##',x.t]);x.rows.forEach(function(r,ri){var e=document.querySelector('[data-ape="'+gi+'_'+ri+'"]');items.push([r[0],e?e.value.trim():r[1]]);});});
+    var val=function(keys){for(var i=0;i<items.length;i++){if(keys.indexOf(items[i][0])>-1&&items[i][1])return items[i][1];}return null;};
+    var body={payload:{items:items},corp:val(['法人名']),school:val(['園・施設名','施設名']),person:val(['担当者名','ご担当者']),
+      email:val(['担当者のメールアドレス','メール']),tel:val(['担当者の電話番号','電話']),plan:val(['プラン']),startsOn:val(['ご利用開始日','ご利用開始の予定'])};
+    Object.keys(body).forEach(function(k){if(body[k]==null)delete body[k];});
+    say('apEdM','保存中…',true);
+    API.call('PUT','/admin/applications/'+a.id,body).then(function(){return API.call('GET','/admin/applications/'+a.id);})
+      .then(function(j){APE.on=false;if(view==='wiz')WZ.app=j.application;else applyOpen=j.application;render();})
+      .catch(function(e){say('apEdM',e.message);});
   };
   document.querySelectorAll('#wzRefresh').forEach(function(b){b.onclick=function(){render();};});
   if($('wzCopyMsg'))$('wzCopyMsg').onclick=function(){var b=this,t=$('wzMsgT').value;
