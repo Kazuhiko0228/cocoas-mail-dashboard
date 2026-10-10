@@ -104,6 +104,30 @@ td.r,th.r{text-align:right}
 .acPw{margin-top:6px;padding:6px 10px;background:var(--ok-w);border-radius:8px;font-size:12.5px;color:var(--ok);display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .acPw b{color:var(--ink);font-size:14px;letter-spacing:.04em}
 .agRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line2)}
+.wzTop{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.wzHead{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.wzEy{font-size:11.5px;font-weight:800;color:var(--eg);letter-spacing:.06em}
+.wzCount{font-size:13px;color:var(--ink2)}.wzCount b{font-size:20px}
+.wzRail{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin:14px 0}
+.wzDot{display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;cursor:pointer;padding:6px 2px;border-radius:10px;font:inherit;color:var(--mute)}
+.wzDot:disabled{cursor:default;opacity:.6}
+.wzDot b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;background:var(--line);color:var(--mute)}
+.wzDot span{font-size:11px;line-height:1.35;text-align:center}
+.wzDot.done b{background:var(--ok);color:#fff}.wzDot.done span{color:var(--ok)}
+.wzDot.cur{background:var(--eg-w)}.wzDot.cur b{background:var(--eg);color:#fff;box-shadow:0 0 0 4px #fff}.wzDot.cur span{color:var(--eg);font-weight:800}
+@media(max-width:760px){.wzDot span{display:none}}
+.wzCard{padding:20px 22px;border:1.5px solid var(--eg)}
+.wzStepL{font-size:11.5px;font-weight:800;color:var(--eg);letter-spacing:.06em}
+.wzT{font-size:18px !important;margin:3px 0 8px !important}
+.wzNav{display:flex;align-items:center;gap:10px;justify-content:space-between;margin:4px 0 20px}
+.wzQuote{margin:4px 0 8px;padding:10px 14px;background:var(--line2);border-radius:10px}.wzQuote b{font-size:18px}
+.wzMsg{margin-top:14px;padding:12px 14px;background:var(--line2);border-radius:10px}
+.wzMsg textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+.wzNew{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media(max-width:860px){.wzNew{grid-template-columns:minmax(0,1fr)}}
+.wzNewBox{min-width:0}
+.wzNewBox .card{border:0;padding:0;margin:0}
+.wzRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--line2)}
 .obHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .obBand{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:14px 0 16px}
 .obSeg i{display:block;height:6px;border-radius:99px;background:var(--line)}
@@ -432,7 +456,7 @@ function wireLogin(){
    機能は1つも消していない。移しただけ（同じ口を呼ぶ）。 */
 var NAV=[
   ['',[['home','ホーム']]],
-  ['導入',[['inq','お問い合わせ'],['apply','申込'],['pipe','導入パイプライン']]],
+  ['導入',[['wiz','オンボーディング'],['inq','お問い合わせ'],['apply','申込'],['pipe','導入パイプライン']]],
   ['園',[['tenants','園の一覧'],['docs','書類（全園）'],['offboard','解約・データ返却']]],
   ['売上',[['bill','請求']]],
   ['決済・広告',[['pay','ストアのカード払い'],['tuition','保育料のカード払い'],['ads','広告']]],
@@ -474,16 +498,19 @@ function shell(inner){
 /* ── 画面の住所（#/…）。再読み込み・戻る・進むで同じ画面に戻れるように ── */
 var tTab='overview';
 var ROUTES={home:'home',inq:'inquiries',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
-  tuition:'tuition',pipe:'onboarding',members:'settings/members',incidents:'incidents',offboard:'offboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
+  tuition:'tuition',pipe:'onboarding',wiz:'onboard',members:'settings/members',incidents:'incidents',offboard:'offboarding',ads:'ads',forms:'forms',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
 var T_TABS=[['overview','概要'],['contract','契約・請求'],['subsidy','補助金'],['accounts','アカウント'],['docs','書類'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
+  if(view==='wiz'&&openId)return '#/onboard/'+openId;
   return '#/'+(ROUTES[view]||'home');
 }
 function readHash(){
   var h=String(location.hash||'').replace(/^#\/?/,'');
   var m=h.match(/^schools\/(\d+)(?:\/([a-z]+))?$/);
   if(m){view='one';openId=m[1];tTab=m[2]||'overview';return;}
+  var mw=h.match(/^onboard\/(\d+)$/);
+  if(mw){view='wiz';openId=mw[1];return;}
   view='home';openId=null;
   for(var k in ROUTES){if(ROUTES[k]===h){view=k;break;}}
 }
@@ -1405,7 +1432,8 @@ function obCardHTML(){
       +(open?'<div class="hint">'+esc(x.help||'')+(x.note?'<br>メモ：'+esc(x.note):'')+'</div>'+(acts?'<div class="row" style="margin-top:6px;">'+acts+'</div>':''):'')
       +'</span></div>';
   }
-  return '<div class="card"><div class="obHead"><h3 style="margin:0;">導入の進み具合</h3><span><b class="num" style="font-size:18px;">'+nDone+'</b> / '+S.length+' 済</span>'
+  return '<div class="card"><div class="obHead"><h3 style="margin:0;">導入の進み具合</h3>'
+    +(billed?'':'<button class="btn sm" data-wz="'+esc(openId)+'" style="order:9;margin-left:auto;">オンボーディングで進める →</button>')+'<span><b class="num" style="font-size:18px;">'+nDone+'</b> / '+S.length+' 済</span>'
     +(billed?'':'<span class="hint" style="margin:0;">課金開始まで あと'+req.length+'つ（運営 '+reqOp+'・園 '+reqSc+'）</span>')
     +(o.next&&!billed?'<span class="hint" style="margin:0 0 0 auto;'+(o.stalledDays>=7?'color:var(--bad);font-weight:700;':'')+'">'+o.stalledDays+'日動きなし</span>':'')+'</div>'
     +band+nowBox
@@ -1416,6 +1444,160 @@ function obCardHTML(){
 var obOpenKey='';
 /* 園の画面と同じ役職の表示名（index.html の ROLE_LABEL。保存値は変えない） */
 var ROLE_LABEL_A={'管理者':'管理者','マネージャー':'園長','主任':'主任・リーダー','一般':'先生'};
+/* ══ オンボーディング（2026-10-11 安田さん「入口は1つにして、Walk Through しながら一緒にオンボーディングできるように」）══
+   運営がやることを、1画面に1ステップずつ順番に案内する。タブを行き来しなくても、ここだけで最後（課金開始）まで進む。
+   ・手順の状態・自動の済・課金開始の関門はサーバ（src/onboard.js）のまま。ここは見せ方と、既にある口を呼ぶだけ
+   ・園がやること（園児・保護者・払い方）は、園の Miralink に同じ並びの案内が出る（index.html の obWizard）。ここでは見守る
+   ・入力の欄・送るボタンは園の詳細のものを使い回す（DATA.one／DATA.ob／DATA.agree を同じ園で埋めておく） */
+var WZ={tid:null,app:null,step:-1,created:null};
+var WZ_STEPS=[
+  ['app','申込を確かめる'],['acct','園のアカウントを作る'],['terms','プランと金額を決める'],['contract','契約書を送って同意をもらう'],
+  ['school','園の準備を見守る'],['live','使いはじめを確かめる'],['bill','課金を始める']];
+function wizLoad(){
+  if(!openId){
+    WZ.tid=null;
+    return Promise.all([API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}),
+      API.call('GET','/admin/applications').then(function(j){DATA.apply=j;})]);
+  }
+  /* 作った直後は「アカウント」のステップ（園長に伝える内容）を見せる */
+  if(WZ.tid!==openId){var cr=(WZ.created&&String(WZ.created.tenant.id)===String(openId))?WZ.created:null;WZ={tid:openId,app:null,step:cr?1:-1,created:cr};}
+  return Promise.all([
+    API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;}),
+    API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}),
+    API.call('GET','/admin/tenants/'+openId+'/contracts').then(function(j){DATA.agree=j;DATA.agreeId=openId;}).catch(function(e){DATA.agree={err:e.message};DATA.agreeId=openId;}),
+    WZ.app?null:API.call('GET','/admin/applications').then(function(j){
+      var a=(j.applications||[]).filter(function(x){return String(x.tenant_id)===String(openId);})[0];
+      return a?API.call('GET','/admin/applications/'+a.id).then(function(d){WZ.app=d.application;}):null;
+    }).catch(function(){})
+  ]);
+}
+function wizStepOf(k){var o=(DATA.obId===openId&&DATA.ob&&DATA.ob.steps)||[];return o.filter(function(x){return x.key===k;})[0]||null;}
+function wizFin(k){var x=wizStepOf(k);return !!(x&&(x.status==='done'||x.status==='skipped'));}
+function wizDone(i){
+  var k=WZ_STEPS[i][0];
+  if(k==='app')return !!WZ.app||wizFin('application');
+  if(k==='acct')return !!WZ.tid;
+  if(k==='terms')return wizFin('hearing');
+  if(k==='contract')return wizFin('contract');
+  if(k==='school')return ['kids','parents','school_pay'].every(wizFin);
+  if(k==='live')return ['first_login','parent_login'].every(wizFin);
+  if(k==='bill')return wizFin('billing');
+  return false;
+}
+function wizHTML(){
+  if(!openId&&!WZ.app)return wizPickHTML();
+  /* ★園を作った直後は、前の園の DATA.one のまま描こうとして止まっていた。読み終わるまでは待つ */
+  if(openId&&(!DATA.one||String(DATA.one.tenant.id)!==String(openId)||DATA.obId!==openId))return '<h2>オンボーディング</h2><div class="empty">読み込んでいます…</div>';
+  if(WZ.step<0){WZ.step=0;for(var i=0;i<WZ_STEPS.length;i++){if(!wizDone(i)){WZ.step=i;break;}if(i===WZ_STEPS.length-1)WZ.step=i;}}
+  var d=openId?DATA.one:null, name=d?d.tenant.name:(WZ.app&&(WZ.app.school||WZ.app.corp))||'';
+  var nDone=WZ_STEPS.filter(function(x,i){return wizDone(i);}).length;
+  var h='<div class="wzTop"><button class="btn sec sm" data-v="wiz">‹ オンボーディングの一覧</button>'
+    +(openId?'<button class="btn sec sm" data-t="'+esc(openId)+'">園の詳細を開く</button>':'')+'</div>'
+    +'<div class="wzHead"><div><div class="wzEy">オンボーディング</div><h2 style="margin:2px 0 0;">'+esc(name)+'</h2>'
+    +(d?'<div class="hint" style="margin:0;">園コード '+esc(d.tenant.code)+'</div>':'')+'</div>'
+    +'<div class="wzCount"><b class="num">'+nDone+'</b> / '+WZ_STEPS.length+' 済</div></div>'
+    +'<div class="wzRail">'+WZ_STEPS.map(function(x,i){
+      var st=wizDone(i)?'done':(i===WZ.step?'now':'todo');
+      var can=openId||i<=1;
+      return '<button class="wzDot '+st+(i===WZ.step?' cur':'')+'" '+(can?'data-wzs="'+i+'"':'disabled')+'><b>'+(st==='done'?'✓':(i+1))+'</b><span>'+esc(x[1])+'</span></button>';
+    }).join('')+'</div>';
+  var k=WZ_STEPS[WZ.step][0];
+  h+='<div class="card wzCard"><div class="wzStepL">ステップ '+(WZ.step+1)+' / '+WZ_STEPS.length+(wizDone(WZ.step)?'　<span class="chip ok">済</span>':'')+'</div>'
+    +'<h3 class="wzT">'+esc(WZ_STEPS[WZ.step][1])+'</h3>'+wizBody(k)+'</div>';
+  var next=WZ.step<WZ_STEPS.length-1&&(openId||WZ.step<1);
+  h+='<div class="wzNav"><button class="btn sec" id="wzPrev"'+(WZ.step===0?' disabled':'')+'>← 戻る</button><span class="msg" id="wzM"></span>'
+    +(next?'<button class="btn sec" id="wzNext">次へ →</button>':'')+'</div>';
+  return h;
+}
+function wizPickHTML(){
+  var L=((DATA.pipe&&DATA.pipe.schools)||[]).filter(function(x){return x.stageName!=='稼働中';});
+  var A=((DATA.apply&&DATA.apply.applications)||[]).filter(function(x){return !x.tenant_id&&!x.parent_id&&x.status!=='見送り';}).slice(0,8);
+  return '<h2>オンボーディング</h2><div class="lead">園ごとに、やることを1つずつ順番に案内します。申込から課金開始まで、この画面だけで進められます。</div>'
+    +'<div class="card"><h3>新しく始める</h3><div class="wzNew">'
+    +'<div class="wzNewBox"><b>申込から始める</b><div class="hint" style="margin:2px 0 8px;">申込フォームから届いた申込を選びます</div>'
+    +(A.length?A.map(function(a){return '<div class="wzRow"><span style="flex:1;min-width:0;"><b>'+esc(a.school||a.corp||'')+'</b><div class="hint" style="margin:0;">'+esc(a.corp||'')+'　'+esc(a.person||'')+'　'+esc(String(a.created_at).slice(0,10))+'</div></span><button class="btn sm" data-wzap="'+esc(a.id)+'">この申込で始める</button></div>';}).join('')
+      :'<div class="empty" style="padding:10px;">まだ始めていない申込はありません</div>')+'</div>'
+    +'<div class="wzNewBox"><b>申込なしで始める</b><div class="hint" style="margin:2px 0 8px;">商談で聞いた内容から始めます（園名か法人名と、先方のご担当者だけで始められます）</div>'
+    +(shodanOn?shodanHTML():'<button class="btn" id="sdOpen">商談の内容を入れる</button>')+'</div></div></div>'
+    +'<div class="card"><h3>続きから</h3>'
+    +(L.length?L.map(function(x){var pct=x.total?Math.round(x.done/x.total*100):0;
+      return '<div class="wzRow"><span style="flex:1;min-width:160px;"><b>'+esc(x.name)+'</b> <span class="hint" style="display:inline;">'+esc(x.code)+'</span>'
+        +'<div><span class="pbar"><i style="width:'+pct+'%;"></i></span><span class="hint" style="display:inline;">次：'+esc(x.next?x.next.label:'—')+'（'+(x.next&&x.next.side==='school'?'園':'運営')+'）'+(x.stalledDays>=7?'　<b style="color:var(--bad);">'+x.stalledDays+'日止まっています</b>':'')+'</span></div></span>'
+        +'<button class="btn sec sm" data-wz="'+x.id+'">続ける →</button></div>';}).join('')
+      :'<div class="empty">導入中の園はありません</div>')+'</div>';
+}
+function wizBody(k){
+  var d=openId?DATA.one:null;
+  if(k==='app'){
+    if(!WZ.app)return '<div class="lead">この園は申込を通らずに作られました。次へ進んでください。</div>';
+    return '<div class="lead">届いた内容を確かめます。足りないところは、このあと先方に確かめながら進めます。</div>'+apGroupsHTML(WZ.app);
+  }
+  if(k==='acct'){
+    if(!openId){var a=WZ.app||{};
+      return '<div class="lead">押すと、園・園長のログイン・導入の手順がまとめてできます。二度押しても園は1つです。</div>'
+        +apFormHTML('wz',a.school||a.corp||'',a.person,'園のアカウントを作る','wz_go');}
+    var u=(d.staff||[]).filter(function(x){return x.role==='管理者';})[0]||(d.staff||[])[0];
+    if(!u)return '<div class="note">管理者のアカウントがありません。<button class="btn sec sm" data-t="'+esc(openId)+'">園の詳細 › アカウント で作る</button></div>';
+    return '<div class="apCred"><div class="apCredT">園長にお伝えする内容</div>'
+      +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
+      +'<div class="apCR"><span>園コード</span><b class="big">'+esc(d.tenant.code)+'</b></div>'
+      +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(u.login_id)+'</b></div>'
+      +'<div class="apCR"><span>初期パスワード</span>'+(u.has_initial_pw?'<b class="big num" id="ipw'+esc(u.id)+'">●●●●●●●●●●●●</b><button class="btn sec sm" data-ipw="'+esc(u.id)+'">表示</button>'
+        :'<b style="font-size:13px;font-weight:600;">園長が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
+      +(u.has_initial_pw?'<div class="row" style="margin-top:12px;"><button class="btn" data-ipc="'+esc(u.id)+'" data-ipl="'+esc(u.login_id)+'">ログイン情報をまとめてコピー</button>'
+        +'<span class="hint">そのままメールや LINE に貼れる文になります。園長が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'')
+      +'<div class="hint" style="margin-top:10px;">園長が最初にログインすると、Miralink に「オンボーディング」の案内が出て、園がやること（園児・保護者・払い方）を順番に進められます。</div>';
+  }
+  if(k==='terms'){
+    var c=d.contract||{}, q=d.quote||{}, plans=['connect','standard','pro','business'];
+    return '<div class="lead">先方と決めた条件を入れます。金額は請求と同じ計算で出ます。</div>'
+      +'<div class="grid3">'
+      +'<div class="f"><label>プラン</label><select id="wz_plan">'+plans.map(function(p){return '<option value="'+p+'"'+(c.plan===p?' selected':'')+'>'+esc((PLANS[p]&&PLANS[p].name)||p)+'</option>';}).join('')+'</select></div>'
+      +'<div class="f"><label>ご利用開始日</label><input id="wz_start" type="date" value="'+esc(c.started_on||'')+'"></div>'
+      +'<div class="f"><label>初期費用（税別）</label><input id="wz_init" class="num" inputmode="numeric" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
+      +'<div class="f"><label>割引する月数（なしは 0）</label><input id="wz_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
+      +'<div class="f"><label>その間の割引（何％引き）</label><input id="wz_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
+      +'<div class="f"><label>最低契約期間（か月）</label><input id="wz_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div></div>'
+      +'<div class="wzQuote">いまの条件でのひと月の金額 <b class="num">'+yen(q.total||0)+'</b>（税別・在籍 '+esc(d.seats||0)+'名）</div>'
+      +'<div class="hint">補助金を使う園は、<a href="#" data-gotab2="subsidy">補助金タブ</a>で記録を足します（交付決定のあとから請求で差し引かれます）。ストアや保育料カード払いの率は<a href="#" data-gotab2="contract">契約・請求タブ</a>で。</div>'
+      +'<div class="row" style="margin-top:12px;"><button class="btn" id="wzTerms">この条件で決めて次へ →</button></div>';
+  }
+  if(k==='contract'){
+    return '<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。</div>'+agreeAdminHTML();
+  }
+  if(k==='school'){
+    /* ログインの確かめは次の「使いはじめを確かめる」で見る */
+    var S=((DATA.ob&&DATA.ob.steps)||[]).filter(function(x){return x.side==='school'&&x.key!=='first_login'&&x.key!=='parent_login';});
+    var fin=function(x){return x.status==='done'||x.status==='skipped';};
+    var msg='Miralink のホームに「オンボーディング」の案内が出ています。上から順に（園児の登録 → 保護者の招待 → ご利用料の払い方）進めてください。わからないところは、いつでもご連絡ください。';
+    var a=WZ.app||{};
+    return '<div class="lead">ここは園がやるステップです。園長の Miralink に同じ並びの案内が出ています。済むと自動でチェックが付きます。</div>'
+      +S.map(function(x){return '<div class="obItem'+(fin(x)?' fin':'')+'"><span class="obMark'+(fin(x)?' on':'')+'">'+(fin(x)?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+esc(x.label)+'</span>'+(x.required?'':' <span class="hint" style="display:inline;">任意</span>')+'<div class="hint" style="margin:0;">'+esc(x.help||'')+'</div></span></div>';}).join('')
+      +'<div class="row" style="margin-top:10px;"><button class="btn sec sm" id="wzRefresh">最新の状態にする</button>'
+      +(DATA.ob&&DATA.ob.stalledDays>=7?'<span class="chip bad">'+DATA.ob.stalledDays+'日動きがありません</span>':'')+'</div>'
+      +'<div class="wzMsg"><div style="font-weight:800;font-size:12.5px;">止まっているときは園に連絡します</div>'
+      +'<div class="hint" style="margin:2px 0 6px;">先方：'+esc(a.person||'—')+(a.email?'　'+esc(a.email):'')+(a.tel?'　'+esc(a.tel):'')+'</div>'
+      +'<textarea id="wzMsgT" rows="3" style="width:100%;">'+esc(msg)+'</textarea><div class="row" style="margin-top:6px;"><button class="btn sec sm" id="wzCopyMsg">この文をコピー</button></div></div>';
+  }
+  if(k==='live'){
+    var f=wizStepOf('first_login'), pl=wizStepOf('parent_login');
+    var row=function(x,t,sub){var ok=x&&(x.status==='done'||x.status==='skipped');return '<div class="obItem'+(ok?' fin':'')+'"><span class="obMark'+(ok?' on':'')+'">'+(ok?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+t+'</span><div class="hint" style="margin:0;">'+sub+'</div></span></div>';};
+    return '<div class="lead">先生と保護者が実際にログインしたかを確かめます。済むと自動でチェックが付きます。</div>'
+      +row(f,'職員が初めてログインする','園の誰かがログインすると済')
+      +row(pl,'保護者が1人ログインする','保護者の誰かが未来WAにログインすると済。招待の紙が配られたか、園に確かめます')
+      +'<div class="row" style="margin-top:10px;"><button class="btn sec sm" id="wzRefresh">最新の状態にする</button></div>';
+  }
+  if(k==='bill'){
+    var g=(DATA.ob&&DATA.ob.gate)||{};
+    if(wizFin('billing'))return '<div class="note ok">課金は始まっています。これで導入はおしまいです。毎月の請求は 運営管理 › 請求 で作ります。</div>';
+    if(!g.ok)return '<div class="lead">必須のステップがそろうと押せるようになります。</div><div class="note"><b>残っていること</b><ul style="margin:6px 0 0;padding-left:1.2em;">'
+      +(g.missing||[]).map(function(m){return '<li>'+esc(String(m).replace(/^[^：]*：/,''))+'</li>';}).join('')+'</ul></div>';
+    return '<div class="lead">必須のステップがそろいました。状態と開始日を選んで押すと、次の請求からこの園が対象になります。</div>'
+      +'<div class="row"><select id="obBillSt"><option>契約中</option><option>モニター</option></select><input id="obBillOn" type="date" title="開始日（空なら今日）">'
+      +'<button class="btn" id="obBill">課金を始める</button><span class="msg" id="obM"></span></div>';
+  }
+  return '';
+}
 function pipeHTML(){
   var d=DATA.pipe;
   if(!d)return '<h2>導入パイプライン</h2><div class="empty">読み込んでいます…</div>';
@@ -2578,6 +2760,7 @@ function load(){
     ]);
   if(view==='tuition')return Promise.resolve();
   if(view==='pipe')  return API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;});
+  if(view==='wiz')   return wizLoad();
   if(view==='oplog') return Promise.all([API.call('GET','/admin/oplog'+opQs()).then(function(j){DATA.oplog=j.log;}),
     DATA.tenants?null:API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;})]);
   if(view==='members')return Promise.all([API.call('GET','/admin/admins').then(function(j){DATA.members=j;}),API.call('GET','/admin/security').then(function(j){DATA.sec=j;})]);
@@ -2648,7 +2831,7 @@ function render(){
   var r=$('root');
   if(INVITE){r.innerHTML=inviteHTML();wireInvite();return;}
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
-  var inner={home:homeHTML,inq:inqHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,ads:adsHTML,me:meHTML,
+  var inner={wiz:wizHTML,home:homeHTML,inq:inqHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,ads:adsHTML,me:meHTML,
     sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML,members:membersHTML,incidents:incidentsHTML,offboard:offboardHTML}[view]||homeHTML;
   r.innerHTML=shell(inner());
   wire();
@@ -3139,6 +3322,35 @@ function wire(){
       .then(function(){ applyOpen=null; render(); })
       .catch(function(e){ say('apM',e.message); });
   };
+  /* オンボーディング（2026-10-11） */
+  document.querySelectorAll('[data-wz]').forEach(function(b){b.onclick=function(){WZ={tid:null,app:null,step:-1,created:null};nav('wiz',b.getAttribute('data-wz'));};});
+  document.querySelectorAll('[data-wzs]').forEach(function(b){b.onclick=function(){WZ.step=+b.getAttribute('data-wzs');render();window.scrollTo(0,0);};});
+  document.querySelectorAll('[data-wzap]').forEach(function(b){b.onclick=function(){
+    API.call('GET','/admin/applications/'+b.getAttribute('data-wzap')).then(function(j){WZ={tid:null,app:j.application,step:0,created:null};render();window.scrollTo(0,0);}).catch(function(e){alert(e.message);});};});
+  if($('wzPrev'))$('wzPrev').onclick=function(){if(WZ.step>0){WZ.step--;render();window.scrollTo(0,0);}};
+  if($('wzNext'))$('wzNext').onclick=function(){if(WZ.step<WZ_STEPS.length-1){WZ.step++;render();window.scrollTo(0,0);}};
+  if($('wz_go'))$('wz_go').onclick=function(){
+    var a=WZ.app;if(!a)return;
+    if(!confirm('園「'+$('wz_name').value.trim()+'」（園コード '+$('wz_code').value.trim()+'）のアカウントを作り、園長のログインを発行します。よろしいですか？'))return;
+    say('wz_m','作成中…',true);$('wz_go').disabled=true;
+    API.call('POST','/admin/applications/'+a.id+'/open',{code:$('wz_code').value.trim(),name:$('wz_name').value.trim(),loginId:$('wz_login').value.trim(),adminName:$('wz_who').value.trim()})
+      .then(function(r){var app=WZ.app;app.tenant_id=r.tenant.id;WZ={tid:null,app:app,step:1,created:r};GLB_AT=0;nav('wiz',r.tenant.id);})
+      .catch(function(e){$('wz_go').disabled=false;say('wz_m',e.message);});
+  };
+  if($('wzTerms'))$('wzTerms').onclick=function(){
+    var v=function(id){return $(id).value.trim();}, cs=campSave(v('wz_cm'),v('wz_coff'));
+    say('wzM','保存中…',true);
+    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),
+        campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm')})
+      .then(function(){return wizFin('hearing')?null:API.call('PUT','/admin/tenants/'+openId+'/onboarding/hearing',{status:'done',note:''});})
+      .then(function(){WZ.step=3;GLB_AT=0;render();window.scrollTo(0,0);})
+      .catch(function(e){say('wzM',e.message);});
+  };
+  document.querySelectorAll('#wzRefresh').forEach(function(b){b.onclick=function(){render();};});
+  if($('wzCopyMsg'))$('wzCopyMsg').onclick=function(){var b=this,t=$('wzMsgT').value;
+    function ok(){b.textContent='コピーしました';setTimeout(function(){b.textContent='この文をコピー';},1800);}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,function(){$('wzMsgT').select();});else $('wzMsgT').select();};
+  document.querySelectorAll('[data-gotab2]').forEach(function(a){a.onclick=function(e){e.preventDefault();nav('one',openId,a.getAttribute('data-gotab2'));};});
   if($('pipeShodan'))$('pipeShodan').onclick=function(){shodanOn=true;applyOpen=null;nav('apply');};
   if($('tNew'))$('tNew').onclick=function(){shodanOn=true;applyOpen=null;nav('apply');};
   if($('sdOpen'))$('sdOpen').onclick=function(){shodanOn=true;render();};
@@ -3159,6 +3371,7 @@ function wire(){
       .then(function(j){
         /* お問い合わせから作ったときは、お問い合わせの状態を「申込につながった」に */
         if(shodanPre.iq)API.call('PUT','/admin/inquiries/'+shodanPre.iq,{status:'申込につながった'}).catch(function(){});
+        if(view==='wiz'){shodanOn=false;shodanPre={};WZ={tid:null,app:j.application,step:0,created:null};render();window.scrollTo(0,0);return;}
         shodanOn=false;shodanPre={};applyOpen=j.application;apSites=[];apTenant=null;apSiteOpen=0;render();window.scrollTo(0,0);})
       .catch(function(e){$('sdGo').disabled=false;say('sdM',e.message);});
   };
