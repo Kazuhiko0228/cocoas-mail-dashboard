@@ -121,6 +121,10 @@ td.r,th.r{text-align:right}
 .wzT{font-size:18px !important;margin:3px 0 8px !important}
 .wzNav{display:flex;align-items:center;gap:10px;justify-content:space-between;margin:4px 0 20px}
 .wzQuote{margin:4px 0 8px;padding:10px 14px;background:var(--line2);border-radius:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.addrBox{margin-top:8px}
+.addrRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:4px}
+.addrRow>.f:last-child{grid-column:1/-1}
+@media(max-width:760px){.addrRow{grid-template-columns:minmax(0,1fr)}}
 .wzProxy{margin-top:10px;padding:10px 12px;background:var(--line2);border-radius:10px}
 .wzKRow{display:grid;grid-template-columns:1.3fr 1.1fr .7fr 1.4fr;gap:6px;margin-top:6px}
 .wzKRow input,.wzKRow2 input{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;min-width:0;background:#fff}
@@ -1058,7 +1062,7 @@ function tenantsHTML(){
     /* ★以前はここで園コードと園名だけの園を作れた。園長のログインも導入の手順もできず、申込から作った園と流れが別だった。
        「申込なしで始める」（商談の内容を入れる）にまとめ、どこから作っても同じ画面を通す（2026-10-09 安田さん） */
     +'<div class="card"><div class="row"><div style="flex:1;min-width:220px;"><h3 style="margin:0 0 4px;">園をあたらしく作る</h3>'
-    +'<div class="hint" style="margin:0;">申込が届いている園は「申込」から。申込のない園は、商談の内容を入れてから園のアカウントを作ります（園長のログインと導入の手順も一緒にできます）。</div></div>'
+    +'<div class="hint" style="margin:0;">申込が届いている園は「申込」から。申込のない園は、商談の内容を入れてから園のアカウントを作ります（管理者のログインと導入の手順も一緒にできます）。</div></div>'
     +'<button class="btn sec sm" data-v="apply">申込を見る</button><button class="btn sm" id="tNew">申込なしで始める</button></div></div>'
     +(t.length? '<div class="tw"><table><thead><tr>'
       +'<th>園</th><th>状態</th><th>プラン</th><th class="r">在籍</th>'
@@ -1325,7 +1329,7 @@ function tenantHTML(){
       : '<div class="note">この園には、まだログインできる人がいません。'
         +'下から最初の管理者を作ってください。</div>')
     +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);"><div style="font-weight:800;font-size:13px;">'+(d.staff.length?'管理者を足す':'最初の管理者を作る')+'</div>'
-    +(d.staff.length?'<div class="hint" style="margin:0 0 6px;">園長のほかに、園の管理者のログインが要るときだけ使います。</div>':'')
+    +(d.staff.length?'<div class="hint" style="margin:0 0 6px;">1人目の管理者のほかに、管理者のログインが要るときだけ使います。</div>':'')
     +'<div class="grid3">'
     +'<div class="f"><label>ログインID</label><input id="ua_id" placeholder="admin2"></div>'
     +'<div class="f"><label>お名前</label><input id="ua_nm" placeholder="事務長"></div>'
@@ -1546,23 +1550,23 @@ function wizBody(k){
   }
   if(k==='acct'){
     if(!openId){var a=WZ.app||{};
-      return '<div class="lead">押すと、園・園長のログイン・導入の手順がまとめてできます。二度押しても園は1つです。</div>'
+      return '<div class="lead">押すと、園・管理者のログイン・導入の手順がまとめてできます。二度押しても園は1つです。</div>'
         +apFormHTML('wz',a.school||a.corp||'',a.person,'園のアカウントを作る','wz_go');}
     var u=(d.staff||[]).filter(function(x){return x.role==='管理者';})[0]||(d.staff||[])[0];
     if(!u)return '<div class="note">管理者のアカウントがありません。<button class="btn sec sm" data-t="'+esc(openId)+'">園の詳細 › アカウント で作る</button></div>';
-    return '<div class="apCred"><div class="apCredT">園長にお伝えする内容</div>'
+    return '<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
       +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
       +'<div class="apCR"><span>園コード</span><b class="big">'+esc(d.tenant.code)+'</b></div>'
       +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(u.login_id)+'</b></div>'
       +'<div class="apCR"><span>初期パスワード</span>'+(u.has_initial_pw?'<b class="big num" id="ipw'+esc(u.id)+'">●●●●●●●●●●●●</b><button class="btn sec sm" data-ipw="'+esc(u.id)+'">表示</button>'
-        :'<b style="font-size:13px;font-weight:600;">園長が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
+        :'<b style="font-size:13px;font-weight:600;">管理者が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
       +(u.has_initial_pw?'<div class="row" style="margin-top:12px;"><button class="btn" data-ipc="'+esc(u.id)+'" data-ipl="'+esc(u.login_id)+'">ログイン情報をまとめてコピー</button>'
-        +'<span class="hint">そのままメールや LINE に貼れる文になります。園長が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'')
-      +'<div class="hint" style="margin-top:10px;">園長が最初にログインすると、Miralink に「オンボーディング」の案内が出て、園がやること（園児・保護者・払い方）を順番に進められます。</div>';
+        +'<span class="hint">そのままメールや LINE に貼れる文になります。管理者が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'')
+      +'<div class="hint" style="margin-top:10px;">管理者が最初にログインすると、Miralink に「オンボーディング」の案内が出て、園がやること（園児・保護者・払い方）を順番に進められます。</div>';
   }
   if(k==='terms'){
     var c=d.contract||{}, q=d.quote||{}, plans=['connect','standard','pro','business'];
-    return '<div class="lead">先方と決めた条件を入れます。金額は請求と同じ計算で出ます。</div>'
+    return wizProfileHTML()+'<div class="lead" style="margin-top:12px;">先方と決めた条件を入れます。金額は請求と同じ計算で出ます。</div>'
       +'<div class="grid3">'
       +'<div class="f"><label>プラン</label><select id="wz_plan">'+plans.map(function(p){return '<option value="'+p+'"'+(c.plan===p?' selected':'')+'>'+esc((PLANS[p]&&PLANS[p].name)||p)+'</option>';}).join('')+'</select></div>'
       +'<div class="f"><label>ご利用開始日</label><input id="wz_start" type="date" value="'+esc(c.started_on||'')+'"></div>'
@@ -1581,10 +1585,10 @@ function wizBody(k){
     var payBox='<div class="card" style="margin-top:4px;"><h3 style="font-size:16px;">ご利用料のお支払いの登録</h3>'
       +'<div style="color:var(--ink2);margin-bottom:8px;">契約と同じころに、毎月のご利用料の払い方（カードか請求書払い）を登録します。これがそろうと課金を始められます。</div>'
       +(pm?'<div class="note ok" style="margin:0;">登録ずみ：'+(pm==='card'?'カード（'+esc(String(c2.card_brand||'').toUpperCase())+' •••• '+esc(c2.card_last4||'')+'）':'請求書払い（'+esc(c2.billing_email||'')+'）')+'</div>'
-        :'<div class="hint" style="margin:0 0 8px;">園長が Miralink の案内（ご利用料の払い方を選ぶ）で登録します。園長の代わりに運営が登録することもできます。</div>'
+        :'<div class="hint" style="margin:0 0 8px;">管理者が Miralink の案内（ご利用料の払い方を選ぶ）で登録します。管理者の代わりに運営が登録することもできます。</div>'
           +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">代理で請求書払いにする</div><div class="row"><input id="wzBillMail" type="email" placeholder="請求書の送り先メール" value="'+esc(c2.billing_email||((WZ.app&&WZ.app.email)||''))+'" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;">'
           +'<button class="btn sm" id="wzInv">請求書払いで登録する</button></div></div>'
-          +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">カードで払う園</div><div class="hint" style="margin:0 0 6px;">カード番号は園長が入れます。登録ページの URL を作って園長に送ってください。</div>'
+          +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">カードで払う園</div><div class="hint" style="margin:0 0 6px;">カード番号は管理者が入れます。登録ページの URL を作って管理者に送ってください。</div>'
           +'<div class="row"><button class="btn sec sm" id="wzCardLink">カード登録のページを作る</button><input id="wzCardUrl" readonly placeholder="ここに URL が出ます" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--line2);" onclick="this.select()"></div></div>'
           +'<span class="msg" id="wzPM"></span>')
       +'</div>';
@@ -1596,7 +1600,7 @@ function wizBody(k){
     var fin=function(x){return x.status==='done'||x.status==='skipped';};
     var msg='Miralink のホームに「オンボーディング」の案内が出ています。上から順に（ご利用料の払い方 → 園児の登録 → 保護者の招待）進めてください。わからないところは、いつでもご連絡ください。';
     var a=WZ.app||{};
-    return '<div class="lead">ここは園がやるステップです。園長の Miralink に同じ並びの案内が出ています。済むと自動でチェックが付きます。下の「代理で登録する」で運営が代わりに入れることもできます。</div>'
+    return '<div class="lead">ここは園がやるステップです。管理者の Miralink に同じ並びの案内が出ています。済むと自動でチェックが付きます。下の「代理で登録する」で運営が代わりに入れることもできます。</div>'
       +S.map(function(x){return '<div class="obItem'+(fin(x)?' fin':'')+'"><span class="obMark'+(fin(x)?' on':'')+'">'+(fin(x)?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+esc(x.label)+'</span>'+(x.required?'':' <span class="hint" style="display:inline;">任意</span>')+'<div class="hint" style="margin:0;">'+esc(x.help||'')+'</div></span></div>';}).join('')
       +'<div class="row" style="margin-top:10px;"><button class="btn sec sm" id="wzRefresh">最新の状態にする</button>'
       +(DATA.ob&&DATA.ob.stalledDays>=7?'<span class="chip bad">'+DATA.ob.stalledDays+'日動きがありません</span>':'')+'</div>'
@@ -1623,6 +1627,56 @@ function wizBody(k){
       +'<button class="btn" id="obBill">課金を始める</button><span class="msg" id="obM"></span></div>';
   }
   return '';
+}
+/* 施設の種別（園の施設管理 FAC_INFO と同じ言い方。サーバ src/profile.js の TYPES とそろえる） */
+var FAC_TYPES=['','認可保育所','認定こども園','小規模認可（地域型保育事業）','企業主導型保育事業','認可外保育施設','幼稚園','学童','その他'];
+/* 郵便番号・都道府県・住所の3つの欄と「住所を入れる」ボタン（zipcloud。申込フォームと同じ） */
+var ADDR_PREF=['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+function addrHTML(px,title,v){
+  v=v||{};
+  return '<div class="addrBox"><div style="font-weight:700;font-size:12.5px;">'+esc(title)+'</div><div class="addrRow">'
+    +'<div class="f" style="margin:0;"><label>郵便番号</label><div class="row" style="gap:6px;flex-wrap:nowrap;"><input id="'+px+'_zip" inputmode="numeric" placeholder="1500001" value="'+esc(v.zip||'')+'" style="min-width:0;"><button class="btn sec sm" data-zipgo="'+px+'" type="button" style="white-space:nowrap;flex:none;">住所を入れる</button></div></div>'
+    +'<div class="f" style="margin:0;"><label>都道府県</label><select id="'+px+'_pref"><option value=""></option>'+ADDR_PREF.map(function(x){return '<option'+(v.pref===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'
+    +'<div class="f" style="margin:0;"><label>市区町村・番地・建物</label><input id="'+px+'_addr" value="'+esc(v.addr||'')+'" placeholder="八千代市八千代台東1-1-1"></div>'
+    +'</div><span class="msg" id="'+px+'_zm"></span></div>';
+}
+function addrVal(px){var g=function(k){var e=$(px+'_'+k);return e?e.value.trim():'';};return {zip:g('zip'),pref:g('pref'),addr:g('addr')};}
+function wireAddr(){
+  document.querySelectorAll('[data-zipgo]').forEach(function(b){b.onclick=function(){
+    var px=b.getAttribute('data-zipgo'), z=$(px+'_zip').value.replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0);}).replace(/[^0-9]/g,'');
+    if(z.length!==7){say(px+'_zm','郵便番号は7けたで入れてください');return;}
+    $(px+'_zip').value=z;say(px+'_zm','さがしています…',true);
+    fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode='+z).then(function(r){return r.json();}).then(function(j){
+      var r=j&&j.results&&j.results[0];if(!r){say(px+'_zm','見つかりませんでした。直接入れてください');return;}
+      $(px+'_pref').value=r.address1;var a=$(px+'_addr'),t=(r.address2||'')+(r.address3||'');if(a.value.indexOf(t)!==0)a.value=t;
+      say(px+'_zm','「'+r.address1+t+'」まで入れました。続けて番地を入れてください',true);a.focus();
+    }).catch(function(){say(px+'_zm','住所をさがせませんでした。直接入れてください');});
+  };});
+}
+/* 園の基本情報（オンボーディングのステップ3。契約書の乙の欄と、園の施設管理に入る） */
+var WZP={tid:null,p:null,open:false};
+function wizProfileHTML(){
+  if(WZP.tid!==openId){WZP={tid:openId,p:null,open:false};
+    API.call('GET','/admin/tenants/'+openId+'/profile').then(function(j){WZP.p=j.profile;if(view==='wiz')render();}).catch(function(){WZP.p={};});}
+  var p=WZP.p;
+  if(!p)return '<div class="wzMsg"><div class="hint">園の基本情報を読み込んでいます…</div></div>';
+  var full=function(x){return x?((x.zip?'〒'+x.zip+' ':'')+(x.pref||'')+(x.addr||'')):'';};
+  if(!WZP.open)return '<div class="wzMsg"><div class="row" style="align-items:flex-start;"><div style="flex:1;min-width:220px;"><div style="font-weight:800;font-size:13px;">園の基本情報 <span class="hint" style="display:inline;font-weight:400;">（契約書の乙の欄と、園の施設管理に入ります）</span></div>'
+    +'<div class="apKV"><span>施設の種別</span><b>'+esc(p.facilityType||'未設定')+'</b></div>'
+    +'<div class="apKV"><span>施設の所在地</span><b>'+esc(full(p)||'未設定')+'</b></div>'
+    +'<div class="apKV"><span>設置者（法人）</span><b>'+esc((p.corp||'未設定')+(p.rep?'　代表者 '+p.rep:''))+'</b></div>'
+    +'<div class="apKV"><span>本社の所在地</span><b>'+esc(p.hq?full(p.hq):'施設と同じ')+'</b></div></div>'
+    +'<button class="btn sec sm" id="wpEdit">直す</button></div></div>';
+  return '<div class="wzMsg"><div style="font-weight:800;font-size:13px;">園の基本情報を直す</div><div class="grid2">'
+    +'<div class="f"><label>施設の種別</label><select id="wp_ftype">'+FAC_TYPES.map(function(t){return '<option value="'+esc(t)+'"'+(p.facilityType===t?' selected':'')+'>'+esc(t||'選んでください')+'</option>';}).join('')+'</select></div>'
+    +'<div class="f"><label>設置者（法人名）</label><input id="wp_corp" value="'+esc(p.corp||'')+'"></div>'
+    +'<div class="f"><label>代表者名</label><input id="wp_rep" value="'+esc(p.rep||'')+'"></div>'
+    +'<div class="f"><label>施設の電話</label><input id="wp_tel" value="'+esc(p.tel||'')+'"></div></div>'
+    +addrHTML('wp','施設の所在地',p)
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;"><input type="checkbox" id="wp_hqOn"'+(p.hq?' checked':'')+'> 本社（法人）の所在地が施設と別</label>'
+    +'<div id="wp_hqBox"'+(p.hq?'':' hidden')+'>'+addrHTML('wphq','本社（法人）の所在地',p.hq||{})+'</div>'
+    +'<div class="row" style="margin-top:8px;"><button class="btn sm" id="wpSave">保存する</button><button class="btn sec sm" id="wpCancel">やめる</button><span class="msg" id="wpM"></span></div>'
+    +'<div class="hint">園の施設管理に園がすでに入れた欄は上書きしません。</div></div>';
 }
 /* ══ 運営の代理登録（2026-10-11 安田さん「こっちからも代理登録できるような形に」）══
    園児の登録と、保護者アカウントの発行を、オンボーディングの「園の準備」から運営がそのまま行う。
@@ -1941,7 +1995,7 @@ function agreeAdminHTML(){
   var ORDER=[['normal','利用契約書','ふつうの園はこちら'],['memo','個人情報の取扱いに関する覚書','どの園にも必要'],['monitor','3カ月モニター利用契約書','モニターの園だけ（利用契約書のかわり）'],['consent','園名掲載同意書','任意。導入事例に載せてよい園だけ']];
   var rows=ORDER.filter(function(k){return kinds.indexOf(k[0])>-1;}).map(function(k){
     var cur=L.filter(function(d){return d.kind===k[0]&&d.status!=='superseded'&&d.status!=='expired';})[0]||null;
-    var st=!cur?['まだ送っていない','']:cur.status==='signed'?['同意済み','ok']:cur.status==='viewed'?['園長が確認中','info']:cur.status==='declined'?['断られた','bad']:['送った・未確認','info'];
+    var st=!cur?['まだ送っていない','']:cur.status==='signed'?['同意済み','ok']:cur.status==='viewed'?['管理者が確認中','info']:cur.status==='declined'?['断られた','bad']:['送った・未確認','info'];
     return '<div class="agRow"><span style="flex:1;min-width:220px;"><b>'+esc(k[1])+'</b><div class="hint" style="margin:0;">'+esc(k[2])
       +(cur?'　／　第'+esc(cur.version)+'版・'+esc(fmtAt(cur.signedAt||cur.viewedAt||cur.sentAt)):'')+'</div></span>'
       +'<span class="chip '+st[1]+'">'+st[0]+'</span>'
@@ -1952,8 +2006,8 @@ function agreeAdminHTML(){
         :'<button class="btn sec sm" data-agk="'+k[0]+'" data-agn="'+esc(k[1])+'">送り直す</button>')+'</div>';
   }).join('');
   return '<div class="card"><h3 style="font-size:16px;">契約書を送る</h3>'
-    +'<div style="color:var(--ink2);margin-bottom:10px;">園長が Miralink の画面で読んで同意します。<b>利用契約書（またはモニター契約書）と覚書の2つ</b>に同意がそろうと、導入の「契約書と覚書」が自動で済になります。</div>'
-    +'<div class="f" style="max-width:520px;"><label>送り先（園長のメール）</label><input id="agEmail" type="email" value="'+esc(a.defaultEmail||'')+'" placeholder="info@example.jp">'
+    +'<div style="color:var(--ink2);margin-bottom:10px;">管理者が Miralink の画面で読んで同意します。<b>利用契約書（またはモニター契約書）と覚書の2つ</b>に同意がそろうと、導入の「契約書と覚書」が自動で済になります。</div>'
+    +'<div class="f" style="max-width:520px;"><label>送り先（管理者のメール）</label><input id="agEmail" type="email" value="'+esc(a.defaultEmail||'')+'" placeholder="info@example.jp">'
     +'<div class="hint">申込のメールが入っています。お知らせと確認コードがここに届きます。</div></div>'
     +rows+'<span class="msg" id="agM"></span>'
     +'<div class="hint" style="margin-top:10px;">送った書類は、あとから書き換えられません。内容を直すときは、直した書類をあらためて送ってください。</div>'
@@ -2158,6 +2212,15 @@ function shodanHTML(){
     +f('sd_starts','ご利用開始の予定','','date')
     +f('sd_kids','園児数の目安','40')
     +'</div>'
+    /* 施設の種別・所在地・本社の所在地（2026-10-18 安田さん。契約書の乙の欄と、園の施設管理に入る） */
+    +'<div style="font-weight:800;font-size:13px;margin:10px 0 4px;">施設のこと</div>'
+    +'<div class="grid2">'
+    +'<div class="f"><label>施設の種別</label><select id="sd_ftype">'+FAC_TYPES.map(function(t){return '<option value="'+esc(t)+'"'+(shodanPre.sd_ftype===t?' selected':'')+'>'+esc(t||'選んでください')+'</option>';}).join('')+'</select></div>'
+    +f('sd_rep','代表者名（法人）','山田 太郎')
+    +'</div>'
+    +addrHTML('sd','施設の所在地')
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;"><input type="checkbox" id="sd_hqOn"'+(shodanPre.hq?' checked':'')+'> 本社（法人）の所在地が施設と別</label>'
+    +'<div id="sd_hqBox"'+(shodanPre.hq?'':' hidden')+'>'+addrHTML('sdhq','本社（法人）の所在地')+'</div>'
     +'<div class="f"><label>商談のメモ（社内だけ）</label><textarea id="sd_memo" rows="3" placeholder="例：10/9 訪問。連絡帳と請求を先に使いたい。補助金を申請予定">'+esc(shodanPre.sd_memo||'')+'</textarea></div>'
     +'<div class="row"><button class="btn sm" id="sdGo">この内容で始める</button><button class="btn sec sm" id="sdCancel">やめる</button><span class="msg" id="sdM"></span></div></div>';
 }
@@ -2233,8 +2296,8 @@ function apFormHTML(px,name,who,btn,goId){
     +'<div class="f"><label>園コード <span style="color:var(--bad);">必須</span></label><input id="'+px+'_code" placeholder="例：mirai-hoikuen" autocomplete="off">'
     +'<div class="hint">園がログインのたびに入れる英字です。半角の小文字・数字・ハイフン。<b>あとから変えられません。</b></div></div>'
     +'<div class="f"><label>園名</label><input id="'+px+'_name" value="'+esc(name||'')+'"><div class="hint">画面と請求書に出る名前。あとから直せます。</div></div>'
-    +'<div class="f"><label>園長のログインID</label><input id="'+px+'_login" value="admin"></div>'
-    +'<div class="f"><label>園長のお名前</label><input id="'+px+'_who" value="'+esc(who||'園長')+'"></div>'
+    +'<div class="f"><label>管理者のログインID</label><input id="'+px+'_login" value="admin"></div>'
+    +'<div class="f"><label>管理者のお名前</label><input id="'+px+'_who" value="'+esc(who||'')+'"></div>'
     +'</div><div class="row"><button class="btn" id="'+goId+'">'+esc(btn)+'</button><span class="msg" id="'+px+'_m"></span>'
     +'<span class="hint">初期パスワードは次の画面と、園の詳細 › アカウントでいつでも見られます</span></div>';
 }
@@ -2246,13 +2309,13 @@ function apCredText(code,login,pw){
 }
 function apCredHTML(code,login,pw,tid,title){
   return '<div class="card"><div class="apDoneH"><span class="apOk">✓</span><h3 style="margin:0;">'+esc(title)+'</h3></div>'
-    +'<div class="apCred"><div class="apCredT">園長にお伝えする内容</div>'
+    +'<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
     +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
     +'<div class="apCR"><span>園コード</span><b class="big">'+esc(code)+'</b></div>'
     +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(login)+'</b></div>'
     +'<div class="apCR"><span>初期パスワード</span><b class="big num" id="apPw" data-pw="'+esc(pw)+'">●●●●●●●●●●●●</b><button class="btn sec sm" id="apPwShow">表示</button></div></div>'
     +'<div class="row" style="margin-top:12px;"><button class="btn" id="apCopyAll" data-txt="'+esc(apCredText(code,login,pw))+'">4つまとめてコピー</button>'
-    +'<span class="hint">園長が最初のログインでパスワードを変えるまで、<b>園の詳細 › アカウント</b>でいつでも見られます</span></div>'
+    +'<span class="hint">管理者が最初のログインでパスワードを変えるまで、<b>園の詳細 › アカウント</b>でいつでも見られます</span></div>'
     +'<div class="apNext"><span>次は、園の詳細で<b>プランと金額を決めます</b>。</span><button class="btn sec" data-t="'+esc(tid)+'">導入の進み具合を開く →</button></div></div>';
 }
 function applyOpenHTML(a){
@@ -2274,7 +2337,7 @@ function applyOpenHTML(a){
       +'<div class="hint" style="margin-top:6px;">ログイン情報（初期パスワードを含む）は 園の詳細 › アカウント にあります。</div></div>';
   }
   return '<div class="card apNow"><div class="apNowL">いま やること</div><h3 class="apNowT">園のアカウントを作る</h3>'
-    +'<div class="lead" style="margin-bottom:10px;">押すと、園・園長のログイン・導入の手順がまとめてできます。二度押しても園は1つです。</div>'
+    +'<div class="lead" style="margin-bottom:10px;">押すと、園・管理者のログイン・導入の手順がまとめてできます。二度押しても園は1つです。</div>'
     +apFormHTML('ao',a.school||a.corp||'',a.person,'園のアカウントを作る','ao_go')+'</div>';
 }
 function docsHTML(){
@@ -2720,7 +2783,9 @@ function docArt(a, no){
   if(a.note) h+='<div class="note">【要確認】'+esc(a.note)+'</div>';
   return h;
 }
-function docSign(co){
+function docSign(co,party){
+  /* 乙の欄は園の基本情報（施設の名称・種別・所在地・設置者・本社）から埋める（2026-10-18）。無ければ空欄のまま */
+  var P={};(party||[]).forEach(function(r){P[r[0]]=r[1];});
   return '<div class="sign">'
     +'<p>本書の成立を証するため、本書2通を作成し、甲乙記名押印のうえ各1通を保有する。</p>'
     +'<p>&nbsp;</p>'
@@ -2730,8 +2795,10 @@ function docSign(co){
     +'<p>　　　'+esc(co.name)+'</p>'
     +'<p>　　　'+esc(co.rep)+'　　　　　　　　　　　　印</p>'
     +'<p>&nbsp;</p>'
-    +'<p>（乙）所在地　　　　　　　　　　　　　　　　　　　</p>'
-    +'<p>　　　名称　　　　　　　　　　　　　　　　　　　　</p>'
+    +'<p>（乙）所在地　'+esc(P['施設の所在地']||'　　　　　　　　　　　　　　　　　　')+'</p>'
+    +'<p>　　　名称　'+esc(P['乙（施設の名称）']||'　　　　　　　　　　　　　　　　　　')+(P['施設の種別']?'（'+esc(P['施設の種別'])+'）':'')+'</p>'
+    +(P['設置者（法人）']?'<p>　　　設置者　'+esc(P['設置者（法人）'])+'</p>':'')
+    +(P['本社の所在地']?'<p>　　　本社所在地　'+esc(P['本社の所在地'])+'</p>':'')
     +'<p>　　　代表者　　　　　　　　　　　　　　　　　　印</p>'
     +'</div>';
 }
@@ -2750,7 +2817,7 @@ function showDoc(j){
           return '<tr><td>'+esc(p.plan)+'</td><td>'+esc(p.monthly)+'</td><td>'+esc(p.seat)+'</td></tr>';
         }).join('')+'</tbody></table>';
     }
-    h+=docSign(j.company);
+    h+=docSign(j.company,j.info);
   }
 
   /* 見積書。条ではなく、金額の表で出す。 */
@@ -3394,7 +3461,7 @@ function wire(){
   if($('wzNext'))$('wzNext').onclick=function(){if(WZ.step<WZ_STEPS.length-1){WZ.step++;render();window.scrollTo(0,0);}};
   if($('wz_go'))$('wz_go').onclick=function(){
     var a=WZ.app;if(!a)return;
-    if(!confirm('園「'+$('wz_name').value.trim()+'」（園コード '+$('wz_code').value.trim()+'）のアカウントを作り、園長のログインを発行します。よろしいですか？'))return;
+    if(!confirm('園「'+$('wz_name').value.trim()+'」（園コード '+$('wz_code').value.trim()+'）のアカウントを作り、管理者のログインを発行します。よろしいですか？'))return;
     say('wz_m','作成中…',true);$('wz_go').disabled=true;
     API.call('POST','/admin/applications/'+a.id+'/open',{code:$('wz_code').value.trim(),name:$('wz_name').value.trim(),loginId:$('wz_login').value.trim(),adminName:$('wz_who').value.trim()})
       .then(function(r){var app=WZ.app;app.tenant_id=r.tenant.id;WZ={tid:null,app:app,step:1,created:r};GLB_AT=0;nav('wiz',r.tenant.id);})
@@ -3424,7 +3491,7 @@ function wire(){
     API.call('POST','/admin/tenants/'+openId+'/school-billing/invoice',{email:em}).then(function(){render();}).catch(function(e){say('wzPM',e.message);});};
   if($('wzCardLink'))$('wzCardLink').onclick=function(){say('wzPM','作成中…',true);
     API.call('POST','/admin/tenants/'+openId+'/school-billing/card-link',{returnUrl:apLoginUrl(),email:($('wzBillMail')||{}).value||''})
-      .then(function(j){$('wzCardUrl').value=j.url;$('wzCardUrl').select();say('wzPM','できました。この URL を園長に送ってください（カードを入れると自動で登録されます）',true);})
+      .then(function(j){$('wzCardUrl').value=j.url;$('wzCardUrl').select();say('wzPM','できました。この URL を管理者に送ってください（カードを入れると自動で登録されます）',true);})
       .catch(function(e){say('wzPM',e.message);});};
   if($('wzKMore'))$('wzKMore').onclick=function(){WZK.rows+=3;render();};
   if($('wzKAdd'))$('wzKAdd').onclick=function(){
@@ -3466,6 +3533,18 @@ function wire(){
   if($('pipeShodan'))$('pipeShodan').onclick=function(){shodanOn=true;applyOpen=null;nav('apply');};
   if($('tNew'))$('tNew').onclick=function(){shodanOn=true;applyOpen=null;nav('apply');};
   if($('sdOpen'))$('sdOpen').onclick=function(){shodanOn=true;render();};
+  wireAddr();
+  if($('sd_hqOn'))$('sd_hqOn').onchange=function(){$('sd_hqBox').hidden=!this.checked;};
+  if($('wp_hqOn'))$('wp_hqOn').onchange=function(){$('wp_hqBox').hidden=!this.checked;};
+  if($('wpEdit'))$('wpEdit').onclick=function(){WZP.open=true;render();};
+  if($('wpCancel'))$('wpCancel').onclick=function(){WZP.open=false;render();};
+  if($('wpSave'))$('wpSave').onclick=function(){
+    var fa=addrVal('wp'), hq=$('wp_hqOn').checked?addrVal('wphq'):null;
+    say('wpM','保存中…',true);
+    API.call('PUT','/admin/tenants/'+openId+'/profile',{facilityType:$('wp_ftype').value,corp:$('wp_corp').value.trim(),rep:$('wp_rep').value.trim(),tel:$('wp_tel').value.trim(),
+      zip:fa.zip,pref:fa.pref,addr:fa.addr,hq:hq})
+      .then(function(j){WZP.p=j.profile;WZP.open=false;render();}).catch(function(e){say('wpM',e.message);});
+  };
   if($('sdCancel'))$('sdCancel').onclick=function(){shodanOn=false;shodanPre={};render();};
   document.querySelectorAll('[data-iqsd]').forEach(function(b){b.onclick=function(){
     var q=((DATA.inq&&DATA.inq.inquiries)||[]).filter(function(x){return String(x.id)===b.getAttribute('data-iqsd');})[0];if(!q)return;
@@ -3478,8 +3557,11 @@ function wire(){
     if(!v('sd_corp')&&!v('sd_school')){say('sdM','園名か法人名を入れてください');return;}
     if(!v('sd_person')){say('sdM','先方のご担当者を入れてください');return;}
     say('sdM','作成中…',true);$('sdGo').disabled=true;
+    var fa=addrVal('sd'), hq=$('sd_hqOn')&&$('sd_hqOn').checked?addrVal('sdhq'):null;
     API.call('POST','/admin/applications',{corp:v('sd_corp'),school:v('sd_school'),person:v('sd_person'),role:v('sd_role'),
-      email:v('sd_email'),tel:v('sd_tel'),plan:v('sd_plan'),startsOn:v('sd_starts'),kids:v('sd_kids'),memo:v('sd_memo')})
+      email:v('sd_email'),tel:v('sd_tel'),plan:v('sd_plan'),startsOn:v('sd_starts'),kids:v('sd_kids'),memo:v('sd_memo'),
+      facilityType:v('sd_ftype'),rep:v('sd_rep'),zip:fa.zip,pref:fa.pref,addr:fa.addr,
+      hqDiffer:!!hq,hqZip:hq?hq.zip:'',hqPref:hq?hq.pref:'',hqAddr:hq?hq.addr:''})
       .then(function(j){
         /* お問い合わせから作ったときは、お問い合わせの状態を「申込につながった」に */
         if(shodanPre.iq)API.call('PUT','/admin/inquiries/'+shodanPre.iq,{status:'申込につながった'}).catch(function(){});
