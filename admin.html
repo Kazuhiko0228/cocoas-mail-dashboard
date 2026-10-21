@@ -104,6 +104,11 @@ td.r,th.r{text-align:right}
 .acPw{margin-top:6px;padding:6px 10px;background:var(--ok-w);border-radius:8px;font-size:12.5px;color:var(--ok);display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .acPw b{color:var(--ink);font-size:14px;letter-spacing:.04em}
 .agRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line2)}
+/* サポート閲覧の上書き（2026-10-21） */
+.supw{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:2px 6px;margin:-2px -6px;border-radius:6px;border:1px dashed transparent;max-width:100%;overflow-wrap:anywhere}
+.supw:hover,.supw:focus-visible{border-color:var(--warn);background:#FFF7EA}
+.supPen{font-size:11px;color:var(--warn)}
+.supEdit{border:1px solid var(--warn);background:#FFF9F0;border-radius:10px;padding:12px 14px;margin:0 0 10px}
 .wzTop{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .wzHead{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;justify-content:space-between}
 .wzEy{font-size:11.5px;font-weight:800;color:var(--eg);letter-spacing:.06em}
@@ -1303,7 +1308,7 @@ function tenantHTML(){
     +'書かれる金額は、実際に請求する金額と必ず一致します。</div>'
     +'<div class="row" style="flex-wrap:wrap;gap:8px;">'
     +[['quote','お見積書'],['monitor','3カ月モニター利用契約書'],['normal','利用契約書'],
-      ['memo','個人情報の取扱いに関する覚書'],['consent','園名掲載同意書']]
+      ['memo','個人情報の取扱いに関する覚書'],['cancel','キャンセル・解約に関する規定'],['consent','園名掲載同意書']]
       .map(function(x){return '<button class="btn sec sm" data-doc="'+x[0]+'">'+esc(x[1])+'</button>';}).join('')
     +'</div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.75;">'
@@ -1746,12 +1751,13 @@ function pipeHTML(){
     }).join('')+'</tbody></table></div>';
 }
 /* ══ サポート閲覧（2026-10-08 安田さんのご判断）══════════════
-   園から頼まれたときだけ、理由を書いて30〜60分、園の記録を「読むだけ」で見る。サーバ（src/support.js）が線を引く：
+   園から頼まれたときだけ、理由を書いて30〜60分、園の記録を見る。サーバ（src/support.js）が線を引く：
+   ・2026-10-21 管理者オーバーライド：もう一度理由を書くと、決まった項目だけ上書きできる（owner とサポートだけ・前と後が園に残る）
    ・見られる範囲は決まった7つだけ ・健康・事故・アレルギー・体温・口座は、もう一度理由を書くまで伏せる
    ・始めた／開いた／終えたは園の変更ログに残り、何を見たかは園の設定に出る。見ているあいだは園のホームにも出る */
-var SUP={tid:null,list:null,mine:null,view:'',data:null,err:''};
+var SUP={tid:null,list:null,mine:null,view:'',data:null,err:'',cells:[],edit:null,kids:null};
 function supLoad(){
-  if(SUP.tid!==openId){SUP={tid:openId,list:null,mine:null,view:'',data:null,err:''};}
+  if(SUP.tid!==openId){SUP={tid:openId,list:null,mine:null,view:'',data:null,err:'',cells:[],edit:null,kids:null};}
   return API.call('GET','/admin/tenants/'+openId+'/support').then(function(j){SUP.list=j.sessions;SUP.mine=j.mine;
     if(!SUP.mine){SUP.view='';SUP.data=null;return;}
     if(SUP.view)return API.call('GET','/admin/support/'+SUP.mine.session.id+'/view/'+SUP.view).then(function(d){SUP.data=d;SUP.err='';},function(e){SUP.data=null;SUP.err=e.message;});
@@ -1762,21 +1768,57 @@ function supCell(v){
   if(typeof v==='object')return '<span style="font-size:11px;color:var(--mute);">'+esc(JSON.stringify(v).slice(0,160))+'</span>';
   var t=String(v);return t==='（伏せています）'?'<span class="st off" style="margin:0;">伏せています</span>':esc(t);
 }
-function supTable(rows,cols){
+/* ed があれば、上書きできる欄に ✎ を付ける（管理者オーバーライド・2026-10-21）。
+   ed = { view, path(行)→園の記録の中の場所, who(行)→だれの行か（確かめの文に出す） }。
+   直せる項目はサーバが返す views[].fields だけ（画面で増やしても、サーバが断る） */
+function supFields(view){var m=SUP.mine;if(!m||!m.session.editable)return [];var v=m.views.filter(function(x){return x.key===view;})[0];return (v&&v.editable&&v.fields)||[];}
+function supTable(rows,cols,ed){
   if(!rows.length)return '<div class="empty">記録がありません</div>';
+  var F=ed?supFields(ed.view):[];
   return '<div class="tw"><table style="min-width:'+Math.max(520,cols.length*110)+'px;"><thead><tr>'+cols.map(function(c){return '<th>'+esc(c[1])+'</th>';}).join('')+'</tr></thead><tbody>'
-    +rows.map(function(r){return '<tr style="cursor:default;">'+cols.map(function(c){return '<td>'+supCell(r[c[0]])+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div>';
+    +rows.map(function(r){return '<tr style="cursor:default;">'+cols.map(function(c){
+      return supTd(F.indexOf(c[0])>-1?ed:null,r,c[0],c[1],r[c[0]]);
+    }).join('')+'</tr>';}).join('')+'</tbody></table></div>';
 }
+function supTd(ed,r,field,label,v){
+  if(!ed||(v!=null&&typeof v==='object'))return '<td>'+supCell(v)+'</td>';
+  var i=SUP.cells.length;SUP.cells.push({view:ed.view,path:ed.path(r),field:field,label:label,who:ed.who(r),value:v==null?'':String(v)});
+  return '<td><button class="supw" data-supw="'+i+'" title="この欄を上書きする">'+(v==null||v===''?'<span style="color:var(--mute);">（空）</span>':supCell(v))+' <span class="supPen">✎</span></button></td>';
+}
+/* 上書きの欄（✎ を押した1つだけ）。何を・前の値・新しい値を並べ、押す前に確かめる */
+function supEditHTML(){
+  var e=SUP.edit;if(!e)return '';
+  return '<div class="supEdit"><div style="font-weight:700;margin-bottom:6px;">'+esc(e.who)+' の「'+esc(e.label)+'」を上書きする</div>'
+    +'<div class="hint" style="margin:0 0 8px;">いまの値：'+(e.value===''?'（空）':esc(e.value))+'</div>'
+    +'<div class="row"><input id="supWv" style="flex:1;min-width:200px;" maxlength="1000" value="'+esc(e.value)+'">'
+    +'<button class="btn sm" id="supWgo">上書きする</button><button class="btn sec sm" id="supWno">やめる</button><span class="msg" id="supWm"></span></div>'
+    +'<div class="hint" style="margin:6px 0 0;">前と後の値が、園の変更ログと「運営がアクセスした履歴」に残ります。園の端末には次の同期で届きます。</div></div>';
+}
+var SUP_FAC=[['name','施設名'],['kana','ふりがな'],['company','運営法人'],['rep','代表者名'],['manager','施設長・園長'],['zip','郵便番号'],['address','所在地'],['tel','電話番号'],['fax','FAX'],['mail','メールアドレス'],['site','ホームページ'],['landmark','目標物（緊急通報用）'],['type','施設種別'],['permitNo','認可・届出番号'],['permitDate','認可・届出日'],['authority','所管自治体・担当課'],['authorityTel','所管自治体 電話番号'],['capacity','定員'],['openHours','開園時間'],['closedDays','休園日'],['buildingArea','建物・保育室面積'],['insurance','加入保険'],['companyAddress','運営法人の所在地']];
 function supDataHTML(){
   var d=SUP.data;if(SUP.err)return '<div class="note bad">'+esc(SUP.err)+'</div>';if(!d)return '';
   var x=d.data,h='<h3 style="margin:14px 0 8px;">'+esc(d.label)+(d.masked?' <span class="st off">要配慮の項目は伏せています</span>':'')+'</h3>';
-  if(d.view==='contacts')return h+supTable((x.contacts||[]).filter(function(c){return c&&typeof c==='object';}),[['id','番号'],['kind','種類'],['child','園児'],['name','保護者'],['kana','かな'],['klass','クラス'],['phone','電話'],['email','メール'],['days','曜日'],['note','メモ']]);
-  if(d.view==='profiles'){var P=x.studentProfiles||{};return h+supTable(Object.keys(P).map(function(k){return Object.assign({id:k},P[k]);}),[['id','番号'],['lastName','名前'],['klass','クラス'],['dob','生年月日'],['address','住所'],['mName','保護者'],['mTel','電話'],['allergy','アレルギー'],['history','既往歴'],['hospital','かかりつけ'],['febrile','熱性けいれん'],['respiratory','呼吸器'],['bank','口座']]);}
+  SUP.cells=[];
+  if(supFields(d.view).length)h+='<div class="note" style="margin:0 0 8px;">✎ の付いた欄を押すと上書きできます。</div>';
+  h+=supEditHTML();
+  /* 園児の番号から名前を引く（確かめの文に「だれの」を出すため） */
+  var kid=function(id){var c=((SUP.kids||[]).filter(function(k){return String(k.id)===String(id);})[0]);return c?(c.child||c.name||'')+'（番号 '+id+'）':'番号 '+id;};
+  if(d.view==='contacts'){var C=(x.contacts||[]).filter(function(c){return c&&typeof c==='object';});SUP.kids=C;
+    var KIND={enrolled:'在園',lead:'見学・体験',withdrawn:'退園'};C=C.map(function(c){return Object.assign({},c,{kind:KIND[c.kind]||c.kind});});
+    return h+supTable(C,[['id','番号'],['kind','種類'],['child','園児'],['name','保護者'],['kana','かな'],['klass','クラス'],['phone','電話'],['email','メール'],['days','曜日'],['dob','生年月日'],['admissionDate','入園日'],['note','メモ']],
+      {view:'contacts',path:function(r){return [String(r.id)];},who:function(r){return (r.child||r.name||'')+'（番号 '+r.id+'）';}});}
+  if(d.view==='profiles'){var P=x.studentProfiles||{};return h+supTable(Object.keys(P).map(function(k){return Object.assign({id:k},P[k]);}),[['id','番号'],['lastName','姓'],['firstName','名'],['klass','クラス'],['dob','生年月日'],['zip','郵便番号'],['address','住所'],['telHome','自宅の電話'],['pickup1','お迎え①'],['allergy','アレルギー'],['history','既往症'],['hospital','入院歴'],['febrile','熱性けいれん'],['respiratory','呼吸・心疾患']],
+      {view:'profiles',path:function(r){return [String(r.id)];},who:function(r){return ((r.lastName||'')+(r.firstName||''))+'（番号 '+r.id+'）';}});}
   if(d.view==='attendance'){var A=x['rec_登園シート']||{},ds=Object.keys(A).sort().reverse().slice(0,14),rows=[];
-    ds.forEach(function(dt){var r=(A[dt]&&A[dt].rows)||{};Object.keys(r).forEach(function(id){rows.push({date:dt,id:id,att:r[id].att,temp:r[id].temp,inAt:r[id].inAt||r[id].in,outAt:r[id].outAt||r[id].out});});});
-    return h+'<div class="lead">新しい14日ぶん</div>'+supTable(rows,[['date','日付'],['id','園児の番号'],['att','出欠'],['inAt','登園'],['outAt','降園'],['temp','体温']]);}
+    ds.forEach(function(dt){var r=(A[dt]&&A[dt].rows)||{};Object.keys(r).forEach(function(id){rows.push({date:dt,id:id,att:r[id].att,temp:r[id].temp,come:r[id].come,leave:r[id].leave});});});
+    return h+'<div class="lead">新しい14日ぶん</div>'+supTable(rows,[['date','日付'],['id','園児の番号'],['att','出欠'],['come','登園'],['leave','降園'],['temp','体温']],
+      {view:'attendance',path:function(r){return [r.date,String(r.id)];},who:function(r){return r.date.replace(/-/g,'/')+' '+kid(r.id);}});}
   if(d.view==='invoices'){var I=x.invoices||{},rows2=[];Object.keys(I).sort().reverse().slice(0,6).forEach(function(mk){var m=I[mk]||{};Object.keys(m).forEach(function(id){var r=m[id]||{};rows2.push({month:mk,id:id,total:r.total!=null?yen(r.total):'',status:r.status,due:r.due,paidAt:r.paidAt});});});
-    return h+'<div class="lead">新しい6か月ぶん</div>'+supTable(rows2,[['month','月'],['id','園児の番号'],['total','金額'],['status','状態'],['due','支払期日'],['paidAt','入金日']]);}
+    return h+'<div class="lead">新しい6か月ぶん</div>'+supTable(rows2,[['month','月'],['id','園児の番号'],['total','金額'],['status','状態'],['due','支払期日'],['paidAt','入金日']],
+      {view:'invoices',path:function(r){return [r.month,String(r.id)];},who:function(r){return r.month+' の請求・'+kid(r.id);}});}
+  if(d.view==='facility'){var FI=((x.facility||{}).info)||{},FF=supFields('facility'),fed={view:'facility',path:function(){return [];},who:function(){return '施設の基本情報';}};
+    return h+'<div class="tw"><table style="min-width:420px;"><thead><tr><th style="width:38%;">項目</th><th>値</th></tr></thead><tbody>'
+      +SUP_FAC.map(function(f){return '<tr style="cursor:default;"><td>'+esc(f[1])+'</td>'+supTd(FF.indexOf(f[0])>-1?fed:null,{},f[0],f[1],FI[f[0]])+'</tr>';}).join('')+'</tbody></table></div>';}
   if(d.view==='log')return h+supTable((x||[]).map(function(r){return {at:fmtAt(r.created_at),who:r.user_name,what:r.key};}),[['at','日時'],['who','操作者'],['what','操作']]);
   return h+Object.keys(x||{}).map(function(k){return '<div style="font-weight:700;font-size:12px;margin:8px 0 4px;">'+esc(k)+'</div><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11.5px;background:var(--line2);padding:10px;border-radius:8px;max-height:420px;overflow:auto;">'+esc(JSON.stringify(x[k],null,1)||'（記録なし）')+'</pre>';}).join('');
 }
@@ -1834,16 +1876,19 @@ function supTabHTML(){
   var m=SUP.mine,h='';
   if(m){
     var ss=m.session;
-    h+='<div class="card" style="border-color:#E3BDBC;"><div class="row" style="justify-content:space-between;"><h3 style="margin:0;">サポート閲覧中（読むだけ）</h3>'
+    h+='<div class="card" style="border-color:#E3BDBC;"><div class="row" style="justify-content:space-between;"><h3 style="margin:0;">サポート閲覧中'+(ss.editable?'（<span style="color:var(--bad);">上書きできます</span>）':'（読むだけ）')+'</h3>'
       +'<span><span class="st warn">'+esc(fmtAt(ss.expiresAt).slice(11))+' まで</span> <button class="btn warn sm" id="supEnd">終える</button></span></div>'
       +'<div style="font-size:12px;color:var(--mute);margin:6px 0 10px;">理由：'+esc(ss.reason)+(ss.sensitiveReason?'　／　要配慮を開いた理由：'+esc(ss.sensitiveReason):'')+'<br>この園の変更ログに残り、園の設定「運営がアクセスした履歴」に、何を見たかまで出ます。</div>'
       +'<div class="row">'+m.views.map(function(v){
         return '<button class="btn '+(SUP.view===v.key?'':'sec ')+'sm" data-supv="'+v.key+'"'+(v.locked?' disabled title="要配慮の記録です"':'')+'>'+(v.locked?'🔒 ':'')+esc(v.label)+'</button>';}).join('')+'</div>'
       +(m.views.some(function(v){return v.locked||v.masked;})?'<div class="row" style="margin-top:10px;"><input id="supUr" style="flex:1;min-width:220px;" maxlength="300" placeholder="健康・事故・アレルギーなどを開く理由（園の変更ログに残ります）"><button class="btn sec sm" id="supUnlock">要配慮の記録も開く</button><span class="msg" id="supUm"></span></div>':'')
+      +(ss.editable
+        ?'<div class="note" style="margin-top:10px;">上書きの理由：'+esc(ss.editReason)+'　／　直したことは、前と後の値まで園に残ります。</div>'
+        :(myRole()==='owner'||myRole()==='cs')?'<div class="row" style="margin-top:10px;"><input id="supEr" style="flex:1;min-width:220px;" maxlength="300" placeholder="上書きする理由（例：園長から電話番号の入れまちがいを直してほしいと依頼）"><button class="btn sec sm" id="supEdit">上書きできるようにする</button><span class="msg" id="supEm"></span></div>':'')
       +supDataHTML()+'</div>';
   }else{
     h+='<div class="card"><h3>サポート閲覧を始める</h3>'
-      +'<div class="lead" style="margin-bottom:8px;">園から頼まれたときだけ使います。読むだけで、書き換えはできません。見られるのは 連絡先・生徒台帳・登園シート・請求書・園の変更ログ と、理由を足したときだけ 健康・事故の記録 です。'
+      +'<div class="lead" style="margin-bottom:8px;">園から頼まれたときだけ使います。はじめは読むだけです。直す必要があるときは、もう一度理由を書くと決まった項目だけ上書きできます（オーナーとサポートだけ）。見られるのは 連絡先・生徒台帳・登園シート・請求書・施設の基本情報・園の変更ログ と、理由を足したときだけ 健康・事故の記録 です。'
       +'始めたこと・理由・何を見たかは園に残り、見ているあいだは園のホームにも出ます。</div>'
       +'<div class="f"><label>見る理由（園の方が読みます）</label><input id="supR" maxlength="300" placeholder="例：保護者の連絡先が消えたとのお問い合わせ（10/8 園長より電話）"></div>'
       +'<div class="row"><select id="supMin"><option value="30">30分</option><option value="45">45分</option><option value="60">60分</option></select>'
@@ -1851,10 +1896,11 @@ function supTabHTML(){
   }
   var L=SUP.list||[];
   h+='<div class="card"><h3>この園のサポート閲覧の記録</h3>'
-    +(L.length?'<div class="tw"><table style="min-width:620px;"><thead><tr><th>日時</th><th>運営</th><th>理由</th><th>見た記録</th></tr></thead><tbody>'
+    +(L.length?'<div class="tw"><table style="min-width:760px;"><thead><tr><th>日時</th><th>運営</th><th>理由</th><th>見た記録</th><th>上書き</th></tr></thead><tbody>'
       +L.map(function(x){return '<tr style="cursor:default;"><td class="num" style="white-space:nowrap;">'+esc(fmtAt(x.startedAt))+(x.active?' <span class="st warn">中</span>':'')+'</td><td>'+esc(x.adminName)+'</td>'
         +'<td>'+esc(x.reason)+(x.sensitiveReason?'<div style="font-size:11px;color:var(--mute);">要配慮：'+esc(x.sensitiveReason)+'</div>':'')+'</td>'
-        +'<td>'+((x.reads||[]).map(function(r){return esc(r.label)+'×'+r.n;}).join('、')||'—')+'</td></tr>';}).join('')+'</tbody></table></div>'
+        +'<td>'+((x.reads||[]).map(function(r){return esc(r.label)+'×'+r.n;}).join('、')||'—')+'</td>'
+        +'<td style="font-size:11.5px;">'+(x.editReason?'<div style="color:var(--mute);">理由：'+esc(x.editReason)+'</div>':'')+((x.writes||[]).map(function(w){return esc(w.label)+(w.path?'（'+esc(w.path)+'）':'')+'の「'+esc(w.fieldLabel||w.field)+'」：'+esc(w.before==null?'（空）':String(w.before))+' → '+esc(w.after==null?'（空）':String(w.after));}).join('<br>')||(x.editReason?'':'—'))+'</td></tr>';}).join('')+'</tbody></table></div>'
       :'<div class="empty">まだありません</div>')+'</div>';
   return h;
 }
@@ -1982,7 +2028,7 @@ function opsSettingsHTML(){
    ここで送ると、その時点の中身で固まり（指紋つき）、園の管理者が Miralink で全文を読んで同意する。
    ★送ったあとは書き換えられない。直すときは同じ種類をもう一度送る（新しい版。前の版は置き換わる）。
    外部の電子契約サービスは、園が求めたときだけ（いまは「外部で締結済みにする」で手で記録） */
-var AG_KIND=[['normal','利用契約書'],['monitor','3カ月モニター利用契約書'],['memo','個人情報の取扱いに関する覚書'],['consent','園名掲載同意書'],['quote','お見積書']];
+var AG_KIND=[['normal','利用契約書'],['monitor','3カ月モニター利用契約書'],['memo','個人情報の取扱いに関する覚書'],['cancel','キャンセル・解約に関する規定'],['consent','園名掲載同意書'],['quote','お見積書']];
 var AG_ST={sent:['未確認','info'],viewed:['確認中','info'],signed:['締結済み','ok'],superseded:['新しい版に置き換え','off'],expired:['取り下げ','off'],declined:['断られた','ng'],draft:['下書き','off']};
 function agreeAdminHTML(){
   var a=(DATA.agreeId===openId)?DATA.agree:null;
@@ -1992,7 +2038,7 @@ function agreeAdminHTML(){
   /* 2026-10-09 作り直し（改善案5）。★以前はプルダウンを開かないと、どの書類をいくつ送れば済になるのか分からなかった。
      書類を並べ、それぞれに「まだ送っていない／確認中／同意済み」と送るボタンを付ける。送り先は申込のメールを最初から入れる */
   var kinds=a.kinds||['normal','monitor','memo','consent'];
-  var ORDER=[['normal','利用契約書','ふつうの園はこちら'],['memo','個人情報の取扱いに関する覚書','どの園にも必要'],['monitor','3カ月モニター利用契約書','モニターの園だけ（利用契約書のかわり）'],['consent','園名掲載同意書','任意。導入事例に載せてよい園だけ']];
+  var ORDER=[['normal','利用契約書','ふつうの園はこちら'],['memo','個人情報の取扱いに関する覚書','どの園にも必要'],['monitor','3カ月モニター利用契約書','モニターの園だけ（利用契約書のかわり）'],['cancel','キャンセル・解約に関する規定','どの園にも。取消し・解約・データの返却のきまり'],['consent','園名掲載同意書','任意。導入事例に載せてよい園だけ']];
   var rows=ORDER.filter(function(k){return kinds.indexOf(k[0])>-1;}).map(function(k){
     var cur=L.filter(function(d){return d.kind===k[0]&&d.status!=='superseded'&&d.status!=='expired';})[0]||null;
     var st=!cur?['まだ送っていない','']:cur.status==='signed'?['同意済み','ok']:cur.status==='viewed'?['管理者が確認中','info']:cur.status==='declined'?['断られた','bad']:['送った・未確認','info'];
@@ -2761,8 +2807,8 @@ function cdefHTML(){
     +'<div class="grid2">'
     +'<div class="f"><label>キャンペーン（か月・なしは 0）</label><input id="cd_m" class="num" inputmode="numeric" value="'+esc(d.campaign_months)+'"></div>'
     +'<div class="f"><label>キャンペーン中の割引（％引き）</label><input id="cd_off" class="num" inputmode="numeric" value="'+esc(d.campaign_off_percent)+'"></div>'
-    +'<div class="f"><label>最低契約期間（か月・キャンペーン後から）</label><input id="cd_min" class="num" inputmode="numeric" value="'+esc(d.min_months)+'"></div>'
-    +'<div class="f"><label>初期費用（円・税別）</label><input id="cd_init" class="num" inputmode="numeric" value="'+esc(d.initial_fee_yen)+'"></div>'
+    +'<div class="f"><label>最低契約期間（か月・全プラン）</label><input id="cd_min" class="num" inputmode="numeric" value="'+esc(d.min_months)+'"></div>'
+    +'<div class="f"><label>初期費用（Pro プランだけ・円・税別）</label><input id="cd_init" class="num" inputmode="numeric" value="'+esc(d.initial_fee_pro==null?50000:d.initial_fee_pro)+'"><div class="hint" style="margin:4px 0 0;">Connect・Standard は初期費用なし（10/18 の打ち合わせ）</div></div>'
     +'</div><div class="row"><button class="btn sm" id="cdSave">既定値を保存する</button><span class="msg" id="cdM"></span></div></div>';
 }
 function feesHTML(){
@@ -3106,7 +3152,7 @@ function wire(){
   if($('cdSave'))$('cdSave').onclick=function(){
     var v=function(id){return $(id).value.trim();};
     say('cdM','保存中…',true);
-    API.call('PUT','/admin/contract-defaults',{campaign_months:v('cd_m'),campaign_off_percent:v('cd_off'),min_months:v('cd_min'),initial_fee_yen:v('cd_init')})
+    API.call('PUT','/admin/contract-defaults',{campaign_months:v('cd_m'),campaign_off_percent:v('cd_off'),min_months:v('cd_min'),initial_fee_pro:v('cd_init')})
       .then(function(j){DATA.cdef={defaults:j.defaults};render();setTimeout(function(){say('cdM','保存しました。次に作る園から、この条件になります',true);},50);})
       .catch(function(e){say('cdM',e.message);});
   };
@@ -3218,11 +3264,28 @@ function wire(){
     say('supM','開いています…',true);
     API.call('POST','/admin/tenants/'+openId+'/support',{reason:r,minutes:+$('supMin').value}).then(function(){SUP.view='contacts';render();}).catch(function(e){say('supM',e.message);});
   };
-  document.querySelectorAll('[data-supv]').forEach(function(b){b.onclick=function(){SUP.view=b.getAttribute('data-supv');render();};});
+  document.querySelectorAll('[data-supv]').forEach(function(b){b.onclick=function(){SUP.view=b.getAttribute('data-supv');SUP.edit=null;render();};});
   if($('supUnlock'))$('supUnlock').onclick=function(){
     var r=$('supUr').value.trim();if(r.length<4){say('supUm','開く理由を書いてください');return;}
     if(!confirm('健康・事故・アレルギーなどの要配慮の記録も開きます。\n理由は園の変更ログに残ります。よろしいですか？'))return;
     API.call('POST','/admin/support/'+SUP.mine.session.id+'/unlock',{reason:r}).then(function(){render();}).catch(function(e){say('supUm',e.message);});
+  };
+  /* プランを選ぶと、初期費用をそのプランの既定にする（Pro だけ。2026-10-18 の打ち合わせ）。値引きするときは、そのあと書き換える */
+  [['c_plan','c_init'],['wz_plan','wz_init']].forEach(function(p){var sel=$(p[0]),inp=$(p[1]);if(!sel||!inp)return;
+    sel.addEventListener('change',function(){var pro=(DATA.cdef&&DATA.cdef.defaults&&DATA.cdef.defaults.initial_fee_pro!=null)?+DATA.cdef.defaults.initial_fee_pro:50000;inp.value=sel.value==='pro'?pro:0;});});
+  if($('supEdit'))$('supEdit').onclick=function(){
+    var r=$('supEr').value.trim();if(r.length<4){say('supEm','上書きする理由を書いてください（園の方が読みます）');return;}
+    if(!confirm('この園の記録を、運営が上書きできるようにします。\n理由は園の変更ログに残り、直したことは前と後の値まで園に残ります。よろしいですか？'))return;
+    API.call('POST','/admin/support/'+SUP.mine.session.id+'/edit-mode',{reason:r}).then(function(){render();}).catch(function(e){say('supEm',e.message);});
+  };
+  document.querySelectorAll('[data-supw]').forEach(function(b){b.onclick=function(){var c=SUP.cells[+b.getAttribute('data-supw')];if(!c)return;SUP.edit=c;render();setTimeout(function(){var i=$('supWv');if(i){i.focus();i.select();}},30);};});
+  if($('supWno'))$('supWno').onclick=function(){SUP.edit=null;render();};
+  if($('supWgo'))$('supWgo').onclick=function(){
+    var e=SUP.edit,v=$('supWv').value;if(!e)return;
+    if(v===e.value){say('supWm','値が変わっていません');return;}
+    if(!confirm(e.who+' の「'+e.label+'」を\n「'+(e.value||'（空）')+'」→「'+(v||'（空）')+'」\nに上書きします。よろしいですか？'))return;
+    say('supWm','上書きしています…',true);
+    API.call('PUT','/admin/support/'+SUP.mine.session.id+'/write',{view:e.view,path:e.path,field:e.field,value:v}).then(function(){SUP.edit=null;render();}).catch(function(err){say('supWm',err.message);});
   };
   if($('supEnd'))$('supEnd').onclick=function(){API.call('POST','/admin/support/'+SUP.mine.session.id+'/end',{}).then(function(){SUP.view='';SUP.data=null;render();}).catch(function(e){alert(e.message);});};
   /* 導入 */

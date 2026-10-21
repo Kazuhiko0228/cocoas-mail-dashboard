@@ -18992,6 +18992,14 @@ var EN_DICT={
 '{0}件をメールでお送りしました。記録は「メールで送った記録」に残ります。':'{0} email(s) sent. A record is kept under “Emails sent”.',
 'メールでお送りしました':'Sent by email',
 'お送りできません':'Could not send',
+/* 管理者オーバーライド（2026-10-21） */
+'上書きできる状態':'can edit',
+'読むだけ':'read-only',
+'運営（BIM JAPAN）は、園からのお問い合わせのときだけ、理由を書いて30〜60分のあいだ記録を見ます。':'The Miralink team (BIM JAPAN) views records only when your school asks for help, with a written reason, for 30–60 minutes. ',
+'直す必要があるときは、さらに理由を書いて決まった項目だけを上書きします。直したことは、前と後の値までここに出ます。':'If something needs fixing, they give another reason and edit only specific fields. Every change is listed here with the before and after values.',
+'直したこと':'Changes made',
+'上書きした理由：':'Reason for editing: ',
+'施設の基本情報':'Facility details',
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -41425,7 +41433,7 @@ function supActiveHTML(){
   if(!SUP_ON||!SUP_ON.length)return '';
   return SUP_ON.map(function(x){
     return '<div class="note-b" style="margin-bottom:12px;font-size:13px;line-height:1.8;border-left:4px solid #B4541F;">'
-      +'<b>いま運営（'+esc(x.adminName)+'）が、サポートのためにこの園の記録を見ています</b>（'+esc(supHm(x.expiresAt))+'まで・読むだけ）。'
+      +'<b>いま運営（'+esc(x.adminName)+'）が、サポートのためにこの園の記録を見ています</b>（'+esc(supHm(x.expiresAt))+'まで・'+(x.editable?'<b style="color:#B4541F;">上書きできる状態</b>':'読むだけ')+'）。'
       +'<span class="muted">理由と見た記録は「設定 › 運営がアクセスした履歴」で確かめられます。</span></div>';
   }).join('');
 }
@@ -41777,14 +41785,17 @@ function renderSupportAccess(s){
   API.call('GET','/support/access').then(function(j){
     var L=(j&&j.history)||[];
     box.innerHTML='<h3>'+ic('shield')+'運営がアクセスした履歴</h3>'
-      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:10px;">運営（BIM JAPAN）は、園からのお問い合わせのときだけ、理由を書いて30〜60分のあいだ記録を見ます（読むだけで、書き換えはできません）。'
-      +'健康・事故などの記録は、もう一度理由を書かないと開きません。</div>'
-      +(L.length?'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>日時</th><th>運営の担当</th><th>理由</th><th>見た記録</th></tr></thead><tbody>'
+      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:10px;">運営（BIM JAPAN）は、園からのお問い合わせのときだけ、理由を書いて30〜60分のあいだ記録を見ます。'
+      +'健康・事故などの記録は、もう一度理由を書かないと開きません。'
+      +'直す必要があるときは、さらに理由を書いて決まった項目だけを上書きします。直したことは、前と後の値までここに出ます。</div>'
+      +(L.length?'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>日時</th><th>運営の担当</th><th>理由</th><th>見た記録</th><th>直したこと</th></tr></thead><tbody>'
         +L.map(function(x){
           return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(supHm(x.startedAt))+'〜'+esc(supHm(x.endedAt||x.expiresAt).slice(-5))+(x.active?' <b style="color:#B4541F;">見ています</b>':'')+'</td>'
             +'<td style="white-space:nowrap;">'+esc(x.adminName)+'</td>'
             +'<td>'+esc(x.reason)+(x.sensitiveReason?'<div class="muted" style="font-size:11.5px;">要配慮の記録を開いた理由：'+esc(x.sensitiveReason)+'</div>':'')+'</td>'
-            +'<td>'+((x.reads||[]).map(function(r){return esc(r.label);}).join('、')||'<span class="muted">なし</span>')+'</td></tr>';
+            +'<td>'+((x.reads||[]).map(function(r){return esc(r.label);}).join('、')||'<span class="muted">なし</span>')+'</td>'
+            +'<td style="font-size:12px;">'+(x.editReason?'<div class="muted" style="font-size:11.5px;">上書きした理由：'+esc(x.editReason)+'</div>':'')
+              +((x.writes||[]).map(function(w){var v=function(a){return a==null||a===''?'（空）':String(a);};return esc(w.label)+(w.path?'（'+esc(w.path)+'）':'')+'の「'+esc(w.fieldLabel||w.field)+'」：'+esc(v(w.before))+' → <b>'+esc(v(w.after))+'</b>';}).join('<br>')||(x.editReason?'':'<span class="muted">なし</span>'))+'</td></tr>';
         }).join('')+'</tbody></table></div>'
         :'<div class="muted" style="font-size:12.5px;">運営がこの園の記録を見たことは、まだありません。</div>');
     if(typeof langApply==='function')try{langApply(box);}catch(e){}
