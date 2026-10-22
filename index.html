@@ -12315,9 +12315,10 @@ function renderHome(){
   if(typeof agreeWire==='function')agreeWire(s);
   /* オンボーディングの案内（2026-10-11） */
   s.querySelectorAll('[data-obwopen]').forEach(function(b){b.onclick=function(){OBW.step=-1;obwOpen();};});
+  if(typeof mustChangeMaybe==='function')setTimeout(mustChangeMaybe,200);
   if(typeof obwMaybe==='function')setTimeout(obwMaybe,300);
   /* 「画面#場所」の形なら、開いたあとその場所までスクロールする（払い方を選ぶ → 設定のお支払いの枠） */
-  s.querySelectorAll('[data-obgo]').forEach(function(b){b.onclick=function(){var v=b.getAttribute('data-obgo').split('#');go(v[0]);
+  s.querySelectorAll('[data-obgo]').forEach(function(b){b.onclick=function(){var v=b.getAttribute('data-obgo').split('#');obPrep(v);go(v[0]);
     /* ★設定の枠は settingsFold が畳んで id を付け替えるので、id では探せなかった。見出しの文字で探し、閉じていれば開く */
     /* お支払いの枠は中身をあとから読み込むので、畳まれずに残ることがある。見出し（h3）の文字で探し、畳まれていれば開く */
     if(v[1])setTimeout(function(){var sec=document.querySelector('section[data-page="'+v[0]+'"]')||document;
@@ -18992,6 +18993,26 @@ var EN_DICT={
 '{0}件をメールでお送りしました。記録は「メールで送った記録」に残ります。':'{0} email(s) sent. A record is kept under “Emails sent”.',
 'メールでお送りしました':'Sent by email',
 'お送りできません':'Could not send',
+/* 職員アカウント（サーバ）・初回パスワード（2026-10-22） */
+'先生ごとにログインを作ります。作ったら、':'Create a login for each teacher. Then tell them these three: ',
+'園コード・ログインID・はじめのパスワード':'school code, login ID and starting password',
+'の3つをその先生に伝えてください。最初のログインで、ご本人のパスワードに変えてもらいます。役割で、見られる画面が変わります。':'. They change it to their own password at first login. The role decides which screens they can see.',
+'最後のログイン':'Last login',
+'まだログインしていません':'Not logged in yet',
+'パスワードを作り直す':'Reset password',
+'止める':'Disable',
+'使えるようにする':'Enable',
+'あなた':'You',
+'（止めています）':'(disabled)',
+'職員を追加する':'Add a staff member',
+'ログインID（半角英数字）':'Login ID (letters and numbers)',
+'はじめのパスワード（8文字以上）':'Starting password (8+ characters)',
+'追加する':'Add',
+'作っています…':'Creating…',
+'ログインID・氏名・はじめのパスワードを入れてください':'Enter the login ID, name and starting password',
+'ログインIDは半角の英数字（と _ . -）で入れてください':'Use letters, numbers, _ . - for the login ID',
+'役割を変えました':'Role changed',
+'初回ログインです。ご自身のパスワードに変更してください。':'This is your first login. Please change to your own password.',
 /* Stripe のメールの言語（2026-10-22） */
 '請求書・領収書のメールの言語':'Language of invoice and receipt emails',
 'Stripe から届くメールと、支払いの画面の言語です。次に届くメールから変わります。':'The language of emails from Stripe and of the payment page. It applies from the next email.',
@@ -22907,10 +22928,11 @@ function rosterImportModal(){
     });
     DB.contacts=arr;
     m.remove();
-    renderContacts();
+    /* ★生徒一覧から取り込んだのに連絡先の画面を描き直していて、一覧に増えた園児が出なかった（2026-10-22） */
+    if(document.querySelector('section[data-page="roster"]:not([hidden])')&&typeof renderRoster==='function')renderRoster();else renderContacts();
     alert(n+'名を登録しました。\n\n'
       +'クラス・通園曜日は「生徒情報一覧・連絡先」、料金は「請求書作成・管理」から直してください。\n'
-      +'保護者アカウントは、運営に発行を依頼してください。');
+      +'保護者の招待は「配信 › 未来WA › 保護者アカウント新規発行」からできます。');
   };
 }
 
@@ -34355,6 +34377,9 @@ function serverLogin(){
       /* このタブでログインした園（タブごと）。ロックを解くときに同じ園でログインを取り直す（IDLE.check）。
          共用の入れ物の園が変わったかの見分けにも使う（SYNC.foreign） */
       try{sessionStorage.setItem('edugrow_tabTenant',JSON.stringify({id:j.tenant&&j.tenant.id,code:j.tenant&&j.tenant.code}));}catch(e){}
+      /* ★はじめてサーバにログインする端末では、ログイン前の画面が入れた見本（園児・職員・デモの3アカウント）を消す。
+         残すと、園児がまだいない園の画面に見本の園児が並び、何か1つ書くとサーバへ送られていた（2026-10-22） */
+      if(!serverBound())purgeMock();
       /* この端末は、これ以降サーバで使う端末になる。デモのアカウントでは入れなくなる。 */
       setServerBound();
       /* 通信が切れた日に、この人だけは入れるようにする。
@@ -34372,13 +34397,20 @@ function serverLogin(){
       }catch(e){}
       /* 読み込みで重ねて送り待ちに載った分（SYNC.mergeIn）を送ってから開き直す。開き直すと送り待ちは消える */
       return SYNC.pull().then(function(){return SYNC.flush();}).then(function(){
-        if(j.user.mustChange)setTimeout(function(){passwordChangeModal(true);},400);
+        /* ★開き直す（reload）ので、ここで窓を出しても消えていた。初回のパスワード変更が一度も出なかった（2026-10-22）。
+           印を残して、開き直したあとのホームで出す（mustChangeMaybe） */
         location.reload();
       });
     })
     .catch(function(e){err.textContent=e.message;err.style.display='block';$('#slGo2').textContent='ログイン';$('#slGo2').disabled=false;});
 }
 function serverUser(){try{return JSON.parse(sessionStorage.getItem('cocoas_serverUser'));}catch(e){return null;}}
+/* 初回ログインのパスワード変更。運営が渡した初期パスワードのままなら、ホームで必ず出す（閉じられない） */
+function mustChangeOn(){var u=serverUser();return !!(u&&u.mustChange&&typeof API!=='undefined'&&API.online&&API.online());}
+function mustChangeMaybe(){
+  if(!mustChangeOn()||document.getElementById('pwForceBg'))return;
+  passwordChangeModal(true);
+}
 /* ══ この端末は、サーバにつないで使う端末か ══════════════
    ★通信が切れると API.enabled() が false になり、
      デモの3アカウント（admin/admin・shiraga/shiraga・staff/staff）で入れてしまった。
@@ -34391,6 +34423,20 @@ function serverUser(){try{return JSON.parse(sessionStorage.getItem('cocoas_serve
    そのあとは通信が切れても、デモのアカウントでは入れないようにする。
    代わりに、その端末でログインした本人だけが、自分のIDとパスワードで入れる
    （パスワードは PBKDF2 で15万回かけた形でだけ端末に残す。元に戻せない形）。 */
+function purgeMock(){
+  try{
+    /* 見本だけのときに限って消す（見本には日付が入るので、中身の一致ではなく番号で見分ける）。
+       園が手で足した行が1つでもあれば触らない */
+    var onlyMock=function(k,mock){var v;try{v=JSON.parse(localStorage.getItem(k));}catch(e){return false;}
+      if(!Array.isArray(v))return false;var ids={};mock.forEach(function(x){ids[String(x.id)]=1;});
+      return v.every(function(x){return x&&ids[String(x.id)];});};
+    if(onlyMock('cocoas_contacts',seed()))localStorage.removeItem('cocoas_contacts');
+    if(onlyMock('cocoas_staff',staffSeed()))localStorage.removeItem('cocoas_staff');
+    localStorage.removeItem('cocoas_mockVersion');
+    var a=stGet('staffAccounts',null);
+    if(Array.isArray(a)){var b=a.filter(function(x){return !x.seed;});if(b.length!==a.length)stSet('staffAccounts',b);}
+  }catch(e){}
+}
 function serverBound(){ try{ return localStorage.getItem('edugrow_serverBound')==='1'; }catch(e){ return false; } }
 function setServerBound(){ try{ localStorage.setItem('edugrow_serverBound','1'); }catch(e){} }
 /* 通信が切れたときに使える人の一覧（この端末でログインした人だけ） */
@@ -34398,7 +34444,7 @@ function offlineAccounts(){
   return staffAccounts().filter(function(a){ return a.server&&a.pwh; });
 }
 function passwordChangeModal(force){
-  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  var m=el('div',{class:'modal-bg'});if(force)m.id='pwForceBg';$('#modalRoot').appendChild(m);
   m.innerHTML='<div class="modal" style="width:460px;"><h2>パスワードの変更</h2>'
     +(force?'<div class="muted" style="margin:-6px 0 12px;">初回ログインです。ご自身のパスワードに変更してください。</div>':'')
     +'<div class="field"><label>現在のパスワード</label><input type="password" id="pw_cur"></div>'
@@ -34412,7 +34458,10 @@ function passwordChangeModal(force){
     if(n!==n2){$('#pw_msg').textContent='新しいパスワードが一致しません';return;}
     if(n.length<8){$('#pw_msg').textContent='8文字以上にしてください';return;}
     API.call('POST','/auth/password',{current:c,next:n})
-      .then(function(){alert('パスワードを変更しました。');m.remove();})
+      .then(function(){
+        try{var u=serverUser();if(u){u.mustChange=false;sessionStorage.setItem('cocoas_serverUser',JSON.stringify(u));}}catch(e){}
+        alert('パスワードを変更しました。');m.remove();
+        if(force&&typeof obwMaybe==='function')setTimeout(obwMaybe,300);})
       .catch(function(e){$('#pw_msg').textContent=e.message;});
   };
 }
@@ -34814,6 +34863,70 @@ function staffLoginBy(loginId,pw,cb){
   cb(false);
 }
 /* パスワードを設定します。保存されるのはハッシュだけです。 */
+/* ══ 職員アカウント（サーバ）2026-10-22 ══════════════
+   GET/POST/PUT /users。作った職員は、園コード＋ログインID＋はじめのパスワードで入れる。
+   はじめのパスワードは最初のログインで変えてもらう（サーバが must_change を立てる）。
+   ★パスワードは画面にも記録にも残さない（伝えるのは作った人が口頭か紙で） */
+var SU={list:null,err:''};
+function suCardHTML(){
+  return '<div class="card" id="suCard" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('staff')+'職員アカウント</h3>'
+    +'<div id="suBody"><div class="muted">読み込んでいます…</div></div></div>';
+}
+function suRoleSel(id,cur){
+  return '<select '+id+'>'+STAFF_ROLES.map(function(r){return '<option value="'+esc(r)+'"'+(r===cur?' selected':'')+'>'+esc(roleLabel(r))+'</option>';}).join('')+'</select>';
+}
+function suDraw(){
+  var b=document.getElementById('suBody');if(!b)return;
+  var me=serverUser()||{};
+  var L=SU.list||[];
+  var fmt=function(t){if(!t)return '—';var d=new Date(new Date(t).getTime()+9*3600*1000).toISOString();return d.slice(5,10).replace('-','/')+' '+d.slice(11,16);};
+  b.innerHTML='<div class="muted" style="margin-bottom:10px;font-size:12.5px;line-height:1.8;">先生ごとにログインを作ります。作ったら、<b>園コード・ログインID・はじめのパスワード</b>の3つをその先生に伝えてください。最初のログインで、ご本人のパスワードに変えてもらいます。役割で、見られる画面が変わります。</div>'
+    +(SU.err?'<div class="muted" style="color:#A32D2D;margin-bottom:8px;">'+esc(SU.err)+'</div>':'')
+    +'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>ログインID</th><th>氏名</th><th>役割</th><th>最後のログイン</th><th></th></tr></thead><tbody>'
+    +L.map(function(u){var self=String(u.login_id)===String(me.loginId);
+      return '<tr><td data-nolang="1">'+esc(u.login_id)+'</td><td data-nolang="1">'+esc(u.name)+(u.active?'':' <span class="muted">（止めています）</span>')+'</td>'
+        +'<td>'+(self?esc(roleLabel(u.role)):suRoleSel('data-surole="'+u.id+'"',u.role))+'</td>'
+        +'<td class="row-sub">'+(u.must_change&&!u.last_login_at?'<span class="muted">まだログインしていません</span>':esc(fmt(u.last_login_at)))+'</td>'
+        +'<td style="white-space:nowrap;">'+(self?'<span class="muted">あなた</span>':'<button class="btn btn-sm" data-supw="'+u.id+'">パスワードを作り直す</button> <button class="btn btn-sm" data-suact="'+u.id+'|'+(u.active?'0':'1')+'">'+(u.active?'止める':'使えるようにする')+'</button>')+'</td></tr>';}).join('')
+    +'</tbody></table></div>'
+    +'<div style="margin-top:14px;padding:12px;border:1px dashed var(--line,#ddd);border-radius:10px;">'
+    +'<div style="font-weight:700;margin-bottom:8px;">職員を追加する</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">'
+    +'<div class="field" style="margin:0;"><label>ログインID（半角英数字）</label><input id="suId" placeholder="例：tanaka" autocomplete="off" autocapitalize="none" spellcheck="false"></div>'
+    +'<div class="field" style="margin:0;"><label>氏名</label><input id="suName" placeholder="例：田中 花子"></div>'
+    +'<div class="field" style="margin:0;"><label>役割</label>'+suRoleSel('id="suRole"','一般')+'</div>'
+    +'<div class="field" style="margin:0;"><label>はじめのパスワード（8文字以上）</label><input id="suPw" type="password" autocomplete="new-password"></div></div>'
+    +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="suAdd">'+ic('plus')+'追加する</button><span class="muted" id="suMsg"></span></div></div>'
+    +'<div style="margin-top:10px;"><button class="btn btn-sm" id="saMyPw">'+ic('shield')+'自分のパスワードを変える</button></div>';
+  var msg=function(t){var m=document.getElementById('suMsg');if(m)m.textContent=t;};
+  document.getElementById('saMyPw').onclick=function(){passwordChangeModal(false);};
+  document.getElementById('suAdd').onclick=function(){
+    var id=$('#suId').value.trim(),nm=$('#suName').value.trim(),pw=$('#suPw').value,rl=$('#suRole').value;
+    if(!id||!nm||!pw){msg('ログインID・氏名・はじめのパスワードを入れてください');return;}
+    if(!/^[A-Za-z0-9_.-]+$/.test(id)){msg('ログインIDは半角の英数字（と _ . -）で入れてください');return;}
+    if(pw.length<8){msg('パスワードは8文字以上にしてください');return;}
+    msg('作っています…');
+    API.call('POST','/users',{loginId:id,name:nm,role:rl,password:pw}).then(function(){
+      alert(nm+' さんのログインを作りました。\n\n園コード・ログインID（'+id+'）・はじめのパスワードを、ご本人に伝えてください。\n最初のログインで、ご本人のパスワードに変えてもらいます。');
+      suLoad();
+    }).catch(function(e){msg(e.message);});
+  };
+  b.querySelectorAll('[data-surole]').forEach(function(sel){sel.onchange=function(){
+    API.call('PUT','/users/'+sel.getAttribute('data-surole'),{role:sel.value}).then(function(){aiToast('役割を変えました');suLoad();}).catch(function(e){alert(e.message);suLoad();});};});
+  b.querySelectorAll('[data-supw]').forEach(function(x){x.onclick=function(){
+    var pw=prompt('新しいはじめのパスワード（8文字以上）を入れてください。\nご本人に伝え、次のログインで変えてもらいます。','');
+    if(pw===null)return;if(pw.length<8){alert('パスワードは8文字以上にしてください');return;}
+    API.call('PUT','/users/'+x.getAttribute('data-supw'),{password:pw}).then(function(){alert('パスワードを作り直しました。ご本人に伝えてください。');suLoad();}).catch(function(e){alert(e.message);});};});
+  b.querySelectorAll('[data-suact]').forEach(function(x){x.onclick=function(){
+    var v=x.getAttribute('data-suact').split('|'),on=v[1]==='1';
+    if(!on&&!confirm('この職員はログインできなくなります。記録は消えません。よろしいですか？'))return;
+    API.call('PUT','/users/'+v[0],{active:on}).then(function(){suLoad();}).catch(function(e){alert(e.message);});};});
+  if(typeof langApply==='function')try{langApply(b);}catch(e){}
+}
+function suLoad(){
+  API.call('GET','/users').then(function(j){SU.list=j.users||[];SU.err='';suDraw();})
+    .catch(function(e){SU.err=e.message;suDraw();});
+}
 function staffSetPassword(acc,pw,done){
   done=done||function(){};
   CRED.hash(pw,function(rec){
@@ -35557,11 +35670,16 @@ function renderAccessSettings(s){
   var role=currentRole();
   var html='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('idcard')+'生徒情報・ベース設定</h3><div class="muted" style="margin-bottom:10px;">生徒情報（氏名・住所・健康・緊急連絡先など）は「生徒情報一覧・連絡先」で管理します。</div><button class="btn" id="setGoRoster">'+ic('idcard')+'生徒台帳を開く</button></div>';
   if(role==='管理者'){
-    var accs=staffAccounts();
-    html+='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('staff')+'職員アカウント</h3><div class="muted" style="margin-bottom:10px;">職員ごとにログインIDと役割を発行します。役割で閲覧できる画面が決まります。</div>'
-      +'<table><thead><tr><th>ログインID</th><th>氏名</th><th>役割</th><th>パスワード</th><th></th></tr></thead><tbody>'
-      +accs.map(function(a){return '<tr><td><input data-sa="'+a.id+'|loginId" value="'+esc(a.loginId)+'" style="width:110px;"></td><td><input data-sa="'+a.id+'|name" value="'+esc(a.name)+'" style="width:150px;"></td><td><select data-sa="'+a.id+'|role">'+STAFF_ROLES.map(function(r){return '<option value="'+r+'"'+(r===a.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('')+'</select></td><td><input data-sa="'+a.id+'|pw" type="password" value="" placeholder="変更時のみ" autocomplete="new-password" style="width:100px;"></td><td><button class="btn btn-sm btn-ghost" data-sadel="'+esc(a.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')
-      +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saMyPw">'+ic('shield')+'自分のパスワードを変える</button><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
+    /* ★サーバにつないで使う園では、職員のログインはサーバ（POST /users）に作る（2026-10-22）。
+       それまではこの端末の記録（staffAccounts）にだけ作っていて、作った職員はログイン画面で入れなかった */
+    if(typeof agreeOnline==='function'&&agreeOnline()){html+=suCardHTML();}
+    else{
+      var accs=staffAccounts();
+      html+='<div class="card" style="max-width:820px;margin-bottom:16px;"><h3>'+ic('staff')+'職員アカウント</h3><div class="muted" style="margin-bottom:10px;">職員ごとにログインIDと役割を発行します。役割で閲覧できる画面が決まります。</div>'
+        +'<table><thead><tr><th>ログインID</th><th>氏名</th><th>役割</th><th>パスワード</th><th></th></tr></thead><tbody>'
+        +accs.map(function(a){return '<tr><td><input data-sa="'+a.id+'|loginId" value="'+esc(a.loginId)+'" style="width:110px;"></td><td><input data-sa="'+a.id+'|name" value="'+esc(a.name)+'" style="width:150px;"></td><td><select data-sa="'+a.id+'|role">'+STAFF_ROLES.map(function(r){return '<option value="'+r+'"'+(r===a.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('')+'</select></td><td><input data-sa="'+a.id+'|pw" type="password" value="" placeholder="変更時のみ" autocomplete="new-password" style="width:100px;"></td><td><button class="btn btn-sm btn-ghost" data-sadel="'+esc(a.id)+'">'+ic('trash')+'</button></td></tr>';}).join('')
+        +'</tbody></table><div class="muted" style="margin-top:8px;font-size:12px;">職員名簿と紐づけて作る場合は「職員管理」の各職員の行から作成できます。</div><div style="margin-top:10px;display:flex;gap:8px;align-items:center;"><button class="btn btn-sm" id="saMyPw">'+ic('shield')+'自分のパスワードを変える</button><button class="btn btn-sm" id="saAdd">'+ic('plus')+'職員を追加</button><button class="btn btn-primary btn-sm" id="saSave">'+ic('check')+'保存</button><span class="muted" id="saMsg"></span></div></div>';
+    }
     var perms=rolePerms();
     html+='<div class="card" style="margin-bottom:16px;overflow-x:auto;"><h3>'+ic('shield')+'権限管理（役割ごとの閲覧範囲）</h3><div class="muted" style="margin-bottom:10px;">チェックした画面だけ、その役割の職員に表示されます。管理者は常に全画面。（例：一般スタッフは監査・請求書・設定を非表示に）</div>'
       /* ★役割の札「管理者」「園長」「主任・リーダー」が1文字ずつ縦に割れていた。
@@ -35590,8 +35708,9 @@ function renderAccessSettings(s){
   if(role==='管理者'){
     /* 追加した時点ではパスワードなし＝ログインできません。表の欄で設定していただきます。 */
     var smp=document.getElementById('saMyPw'); if(smp)smp.onclick=function(){ if(typeof API!=='undefined'&&API.online())passwordChangeModal(false);else localPasswordModal(); };
-    document.getElementById('saAdd').onclick=function(){var a=staffAccounts();var nid=Math.max.apply(null,a.map(function(x){return x.id;}).concat([0]))+1;a.push({id:nid,loginId:'staff'+nid,name:'新規職員',role:'一般'});stSet('staffAccounts',a);renderSettings();};
-    document.getElementById('saSave').onclick=function(){
+    if(document.getElementById('suBody'))suLoad();
+    if(document.getElementById('saAdd'))document.getElementById('saAdd').onclick=function(){var a=staffAccounts();var nid=Math.max.apply(null,a.map(function(x){return x.id;}).concat([0]))+1;a.push({id:nid,loginId:'staff'+nid,name:'新規職員',role:'一般'});stSet('staffAccounts',a);renderSettings();};
+    if(document.getElementById('saSave'))document.getElementById('saSave').onclick=function(){
       var a=staffAccounts(),pend=[],tooShort=false;
       document.querySelectorAll('[data-sa]').forEach(function(inp){
         var pp=inp.getAttribute('data-sa').split('|');
@@ -41513,13 +41632,16 @@ function renderSchoolPay(s){
      運営が電話で1つずつ伝えるしかなかった。済は園の実データから自動で付く（ここで押して済にはしない）。
    全部済んだら出さない。導入の手順を持たない園（この仕組みより前からいる園）にも出さない */
 var OB_ME=null,OB_AT=0;
+/* 行き先が未来WA の画面なら、開く前にタブを選んでおく（「wastore#保護者アカウント新規発行」） */
+function obPrep(v){if(v[0]==='wastore'&&v[1]&&typeof WA_TABS!=='undefined')WA_TABS.forEach(function(t){if(t[1]===v[1])WA_VIEW=t[0];});}
 /* はじめの準備（2026-10-09 作り直し＝改善案7）。
    ★以前は手順が「園児を登録した」と済んだ形で、横の「これから」と食い違って読めた。どれから始めるかも分からず、
      ボタンは「生徒情報を開く」「設定を開く」と行き先の名前で、何をするのか分からなかった。
    ・上に進み具合の棒 ・「つぎは これ」を1つだけ大きく ・手順はこれからやる形（名前はサーバが持つ）・ボタンはやることそのもの */
 var OB_GO={
   kids:['contacts','園児を登録する','「生徒情報」に在園の園児を1人入れると、自動で終わりになります。'],
-  parents:['contacts','保護者を招待する','保護者のアカウントを1件作ると、自動で終わりになります。'],
+  /* ★2026-10-22 生徒情報には保護者を招待する口が無い。未来WA の「保護者アカウント新規発行」へ連れていく */
+  parents:['wastore#保護者アカウント新規発行','保護者を招待する','保護者のアカウントを1件作ると、自動で終わりになります。'],
   school_pay:['settings#ご利用料のお支払い','払い方を選ぶ','設定の「Miralink のご利用料のお支払い」で、カードか請求書払いを選びます。'],
   staff:['settings','職員を登録する','園長のほかに職員のログインを作ります。園長ひとりの園は要りません。'],
   tuition:['billing','Stripe に登録する','保育料をカードで受け取る園だけ。Stripe の登録が「有効」になると終わりです。'],
@@ -41567,7 +41689,7 @@ var OBW_STEPS=[
   /* ★2026-10-11 並べ替え：お支払いの登録は契約の同意のすぐあと（課金開始はここまでで始められる） */
   {k:'school_pay',t:'ご利用料の払い方を選ぶ',d:'Miralink のご利用料の払い方を、カードか請求書払いから選びます。ここでそのまま登録できます。'},
   {k:'kids',t:'園児を登録する',go:'contacts',btn:'生徒情報で登録する',d:'「生徒情報」で園児を入れます。名簿の取り込みもできます。在園の園児が1人入ると、この手順は終わりです。'},
-  {k:'parents',t:'保護者を未来WAに招待する',go:'contacts',btn:'保護者を招待する',d:'保護者のアカウントを作り、案内の紙をお渡しします。1件作ると、この手順は終わりです。'},
+  {k:'parents',t:'保護者を未来WAに招待する',go:'wastore#保護者アカウント新規発行',btn:'保護者を招待する',d:'保護者のアカウントを作り、案内の紙をお渡しします。1件作ると、この手順は終わりです。'},
   {k:'staff',t:'職員を登録する',go:'settings#職員アカウント',btn:'職員アカウントを作る',d:'園長のほかに先生のログインを作ります。園長おひとりの園は飛ばしてかまいません。',opt:1},
   {k:'tuition',t:'保育料のカード払いを登録する',go:'billing',btn:'請求書作成で登録する',d:'保護者から保育料をカードで受け取る園だけ。使わない園は飛ばしてかまいません。',opt:1},
   {k:'done',t:'準備ができました'}
@@ -41673,7 +41795,7 @@ function obwDraw(){
   m.querySelectorAll('[data-obwclose]').forEach(function(b){b.onclick=function(){sessSet('obw_later','1');obwClose(true);};});
   m.querySelectorAll('[data-obwgo]').forEach(function(b){b.onclick=function(){
     /* ★ほかの画面へ移るとき、ホームを描き直して案内が自動でまた開いていた。このログインでは自動で開かない印を付けて移る */
-    var v=b.getAttribute('data-obwgo').split('#');sessSet('obw_later','1');obwClose(true,true);go(v[0]);
+    var v=b.getAttribute('data-obwgo').split('#');sessSet('obw_later','1');obwClose(true,true);obPrep(v);go(v[0]);
     if(v[1])setTimeout(function(){var sec=document.querySelector('section[data-page="'+v[0]+'"]')||document;
       var h=[].filter.call(sec.querySelectorAll('h3'),function(z){return (z.textContent||'').indexOf(v[1])>-1;})[0];
       if(!h)return; if(h.getAttribute('data-open')==='0')h.click(); h.scrollIntoView({behavior:'smooth',block:'start'});},900);};});
@@ -41686,6 +41808,7 @@ function sessSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
 /* ホームを描いたときに呼ぶ：まだの手順があれば、このログインで1回だけ自動で開く */
 function obwMaybe(){
   if(!OB_ME||!OB_ME.tracked)return;
+  if(typeof mustChangeOn==='function'&&mustChangeOn())return;   /* 先にパスワードを変えてもらう */
   if(!agreeOnline()||(typeof currentRole==='function'&&currentRole()!=='管理者'))return;
   if(!obwLeft().length){var p=document.getElementById('obwPill');if(p)p.remove();return;}
   if(OBW.el)return;
