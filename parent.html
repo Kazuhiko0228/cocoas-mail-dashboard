@@ -9164,6 +9164,59 @@ var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
   try{ if(/(^|\.)mirai-wa\.com$/i.test(location.hostname)&&!WAPI.base())WAPI.setBase(WA_API_OFFICIAL); }catch(e){}
 })();
 
+/* ══ 園からの招待メールのリンクで来たとき（?invite=札&tenant=園コード・2026-10-22）══
+   保護者がここでパスワードを決める（7日間・1回だけ）。決めたら、そのままログインする。
+   ★札は URL からすぐ消し、タブの中にだけ持つ（履歴や共有で札が残らないように） */
+(function(){
+  var tok='';
+  try{
+    var q=new URLSearchParams(location.search),t=q.get('invite');
+    if(t!==null){
+      tok=String(t).replace(/[^A-Za-z0-9_-]/g,'').slice(0,64);
+      sessionStorage.setItem('wa_invite',tok);
+      q.delete('invite');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():''));
+    }else tok=sessionStorage.getItem('wa_invite')||'';
+  }catch(e){}
+  if(!tok)return;
+  function draw(){
+    if(!WAPI.enabled()){return;}
+    var ov=document.createElement('div');ov.id='waInvite';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:#F6F3FC;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;';
+    ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:440px;width:100%;padding:26px 22px;box-shadow:0 10px 40px rgba(60,40,120,.15);font-size:15px;line-height:1.8;">'
+      +'<div style="font-weight:800;font-size:20px;margin-bottom:6px;">未来WA へようこそ</div><div id="wiBody">確認しています…</div></div>';
+    document.body.appendChild(ov);
+    var body=document.getElementById('wiBody');
+    WAPI.call('POST','/parent/invite/info',{token:tok}).then(function(j){
+      body.innerHTML='<div style="margin-bottom:14px;"><b>'+esc(j.tenantName)+'</b> からのご招待です。<br>ログインに使うパスワードを決めてください。</div>'
+        +'<div style="font-size:13px;color:#6C6880;">ログインID（メールアドレス）</div><div style="font-weight:700;margin-bottom:12px;word-break:break-all;">'+esc(j.email)+'</div>'
+        +'<label style="display:block;font-size:13px;color:#6C6880;">パスワード（8文字以上）</label><input id="wiPw" type="password" autocomplete="new-password" style="width:100%;font-size:16px;padding:12px;border:1px solid #DDD6EE;border-radius:12px;margin:4px 0 10px;box-sizing:border-box;">'
+        +'<label style="display:block;font-size:13px;color:#6C6880;">もう一度（確認）</label><input id="wiPw2" type="password" autocomplete="new-password" style="width:100%;font-size:16px;padding:12px;border:1px solid #DDD6EE;border-radius:12px;margin:4px 0 6px;box-sizing:border-box;">'
+        +'<div id="wiMsg" style="color:#A32D2D;font-size:13px;min-height:20px;"></div>'
+        +'<button id="wiGo" style="width:100%;font-size:16px;font-weight:700;color:#fff;background:#5128C8;border:0;border-radius:14px;padding:14px;margin-top:6px;">このパスワードで始める</button>'
+        +'<div style="font-size:12.5px;color:#6C6880;margin-top:14px;">次からは、園コード <b>'+esc(j.tenantCode)+'</b>・このメールアドレス・いま決めたパスワードでログインします。</div>';
+      document.getElementById('wiGo').onclick=function(){
+        var a=document.getElementById('wiPw').value,b=document.getElementById('wiPw2').value,m=document.getElementById('wiMsg'),bt=this;
+        if(a.length<8){m.textContent='8文字以上にしてください';return;}
+        if(a!==b){m.textContent='2つのパスワードが一致しません';return;}
+        bt.disabled=true;bt.textContent='登録しています…';
+        WAPI.call('POST','/parent/invite/accept',{token:tok,password:a}).then(function(r){
+          try{sessionStorage.removeItem('wa_invite');}catch(e){}
+          WAPI.setTenant(r.tenantCode);
+          login(r.email,a,function(ok){
+            if(ok){ov.remove();try{render();}catch(e){location.reload();}}
+            else{ov.remove();location.reload();}
+          });
+        }).catch(function(e){m.textContent=e.message;bt.disabled=false;bt.textContent='このパスワードで始める';});
+      };
+    }).catch(function(e){
+      try{sessionStorage.removeItem('wa_invite');}catch(x){}
+      body.innerHTML='<div style="margin-bottom:14px;">'+esc(e.message)+'</div><button id="wiClose" style="width:100%;font-size:15px;font-weight:700;border:1px solid #DDD6EE;background:#fff;border-radius:14px;padding:12px;">ログインの画面へ</button>';
+      document.getElementById('wiClose').onclick=function(){ov.remove();};
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(draw,50);});else setTimeout(draw,50);
+})();
+
 /* 写真販売のチラシの二次元コードから来たとき。?photo=1（&key=0-0000-0000）
    （2026-09-25 安田さんのご依頼「写真販売ページに飛べる二次元コード」）。
    ログインのあとでも使えるよう、タブの中に覚えておき、URL からは消す。キーは入れておくだけで、登録は保護者が押す */

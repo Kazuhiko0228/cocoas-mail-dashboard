@@ -21311,7 +21311,10 @@ function waParentCard(){
   }
   c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
     +'<div class="muted" style="margin:-4px 0 12px;">読み込んでいます…</div>';
-  API.call('GET','/parents').then(function(j){ waParentDraw(j&&j.parents||[]); })
+  /* 招待メールの状態（2026-10-22）も一緒に読む。読めなくても一覧は出す */
+  /* サーバが招待メールに対応していないあいだ（読めないとき）は、「まとめて招待」を出さない */
+  Promise.all([API.call('GET','/parents'),API.call('GET','/parents/invites').catch(function(){return null;})])
+    .then(function(r){ WA_INV_OK=!!r[1]; WA_INV=(r[1]&&r[1].invites)||{}; waParentDraw(r[0]&&r[0].parents||[]); })
     .catch(function(e){
       c.innerHTML='<h3>'+ic('users')+'保護者アカウント新規発行</h3>'
         +'<div class="muted" style="font-size:12.5px;">読み込めませんでした：'+esc(e.message)+'</div>';
@@ -21322,6 +21325,7 @@ function waParentChild(ref){
   var c=(DB.contacts||[]).filter(function(x){return String(x.id)===String(ref);})[0];
   return c?(typeof childName==='function'?childName(c):(c.child||'')):'（園児が見つかりません）';
 }
+var WA_INV={},WA_INV_OK=false;
 function waParentDraw(list){
   var c=$('#waPaCard'); if(!c)return;
   var live=list.filter(function(x){return x.active;});
@@ -21346,10 +21350,17 @@ function waParentDraw(list){
       +'<div class="muted" style="font-size:11.8px;margin-top:2px;">'+esc(a.email)
       +'　／　'+(a.last_login_at?('最終ログイン '+String(a.last_login_at).slice(0,10))
                               :'<b style="color:#A8701A;">まだ一度も入っていません</b>')
-      +(a.must_change?'　／　初期パスワードのまま':'')+'</div></div>'
+      +(a.must_change?'　／　初期パスワードのまま':'')
+      /* 招待メールの状態（まだ入っていないご家庭だけ） */
+      +(function(){var iv=WA_INV[a.id];if(!iv||a.last_login_at||iv.used)return '';
+        if(iv.error)return '<div style="color:#A32D2D;font-size:11.8px;">招待メールを送れませんでした：'+esc(iv.error)+'</div>';
+        if(iv.expired)return '<div style="color:#A8701A;font-size:11.8px;">招待メールの期限（7日）が切れました。送り直してください</div>';
+        return '<div class="muted" style="font-size:11.8px;">招待メールを送りました（'+esc(String(iv.sentAt||'').slice(5,10).replace('-','/'))+'）。保護者がリンクからパスワードを決めるのを待っています</div>';})()
+      +'</div></div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
       +(a.active
-        ? '<button class="btn btn-sm" data-paguide="'+esc(a.id)+'">案内を出す</button>'
+        ? (!a.last_login_at&&WA_INV[a.id]&&!WA_INV[a.id].used?'<button class="btn btn-sm btn-primary" data-painv="'+esc(a.id)+'">招待を送り直す</button>':'')
+          +'<button class="btn btn-sm" data-paguide="'+esc(a.id)+'">案内を出す</button>'
           +'<button class="btn btn-sm btn-ghost" data-papw="'+esc(a.id)+'">パスワードを作り直す</button>'
           +'<button class="btn btn-sm btn-ghost" data-paoff="'+esc(a.id)+'">止める</button>'
         : '<span class="pill" style="background:#F1EFE8;color:#5F5E5A;font-size:10.5px;">止めています</span>'
@@ -21369,7 +21380,18 @@ function waParentDraw(list){
       : '<div class="muted" style="font-size:12.5px;padding:8px 0;">まだ1件もありません。</div>')
 
     +'<div style="border-top:1px solid var(--line);margin-top:13px;padding-top:13px;">'
-    +'<div style="font-weight:700;font-size:13px;margin-bottom:9px;">新しく発行する</div>'
+    /* ★2026-10-22 まとめて招待（メールのリンクから保護者がパスワードを決める）。園はパスワードを考えなくてよい */
+    +(yet.length&&WA_INV_OK?'<div style="font-weight:700;font-size:13px;margin-bottom:6px;">まとめて招待する（メール）</div>'
+      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:8px;">生徒情報のメールアドレスに、ご家庭ごとの招待メールを送ります。保護者はメールのリンクを開いて、<b>ご自身でパスワードを決めます</b>（7日間有効）。ログインIDはそのメールアドレスです。</div>'
+      +'<div style="display:grid;gap:4px;margin-bottom:8px;">'
+      +yet.map(function(x){var em=String(x.email||'').trim(),okm=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em);
+        return '<label style="display:flex;gap:8px;align-items:center;font-size:12.8px;'+(okm?'':'opacity:.6;')+'"><input type="checkbox" data-painvk="'+esc(x.id)+'"'+(okm?' checked':' disabled')+'>'
+          +'<span data-nolang style="min-width:120px;font-weight:600;">'+esc(typeof childName==='function'?childName(x):(x.child||''))+'</span>'
+          +(okm?'<span class="muted" data-nolang>'+esc(em)+'</span>':'<span style="color:#A8701A;">メールアドレスがありません（下の「紙で発行する」で）</span>')+'</label>';}).join('')
+      +'</div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
+      +'<button class="btn btn-primary btn-sm" id="paInvGo">'+ic('send')+'選んだご家庭に招待メールを送る</button><span class="muted" id="paInvMsg" style="font-size:12px;"></span></div>'
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:9px;padding-top:10px;border-top:1px dashed var(--line);">メールの無いご家庭は、紙で発行する</div>':'')
+    +'<div style="font-weight:700;font-size:13px;margin-bottom:9px;'+(yet.length&&WA_INV_OK?'display:none;':'')+'">新しく発行する</div>'
     +(yet.length
       ? '<div class="grid" style="grid-template-columns:1.2fr 1.4fr 1fr;gap:10px;">'
         +'<div class="field" style="margin:0;"><label>園児</label><select id="paKid">'
@@ -21386,6 +21408,18 @@ function waParentDraw(list){
       : '<div class="muted" style="font-size:12.5px;">在園のお子さま全員に、アカウントが行きわたっています。</div>')
     +'</div>';
 
+  /* 園児を選ぶと、生徒情報に入れた保護者のメールアドレスを入れる（2026-10-22 Remi さん「4で入れたメールを自動で」）。
+     園の方が手で書き換えた後は、同じ園児のあいだは上書きしない（園児を選び直したら入れ直す） */
+  if($('#paKid')){
+    var paFill=function(){
+      var k=$('#paKid').value, c=(DB.contacts||[]).filter(function(x){return String(x.id)===String(k);})[0], mi=$('#paMail');
+      if(!mi||mi.getAttribute('data-touched')==='1')return;
+      mi.value=(c&&c.email)||'';
+    };
+    $('#paKid').onchange=function(){var mi=$('#paMail');if(mi)mi.removeAttribute('data-touched');paFill();};
+    $('#paMail').oninput=function(){this.setAttribute('data-touched','1');};
+    paFill();
+  }
   if($('#paGo'))$('#paGo').onclick=function(){
     var kid=$('#paKid').value, mail=$('#paMail').value.trim(), pw=$('#paPw').value;
     if(!mail||!pw){ $('#paMsg').textContent='メールアドレスとパスワードを入れてください'; return; }
@@ -21403,6 +21437,23 @@ function waParentDraw(list){
       });
   };
   function byId(id){return list.filter(function(x){return String(x.id)===String(id);})[0]||null;}
+  if($('#paInvGo'))$('#paInvGo').onclick=function(){
+    var ids=[].map.call(c.querySelectorAll('[data-painvk]:checked'),function(x){return x.getAttribute('data-painvk');});
+    if(!ids.length){$('#paInvMsg').textContent='送るご家庭を選んでください';return;}
+    if(!confirm(ids.length+'人の園児のご家庭に、未来WA の招待メールを送ります（ごきょうだいは1通にまとまります）。よろしいですか？'))return;
+    var bt=this;bt.disabled=true;$('#paInvMsg').textContent='送っています…';
+    API.call('POST','/parents/invite',{childIds:ids}).then(function(j){
+      var sk=(j.skipped||[]).filter(function(x){return !/ごきょうだい/.test(x.why);});
+      alert(j.sent.length+'家庭に招待メールを送りました。'+(sk.length?'\n\n送れなかったもの：\n'+sk.map(function(x){return '・'+(x.child||x.childId)+'：'+x.why;}).join('\n'):''));
+      waParentCard();
+    }).catch(function(e){bt.disabled=false;$('#paInvMsg').textContent=e.message;});
+  };
+  c.querySelectorAll('[data-painv]').forEach(function(b){b.onclick=function(){
+    if(!confirm('招待メールを送り直します。前のメールのリンクは使えなくなります。よろしいですか？'))return;
+    b.disabled=true;
+    API.call('POST','/parents/'+b.getAttribute('data-painv')+'/invite',{}).then(function(){aiToast('招待メールを送り直しました');waParentCard();})
+      .catch(function(e){alert(e.message);b.disabled=false;});
+  };});
   c.querySelectorAll('[data-paguide]').forEach(function(b){b.onclick=function(){
     var a=byId(b.getAttribute('data-paguide'));if(!a)return;
     waGuideModal({cid:a.child_ref,email:a.email,pw:''});
