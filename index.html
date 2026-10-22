@@ -19013,6 +19013,7 @@ var EN_DICT={
 'ログインIDは半角の英数字（と _ . -）で入れてください':'Use letters, numbers, _ . - for the login ID',
 '役割を変えました':'Role changed',
 '初回ログインです。ご自身のパスワードに変更してください。':'This is your first login. Please change to your own password.',
+'はじめの準備にもどる':'Back to getting started',
 '写真つきの手順書を開く':'Open the illustrated setup guide (Japanese)',
 /* Stripe のメールの言語（2026-10-22） */
 '請求書・領収書のメールの言語':'Language of invoice and receipt emails',
@@ -41681,7 +41682,7 @@ function obHomeHTML(){
    園長が初めてログインしたら、園がやることを1つずつ案内する。運営管理の「オンボーディング」と同じ手順（サーバ src/onboard.js）を見ている。
    ・済んだかどうかはサーバが園の実データから決める（ここで「済」にはしない）
    ・ご利用料の払い方は、この案内の中でそのまま登録できる（renderSchoolPay を中に置く）
-   ・ほかの画面で行う手順は、案内を小さくして（左下の「オンボーディングにもどる」）その画面へ移る
+   ・ほかの画面で行う手順は、案内を小さくして（左下の「はじめの準備にもどる」）その画面へ移る
    ・「あとで」を押したら、このログインのあいだは自動では出さない（ホームの「はじめの準備」からいつでも開ける） */
 var OBW={el:null,step:-1,timer:null};
 var OBW_STEPS=[
@@ -41736,7 +41737,8 @@ function obwPill(){
   var old=document.getElementById('obwPill');if(old)old.remove();
   var L=obwSteps().filter(function(x){return x.k!=='welcome'&&x.k!=='done';}), n=L.filter(obwDone).length;
   var b=document.createElement('button');b.id='obwPill';b.className='obw-pill';
-  b.innerHTML='<span>オンボーディングにもどる</span> <b>'+n+' / '+L.length+'</b>';
+  /* ★「オンボーディング」は園の方に伝わらない（2026-10-22 安田さん）。ホームの札と同じ「はじめの準備」にそろえた */
+  b.innerHTML='<span>はじめの準備にもどる</span> <b>'+n+' / '+L.length+'</b>';
   b.onclick=function(){OB_AT=0;obwRefreshThenOpen();};
   document.body.appendChild(b);
   if(typeof langApply==='function')try{langApply(b);}catch(e){}
@@ -41780,8 +41782,8 @@ function obwDraw(){
     main=obwDone(x)?'<button class="btn btn-primary" data-obwnext="1">次へ →</button>':'<button class="btn btn-primary" data-obwgo="'+esc(x.go)+'">'+esc(x.btn)+' →</button>';
   }
   var stepNo=core.indexOf(x);
-  m.innerHTML='<div class="modal obw" role="dialog" aria-label="オンボーディング">'
-    +'<div class="obw-top"><b>オンボーディング</b><span class="muted" style="font-size:12px;">'+nDone+' / '+core.length+' 終わりました</span>'
+  m.innerHTML='<div class="modal obw" role="dialog" aria-label="はじめの準備">'
+    +'<div class="obw-top"><b>はじめの準備</b><span class="muted" style="font-size:12px;">'+nDone+' / '+core.length+' 終わりました</span>'
     +'<span class="obw-bar"><i style="width:'+Math.round(nDone/core.length*100)+'%;"></i></span>'
     +'<button class="obw-x" data-obwclose="1" aria-label="閉じる">あとで</button></div>'
     +'<div class="obw-dots">'+core.map(function(y,i){var cur=y===x;return '<button class="obw-dot'+(obwDone(y)?' on':'')+(cur?' cur':'')+'" data-obwto="'+L.indexOf(y)+'" title="'+esc(y.t)+'">'+(obwDone(y)?'✓':(i+1))+'</button>';}).join('')+'</div>'
