@@ -19014,6 +19014,23 @@ var EN_DICT={
 '役割を変えました':'Role changed',
 '初回ログインです。ご自身のパスワードに変更してください。':'This is your first login. Please change to your own password.',
 'はじめの準備にもどる':'Back to getting started',
+/* 利用料金の支払い方法・名簿の取り込み（2026-10-22） */
+'利用料金の支払い方法を選ぶ':'Choose how to pay the service fee',
+'利用料金の支払い方法':'How to pay the service fee',
+'Miralink の毎月の利用料金の支払い方法です。金額は在籍数で毎月変わるため、明細つきの請求書でお知らせします。':'How you pay the monthly Miralink fee. The amount changes with enrollment, so we send an itemized invoice.',
+'いまはまだご請求していません。支払い方法だけ先に登録できます。':'We are not billing yet. You can register a payment method now.',
+'支払い方法がまだ登録されていません。':'No payment method yet.',
+'Miralink の利用料金の支払い方法を、カードか請求書払いから選びます。ここでそのまま登録できます。':'Choose card or invoice for paying the Miralink fee. You can register right here.',
+'支払い方法を選ぶ':'Choose payment method',
+'① ひな形をダウンロードします':'1. Download the template',
+'ひな形（CSV）をダウンロード':'Download template (CSV)',
+'② Excel で開いて、1行に1人ずつ入れます。':'2. Open it in Excel and enter one child per row.',
+'③ 保存したファイルを選びます':'3. Choose the saved file',
+'CSVファイルを選ぶ':'Choose CSV file',
+'ファイルを使わずに、表をコピーして貼り付ける':'Paste a table instead of using a file',
+'見出しの行が、ひな形と違います。ひな形をダウンロードして、その見出しのまま入れてください。':'The header row differs from the template. Download the template and keep its headers.',
+'性別は「男の子」か「女の子」で入れてください':'Enter sex as 男の子 (boy) or 女の子 (girl)',
+
 '写真つきの手順書を開く':'Open the illustrated setup guide (Japanese)',
 /* Stripe のメールの言語（2026-10-22） */
 '請求書・領収書のメールの言語':'Language of invoice and receipt emails',
@@ -22683,15 +22700,46 @@ function renderContacts(){
    この端末の中にだけ保存される。サーバにつないでいる場合は、
    ふだんの保存と同じ流れでサーバへ送られる。 */
 
+/* ★2026-10-22 名簿の列を「連絡先を追加」の欄と同じ並び・同じ名前にそろえた（Remi さんのご指摘：
+     取り込みの例と、実際に入れる園児の情報が一致していなかった）。
+   ひな形（CSV）を配り、見出しはひな形のとおりでないと受けない（違う列を当て推量で読まない）。
+   alt は前のひな形の名前（お子様名・生年月日）を読めるようにするためだけに残す */
 var ROSTER_COLS=[
-  {k:'name',   l:'保護者名',   need:true,  alt:['保護者','保護者氏名','氏名','親']},
-  {k:'child',  l:'お子様名',   need:true,  alt:['園児名','児童名','お子さま','子ども']},
-  {k:'klass',  l:'クラス',     need:false, alt:['組']},
-  {k:'dob',    l:'生年月日',   need:false, alt:['誕生日','生年月日(西暦)']},
-  {k:'email',  l:'メールアドレス', need:true, alt:['メール','Email','E-mail','mail']},
-  {k:'phone',  l:'電話番号',   need:false, alt:['電話','TEL','tel','携帯']},
-  {k:'days',   l:'通園曜日',   need:false, alt:['曜日','登園曜日']}
+  {k:'name',     l:'保護者名',           need:true, alt:['保護者','保護者氏名']},
+  {k:'kana',     l:'保護者名のふりがな', alt:[]},
+  {k:'child',    l:'お子様のお名前',     need:true, alt:['お子様名','園児名']},
+  {k:'childKana',l:'お子様のふりがな',   alt:[]},
+  {k:'dob',      l:'お子様の生年月日',   alt:['生年月日']},
+  {k:'sex',      l:'性別',               alt:[]},
+  {k:'email',    l:'メールアドレス',     need:true, alt:['メール']},
+  {k:'phone',    l:'電話番号',           alt:['電話']},
+  {k:'klass',    l:'クラス',             alt:[]},
+  {k:'adm',      l:'入園日',             alt:[]},
+  {k:'days',     l:'通園曜日',           alt:['曜日']}
 ];
+/* ひな形（CSV）。Excel で開けるよう、先頭に BOM を付ける。2行目は例（「（例）」で始まる行は読み飛ばす） */
+function rosterTemplateCsv(){
+  var ex=['（例）高橋 健','たかはし けん','高橋 心春','たかはし こはる','2022-06-18','女の子','takahashi@example.com','090-0000-0000',(CLASSES[0]||''),'2026-04-01','月・火・水・木・金'];
+  var q=function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  return '\ufeff'+ROSTER_COLS.map(function(c){return q(c.l);}).join(',')+'\r\n'+ex.map(q).join(',')+'\r\n';
+}
+function rosterTemplateDownload(){
+  var b=new Blob([rosterTemplateCsv()],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='園児名簿_ひな形.csv';
+  document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
+}
+/* CSV を文字に。Excel の「CSV UTF-8」は UTF-8、古い Excel の「CSV」は Shift_JIS なので、読めなければ Shift_JIS で読み直す */
+function rosterReadFile(file,done){
+  var fr=new FileReader();
+  fr.onload=function(){
+    var buf=fr.result,t='';
+    try{t=new TextDecoder('utf-8',{fatal:true}).decode(buf);}
+    catch(e){try{t=new TextDecoder('shift_jis').decode(buf);}catch(e2){t='';}}
+    done(String(t).replace(/^\ufeff/,''));
+  };
+  fr.onerror=function(){done(null);};
+  fr.readAsArrayBuffer(file);
+}
 
 function rosterSplit(line){
   /* タブ区切り（Excelからの貼り付け）と、カンマ区切りの両方を受ける。
@@ -22708,17 +22756,30 @@ function rosterSplit(line){
   return out;
 }
 
-/** 1行目が見出しなら、その並びに合わせる。無ければ決まった並びとみなす。 */
+/** 1行目の見出しを、ひな形の列に当てる。ひな形に無い列・足りない必須の列は控えて返す */
 function rosterHeader(cells){
-  var map={}, hit=0;
+  var map={}, hit=0, unknown=[];
   cells.forEach(function(c,i){
-    var t=String(c).replace(/\s/g,'');
+    var t=String(c).replace(/\s/g,'').replace(/[＊*]/g,'');
+    if(!t)return;
+    var got=false;
     ROSTER_COLS.forEach(function(col){
-      if(map[col.k]!=null)return;
-      if(t===col.l.replace(/\s/g,'')||col.alt.indexOf(t)>-1){ map[col.k]=i; hit++; }
+      if(got||map[col.k]!=null)return;
+      if(t===col.l.replace(/\s/g,'')||col.alt.indexOf(t)>-1){ map[col.k]=i; hit++; got=true; }
     });
+    if(!got)unknown.push(String(c).trim());
   });
-  return hit>=2 ? map : null;
+  if(hit<2)return null;
+  map._unknown=unknown;
+  map._missing=ROSTER_COLS.filter(function(c){return c.need&&map[c.k]==null;}).map(function(c){return c.l;});
+  return map;
+}
+function rosterNormSex(v){
+  var t=String(v||'').replace(/\s/g,'');
+  if(!t)return '';
+  if(/^(男|男の子|男子|M|m)$/.test(t))return '男の子';
+  if(/^(女|女の子|女子|F|f)$/.test(t))return '女の子';
+  return null;
 }
 
 function rosterNormDate(v){
@@ -22757,6 +22818,8 @@ function rosterParse(text){
      貼ったときに、3列目のメールが「クラス」として読まれ、1件も入らない。
      違う列に読ませず、見出しを入れてもらう。 */
   if(!hadH)return {ok:[],ng:[],dup:[],hadHeader:false,noHeader:true};
+  /* ひな形に無い列がある・必須の列が無いときは、1行も入れない（ずれた列に誤って入るのを防ぐ） */
+  if(map._unknown.length||map._missing.length)return {ok:[],ng:[],dup:[],hadHeader:true,badHeader:{unknown:map._unknown,missing:map._missing}};
   var body=lines.slice(1);
 
   var ok=[],ng=[],dup=[];
@@ -22773,10 +22836,11 @@ function rosterParse(text){
     var no=(hadH?i+2:i+1);
     var cell=rosterSplit(ln);
     var get=function(k){ var idx=map[k]; return (idx==null||cell[idx]==null)?'':String(cell[idx]).trim(); };
-    var row={name:get('name'),child:get('child'),klass:get('klass'),
-             dob:get('dob'),email:get('email'),phone:get('phone'),days:get('days')};
+    var row={name:get('name'),kana:get('kana'),child:get('child'),childKana:get('childKana'),klass:get('klass'),
+             dob:get('dob'),sex:get('sex'),email:get('email'),phone:get('phone'),adm:get('adm'),days:get('days')};
 
     if(!row.name&&!row.child&&!row.email)return;          /* 空行 */
+    if(/^[（(]例[)）]/.test(row.name))return;               /* ひな形の例の行 */
 
     var bad=[];
     if(!row.name) bad.push('保護者名がありません');
@@ -22788,6 +22852,16 @@ function rosterParse(text){
       var d=rosterNormDate(row.dob);
       if(d===null)bad.push('生年月日を読み取れません（2022-06-18 の形でお願いします）');
       else row.dob=d;
+    }
+    if(row.adm){
+      var ad=rosterNormDate(row.adm);
+      if(ad===null)bad.push('入園日を読み取れません（2026-04-01 の形でお願いします）');
+      else row.adm=ad;
+    }
+    if(row.sex){
+      var sx=rosterNormSex(row.sex);
+      if(sx===null)bad.push('性別は「男の子」か「女の子」で入れてください');
+      else row.sex=sx;
     }
     if(row.klass&&CLASSES.indexOf(row.klass)<0)
       bad.push('「'+row.klass+'」というクラスがありません（'+CLASSES.join('・')+'）');
@@ -22812,20 +22886,24 @@ function rosterImportModal(){
   var cols=ROSTER_COLS.map(function(c){
     return c.l+(c.need?'<span style="color:#A32D2D;">＊</span>':'');}).join('　／　');
 
+  /* ★2026-10-22 作り直し。前は「Excel から貼り付け」だけで、列の並びを園ごとに考えてもらっていた。
+     ひな形（CSV）を配り、①ひな形を開く ②1行に1人ずつ入れて CSV で保存 ③そのファイルを選ぶ、の3つにした */
+  /* 列の名前は、折り返して全部見えるように並べる（横に動かさないと見えない形にしない） */
+  var colTbl='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px;">'
+    +ROSTER_COLS.map(function(c,i){return '<span style="font-size:12px;background:#F3EEFC;border-radius:8px;padding:2px 9px;white-space:nowrap;">'+(i+1)+'. '+esc(c.l)+(c.need?'<span style="color:#A32D2D;">＊</span>':'')+'</span>';}).join('')
+    +'</div>';
   m.innerHTML='<div class="modal" style="max-width:900px;">'
     +'<h2>'+ic('folder')+'園児名簿を取り込む</h2>'
-    +'<div class="muted" style="font-size:12.5px;line-height:1.95;margin-bottom:12px;">'
-    +'Excel や Google スプレッドシートから、そのまま貼り付けてください。'
-    +'1行が1名です。<br>列の並び：'+cols+'<br>'
-    +'<b>＊は必ず必要です。1行目には見出しを入れてください。</b>並びが違っていても、見出しに合わせて読みます。'
-    +' <button type="button" class="btn btn-sm btn-ghost" id="riMoreTog" style="padding:1px 8px;font-size:11.5px;">くわしく</button>'
-    +'<span id="riMore" style="display:none;"><br>'
-    +'メールアドレスは、あとで保護者アカウントを発行するときに使います。'
-    +'ごきょうだいは、同じメールアドレスで取り込めます。保護者アプリ（未来WA）では、上のほうに「お子さま」の切り替えが出て、どちらのお子様も見られます。'
-    +'</span></div>'
-    +'<textarea id="riIn" style="width:100%;height:180px;font-family:monospace;font-size:12.5px;" '
-    +'placeholder="保護者名\tお子様名\tクラス\t生年月日\tメールアドレス\t電話番号\t通園曜日&#10;'
-    +'高橋 健\t心春\tPre\t2022-06-18\ttakahashi@example.com\t090-0000-0000\t月・火・水"></textarea>'
+    /* ★列の表が横に長く、枠からはみ出して文がはみ出していた。1列の幅を枠に合わせ、表だけ横に動かせるようにする */
+    +'<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:12px;font-size:13px;line-height:1.8;">'
+    +'<div><b>① ひな形をダウンロードします</b>　<button type="button" class="btn btn-sm" id="riTpl">'+ic('download')+'ひな形（CSV）をダウンロード</button></div>'
+    +'<div><b>② Excel で開いて、1行に1人ずつ入れます。</b>列は「園児を追加」の欄と同じ並びです（＊は必ず入れる）。見出しの行は変えないでください。2行目の「（例）」の行は、消さなくても読み飛ばします。'+colTbl
+    +'<span class="muted" style="font-size:12px;">保存するときは「CSV UTF-8（コンマ区切り）」を選んでください。ごきょうだいは、同じメールアドレスで1行ずつ入れます。</span></div>'
+    +'<div><b>③ 保存したファイルを選びます</b>　<label class="btn btn-sm btn-primary" style="cursor:pointer;">'+ic('folder')+'CSVファイルを選ぶ<input type="file" id="riFile" accept=".csv,text/csv" style="display:none;"></label> <span class="muted" id="riFileName" style="font-size:12px;"></span></div>'
+    +'</div>'
+    +'<details id="riPasteBox" style="margin-bottom:6px;"><summary class="muted" style="font-size:12.5px;cursor:pointer;">ファイルを使わずに、表をコピーして貼り付ける</summary>'
+    +'<textarea id="riIn" style="width:100%;height:150px;font-family:monospace;font-size:12.5px;margin-top:8px;" '
+    +'placeholder="ひな形の見出しの行ごとコピーして、ここに貼り付けます"></textarea></details>'
     +'<div id="riResult" style="margin-top:12px;"></div>'
     +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">'
     +'<button class="btn" id="riCancel">閉じる</button>'
@@ -22845,6 +22923,16 @@ function rosterImportModal(){
   };
 
   $('#riCancel').onclick=function(){m.remove();};
+  $('#riTpl').onclick=function(){rosterTemplateDownload();};
+  $('#riFile').onchange=function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    $('#riFileName').textContent=f.name+' を読んでいます…';
+    rosterReadFile(f,function(t){
+      if(t==null){$('#riFileName').textContent='ファイルを読めませんでした';return;}
+      $('#riIn').value=t;$('#riFileName').textContent=f.name;
+      $('#riCheck').click();
+    });
+  };
 
   $('#riCheck').onclick=function(){
     parsed=rosterParse($('#riIn').value);
@@ -22854,6 +22942,16 @@ function rosterImportModal(){
       r.innerHTML='<div style="background:#FCEBEB;border-left:3px solid #A32D2D;color:#A32D2D;'
         +'padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.8;">'
         +'見出し行が見つかりません。1行目に「保護者名,お子様名,メール」のような見出しを入れてください。</div>';
+      $('#riGo').style.display='none';
+      return;
+    }
+    if(parsed.badHeader){
+      var bh=parsed.badHeader;
+      r.innerHTML='<div style="background:#FCEBEB;border-left:3px solid #A32D2D;color:#A32D2D;'
+        +'padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.8;">'
+        +'見出しの行が、ひな形と違います。ひな形をダウンロードして、その見出しのまま入れてください。'
+        +(bh.unknown.length?'<br>ひな形に無い列：'+bh.unknown.map(esc).join('、'):'')
+        +(bh.missing.length?'<br>足りない列：'+bh.missing.map(esc).join('、'):'')+'</div>';
       $('#riGo').style.display='none';
       return;
     }
@@ -22924,11 +23022,13 @@ function rosterImportModal(){
     parsed.ok.forEach(function(x,i){
       var r=x.row;
       arr.push({id:base+i, kind:'enrolled',
-        name:r.name, child:r.child, klass:r.klass||CLASSES[0],
+        name:r.name, kana:r.kana||'', child:r.child, childKana:r.childKana||'', klass:r.klass||CLASSES[0],
         dob:r.dob||'', email:r.email, phone:r.phone||'', days:r.days||'',
-        note:'', feeAmount:0, withdrawDay:27, admissionDate:todayISO()});
+        note:'', feeAmount:0, withdrawDay:27, admissionDate:r.adm||todayISO()});
     });
     DB.contacts=arr;
+    /* 性別は生徒台帳に入れる（「園児を追加」と同じ置き場） */
+    try{parsed.ok.forEach(function(x,i){if(x.row.sex&&typeof spGet==='function'&&typeof spSet==='function'){var sp=spGet(base+i)||{};sp.sex=x.row.sex;spSet(base+i,sp);}});}catch(e){}
     m.remove();
     /* ★生徒一覧から取り込んだのに連絡先の画面を描き直していて、一覧に増えた園児が出なかった（2026-10-22） */
     if(document.querySelector('section[data-page="roster"]:not([hidden])')&&typeof renderRoster==='function')renderRoster();else renderContacts();
@@ -41576,13 +41676,13 @@ function renderSchoolPay(s){
   s.appendChild(box);
   var draw=function(){
     var j=SPAY||{};
-    var h='<h3>'+ic('card')+'Miralink のご利用料のお支払い</h3>'
-      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:10px;">Miralink の毎月のご利用料の払い方です。金額は在籍数で毎月変わるため、明細つきの請求書でお知らせします。</div>';
-    if(!j.charging)h+='<div class="note-b" style="margin-bottom:10px;font-size:12.5px;">いまはまだご請求していません。払い方だけ先に登録できます。</div>';
+    var h='<h3>'+ic('card')+'利用料金の支払い方法</h3>'
+      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:10px;">Miralink の毎月の利用料金の支払い方法です。金額は在籍数で毎月変わるため、明細つきの請求書でお知らせします。</div>';
+    if(!j.charging)h+='<div class="note-b" style="margin-bottom:10px;font-size:12.5px;">いまはまだご請求していません。支払い方法だけ先に登録できます。</div>';
     /* 英語に切り替えても訳が当たるよう、値（カードの末尾・メール）と文を別の要素に分ける */
     if(j.method==='card'&&j.card)h+='<div style="font-size:13.5px;margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;"><b>カード払い</b><span data-nolang="1">'+esc(String(j.card.brand||'').toUpperCase())+' •••• '+esc(j.card.last4)+'</span><span>毎月、自動でお支払いします。</span></div>';
     else if(j.method==='invoice')h+='<div style="font-size:13.5px;margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;"><b>請求書払い</b><span data-nolang="1">'+esc(j.email)+'</span><span>毎月、請求書をメールでお送りします。銀行振込かカードでお支払いください（支払期限は送った日から14日）。</span></div>';
-    else h+='<div style="font-size:13.5px;margin-bottom:8px;"><b>払い方がまだ登録されていません。</b>カードか請求書払いを選んでください。</div>';
+    else h+='<div style="font-size:13.5px;margin-bottom:8px;"><b>支払い方法がまだ登録されていません。</b>カードか請求書払いを選んでください。</div>';
     h+='<div class="field" style="max-width:420px;"><label>請求書・領収書を受け取るメールアドレス</label><input id="spayMail" type="email" value="'+esc(j.email||'')+'" placeholder="keiri@example.jp"></div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
       +(j.ready?'<button class="btn '+(j.method==='card'?'':'btn-primary ')+'btn-sm" id="spayCard1">'+(j.method==='card'?'カードを変える':'カードを登録する')+'</button>':'')
@@ -41619,14 +41719,14 @@ function renderSchoolPay(s){
     };
     if(typeof langApply==='function')try{langApply(box);}catch(e){}
   };
-  box.innerHTML='<h3>'+ic('card')+'Miralink のご利用料のお支払い</h3><div class="muted" style="font-size:12px;">読み込んでいます…</div>';
+  box.innerHTML='<h3>'+ic('card')+'利用料金の支払い方法</h3><div class="muted" style="font-size:12px;">読み込んでいます…</div>';
   var back=BJ_BACK;BJ_BACK=null;
   var load=(back&&back.st==='ok'&&back.sid)
     ?API.call('POST','/school-billing/card/confirm',{sid:back.sid}).then(function(r){aiToast('カードを登録しました');return r;},function(e){alert(e.message);return API.call('GET','/school-billing');})
     :API.call('GET','/school-billing');
   if(back&&back.st==='cancel')aiToast('カードの登録をやめました');
   load.then(function(j){SPAY=j;draw();if(back)setTimeout(function(){box.scrollIntoView({block:'center'});},300);})
-    .catch(function(e){box.innerHTML='<h3>'+ic('card')+'Miralink のご利用料のお支払い</h3><div class="muted" style="font-size:12px;">'+esc((e&&e.message)||'読み込めませんでした')+'</div>';});
+    .catch(function(e){box.innerHTML='<h3>'+ic('card')+'利用料金の支払い方法</h3><div class="muted" style="font-size:12px;">'+esc((e&&e.message)||'読み込めませんでした')+'</div>';});
 }
 /* ══ はじめの準備（2026-10-08 オンボーディングの整理）══════════════
    運営の導入パイプラインのうち「園がやる手順」を、園の管理者のホームに出す。
@@ -41634,6 +41734,9 @@ function renderSchoolPay(s){
      運営が電話で1つずつ伝えるしかなかった。済は園の実データから自動で付く（ここで押して済にはしない）。
    全部済んだら出さない。導入の手順を持たない園（この仕組みより前からいる園）にも出さない */
 var OB_ME=null,OB_AT=0;
+/* 手順の名前はサーバが持つ。園の画面での言い方を先に変えたいものだけ、ここで言いかえる */
+var OB_LABEL={school_pay:'利用料金の支払い方法を選ぶ'};
+function obLabel(x){return (x&&OB_LABEL[x.key])||(x&&x.label)||'';}
 /* 行き先が未来WA の画面なら、開く前にタブを選んでおく（「wastore#保護者アカウント新規発行」） */
 function obPrep(v){if(v[0]==='wastore'&&v[1]&&typeof WA_TABS!=='undefined')WA_TABS.forEach(function(t){if(t[1]===v[1])WA_VIEW=t[0];});}
 /* はじめの準備（2026-10-09 作り直し＝改善案7）。
@@ -41644,7 +41747,8 @@ var OB_GO={
   kids:['contacts','園児を登録する','「生徒情報」に在園の園児を1人入れると、自動で終わりになります。'],
   /* ★2026-10-22 生徒情報には保護者を招待する口が無い。未来WA の「保護者アカウント新規発行」へ連れていく */
   parents:['wastore#保護者アカウント新規発行','保護者を招待する','保護者のアカウントを1件作ると、自動で終わりになります。'],
-  school_pay:['settings#ご利用料のお支払い','払い方を選ぶ','設定の「Miralink のご利用料のお支払い」で、カードか請求書払いを選びます。'],
+  /* ★2026-10-22 言い方を「利用料金の支払い方法」にそろえた（Remi さんのご指摘） */
+  school_pay:['settings#利用料金の支払い方法','支払い方法を選ぶ','設定の「利用料金の支払い方法」で、カードか請求書払いを選びます。'],
   staff:['settings','職員を登録する','園長のほかに職員のログインを作ります。園長ひとりの園は要りません。'],
   tuition:['billing','Stripe に登録する','保育料をカードで受け取る園だけ。Stripe の登録が「有効」になると終わりです。'],
   first_login:[null,'','園の誰かがログインすると終わりになります。'],
@@ -41667,12 +41771,12 @@ function obHomeHTML(){
   return '<div class="card obh" style="margin-bottom:12px;padding:16px 18px;">'
     +'<div class="obhHead"><b style="font-size:15px;">はじめの準備</b><button class="btn btn-sm" data-obwopen="1" style="order:9;margin-left:auto;">案内に沿って進める →</button><span class="obhN">'+n+' / '+L.length+' 終わりました</span>'
     +'<span class="obhBar"><i style="width:'+pct+'%;"></i></span></div>'
-    +'<div class="obhNext"><div style="flex:1;min-width:200px;"><div class="obhNextL">つぎは これ</div><div class="obhNextT">'+esc(nx.label)+'</div>'
+    +'<div class="obhNext"><div style="flex:1;min-width:200px;"><div class="obhNextL">つぎは これ</div><div class="obhNextT">'+esc(obLabel(nx))+'</div>'
     +'<div class="muted" style="font-size:12px;">'+esc(g0[2]||nx.help||'')+'</div></div>'
     +(g0[0]?'<button class="btn btn-primary" data-obgo="'+g0[0]+'"><span>'+esc(g0[1])+'</span> →</button>':'')+'</div>'
     +L.map(function(x){var ok=fin(x), g=OB_GO[x.key]||[];
       return '<div class="obhRow'+(ok?' fin':'')+'"><span class="obhMark'+(ok?' on':'')+'">'+(ok?'✓':'')+'</span>'
-        +'<span style="flex:1;min-width:160px;"><span class="obhLbl">'+esc(x.label)+'</span>'+(x.required?'':' <span class="muted" style="font-size:11px;">任意</span>')
+        +'<span style="flex:1;min-width:160px;"><span class="obhLbl">'+esc(obLabel(x))+'</span>'+(x.required?'':' <span class="muted" style="font-size:11px;">任意</span>')
         +(ok?'':'<div class="muted" style="font-size:11.5px;">'+esc(g[2]||x.help||'')+'</div>')+'</span>'
         +(!ok&&g[0]?'<button class="btn btn-sm" data-obgo="'+g[0]+'"><span>'+esc(g[1])+'</span> →</button>':'')+'</div>';
     }).join('')
@@ -41689,7 +41793,7 @@ var OBW_STEPS=[
   {k:'welcome',t:'ようこそ'},
   {k:'agree',t:'契約書に同意する'},
   /* ★2026-10-11 並べ替え：お支払いの登録は契約の同意のすぐあと（課金開始はここまでで始められる） */
-  {k:'school_pay',t:'ご利用料の払い方を選ぶ',d:'Miralink のご利用料の払い方を、カードか請求書払いから選びます。ここでそのまま登録できます。'},
+  {k:'school_pay',t:'利用料金の支払い方法を選ぶ',d:'Miralink の利用料金の支払い方法を、カードか請求書払いから選びます。ここでそのまま登録できます。'},
   {k:'kids',t:'園児を登録する',go:'contacts',btn:'生徒情報で登録する',d:'「生徒情報」で園児を入れます。名簿の取り込みもできます。在園の園児が1人入ると、この手順は終わりです。'},
   {k:'parents',t:'保護者を未来WAに招待する',go:'wastore#保護者アカウント新規発行',btn:'保護者を招待する',d:'保護者のアカウントを作り、案内の紙をお渡しします。1件作ると、この手順は終わりです。'},
   {k:'staff',t:'職員を登録する',go:'settings#職員アカウント',btn:'職員アカウントを作る',d:'園長のほかに先生のログインを作ります。園長おひとりの園は飛ばしてかまいません。',opt:1},
