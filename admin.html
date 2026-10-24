@@ -1561,7 +1561,7 @@ function wizBody(k){
     if(!u)return '<div class="note">管理者のアカウントがありません。<button class="btn sec sm" data-t="'+esc(openId)+'">園の詳細 › アカウント で作る</button></div>';
     return '<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
       +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
-      +'<div class="apCR"><span>園コード</span><b class="big">'+esc(d.tenant.code)+'</b></div>'
+      /* ★園コードはログインに要らなくなった（2026-10-24）。園にお伝えするのは URL・ID・パスワードの3つ */
       +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(u.login_id)+'</b></div>'
       +'<div class="apCR"><span>初期パスワード</span>'+(u.has_initial_pw?'<b class="big num" id="ipw'+esc(u.id)+'">●●●●●●●●●●●●</b><button class="btn sec sm" data-ipw="'+esc(u.id)+'">表示</button>'
         :'<b style="font-size:13px;font-weight:600;">管理者が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
@@ -2350,17 +2350,16 @@ function apFormHTML(px,name,who,btn,goId){
 /* 園長にお伝えする内容（改善案2）。まとめてコピーは、そのままメールや LINE に貼れる文にする */
 function apLoginUrl(){return location.origin+location.pathname.replace(/[^/]*$/,'');}
 function apCredText(code,login,pw){
-  return 'Miralink のログイン情報\nURL：'+apLoginUrl()+'\n園コード：'+code+'\nログインID：'+login+'\n初期パスワード：'+pw
+  return 'Miralink のログイン情報\nURL：'+apLoginUrl()+'\nログインID：'+login+'\n初期パスワード：'+pw
     +'\n※最初のログインで、パスワードの変更をお願いします。';
 }
 function apCredHTML(code,login,pw,tid,title){
   return '<div class="card"><div class="apDoneH"><span class="apOk">✓</span><h3 style="margin:0;">'+esc(title)+'</h3></div>'
     +'<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
     +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
-    +'<div class="apCR"><span>園コード</span><b class="big">'+esc(code)+'</b></div>'
     +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(login)+'</b></div>'
     +'<div class="apCR"><span>初期パスワード</span><b class="big num" id="apPw" data-pw="'+esc(pw)+'">●●●●●●●●●●●●</b><button class="btn sec sm" id="apPwShow">表示</button></div></div>'
-    +'<div class="row" style="margin-top:12px;"><button class="btn" id="apCopyAll" data-txt="'+esc(apCredText(code,login,pw))+'">4つまとめてコピー</button>'
+    +'<div class="row" style="margin-top:12px;"><button class="btn" id="apCopyAll" data-txt="'+esc(apCredText(code,login,pw))+'">3つまとめてコピー</button>'
     +'<span class="hint">管理者が最初のログインでパスワードを変えるまで、<b>園の詳細 › アカウント</b>でいつでも見られます</span></div>'
     +'<div class="apNext"><span>次は、園の詳細で<b>プランと金額を決めます</b>。</span><button class="btn sec" data-t="'+esc(tid)+'">導入の進み具合を開く →</button></div></div>';
 }
@@ -3332,7 +3331,7 @@ function wire(){
   };
   if($('apCopyAll'))$('apCopyAll').onclick=function(){
     var b=this, t=b.getAttribute('data-txt');
-    function ok(){b.textContent='コピーしました';setTimeout(function(){b.textContent='4つまとめてコピー';},1800);}
+    function ok(){b.textContent='コピーしました';setTimeout(function(){b.textContent='3つまとめてコピー';},1800);}
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,function(){prompt('この文をコピーしてください',t);});
     else prompt('この文をコピーしてください',t);
   };
@@ -3414,8 +3413,8 @@ function wire(){
     if(why===null)return;why=String(why).trim();if(why.length<2){alert('理由を書いてください。');return;}
     API.call('POST','/admin/tenants/'+openId+'/users/'+uid+'/password',{password:pw,reason:why})
       .then(function(j){
-        alert('作り直しました。\n\n園コード： '+j.tenantCode+'\nログインID： '+j.user.loginId
-          +'\n新しいパスワード： '+pw+'\n\nこの3つを園の方へお伝えください。\n初回ログインで変更を求めます。');
+        alert('作り直しました。\n\nログインID： '+j.user.loginId
+          +'\n新しいパスワード： '+pw+'\n\nこの2つを園の方へお伝えください。\n初回ログインで変更を求めます。');
         render();
       })
       .catch(function(e){alert(e.message);});
@@ -3432,8 +3431,8 @@ function wire(){
       .then(function(j){
         /* パスワードは返ってこないので、いま入れた値をその場で見せる。
            画面を作り直すと消えるため、先に控えていただく。 */
-        alert('作成しました。\n\n園コード： '+j.tenantCode+'\nログインID： '+j.user.login_id
-          +'\n初期パスワード： '+pw+'\n\nこの3つを園の方へお伝えください。\n初回ログインでパスワードの変更を求めます。');
+        alert('作成しました。\n\nログインID： '+j.user.login_id
+          +'\n初期パスワード： '+pw+'\n\nこの2つを園の方へお伝えください。\n初回ログインでパスワードの変更を求めます。');
         render();
       })
       .catch(function(e){say('ua_m',e.message);});
