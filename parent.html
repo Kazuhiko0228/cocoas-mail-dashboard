@@ -2021,7 +2021,7 @@ function loginHTML(){
     +'<div class="brand"><div class="logo"><img src="'+WA_LOGO+'" alt="未来WA 〜保育をもっと自由に〜"></div>'+(waSchoolSet()?'<div class="sub" style="margin-top:8px;">'+esc(waSchoolSet())+'</div>':'')+'</div>'
     +'<div class="err" id="loginErr"></div>'
     /* 園コードが分からないとき（住所を打って来た・案内の二次元コードを使っていない）は、ここで聞く */
-    +(WAPI.enabled()&&!WAPI.tenant()?'<div class="field"><label>園コード</label><input id="li_tenant" placeholder="園からの案内に書いてあります" autocapitalize="none" autocorrect="off" spellcheck="false"></div>':'')
+    /* ★園コードの欄はなくした（2026-10-24 安田さん）。メールアドレスとパスワードだけで入れる */
     +'<div class="field"><label>メールアドレス</label><input id="li_email" type="email" placeholder="you@example.com" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<div class="field"><label>パスワード</label><input id="li_pw" type="password" placeholder="パスワード" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
     +'<button class="btn" id="li_go">ログイン</button>'
@@ -2069,8 +2069,7 @@ function wireAuth(){
   if(authView==='login'){
     $('li_go').onclick=function(){
       var b=$('li_go'),e=$('loginErr');
-      var tc=$('li_tenant');
-      if(tc){var tv=String(tc.value||'').trim();if(!tv){e.textContent='園コードを入れてください（園からの案内に書いてあります）。';e.style.display='block';return;}WAPI.setTenant(tv);}
+      var tc=null;
       e.style.display='none';b.disabled=true;b.textContent='確認中…';
       login($('li_email').value.toLowerCase(),$('li_pw').value,function(ok){
         b.disabled=false;b.textContent='ログイン';
@@ -9066,12 +9065,16 @@ function waLineWire(){
 })();
 
 /* サーバに向けたログイン。つながっていなければ、これまでの動きに戻す。 */
-function waServerLogin(email,pw,cb){
+function waServerLogin(email,pw,cb,pickTenantId){
   cb=cb||function(){};
   if(!WAPI.enabled()){cb(false,'接続先が設定されていません');return;}
-  WAPI.call('POST','/parent/login',{tenant:WAPI.tenant(),email:String(email||'').trim().toLowerCase(),password:pw})
+  /* ★園コードは送らない（2026-10-24）。メールとパスワードで、サーバが園を見つける。
+     2つ以上の園で合ったときだけ、園を選んでもらう（choose_school） */
+  var body={email:String(email||'').trim().toLowerCase(),password:pw};if(pickTenantId)body.tenantId=pickTenantId;
+  WAPI.call('POST','/parent/login',body)
     .then(function(j){
       WAPI.setToken(j.token);
+      try{if(j.tenant&&j.tenant.code)WAPI.setTenant(j.tenant.code);}catch(e){}
       /* 同じご家庭がもう一度ログインしたとき（画面ロックの解除など）は、
          登園・降園の控えだけを取っておき、読み込んだあとで足し合わせる。
          ★以前は下の一掃で一緒に消していた。電波の無いところで押してしまい、
@@ -9129,7 +9132,21 @@ function waServerLogin(email,pw,cb){
         return WDL.load().then(function(){return WLINE.load();}).then(function(){return WPAY.status();});
       }).then(function(){cb(true);WPAY.resume();});
     })
-    .catch(function(e){cb(false,e.message);});
+    .catch(function(e){
+      if(e.code==='choose_school'&&e.body&&e.body.schools){waPickSchool(e.body.schools,function(id){if(id)waServerLogin(email,pw,cb,id);else cb(false,'');});return;}
+      cb(false,e.message);});
+}
+/* 同じメールとパスワードが2つ以上の園で合ったとき、どの園に入るかを選んでもらう */
+function waPickSchool(list,done){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(30,20,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML='<div style="background:#fff;border-radius:18px;max-width:380px;width:100%;padding:22px 20px;font-size:15px;line-height:1.7;">'
+    +'<div style="font-weight:800;font-size:17px;margin-bottom:8px;">どの園に入りますか？</div>'
+    +'<div style="font-size:13px;color:#6C6880;margin-bottom:12px;">このメールアドレスとパスワードは、2つ以上の園で使われています。</div>'
+    +list.map(function(x){return '<button data-wpick="'+esc(x.id)+'" style="display:block;width:100%;font-size:15px;font-weight:700;color:#fff;background:#5128C8;border:0;border-radius:12px;padding:12px;margin-bottom:8px;">'+esc(x.name)+'</button>';}).join('')
+    +'<button data-wpick="" style="display:block;width:100%;font-size:14px;border:1px solid #DDD6EE;background:#fff;border-radius:12px;padding:10px;">やめる</button></div>';
+  document.body.appendChild(ov);
+  [].forEach.call(ov.querySelectorAll('[data-wpick]'),function(b){b.onclick=function(){ov.remove();done(b.getAttribute('data-wpick'));};});
 }
 
 var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
@@ -9193,7 +9210,7 @@ var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
         +'<label style="display:block;font-size:13px;color:#6C6880;">もう一度（確認）</label><input id="wiPw2" type="password" autocomplete="new-password" style="width:100%;font-size:16px;padding:12px;border:1px solid #DDD6EE;border-radius:12px;margin:4px 0 6px;box-sizing:border-box;">'
         +'<div id="wiMsg" style="color:#A32D2D;font-size:13px;min-height:20px;"></div>'
         +'<button id="wiGo" style="width:100%;font-size:16px;font-weight:700;color:#fff;background:#5128C8;border:0;border-radius:14px;padding:14px;margin-top:6px;">このパスワードで始める</button>'
-        +'<div style="font-size:12.5px;color:#6C6880;margin-top:14px;">次からは、園コード <b>'+esc(j.tenantCode)+'</b>・このメールアドレス・いま決めたパスワードでログインします。</div>';
+        +'<div style="font-size:12.5px;color:#6C6880;margin-top:14px;">次からは、このメールアドレスと、いま決めたパスワードでログインします。</div>';
       document.getElementById('wiGo').onclick=function(){
         var a=document.getElementById('wiPw').value,b=document.getElementById('wiPw2').value,m=document.getElementById('wiMsg'),bt=this;
         if(a.length<8){m.textContent='8文字以上にしてください';return;}
