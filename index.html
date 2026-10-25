@@ -16342,6 +16342,7 @@ var EN_DICT={
 '冒険や探検のストーリー':'Adventure & exploration stories',
 'この条件で3案をつくる':'Create 3 ideas with these settings',
 'この答えは':'Was this answer',
+'SIの返事が途中で切れました。もう一度お試しください。':'The SI reply was cut off. Please try again.',
 '役に立った':'Helpful',
 'いまひとつ':'Not quite',
 'ありがとうございます。SIをよくするために使います。':'Thank you. We will use this to improve the SI.',
@@ -33689,7 +33690,11 @@ var API={
     var h={'Content-Type':'application/json'};
     if(API.token())h.Authorization='Bearer '+API.token();
     return fetch(API.base()+path,{method:method,headers:h,body:body?JSON.stringify(body):undefined})
-      .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+      .then(function(r){return API.json(r);});
+  },
+  /* 返ってきたものを読む（call と stream で同じ扱いにする。401・断りの理由の出し方を1か所に） */
+  json:function(r){
+    return r.json().catch(function(){return {};}).then(function(j){
         if(r.status===401){
           /* ★これまでは、どんな401でも「有効期限が切れました」と出して、
              画面ごとログインに戻していた（2026-08-27 のご指摘）。
@@ -33707,7 +33712,42 @@ var API={
         }
         /* 断られた理由の短い印（code）も添える。画面が「何を聞き直せばよいか」を決められるように（2026-10-08） */
         if(!r.ok){var er=new Error(j.error||('通信に失敗しました（'+r.status+'）'));er.status=r.status;er.code=(j&&j.code)||'';er.data=j||{};throw er;}
-        return j;});});
+        return j;});
+  },
+  /* ══ 返事を少しずつ受け取る（2026-10-25 安田さんのご依頼「SIの完成度を上げる」）══
+     サーバが NDJSON（1行に1つ）で {"t":"届いた分"} … {"done":true,"text":全文} を返す。
+     届いた分は onText に渡し、最後の done を返す。
+     ★断り（プラン・いのちに関わる問い・上限）は普通の JSON で来るので、そのときは json() と同じに読む。
+       少しずつ読めないブラウザでも、全部届いてから同じ形で返す */
+  stream:function(path,body,onText){
+    var h={'Content-Type':'application/json'};
+    if(API.token())h.Authorization='Bearer '+API.token();
+    return fetch(API.base()+path,{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(r){
+      var ct=(r.headers&&r.headers.get('content-type'))||'';
+      if(ct.indexOf('ndjson')<0)return API.json(r);
+      var fin=null,buf='';
+      function take(line){
+        line=String(line||'').replace(/^\s+|\s+$/g,'');if(!line)return;
+        var o;try{o=JSON.parse(line);}catch(e){return;}
+        if(o.t){try{onText(String(o.t));}catch(e){}}
+        else if(o.done)fin=o;
+        else if(o.error){var er=new Error(String(o.error));er.code=o.code||'';er.partial=true;throw er;}
+      }
+      function end(){if(!fin)throw new Error('SIの返事が途中で切れました。もう一度お試しください。');return fin;}
+      if(!r.body||!r.body.getReader||typeof TextDecoder==='undefined'){
+        return r.text().then(function(t){String(t).split('\n').forEach(take);return end();});
+      }
+      var rd=r.body.getReader(),dec=new TextDecoder();
+      function pump(){
+        return rd.read().then(function(x){
+          if(x.done){buf+=dec.decode();take(buf);return end();}
+          buf+=dec.decode(x.value,{stream:true});
+          var i;while((i=buf.indexOf('\n'))>=0){take(buf.slice(0,i));buf=buf.slice(i+1);}
+          return pump();
+        });
+      }
+      return pump();
+    });
   },
   /* 画像など、JSONで返ってこないものを取る。
      写真は Authorization が要るので、img の src に直接は入れられない。
@@ -43058,17 +43098,30 @@ function miraSend(q){
   aiPush('bot','<span class="mira-wait">'+(useData?'園の記録を読んで、考えています…':'考えています…')+'</span>');
   var wait=$('#aiBody').lastChild;
   function drop(){if(wait&&wait.parentNode)wait.parentNode.removeChild(wait);}
-  API.call('POST','/ai/chat',{messages:MIRA.msgs.slice(-12),help:help,data:ctx?ctx.text:''}).then(function(j){
+  /* ★これまでは全部書き終わるまで「考えています…」のまま10〜20秒待たせていた（2026-10-25）。
+     届いた分から同じ吹き出しに書き足していく。最後に全文で描き直し、反応のボタンを付ける */
+  var live=null,acc='';
+  function onText(t){
+    acc+=t;
+    if(!live){drop();aiPush('bot','');live=$('#aiBody').lastChild;}
+    live.innerHTML=miraHTML(acc,m);
+    var bd=$('#aiBody');if(bd)bd.scrollTop=bd.scrollHeight;
+  }
+  API.stream('/ai/chat',{messages:MIRA.msgs.slice(-12),help:help,data:ctx?ctx.text:'',stream:true},onText).then(function(j){
     drop();
-    if(j&&j.code==='urgent'){MIRA.msgs.pop();aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
-    var t=String((j&&j.text)||'');
+    if(j&&j.code==='urgent'){MIRA.msgs.pop();if(live&&live.parentNode)live.parentNode.removeChild(live);aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
+    var t=String((j&&j.text)||acc||'');
     MIRA.msgs.push({role:'ai',text:t,at:new Date().toISOString()});miraSave();
-    aiPush('bot',miraHTML(t,m)+(ctx?'<div class="mira-src">'+esc(ctx.note)+'</div>':'')+(t?miraFbHTML():''));
-    try{miraFbWire($('#aiBody').lastChild);}catch(e){}
+    var html=miraHTML(t,m)+(ctx?'<div class="mira-src">'+esc(ctx.note)+'</div>':'')+(t?miraFbHTML():'');
+    if(live)live.innerHTML=html;else{aiPush('bot',html);live=$('#aiBody').lastChild;}
+    try{miraFbWire(live);}catch(e){}
     try{wireFileImgs($('#aiBody'));}catch(e){}
   }).catch(function(e){
     drop();MIRA.msgs.pop();
-    aiPush('bot',esc((e&&e.message)||'SIに聞けませんでした。時間をおいてお試しください。'));
+    var why=esc((e&&e.message)||'SIに聞けませんでした。時間をおいてお試しください。');
+    /* 途中まで届いていたら、その文は消さずに残し、切れた理由を下に添える */
+    if(live&&acc)live.innerHTML=miraHTML(acc,m)+'<div class="mira-src">'+why+'</div>';
+    else aiPush('bot',why);
   }).then(function(){MIRA.busy=false;});
 }
 /* ══ SIの答えへの反応を運営に届ける（2026-10-25 安田さんのご依頼「SIの完成度を上げる」）══
