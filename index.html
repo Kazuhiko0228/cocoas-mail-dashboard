@@ -938,6 +938,9 @@ document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){do
   .ai-msg{max-width:86%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.65;white-space:pre-wrap;}
   .ai-msg.bot{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;align-self:flex-start;}
   .ai-msg.me{background:var(--teal);color:#fff;border-bottom-right-radius:4px;align-self:flex-end;}
+  .mira-fb{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--tx3);white-space:normal;}
+  .mira-fb button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:3px 10px;font-size:11.5px;cursor:pointer;color:var(--tx2);}
+  .mira-fb button:hover{border-color:var(--teal);color:var(--teal);}
   .ai-sec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;align-self:flex-start;max-width:94%;}
   .ai-sec .st{font-weight:700;color:var(--teal-d);margin-bottom:3px;font-size:12.5px;}
   .ai-sec .ss{color:var(--tx2);font-size:12px;line-height:1.55;}
@@ -9714,6 +9717,7 @@ function aiActAdopt(idx,edit){
   var k=AIACT.klass;
   /* 活動内容の窓の中で開いているときは、その場でその日のその欄に入れる。
      預かり（aiActPend）も、別の画面への移動も要らない。 */
+  aiFbSend('活動提案',edit?'直して採用':'採用',{name:x.name,klass:k});
   if(AIACT.onAdopt){
     aiActLogAdd({at:aiNow(),klass:k,name:x.name,how:'採用',by:(currentStaff()?currentStaff().name:''),report:''});
     aiPlanAdd({kind:'活動提案',klass:k,title:x.name,data:x,byAI:true,status:'下書き',adopted:true});
@@ -9742,6 +9746,7 @@ function aiActReject(idx){
   if(why===null)return;
   aiActLogAdd({at:aiNow(),klass:AIACT.klass,name:x.name,how:'却下',reason:why||'',
                by:(currentStaff()?currentStaff().name:'')});
+  aiFbSend('活動提案','却下',{name:x.name,reason:why||'',klass:AIACT.klass});
   AIACT.rejected.push(x.name+(why?('（理由：'+why+'）'):''));
   aiActGo();
 }
@@ -16336,6 +16341,11 @@ var EN_DICT={
 '午前の作品を見返します':'Look back at morning artwork',
 '冒険や探検のストーリー':'Adventure & exploration stories',
 'この条件で3案をつくる':'Create 3 ideas with these settings',
+'この答えは':'Was this answer',
+'役に立った':'Helpful',
+'いまひとつ':'Not quite',
+'ありがとうございます。SIをよくするために使います。':'Thank you. We will use this to improve the SI.',
+'どこがいまひとつでしたか？ひとことで教えてください。SIをよくするために使います。（空のままでもかまいません）':'What was not quite right? Please tell us briefly. We use it to improve the SI. (You may leave it blank.)',
 '− 詳しい設定を閉じる':'− Close detailed settings',
 '＋ 少し詳しく設定する':'＋ More settings',
 '自分の気持ちを表現する':'Express their feelings',
@@ -43053,12 +43063,39 @@ function miraSend(q){
     if(j&&j.code==='urgent'){MIRA.msgs.pop();aiPush('bot',esc(j.error||''));aiRender(aiRoute(q));return;}
     var t=String((j&&j.text)||'');
     MIRA.msgs.push({role:'ai',text:t,at:new Date().toISOString()});miraSave();
-    aiPush('bot',miraHTML(t,m)+(ctx?'<div class="mira-src">'+esc(ctx.note)+'</div>':''));
+    aiPush('bot',miraHTML(t,m)+(ctx?'<div class="mira-src">'+esc(ctx.note)+'</div>':'')+(t?miraFbHTML():''));
+    try{miraFbWire($('#aiBody').lastChild);}catch(e){}
     try{wireFileImgs($('#aiBody'));}catch(e){}
   }).catch(function(e){
     drop();MIRA.msgs.pop();
     aiPush('bot',esc((e&&e.message)||'SIに聞けませんでした。時間をおいてお試しください。'));
   }).then(function(){MIRA.busy=false;});
+}
+/* ══ SIの答えへの反応を運営に届ける（2026-10-25 安田さんのご依頼「SIの完成度を上げる」）══
+   採用・却下・よい・よくないを1件ずつサーバ（/ai/feedback）に残し、運営画面で採用率と外れた理由を見る。
+   ★園の端末の aiActLog は最新40件で消えていくので、園をまたいだ集計には使えなかった。
+   送れなくても先生の操作は止めない（黙って捨てる）。ログインしていないときは送らない */
+function aiFbSend(kind,how,o){
+  o=o||{};
+  if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token()))return;
+  try{API.call('POST','/ai/feedback',{kind:kind,how:how,name:String(o.name||''),reason:String(o.reason||''),klass:String(o.klass||'')}).catch(function(){});}catch(e){}
+}
+function miraFbHTML(){
+  return '<div class="mira-fb"><span>この答えは</span>'
+    +'<button type="button" data-mirafb="よい">役に立った</button>'
+    +'<button type="button" data-mirafb="よくない">いまひとつ</button></div>';
+}
+function miraFbWire(box){
+  if(!box)return;
+  box.querySelectorAll('[data-mirafb]').forEach(function(b){b.onclick=function(){
+    var how=b.getAttribute('data-mirafb'),why='';
+    if(how==='よくない'){
+      why=prompt('どこがいまひとつでしたか？ひとことで教えてください。SIをよくするために使います。（空のままでもかまいません）','');
+      if(why===null)return;
+    }
+    aiFbSend('Miralink SI',how,{reason:why});
+    var row=b.closest('.mira-fb');if(row)row.innerHTML='<span>ありがとうございます。SIをよくするために使います。</span>';
+  };});
 }
 function miraOpen(){
   if(typeof initAI==='function')initAI();
