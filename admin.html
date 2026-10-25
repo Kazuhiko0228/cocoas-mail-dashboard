@@ -2579,10 +2579,61 @@ function aifbHTML(){
     +'<h3>園ごと</h3>'
     +((d.byTenant||[]).length?'<div class="tw"><table><thead><tr><th>園</th><th style="text-align:right;">採用</th><th style="text-align:right;">却下</th><th style="text-align:right;">役に立った</th><th style="text-align:right;">いまひとつ</th></tr></thead><tbody>'
       +d.byTenant.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td class="num" style="text-align:right;">'+r.adopt+'</td><td class="num" style="text-align:right;">'+r.reject+'</td><td class="num" style="text-align:right;">'+r.good+'</td><td class="num" style="text-align:right;">'+r.bad+'</td></tr>';}).join('')
-      +'</tbody></table></div>':'<div class="empty">この期間はありません。</div>');
+      +'</tbody></table></div>':'<div class="empty">この期間はありません。</div>')
+    +aievHTML();
+}
+/* ── SIの物差し：見本の問題を全部解かせて点数を出す（2026-10-25）──
+   SIの指示文やモデルを直したら流し、前の回と点数を比べる。流せるのは owner だけ（サーバが断る） */
+var aievOpen=null,aievMsg='',aievTimer=null;
+function aievHTML(){
+  var d=DATA.aiev;
+  var h='<h3>物差し（見本の問題でテスト）</h3>'
+    +'<div class="lead">見本の問題'+(d&&d.cases?d.cases:'')+'問を Miralink SI に解かせ、別の採点役が5つの観点（'+esc(((d&&d.axes)||[]).join('・'))+'）を1〜5で付けます。'
+    +'SIを直したら流して、前の回と比べてください。1回およそ'+(d&&d.cases?Math.ceil(d.cases*12/60):5)+'分・20円ほどです。</div>'
+    +(aievMsg?'<div class="note">'+esc(aievMsg)+'</div>':'')
+    +'<div class="row" style="margin-bottom:12px;"><button class="btn sm" id="aievRun">見本の問題でテストする</button></div>';
+  if(!d)return h+'<div class="empty">読み込んでいます…</div>';
+  if(d.err)return h+'<div class="note">'+esc(d.err)+'</div>';
+  var runs=d.runs||[];
+  h+=runs.length?'<div class="tw"><table><thead><tr><th>日時</th><th>状態</th><th style="text-align:right;">平均点</th><th style="text-align:right;">合格</th><th>モデル</th><th>流した人</th><th></th></tr></thead><tbody>'
+    +runs.map(function(r){
+      var t=new Date(r.started_at),tl=isNaN(t.getTime())?'':((t.getMonth()+1)+'/'+t.getDate()+' '+('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2));
+      return '<tr><td class="num">'+esc(tl)+'</td><td>'+esc(r.status)+(r.status==='実行中'?'（'+r.done+'/'+r.total+'）':'')+'</td>'
+        +'<td class="num" style="text-align:right;">'+(r.score==null?'—':r.score+'%')+'</td>'
+        +'<td class="num" style="text-align:right;">'+(r.passed==null?'—':r.passed+'/'+r.total)+'</td>'
+        +'<td>'+esc(r.model||'')+'</td><td>'+esc(r.by_name||'')+'</td>'
+        +'<td><button class="btn sm sec" data-aiev="'+r.id+'">'+(aievOpen===r.id?'閉じる':'中身を見る')+'</button></td></tr>';}).join('')
+    +'</tbody></table></div>':'<div class="empty">まだ流していません。</div>';
+  var run=DATA.aievRun;
+  if(aievOpen&&run&&run.id===aievOpen){
+    var res=run.results||[];
+    h+='<h3>'+esc(run.status)+'の回の中身（'+res.length+'問）</h3>'
+      +'<div class="tw"><table><thead><tr><th>分野</th><th>質問</th><th style="text-align:right;">点数</th><th>合格</th><th>直すとよい点</th></tr></thead><tbody>'
+      +res.map(function(x){
+        var why=(x.miss||[]).concat(x.comment?[x.comment]:[]);
+        return '<tr><td>'+esc(x.area||'')+'</td>'
+          +'<td style="min-width:220px;">'+esc(x.q||'')+(x.answer?'<details style="margin-top:4px;"><summary style="cursor:pointer;color:var(--mute);font-size:12px;">SIの答え</summary><div style="white-space:pre-wrap;font-size:12px;margin-top:4px;">'+esc(x.answer)+'</div></details>':'')+'</td>'
+          +'<td class="num" style="text-align:right;">'+(x.scores?x.total+'/25':'—')+'</td>'
+          +'<td>'+(x.pass?'<span class="pill p-live">合格</span>':'<span class="pill p-end">要改善</span>')+'</td>'
+          +'<td style="font-size:12.5px;">'+esc(why.join('　'))+'</td></tr>';}).join('')
+      +'</tbody></table></div>';
+  }
+  return h;
 }
 function aifbWire(){
   if($('aifbDays'))$('aifbDays').onchange=function(){aifbDays=+this.value||30;DATA.aifb=null;nav('aifb');};
+  if($('aievRun'))$('aievRun').onclick=function(){
+    if(!confirm('見本の問題をすべて Miralink SI に解かせます。数分かかり、20円ほどかかります。始めますか？'))return;
+    this.disabled=true;
+    API.call('POST','/admin/ai-eval/run').then(function(j){aievMsg='始めました。終わるまで数分かかります（この画面は自動で更新します）。';aievOpen=j.id;nav('aifb');})
+      .catch(function(e){aievMsg=e.message;nav('aifb');});
+  };
+  document.querySelectorAll('[data-aiev]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-aiev');aievOpen=(aievOpen===id)?null:id;DATA.aievRun=null;nav('aifb');};});
+  /* 流しているあいだは5秒ごとに読み直す（この画面にいるときだけ） */
+  if(aievTimer){clearTimeout(aievTimer);aievTimer=null;}
+  var busy=DATA.aiev&&(DATA.aiev.runs||[]).some(function(r){return r.status==='実行中';});
+  if(busy)aievTimer=setTimeout(function(){if(view==='aifb')nav('aifb');},5000);
 }
 function adsHTML(){
   if(!DATA.ads)return '<h2>広告</h2><div class="empty">読み込んでいます…</div>';
@@ -2985,7 +3036,11 @@ function load(){
     ]);
   if(view==='docs')  return API.call('GET','/admin/documents').then(function(j){DATA.docs=j.documents;});
   if(view==='forms') return API.call('GET','/admin/docflow/forms').then(function(j){DATA.forms=j;});
-  if(view==='aifb')  return API.call('GET','/admin/ai-feedback?days='+aifbDays).then(function(j){DATA.aifb=j;});
+  if(view==='aifb')  return Promise.all([
+      API.call('GET','/admin/ai-feedback?days='+aifbDays).then(function(j){DATA.aifb=j;}),
+      API.call('GET','/admin/ai-eval').then(function(j){DATA.aiev=j;}).catch(function(e){DATA.aiev={err:e.message};}),
+      aievOpen?API.call('GET','/admin/ai-eval/'+aievOpen).then(function(j){DATA.aievRun=j;}).catch(function(){DATA.aievRun=null;}):null
+    ]);
   /* 広告。操作ログが読めなくても一覧は出す（読めない理由で画面ごと止めない） */
   if(view==='ads')   return Promise.all([
       API.call('GET','/admin/ads').then(function(j){DATA.ads=j;}),
