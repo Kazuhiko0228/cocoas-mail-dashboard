@@ -25907,7 +25907,7 @@ function cfNameModal(title,val,cb){
     +'<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn" id="cfNmX">やめる</button><button class="btn btn-primary" id="cfNmOk">決める</button></div></div>';
   try{langApply(m);}catch(e){}
   var ok=function(){var v=String($('#cfNm').value||'').trim();if(!v){alert('名前を入れてください。');return;}m.remove();cb(v);};
-  $('#cfNmOk').onclick=ok;$('#cfNm').onkeydown=function(e){if(e.key==='Enter')ok();};$('#cfNmX').onclick=function(){m.remove();};
+  $('#cfNmOk').onclick=ok;$('#cfNm').onkeydown=function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)ok();};$('#cfNmX').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});setTimeout(function(){var i=$('#cfNm');if(i){i.focus();i.select();}},30);
 }
 /* フォルダを選ぶ欄（入れ子は字下げ） */
@@ -40135,7 +40135,7 @@ function renderReqNav(){
   $('#rqType').onchange=function(){var p=reqProfile();p.type=this.value;reqSaveProfile(p);renderReqNav();};
   /* 自治体・定員は「更新」で保存する（1文字ずつ保存すると、打っている途中の名前で調べに行ってしまう） */
   var rb=$('#rqRefresh');if(rb)rb.onclick=reqLocalRefresh;
-  var rc=$('#rqCap');if(rc)rc.onkeydown=function(e){if(e.key==='Enter'&&rb){e.preventDefault();reqLocalRefresh();}};
+  var rc=$('#rqCap');if(rc)rc.onkeydown=function(e){if(e.key==='Enter'&&rb&&!e.isComposing&&e.keyCode!==229){e.preventDefault();reqLocalRefresh();}};
   /* 県・市区町村は選んだらすぐ保存し、その自治体で前に調べたものがあれば出す */
   $('#rqPref').onchange=function(){var p=reqProfile();p.pref=this.value;p.muni='';reqSaveProfile(p);REQ_LOCAL_MSG='';renderReqNav();};
   $('#rqMuni').onchange=function(){var p=reqProfile();p.muni=this.value;reqSaveProfile(p);REQ_LOCAL_MSG='';renderReqNav();};
@@ -43133,7 +43133,7 @@ function miraLanding(){
     var p=$('#aiPanel');if(p&&!p.classList.contains('wide')){var w=$('#aiWide');if(w)w.click();}
     aiAsk(q);}
   $('#miraGo').onclick=function(){go($('#miraQ').value);$('#miraQ').value='';};
-  $('#miraQ').onkeydown=function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('#miraGo').click();}};
+  $('#miraQ').onkeydown=function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();$('#miraGo').click();}};
   s.querySelectorAll('[data-mirex]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-mirex'));};});
   miraLandHistPaint();miraListLoad();
 }
@@ -43191,7 +43191,8 @@ function initAI(){
   try{ if(localStorage.getItem('edugrow_aiWide')==='1')aiWideApply(true); }catch(e){}
   if($('#aiWide'))$('#aiWide').onclick=function(){aiWideApply(!panel.classList.contains('wide'));};
   $('#aiSend').onclick=aiSubmit;
-  $('#aiInput').addEventListener('keydown',function(e){if(e.key==='Enter')aiSubmit();});
+  /* ★日本語の変換を決めるエンターで送られていた（Remiさん 2026-10-25）。変換中は isComposing、Safari は確定のエンターだけ keyCode 229 で来る */
+  $('#aiInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)aiSubmit();});
   /* 「保育の相談」「使い方」のタブはやめた（Miralink AI の1つの会話）。窓が無いときは何もしない */
   if($('#aiTabCare'))$('#aiTabCare').onclick=function(){helpMode=false;aiTabs();};
   if($('#aiTabHelp'))$('#aiTabHelp').onclick=function(){helpMode=true;aiTabs();
