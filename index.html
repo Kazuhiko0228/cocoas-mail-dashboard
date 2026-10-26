@@ -16360,6 +16360,15 @@ var EN_DICT={
 '冒険や探検のストーリー':'Adventure & exploration stories',
 'この条件で3案をつくる':'Create 3 ideas with these settings',
 'この答えは':'Was this answer',
+'SIに列の対応を考えてもらう':'Ask the SI to match the columns',
+'自分で列を選ぶ':'Choose the columns myself',
+'この対応で内容を確かめる':'Check the contents with this matching',
+'最近の取り込みを取り消す':'Undo the latest import',
+'名簿の列（見出し）':'Column in your list (header)',
+'Miralink の欄':'Miralink field',
+'SIの考え':'SI reasoning',
+'使わない':'Do not use',
+'SIに送るのは見出しの文字と、値の形（日付らしい・メールらしい など）だけです。名前やメールアドレスは送りません。':'Only the header text and the shape of the values (date-like, email-like, etc.) are sent to the SI. Names and email addresses are not sent.',
 'SIの返事が途中で切れました。もう一度お試しください。':'The SI reply was cut off. Please try again.',
 '役に立った':'Helpful',
 'いまひとつ':'Not quite',
@@ -22891,13 +22900,14 @@ function rosterNormDays(v){
   return out.join('・');
 }
 
-/** 貼り付けた文字列を読んで、入れるもの・飛ばすものに分ける。 */
-function rosterParse(text){
+/** 貼り付けた文字列を読んで、入れるもの・飛ばすものに分ける。
+    customMap … 見出しがひな形と違うとき、人が確かめた列の対応（{欄の名前: 列の番号}）。SI の提案を人が直したもの（2026-10-26） */
+function rosterParse(text,customMap){
   var lines=String(text||'').split(/\r?\n/).filter(function(l){return l.trim();});
   if(!lines.length)return {ok:[],ng:[],dup:[]};
 
   var first=rosterSplit(lines[0]);
-  var map=rosterHeader(first);
+  var map=customMap?Object.assign({_unknown:[],_missing:ROSTER_COLS.filter(function(c){return c.need&&customMap[c.k]==null;}).map(function(c){return c.l;})},customMap):rosterHeader(first);
   /* 見出しがあったかどうかは、ここで控える。
      控えずに下の map を見ると、いつも「見出しあり」になり、行番号も1つずれる。 */
   var hadH=!!map;
@@ -22965,6 +22975,39 @@ function rosterParse(text){
   return {ok:ok,ng:ng,dup:dup,hadHeader:hadH};
 }
 
+/* ══ SI が列の対応を考える（2026-10-26「SI 同居」機能①）══════════
+   見出しがひな形と違う名簿でも取り込めるように、SI に「どの列が どの欄か」を提案させる。
+   ★SI に送るのは見出しの文字と、列の形（日付らしい・メールらしい…）だけ。名前やメールの値は送らない。
+     形はこの端末で値を見て決める（rosterShape）。提案は人が表で確かめて直してから使う */
+function rosterShape(vals){
+  var v=vals.filter(function(x){return String(x||'').trim();}).slice(0,8);
+  if(!v.length)return 'empty';
+  var all=function(f){return v.every(function(x){try{return f(String(x).trim());}catch(e){return false;}});};
+  if(all(function(x){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);}))return 'email';
+  if(all(function(x){return !!rosterNormDate(x);}))return 'date';
+  if(all(function(x){return /^[0-9０-９\-‐ー()（）+ ]{9,}$/.test(x);}))return 'phone';
+  if(all(function(x){var r=rosterNormSex(x);return r!==null&&r!=='';}))return 'sex';
+  if(all(function(x){return CLASSES.indexOf(x)>-1||/(組|クラス)$/.test(x);}))return 'klass';
+  if(all(function(x){return x.length<=20&&/[月火水木金]/.test(x)&&!!rosterNormDays(x)&&!/[^月火水木金土日・、,\s曜毎全部週5５]/.test(x);}))return 'days';
+  if(all(function(x){return /^[ぁ-んァ-ヶー\s　]+$/.test(x);}))return 'kana';
+  if(all(function(x){return /^[0-9０-９]+$/.test(x);}))return 'number';
+  if(all(function(x){return x.length<=20&&/[一-龠々]/.test(x);}))return 'name';
+  return 'text';
+}
+/* 取り込みの記録（取り消せるように）。いちばん新しいものから10件 */
+function rosterImports(){return stGet('rosterImports',[])||[];}
+function rosterImportUndo(batchId){
+  var b=rosterImports().filter(function(x){return x.id===batchId;})[0];if(!b)return;
+  var hit=DB.contacts.filter(function(c){return c.importBatch===batchId;});
+  if(!hit.length){alert('この取り込みで入った園児は、もういません。');return;}
+  if(!confirm(b.at.slice(0,16).replace('T',' ')+' に取り込んだ '+hit.length+'名を消します。\n\n取り込んだあとに出欠や記録を付けた園児も、名簿から消えます（付けた記録は残ります）。\nよろしいですか？'))return;
+  DB.contacts=DB.contacts.filter(function(c){return c.importBatch!==batchId;});
+  stSet('rosterImports',rosterImports().filter(function(x){return x.id!==batchId;}));
+  try{if(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())API.call('POST','/roster/import-log',{count:hit.length,undo:true}).catch(function(){});}catch(e){}
+  if(typeof renderRoster==='function')renderRoster();
+  alert(hit.length+'名の取り込みを取り消しました。');
+}
+
 function rosterImportModal(){
   var m=el('div',{class:'modal-bg'});
   $('#modalRoot').appendChild(m);
@@ -23021,24 +23064,74 @@ function rosterImportModal(){
     });
   };
 
+  var riMap=null,riSi=false;
+  /* 列の対応の表（SIの提案か、見出しの一致から初めの値を入れる。人が選び直せる） */
+  var mapTable=function(heads,shapes,sug,note){
+    var opt=function(sel){return '<option value="">使わない</option>'+ROSTER_COLS.map(function(c){return '<option value="'+c.k+'"'+(sel===c.k?' selected':'')+'>'+esc(c.l)+(c.need?'（必須）':'')+'</option>';}).join('');};
+    return '<div style="margin-top:4px;">'+(note?'<div class="muted" style="font-size:12px;margin-bottom:6px;">'+note+'</div>':'')
+      +'<div class="scrollx"><table style="font-size:12.5px;"><thead><tr><th>名簿の列（見出し）</th><th style="width:220px;">Miralink の欄</th><th>SIの考え</th></tr></thead><tbody>'
+      +heads.map(function(h,i){var s=sug&&sug[i]?sug[i]:{field:'',why:''};
+        return '<tr><td>'+esc(h||'（見出しなし）')+'</td><td><select data-rimap="'+i+'" style="width:100%;">'+opt(s.field==='none'?'':s.field)+'</select></td><td class="row-sub">'+esc(s.why||'')+'</td></tr>';}).join('')
+      +'</tbody></table></div>'
+      +'<div id="riMapErr" style="color:#A32D2D;font-size:12.5px;margin-top:6px;"></div>'
+      +'<div style="margin-top:8px;"><button type="button" class="btn btn-primary btn-sm" id="riMapGo">この対応で内容を確かめる</button></div></div>';
+  };
+  var wireMap=function(){
+    $('#riMapGo').onclick=function(){
+      var mp={},dup=false;
+      document.querySelectorAll('[data-rimap]').forEach(function(sel){var k=sel.value;if(!k)return;if(mp[k]!=null)dup=true;mp[k]=+sel.getAttribute('data-rimap');});
+      var miss=ROSTER_COLS.filter(function(c){return c.need&&mp[c.k]==null;}).map(function(c){return c.l;});
+      if(dup){$('#riMapErr').textContent='同じ欄を2つの列に選んでいます。1つにしてください。';return;}
+      if(miss.length){$('#riMapErr').textContent='必須の欄が選ばれていません：'+miss.join('、');return;}
+      riMap=mp;$('#riCheck').click();
+    };
+  };
+  var askSi=function(heads,shapes){
+    var box=$('#riMapBox');
+    box.innerHTML='<div class="muted" style="font-size:12.5px;">SIが列を見ています…（送るのは見出しと、値の形だけです）</div>';
+    API.call('POST','/ai/import-map',{target:'roster',headers:heads,shapes:shapes}).then(function(j){
+      riSi=true;
+      box.innerHTML=mapTable(heads,shapes,j.map,'SIの提案です。違うところは選び直してから「この対応で内容を確かめる」を押してください。');wireMap();
+    }).catch(function(e){
+      box.innerHTML=mapTable(heads,shapes,null,esc((e&&e.message)||'SIに聞けませんでした。')+' 列を手で選んでください。');wireMap();
+    });
+  };
+
   $('#riCheck').onclick=function(){
-    parsed=rosterParse($('#riIn').value);
+    parsed=rosterParse($('#riIn').value,riMap);
     var r=$('#riResult');
-    /* 見出しが無いときは、ここで止める。列の並びを当て推量で読ませない。 */
-    if(parsed.noHeader){
+    /* 見出しが無いときは、ここで止める。列の並びを当て推量で読ませない。
+       ★1行目が見出しではなく値（メール・日付・電話）のときだけ止める。見出しがひな形と違うだけなら、下の列の対応の表に進む。
+         値の行を見出しとして SI に送ると、名前やメールが外に出てしまうため（2026-10-26） */
+    var _l0=String($('#riIn').value||'').split(/\r?\n/).filter(function(l){return l.trim();})[0]||'';
+    var _looksData=rosterSplit(_l0).some(function(c){var sh=rosterShape([c]);return sh==='email'||sh==='date'||sh==='phone';});
+    if(parsed.noHeader&&_looksData){
       r.innerHTML='<div style="background:#FCEBEB;border-left:3px solid #A32D2D;color:#A32D2D;'
         +'padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.8;">'
         +'見出し行が見つかりません。1行目に「保護者名,お子様名,メール」のような見出しを入れてください。</div>';
       $('#riGo').style.display='none';
       return;
     }
-    if(parsed.badHeader){
-      var bh=parsed.badHeader;
-      r.innerHTML='<div style="background:#FCEBEB;border-left:3px solid #A32D2D;color:#A32D2D;'
+    if(parsed.badHeader||parsed.noHeader){
+      var bh=parsed.badHeader||{unknown:[],missing:[]};
+      /* ★以前はここで止めて「ひな形のとおりに直して」と返していた。園の名簿の多くは見出しが違うので、
+         SIに列の対応を提案させ、人が表で確かめてから読む（2026-10-26） */
+      var lines0=String($('#riIn').value||'').split(/\r?\n/).filter(function(l){return l.trim();});
+      var heads=rosterSplit(lines0[0]||''),rows0=lines0.slice(1,9).map(rosterSplit);
+      var shapes=heads.map(function(_,i){return rosterShape(rows0.map(function(rw){return rw[i]||'';}));});
+      var guess=heads.map(function(h){var t=String(h).replace(/\s/g,'').replace(/[＊*]/g,'');var c=ROSTER_COLS.filter(function(c){return t===c.l.replace(/\s/g,'')||c.alt.indexOf(t)>-1;})[0];return {field:c?c.k:'',why:''};});
+      r.innerHTML='<div style="background:#FAEEDA;border-left:3px solid #854F0B;color:#633806;'
         +'padding:10px 13px;border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.8;">'
-        +'見出しの行が、ひな形と違います。ひな形をダウンロードして、その見出しのまま入れてください。'
+        +'見出しの行が、ひな形と違います。このままでも、どの列がどの欄かを決めれば取り込めます。'
         +(bh.unknown.length?'<br>ひな形に無い列：'+bh.unknown.map(esc).join('、'):'')
-        +(bh.missing.length?'<br>足りない列：'+bh.missing.map(esc).join('、'):'')+'</div>';
+        +(bh.missing.length?'<br>足りない列：'+bh.missing.map(esc).join('、'):'')+'</div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+        +'<button type="button" class="btn btn-sm btn-primary" id="riAskSi">'+ic('sparkle')+'SIに列の対応を考えてもらう</button>'
+        +'<button type="button" class="btn btn-sm" id="riSelf">自分で列を選ぶ</button></div>'
+        +'<div class="muted" style="font-size:11.5px;margin-top:4px;">SIに送るのは見出しの文字と、値の形（日付らしい・メールらしい など）だけです。名前やメールアドレスは送りません。</div>'
+        +'<div id="riMapBox" style="margin-top:10px;"></div>';
+      $('#riAskSi').onclick=function(){askSi(heads,shapes);};
+      $('#riSelf').onclick=function(){riSi=false;$('#riMapBox').innerHTML=mapTable(heads,shapes,guess,'それぞれの列に、あてはまる欄を選んでください。');wireMap();};
       $('#riGo').style.display='none';
       return;
     }
@@ -23106,14 +23199,19 @@ function rosterImportModal(){
     if(!confirm(n+'名を在園児として登録します。\n\n'
       +'すでにいる園児は上書きしません。\nよろしいですか？'))return;
     var arr=DB.contacts.slice(), base=Date.now();
+    /* 取り消せるように、この取り込みの印を付ける（2026-10-26） */
+    var batch='imp'+base;
     parsed.ok.forEach(function(x,i){
       var r=x.row;
-      arr.push({id:base+i, kind:'enrolled',
+      arr.push({id:base+i, kind:'enrolled', importBatch:batch,
         name:r.name, kana:r.kana||'', child:r.child, childKana:r.childKana||'', klass:r.klass||CLASSES[0],
         dob:r.dob||'', email:r.email, phone:r.phone||'', days:r.days||'',
         note:'', feeAmount:0, withdrawDay:27, admissionDate:r.adm||todayISO()});
     });
     DB.contacts=arr;
+    var _me=(typeof currentStaff==='function'&&currentStaff())?currentStaff().name:'';
+    stSet('rosterImports',[{id:batch,at:new Date().toISOString(),by:_me,n:n,si:riSi}].concat(rosterImports()).slice(0,10));
+    try{if(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())API.call('POST','/roster/import-log',{count:n,si:riSi}).catch(function(){});}catch(e){}
     /* 性別は生徒台帳に入れる（「園児を追加」と同じ置き場） */
     try{parsed.ok.forEach(function(x,i){if(x.row.sex&&typeof spGet==='function'&&typeof spSet==='function'){var sp=spGet(base+i)||{};sp.sex=x.row.sex;spSet(base+i,sp);}});}catch(e){}
     m.remove();
@@ -23121,7 +23219,8 @@ function rosterImportModal(){
     if(document.querySelector('section[data-page="roster"]:not([hidden])')&&typeof renderRoster==='function')renderRoster();else renderContacts();
     alert(n+'名を登録しました。\n\n'
       +'クラス・通園曜日は「生徒情報一覧・連絡先」、料金は「請求書作成・管理」から直してください。\n'
-      +'保護者の招待は「配信 › 未来WA › 保護者アカウント新規発行」からできます。');
+      +'保護者の招待は「配信 › 未来WA › 保護者アカウント新規発行」からできます。\n'
+      +'間違えたときは、生徒一覧の「最近の取り込みを取り消す」で元に戻せます。');
   };
 }
 
@@ -36995,6 +37094,7 @@ function rosterList(kids){
     +(boss
       ?'<button class="btn btn-sm btn-primary" id="rosterAdd">'+ic('plus')+'園児を追加</button>'
         +'<button class="btn btn-sm" id="rosterImport">'+ic('folder')+'名簿を取り込む</button>'
+        +(rosterImports().length?'<button class="btn btn-sm btn-ghost" id="rosterUndo" title="いちばん新しい取り込みを取り消す">最近の取り込みを取り消す</button>':'')
         +'<button class="btn btn-sm" id="rosterAudit">'+ic('printer')+'監査用に出力</button>'
         +'<button class="btn btn-sm" id="rosterPrint">'+ic('printer')+'名簿を出力</button>'
       :'')
@@ -37062,6 +37162,7 @@ function wireRosterList(){
      入れる窓は連絡先と同じものを使う。窓を2つ作ると、片方だけ直したときに食い違うため。 */
   if($('#rosterAdd'))$('#rosterAdd').onclick=function(){rosterAdding=true;contactModal(null,'enrolled');};
   if($('#rosterImport'))$('#rosterImport').onclick=function(){rosterImportModal();};
+  if($('#rosterUndo'))$('#rosterUndo').onclick=function(){var b=rosterImports()[0];if(b)rosterImportUndo(b.id);};
   if($('#rosterAudit'))$('#rosterAudit').onclick=contactAuditPrintModal;
   if($('#rosterPrint'))$('#rosterPrint').onclick=function(){
     /* 紙に出すのは、いま画面に出ている人たち。チップで退園児を見ているなら、その人たちが出る。 */
