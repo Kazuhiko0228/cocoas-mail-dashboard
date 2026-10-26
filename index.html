@@ -16360,6 +16360,11 @@ var EN_DICT={
 '冒険や探検のストーリー':'Adventure & exploration stories',
 'この条件で3案をつくる':'Create 3 ideas with these settings',
 'この答えは':'Was this answer',
+'メモから下書き':'Draft from a note',
+'下書きを作る':'Make a draft',
+'この文を記録に入れる':'Put this text into the record',
+'メモ（走り書きでかまいません）':'Note (rough is fine)',
+'下書き（直してから入れてください）':'Draft (edit before inserting)',
 '根拠を見る':'See the basis',
 '要確認':'Needs checking',
 '確かめ：通りました':'Check: passed',
@@ -30849,7 +30854,7 @@ function logModal(type,idx){
         +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;"><button type="button" class="btn btn-sm" id="lgAgeCount">'+ic('clipboard')+'その日の登園から数え直す</button>'
         +'<span class="muted" style="font-size:11.5px;">'+(r.kidsAgeManual?'手で直した数です。':'その日の登園（出席）から数えました。違うときは直してください。')+'</span></div>';}
     else if(f.t==='class')h='<select data-lf="'+f.k+'">'+CLASSES.map(function(k){return '<option'+(k===v?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select>';
-    else if(f.t==='area')h='<textarea data-lf="'+f.k+'" rows="2">'+esc(v||'')+'</textarea>';
+    else if(f.t==='area')h='<textarea data-lf="'+f.k+'" data-memo="'+esc(type)+'" data-memo-l="'+esc(f.l)+'" rows="2">'+esc(v||'')+'</textarea>';
     else if(f.t==='staffs'||f.t==='checks'){var opts=f.t==='staffs'?logStaffNames():f.opts,cur=Array.isArray(v)?v:[];
       h='<div style="display:flex;gap:6px;flex-wrap:wrap;">'+opts.map(function(o){var on=cur.indexOf(o)>-1;return '<button type="button" class="btn btn-sm'+(on?' btn-primary':'')+'" data-lm="'+f.k+'" data-lv="'+esc(o)+'"'+(f.t==='staffs'?' data-nolang="1"':'')+'>'+esc(o)+'</button>';}).join('')+'</div>';}
     else h='<input data-lf="'+f.k+'" type="'+(f.t==='text'?'text':f.t)+'"'+(f.t==='number'?' step="0.1" inputmode="decimal"':'')+' value="'+esc(v==null?'':v)+'" placeholder="'+esc(f.ph||'')+'">';
@@ -43288,6 +43293,84 @@ function miraFbWire(box){
     aiFbSend('Miralink SI',how,{reason:why});
     var row=b.closest('.mira-fb');if(row)row.innerHTML='<span>ありがとうございます。SIをよくするために使います。</span>';
   };});
+}
+/* ══ メモ→記録の下書き（2026-10-26「SI 同居」機能③）══════════════
+   記録の入力欄の横の「メモから下書き」。先生の短いメモを、記録の文の下書きに整える。
+   ・★子どもの名前は「児A」、職員の名前は「職員1」のような呼び名にしてから送る（戻すのはこの端末）
+   ・メモに無い数字・時刻・呼び名が下書きに入ったら、サーバが知らせる（warnings）。先生が直してから入れる
+   ・★「この文を記録に入れる」を押すまで、記録の欄には何も入れない（黙って書き換えない）
+   ・元のメモ・整えた文・入れた文・確定した人は memoDrafts に残す（元のメモは消さない）
+   ・SI は下書きまで。保存・送信・配信はしない（記録の保存は、いつもの「保存」ボタン） */
+var MEMO_FIELDS={hy_content:['ヒヤリハット','内容（状況）'],hy_treat:['ヒヤリハット','処置対応'],hy_future:['ヒヤリハット','今後気をつけること'],
+  kj_content:['保護者対応記録','申し出の内容'],kj_shori:['保護者対応記録','対応したこと'],
+  npoDiary:['保育日誌','クラスの様子・エピソード'],npoReview:['保育日誌','評価・反省']};
+function memoOnline(){return !!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token());}
+function memoAttach(ta,kind,label){
+  if(!ta||ta.getAttribute('data-memo-on'))return;
+  ta.setAttribute('data-memo-on','1');
+  if(!memoOnline())return;
+  var b=el('button',{type:'button',class:'btn btn-sm btn-ghost',style:'margin-top:4px;font-size:11.5px;padding:2px 9px;'},ic('sparkle')+'メモから下書き');
+  b.onclick=function(){memoDraftModal(ta,kind,label);};
+  if(ta.parentNode)ta.parentNode.insertBefore(b,ta.nextSibling);
+}
+function memoScan(root){
+  if(!root||!root.querySelectorAll)return;
+  root.querySelectorAll('textarea').forEach(function(ta){
+    var id=ta.id,mk=ta.getAttribute('data-memo');
+    if(MEMO_FIELDS[id])memoAttach(ta,MEMO_FIELDS[id][0],MEMO_FIELDS[id][1]);
+    else if(mk)memoAttach(ta,mk,ta.getAttribute('data-memo-l')||'');
+  });
+}
+try{new MutationObserver(function(ms){ms.forEach(function(x){[].forEach.call(x.addedNodes||[],function(n){if(n.nodeType===1){if(n.tagName==='TEXTAREA')memoScan(n.parentNode);else memoScan(n);}});});})
+  .observe(document.body,{childList:true,subtree:true});}catch(e){}
+/* 職員の名前の呼び名（職員1…）。長い名前から置き換える */
+function memoStaffMap(){
+  var names=[];try{names=(typeof logStaffNames==='function'?logStaffNames():[]).slice();}catch(e){names=[];}
+  var m={to:[],back:{}};names.filter(function(n){return String(n||'').replace(/\s/g,'').length>=2;}).sort(function(a,b){return b.length-a.length;})
+    .forEach(function(n,i){var c='職員'+(i+1);m.to.push([n,c]);m.back[c]=n;});
+  return m;
+}
+function memoDraftModal(ta,kind,label){
+  var mm=el('div',{class:'modal-bg',style:'z-index:1200;'});$('#modalRoot').appendChild(mm);
+  mm.addEventListener('click',function(e){if(e.target===mm)mm.remove();});
+  mm.innerHTML='<div class="modal" style="max-width:620px;">'
+    +'<h2 style="margin-top:0;">'+ic('sparkle')+'メモから下書き</h2>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:8px;">'+esc(kind)+(label?'　／　'+esc(label):'')+'</div>'
+    +'<div class="field"><label>メモ（走り書きでかまいません）</label><textarea id="mdMemo" rows="4" placeholder="例：10:30 公園 すべり台の階段で足をすべらせ 膝をすりむく 水で洗って絆創膏"></textarea></div>'
+    +'<div class="muted" style="font-size:11.5px;margin:-4px 0 8px;">子どもと職員の名前は、呼び名（児A・職員1）にして SI に送ります。SI はメモにあることだけで文を整えます。</div>'
+    +'<button class="btn btn-sm btn-primary" id="mdGo">下書きを作る</button>'
+    +'<div id="mdOut" style="margin-top:12px;"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;"><button class="btn" id="mdX">やめる</button>'
+    +'<button class="btn btn-primary" id="mdOk" style="display:none;">この文を記録に入れる</button></div></div>';
+  $('#mdX').onclick=function(){mm.remove();};
+  var last=null;
+  $('#mdGo').onclick=function(){
+    var memo=String($('#mdMemo').value||'').replace(/^\s+|\s+$/g,'');
+    if(!memo){alert('メモを書いてください。');return;}
+    var km=miraMap(),sm=memoStaffMap(),q=miraPseudo(memo,km);
+    sm.to.forEach(function(p){q=q.split(p[0]).join(p[1]);});
+    q=aiScrub(q);
+    var back=function(t){t=miraPlain(t,km);Object.keys(sm.back).sort(function(a,b){return b.length-a.length;}).forEach(function(c){t=t.split(c).join(sm.back[c]);});return t;};
+    var out=$('#mdOut');out.innerHTML='<div class="muted" style="font-size:12.5px;">SIが整えています…</div>';$('#mdOk').style.display='none';
+    API.call('POST','/ai/memo-draft',{kind:kind,field:label,memo:q}).then(function(j){
+      if(j&&j.code==='urgent'){out.innerHTML='<div style="background:#FCEBEB;color:#A32D2D;padding:10px 12px;border-radius:8px;font-size:13px;">'+esc(j.error)+'</div>';return;}
+      var d=back(String(j.draft||''));
+      last={memo:memo,draft:d,warnings:(j.warnings||[]).map(back)};
+      out.innerHTML='<div class="field"><label>下書き（直してから入れてください）</label><textarea id="mdText" rows="5">'+esc(d)+'</textarea></div>'
+        +(last.warnings.length?'<div style="background:#FAEEDA;color:#633806;padding:8px 11px;border-radius:8px;font-size:12.5px;line-height:1.7;">メモに無いことが入っているかもしれません：'+esc(last.warnings.join('、'))+'。確かめて、違えば消してください。</div>':'');
+      $('#mdOk').style.display='';
+    }).catch(function(e){out.innerHTML='<div style="color:#A32D2D;font-size:12.5px;">'+esc((e&&e.message)||'SIに聞けませんでした。')+'</div>';});
+  };
+  $('#mdOk').onclick=function(){
+    if(!last)return;
+    var fin=String($('#mdText').value||'').replace(/^\s+|\s+$/g,'');
+    if(!fin){alert('入れる文が空です。');return;}
+    ta.value=String(ta.value||'').replace(/\s+$/,'')?(String(ta.value).replace(/\s+$/,'')+'\n'+fin):fin;
+    try{ta.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){}
+    var me='';try{me=(currentStaff()||{}).name||'';}catch(e){}
+    stSet('memoDrafts',[{at:new Date().toISOString(),kind:kind,field:label,memo:last.memo,draft:last.draft,text:fin,warnings:last.warnings,by:me}].concat(stGet('memoDrafts',[])||[]).slice(0,500));
+    mm.remove();
+  };
 }
 function miraOpen(){
   if(typeof initAI==='function')initAI();
