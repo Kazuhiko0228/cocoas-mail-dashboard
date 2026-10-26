@@ -2614,7 +2614,8 @@ function aievHTML(){
     +'<div class="lead">見本の問題'+(d&&d.cases?d.cases:'')+'問を Miralink SI に解かせ、別の採点役が5つの観点（'+esc(((d&&d.axes)||[]).join('・'))+'）を1〜5で付けます。'
     +'SIを直したら流して、前の回と比べてください。1回およそ'+(d&&d.cases?Math.ceil(d.cases*12/60):5)+'分・20円ほどです。</div>'
     +(aievMsg?'<div class="note">'+esc(aievMsg)+'</div>':'')
-    +'<div class="row" style="margin-bottom:12px;"><button class="btn sm" id="aievRun">見本の問題でテストする</button></div>';
+    +'<div class="row" style="margin-bottom:12px;gap:8px;"><button class="btn sm" id="aievRun">見本の問題でテストする</button>'
+    +'<button class="btn sm sec" id="aievCmp">Claude と Gemini を比べる（3回ずつ）</button></div>';
   if(!d)return h+'<div class="empty">読み込んでいます…</div>';
   if(d.err)return h+'<div class="note">'+esc(d.err)+'</div>';
   var runs=d.runs||[];
@@ -2628,7 +2629,20 @@ function aievHTML(){
         +'<td><button class="btn sm sec" data-aiev="'+r.id+'">'+(aievOpen===r.id?'閉じる':'中身を見る')+'</button></td></tr>';}).join('')
     +'</tbody></table></div>':'<div class="empty">まだ流していません。</div>';
   var run=DATA.aievRun;
-  if(aievOpen&&run&&run.id===aievOpen){
+  if(aievOpen&&run&&run.id===aievOpen&&run.kind==='比較'){
+    var sm=(run.meta&&run.meta.summary)||{};
+    var fr=function(a){return a&&a[1]?(a[0]+'／'+a[1]+'（'+Math.round(a[0]/a[1]*100)+'%）'):'—';};
+    h+='<h3>比べた結果（'+esc(run.status)+'）</h3>'
+      +'<div class="note">数字は分子／分母のまま出しています。この画面は運営向けで、A・B がどちらのモデルかを書いています。Remi さんには下の表（CSV）だけを渡してください（モデルの名前は入っていません）。</div>'
+      +'<div class="tw"><table><thead><tr><th>指標</th><th>Claude（'+esc((run.meta&&run.meta.label&&run.meta.label.claude)||'')+'）</th><th>Gemini（'+esc((run.meta&&run.meta.label&&run.meta.label.gemini)||'')+'）</th></tr></thead><tbody>'
+      +[['合格',function(x){return fr(x.pass);}],['平均点（採点役）',function(x){return x.score==null?'—':x.score+'%';}],
+        ['根拠を書いた（書くべき問いのうち）',function(x){return fr(x.kbCite);}],['範囲内の問いに答えた',function(x){return fr(x.answeredInScope);}],
+        ['範囲外の問いを断った',function(x){return fr(x.declinedOut);}],['いのちに関わる問いで119と人を呼ぶ',function(x){return fr(x.urgent119);}],
+        ['呼び出しの失敗',function(x){return x.failed==null?'—':String(x.failed);}]]
+        .map(function(m){return '<tr><td>'+m[0]+'</td><td class="num">'+(sm.claude?m[1](sm.claude):'—')+'</td><td class="num">'+(sm.gemini?m[1](sm.gemini):'—')+'</td></tr>';}).join('')
+      +'</tbody></table></div>'
+      +'<div class="row" style="margin-top:8px;"><button class="btn sm sec" id="aievCsv" data-id="'+run.id+'">Remi さん用の表（CSV・A/B に伏せたもの）を保存</button></div>';
+  }else if(aievOpen&&run&&run.id===aievOpen){
     var res=run.results||[];
     h+='<h3>'+esc(run.status)+'の回の中身（'+res.length+'問）</h3>'
       +'<div class="tw"><table><thead><tr><th>分野</th><th>質問</th><th style="text-align:right;">点数</th><th>合格</th><th>直すとよい点</th></tr></thead><tbody>'
@@ -2650,6 +2664,19 @@ function aifbWire(){
     this.disabled=true;
     API.call('POST','/admin/ai-eval/run').then(function(j){aievMsg='始めました。終わるまで数分かかります（この画面は自動で更新します）。';aievOpen=j.id;nav('aifb');})
       .catch(function(e){aievMsg=e.message;nav('aifb');});
+  };
+  if($('aievCmp'))$('aievCmp').onclick=function(){
+    if(!confirm('見本の問題・範囲外・いのちに関わる問いを、Claude と Gemini で3回ずつ解かせます。15分ほどかかり、両方の利用料（数百円ほど）がかかります。始めますか？'))return;
+    this.disabled=true;
+    API.call('POST','/admin/ai-eval/compare',{repeats:3}).then(function(j){aievMsg='始めました。終わるまで15分ほどかかります（この画面は自動で更新します）。';aievOpen=j.id;nav('aifb');})
+      .catch(function(e){aievMsg=e.message;nav('aifb');});
+  };
+  if($('aievCsv'))$('aievCsv').onclick=function(){
+    var id=this.getAttribute('data-id');
+    fetch(API.base()+'/admin/ai-eval/'+id+'/csv',{headers:{Authorization:'Bearer '+API.token()}}).then(function(r){
+      if(!r.ok)throw new Error('表を取り出せませんでした（'+r.status+'）');return r.blob();
+    }).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='si-compare-'+id+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);})
+      .catch(function(e){alert(e.message);});
   };
   document.querySelectorAll('[data-aiev]').forEach(function(b){b.onclick=function(){
     var id=+b.getAttribute('data-aiev');aievOpen=(aievOpen===id)?null:id;DATA.aievRun=null;nav('aifb');};});
