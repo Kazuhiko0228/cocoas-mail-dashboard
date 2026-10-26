@@ -16360,6 +16360,9 @@ var EN_DICT={
 '冒険や探検のストーリー':'Adventure & exploration stories',
 'この条件で3案をつくる':'Create 3 ideas with these settings',
 'この答えは':'Was this answer',
+'根拠を見る':'See the basis',
+'要確認':'Needs checking',
+'確かめ：通りました':'Check: passed',
 'SIに列の対応を考えてもらう':'Ask the SI to match the columns',
 '自分で列を選ぶ':'Choose the columns myself',
 'この対応で内容を確かめる':'Check the contents with this matching',
@@ -40683,7 +40686,10 @@ function dfRender(){
       +(v.form?'様式：'+esc(v.form.name||'')+'（Excel'+(L.fixed&&L.label?'・'+esc(L.label):'')+'）':'様式：Miralink の標準の形')
       +'　／　基準日 '+(open?'<input type="date" id="dfAsOf" value="'+esc(run.asOf)+'" style="width:auto;padding:2px 6px;font-size:12px;"> <button class="btn btn-sm" id="dfRefill" style="padding:2px 9px;">'+(run.items&&run.items.rec?'記録から取り込み直す':'帳簿から取り込み直す')+'</button>':esc(dfDate(run.asOf)))
       +(run.confirmedAt?'　／　確定：'+esc(run.confirmedBy||'')+'（'+esc(dfTime(run.confirmedAt))+'）':'')
+      /* 作成にかかった時間（作り始め〜確定）。あとで準備時間を比べるため（2026-10-26 機能②） */
+      +(run.prepMinutes!=null?'　／　作成にかかった時間 '+esc(dfMin(run.prepMinutes)):(run.createdAt?'　／　作り始め '+esc(dfTime(run.createdAt)):''))
     +'</div>'
+    +(run.items&&run.items.evidenceSummary&&run.items.evidenceSummary.needCheck&&open?'<div class="mini" style="margin-top:4px;color:#A4491A;">根拠を確かめられない項目が '+run.items.evidenceSummary.needCheck+'件 あります（「要確認」の印）。元の記録を確かめてから確定してください。</div>':'')
     +(howTxt?'<div class="mini" style="margin-top:4px;color:#6B5FA8;">'+esc(howTxt)+'</div>':'')
     +dfStepsHTML(run)+'</div>';
 
@@ -40743,7 +40749,7 @@ function dfRender(){
       +(sv.question&&(sv.missing||sv.answer||sv.class==='C')?'<div style="font-size:12.5px;margin:2px 0 4px;">'+esc(sv.question)+'</div>':'')
       +(sv.choices?(sv.value?'<div class="dfc"><span class="v">'+esc(sv.value)+'</span></div>':'')+dfScalarInput(sv,open)
         :'<div class="dfc">'+dfValHTML(f,sv,open&&!!(sv.missing||sv.answer),'s|'+sv.fid)+'</div>')
-      +'<div class="dfbasis">根拠：'+esc(sv.basis||'')+(sv.checked?'　／　確認：'+esc(sv.checked.by)+'（'+esc(dfTime(sv.checked.at))+'）':'')+'</div></div>';
+      +'<div class="dfbasis">根拠：'+esc(sv.basis||'')+(sv.checked?'　／　確認：'+esc(sv.checked.by)+'（'+esc(dfTime(sv.checked.at))+'）':'')+'</div>'+dfEvidenceHTML(sv)+'</div>';
   });
   if(tpl.table)h+='<div class="dfsec" style="margin-top:14px;">職員（'+(run.items.rows||[]).length+'名）</div>';
   if(tpl.table&&!(run.items.rows||[]).length)h+='<div class="muted">基準日に在籍している職員がいません。職員情報を確かめてください。</div>';
@@ -40825,12 +40831,26 @@ function dfGroupsHTML(run,tpl,L,xlsx,open,chk,spots,flt,sOut){
         +(val?esc(val):(sv.missing?'（答えが要ります）':'<span class="mini">（空欄）</span>'))+'</span></div>'
         +(sv.question&&open&&(sv.missing||sv.class==='C'||(sv.ask&&!sv.value))?'<div style="font-size:12px;margin-top:2px;">'+esc(sv.question)+'</div>':'')
         +dfScalarInput(sv,open)
-        +'<div class="dfbasis" style="margin-top:2px;">'+esc(sv.basis||'')+'</div></div>';
+        +'<div class="dfbasis" style="margin-top:2px;">'+esc(sv.basis||'')+'</div>'+dfEvidenceHTML(sv)+'</div>';
     });
     if(by)h+='<div class="dfbasis">確認：'+esc(by.by)+'（'+esc(dfTime(by.at))+'）</div>';
     h+='</div>';
   });
   return h;
+}
+/* ══ 項目ごとの「根拠を見る」（2026-10-26「SI 同居」機能②）══
+   サーバ（evidence.js）が、どのデータから入れたか・関係する基準の条文・コードでの確かめの結果を付けて返す。
+   確かめられない項目は「要確認」と決まった1文。★SI は下書きまで。提出・送信はしない */
+function dfMin(m){m=+m||0;return m<60?(m+'分'):(Math.floor(m/60)+'時間'+(m%60?(m%60)+'分':''));}
+function dfEvidenceHTML(sv){
+  var e=sv&&sv.evidence;if(!e)return '';
+  var tag=e.ok?'':'<span style="display:inline-block;background:#FAEEDA;color:#854F0B;border-radius:99px;padding:0 8px;font-size:10.5px;font-weight:700;margin-right:6px;">要確認</span>';
+  var body='<div style="margin-top:4px;font-size:11.5px;line-height:1.7;">'
+    +'<div><b>データ</b>：'+esc(e.data||'（なし）')+'</div>'
+    +(e.rule?'<div><b>基準</b>：'+esc(e.rule.title)+'　「'+esc(e.rule.quote)+'」<br><span class="muted">出典：'+esc(e.rule.src)+'</span></div>':'')
+    +(e.ok?'<div style="color:#27500A;">確かめ：通りました</div>':'<div style="color:#A4491A;">'+esc(e.fixed)+'<br><span class="muted">'+esc((e.why||[]).join('・'))+'</span></div>')
+    +'</div>';
+  return '<details style="margin-top:3px;"><summary class="mini" style="cursor:pointer;">'+tag+'根拠を見る</summary>'+body+'</details>';
 }
 function dfChkBtn(can,checked,kind,id,blocked){
   if(!can)return checked?'<span class="dfbadge" style="background:#EAF3DE;color:#27500A;">確認済み</span>':'';
