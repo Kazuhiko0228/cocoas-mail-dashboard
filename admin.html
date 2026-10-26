@@ -2580,7 +2580,30 @@ function aifbHTML(){
     +((d.byTenant||[]).length?'<div class="tw"><table><thead><tr><th>園</th><th style="text-align:right;">採用</th><th style="text-align:right;">却下</th><th style="text-align:right;">役に立った</th><th style="text-align:right;">いまひとつ</th></tr></thead><tbody>'
       +d.byTenant.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td class="num" style="text-align:right;">'+r.adopt+'</td><td class="num" style="text-align:right;">'+r.reject+'</td><td class="num" style="text-align:right;">'+r.good+'</td><td class="num" style="text-align:right;">'+r.bad+'</td></tr>';}).join('')
       +'</tbody></table></div>':'<div class="empty">この期間はありません。</div>')
+    +aiuseHTML()
     +aievHTML();
+}
+/* ── SI のモデルと費用（2026-10-26 Claude の最安モデルへの切り替え）──
+   どの機能がどのモデルで動いているか（鍵が入っているか）と、期間中の回数・トークン・推定円。
+   円は 100万トークンあたりの単価×仮の為替で出した目安。Gemini は単価を入れていなければ空 */
+var AI_FEATURE_JA={chat:'会話（Miralink SI）',plan:'計画・活動の3案',ask:'相談',selftest:'接続の確認',scanread:'記入用紙の読み取り',docflow:'書類の様式の読み取り',reqnav:'提出書類ナビの調べもの',eval:'物差しの採点','import':'名簿の取り込み',memo:'メモ→記録の下書き'};
+function aiuseHTML(){
+  var d=DATA.aiuse;
+  var h='<h3>SIのモデルと費用</h3>';
+  if(!d)return h+'<div class="empty">読み込んでいます…</div>';
+  if(d.err)return h+'<div class="note">'+esc(d.err)+'</div>';
+  var st=d.status||{},f=st.features||{};
+  h+='<div class="lead">いまのモデル：'+esc(Object.keys(f).map(function(k){return (AI_FEATURE_JA[k]||k)+'＝'+f[k].model+(f[k].ready?'':'（鍵なし）');}).join('／'))+'</div>'
+    +'<div class="note">Claude の鍵：'+(st.claudeKey?'入っている':'まだ入っていない（入るまでは Gemini で動きます）')+'。円は目安（為替 '+esc(String(d.fx))+'円／ドルの仮定）。</div>';
+  var rows=d.rows||[];
+  var tot=rows.reduce(function(a,r){return a+(r.yen||0);},0);
+  return h+(rows.length?'<div class="tw"><table><thead><tr><th>機能</th><th>モデル</th><th style="text-align:right;">回数</th><th style="text-align:right;">失敗</th><th style="text-align:right;">入力</th><th style="text-align:right;">出力</th><th style="text-align:right;">推定円</th></tr></thead><tbody>'
+    +rows.map(function(r){return '<tr><td>'+esc(AI_FEATURE_JA[r.feature]||r.feature)+'</td><td>'+esc(r.model||'')+'</td>'
+      +'<td class="num" style="text-align:right;">'+r.calls+'</td><td class="num" style="text-align:right;">'+r.failed+'</td>'
+      +'<td class="num" style="text-align:right;">'+r.in_tok.toLocaleString()+'</td><td class="num" style="text-align:right;">'+r.out_tok.toLocaleString()+'</td>'
+      +'<td class="num" style="text-align:right;">'+(r.yen==null?'—':(Math.round(r.yen*10)/10).toLocaleString())+'</td></tr>';}).join('')
+    +'<tr><td colspan="6"><b>合計</b></td><td class="num" style="text-align:right;"><b>'+(Math.round(tot*10)/10).toLocaleString()+'</b></td></tr>'
+    +'</tbody></table></div>':'<div class="empty">この期間はまだ使われていません。</div>');
 }
 /* ── SIの物差し：見本の問題を全部解かせて点数を出す（2026-10-25）──
    SIの指示文やモデルを直したら流し、前の回と点数を比べる。流せるのは owner だけ（サーバが断る） */
@@ -3039,6 +3062,7 @@ function load(){
   if(view==='aifb')  return Promise.all([
       API.call('GET','/admin/ai-feedback?days='+aifbDays).then(function(j){DATA.aifb=j;}),
       API.call('GET','/admin/ai-eval').then(function(j){DATA.aiev=j;}).catch(function(e){DATA.aiev={err:e.message};}),
+      API.call('GET','/admin/ai-usage?days='+aifbDays).then(function(j){DATA.aiuse=j;}).catch(function(e){DATA.aiuse={err:e.message};}),
       aievOpen?API.call('GET','/admin/ai-eval/'+aievOpen).then(function(j){DATA.aievRun=j;}).catch(function(){DATA.aievRun=null;}):null
     ]);
   /* 広告。操作ログが読めなくても一覧は出す（読めない理由で画面ごと止めない） */
