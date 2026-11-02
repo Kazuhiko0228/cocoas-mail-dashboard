@@ -16371,6 +16371,10 @@ var EN_DICT={
 'SIにおまかせで項目を合わせる':'Let the SI match the fields',
 '自分で項目を合わせる':'Match the fields myself',
 'この合わせ方で中身を確かめる':'Check the contents with this matching',
+'名簿に、まだ無いクラスがあります：':'The roster has classes that do not exist yet: ',
+'このクラスを作って、読み直す':'Create these classes and re-check',
+'は使われていないので、置き換えます。':' are not in use, so they will be replaced.',
+'はじめから入っているクラス（':'The default classes (',
 '根拠のチェック':'Basis check',
 'あなたの名簿の列':'Column in your list',
 '入れる先（Miralink の項目）':'Goes into (Miralink field)',
@@ -23190,6 +23194,21 @@ function rosterImportModal(){
       +skipList(parsed.dup,'#854F0B','#FAEEDA','すでにいるので飛ばします')
       +skipList(parsed.ng,'#A32D2D','#FCEBEB','入れられません')
       +(n?'':'<div class="empty" style="margin-top:10px;">登録できる行がありません</div>');
+    /* ★名簿のクラスがまだ無いとき、その場で作って読み直せるようにする（2026-11-01 導入の通し稽古で発見）。
+       新しい園のクラスは既定の「Pre・Kinder」だけで、名簿の「ひよこ」「りす」などが全員「入れられません」になっていた。
+       既定のまま・在園児もいない園は、既定を置き換える（使われていない Pre・Kinder を残さない） */
+    var riNew=[];parsed.ng.forEach(function(x){var k=x.row&&x.row.klass;if(k&&CLASSES.indexOf(k)<0&&riNew.indexOf(k)<0)riNew.push(k);});
+    if(riNew.length){
+      var riFresh=!((DB.settings||{}).classes||[]).length&&!enrolled().length;
+      r.insertAdjacentHTML('afterbegin','<div style="background:#F3EEFC;border-radius:10px;padding:10px 13px;margin-bottom:10px;font-size:12.5px;line-height:1.8;">'
+        +'名簿に、まだ無いクラスがあります：<b>'+riNew.map(esc).join('・')+'</b>'
+        +(riFresh?'<br><span class="muted">はじめから入っているクラス（'+CLASSES.map(esc).join('・')+'）は使われていないので、置き換えます。</span>':'')
+        +'<div style="margin-top:6px;"><button type="button" class="btn btn-sm btn-primary" id="riAddCls">'+ic('plus')+'このクラスを作って、読み直す</button></div></div>');
+      $('#riAddCls').onclick=function(){
+        optSave('classes',(riFresh?[]:CLASSES.slice()).concat(riNew));
+        $('#riCheck').click();
+      };
+    }
     /* 名簿が長いときに、下の「この内容で取り込む」まで遠くならないよう、開け閉めできるようにする。 */
     var _ot=$('#riOkTog');
     if(_ot)_ot.onclick=function(){
@@ -42081,7 +42100,8 @@ var OBW_STEPS=[
 ];
 function obwSteps(){
   var L=(OB_ME&&OB_ME.steps)||[], hasAg=!!((AGR_LIST&&AGR_LIST.docs)||[]).length;
-  return OBW_STEPS.filter(function(x){return x.k!=='agree'||hasAg;});
+  /* 無料モニターの園は支払い方法の手順を出さない（2026-11-01） */
+  return OBW_STEPS.filter(function(x){return (x.k!=='agree'||hasAg)&&!(x.k==='school_pay'&&OB_ME&&OB_ME.freeMonitor);});
 }
 function obwStepOf(k){return ((OB_ME&&OB_ME.steps)||[]).filter(function(x){return x.key===k;})[0]||null;}
 function obwDone(x){

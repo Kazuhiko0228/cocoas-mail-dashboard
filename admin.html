@@ -1287,7 +1287,7 @@ function tenantHTML(){
     /* ★割引は「何％引き」で入れる（2026-10-09）。それまでは「払う割合」（0.5＝半額）を入れる欄で、
        30％引きのつもりで 0.3 を入れると 70％引きになった。保存するときに払う割合へ直す */
     +'<div class="f"><label>割引する月数（なしは 0）</label><input id="c_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
-    +'<div class="f"><label>その間の割引（何％引き）</label><input id="c_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
+    +'<div class="f"><label>その間の割引（何％引き・無料モニターは 100）</label><input id="c_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
     +'<div class="f"><label>最低契約期間（か月）</label><input id="c_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div>'
     +'</div>'
     +'<div class="f"><label>メモ</label><textarea id="c_note" rows="2">'+esc(c.note||'')+'</textarea></div>'
@@ -1336,7 +1336,7 @@ function tenantHTML(){
     +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);"><div style="font-weight:800;font-size:13px;">'+(d.staff.length?'管理者を足す':'最初の管理者を作る')+'</div>'
     +(d.staff.length?'<div class="hint" style="margin:0 0 6px;">1人目の管理者のほかに、管理者のログインが要るときだけ使います。</div>':'')
     +'<div class="grid3">'
-    +'<div class="f"><label>ログインID</label><input id="ua_id" placeholder="admin2"></div>'
+    +'<div class="f"><label>ログインID</label><input id="ua_id" placeholder="園コード-admin2"></div>'
     +'<div class="f"><label>お名前</label><input id="ua_nm" placeholder="事務長"></div>'
     +'<div class="f"><label>初期パスワード</label><input id="ua_pw" placeholder="8文字以上"></div>'
     +'</div></div>'
@@ -1577,7 +1577,7 @@ function wizBody(k){
       +'<div class="f"><label>ご利用開始日</label><input id="wz_start" type="date" value="'+esc(c.started_on||'')+'"></div>'
       +'<div class="f"><label>初期費用（税別）</label><input id="wz_init" class="num" inputmode="numeric" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
       +'<div class="f"><label>割引する月数（なしは 0）</label><input id="wz_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
-      +'<div class="f"><label>その間の割引（何％引き）</label><input id="wz_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
+      +'<div class="f"><label>その間の割引（何％引き・無料モニターは 100）</label><input id="wz_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
       +'<div class="f"><label>最低契約期間（か月）</label><input id="wz_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div></div>'
       +'<div class="wzQuote"><span style="flex:1;min-width:200px;">いまの条件でのひと月の金額 <b class="num">'+yen(q.total||0)+'</b>（税別・在籍 '+esc(d.seats||0)+'名）</span>'
       /* 2026-10-11：入れた条件で金額を出し直す（保存はするが、このステップは済にしない） */
@@ -2340,9 +2340,10 @@ function apSitesHTML(a){
 function apFormHTML(px,name,who,btn,goId){
   return '<div class="grid2">'
     +'<div class="f"><label>園コード <span style="color:var(--bad);">必須</span></label><input id="'+px+'_code" placeholder="例：mirai-hoikuen" autocomplete="off">'
-    +'<div class="hint">園がログインのたびに入れる英字です。半角の小文字・数字・ハイフン。<b>あとから変えられません。</b></div></div>'
+    +'<div class="hint">園を見分ける英字です（ログインには使いません）。半角の小文字・数字・ハイフン。<b>あとから変えられません。</b></div></div>'
     +'<div class="f"><label>園名</label><input id="'+px+'_name" value="'+esc(name||'')+'"><div class="hint">画面と請求書に出る名前。あとから直せます。</div></div>'
-    +'<div class="f"><label>管理者のログインID</label><input id="'+px+'_login" value="admin"></div>'
+    /* ★ログインIDは全部の園で1つだけ（2026-11-01）。空のままなら「園コード-admin」で作る */
+    +'<div class="f"><label>管理者のログインID</label><input id="'+px+'_login" placeholder="空なら「園コード-admin」"><div class="hint">ほかの園と同じIDは使えません。</div></div>'
     +'<div class="f"><label>管理者のお名前</label><input id="'+px+'_who" value="'+esc(who||'')+'"></div>'
     +'</div><div class="row"><button class="btn" id="'+goId+'">'+esc(btn)+'</button><span class="msg" id="'+px+'_m"></span>'
     +'<span class="hint">初期パスワードは次の画面と、園の詳細 › アカウントでいつでも見られます</span></div>';
@@ -2925,8 +2926,9 @@ function plansHTML(){
 }
 /* 設定 › 料金・税：料金プラン・消費税・保育料カード払いの BJ の取り分を1か所に（2026-10-08） */
 /* キャンペーンの「何％引き」⇔「払う割合」（サーバの campaign_rate） */
-function campOff(c){var m=+c.campaign_months||0,r=+c.campaign_rate;if(!m||!(r>0&&r<1))return 0;return Math.round((1-r)*100);}
-function campSave(m,off){m=+m||0;off=+off||0;if(!m||off<=0)return {months:0,rate:1};if(off>99)off=99;return {months:m,rate:(100-off)/100};}
+function campOff(c){var m=+c.campaign_months||0,r=+c.campaign_rate;if(!m||!(r>=0&&r<1))return 0;return Math.round((1-r)*100);}
+/* 100％引き＝無料モニター（払う割合 0）。2026-11-01 */
+function campSave(m,off){m=+m||0;off=+off||0;if(!m||off<=0)return {months:0,rate:1};if(off>100)off=100;return {months:m,rate:(100-off)/100};}
 function campText(c){var m=+c.campaign_months||0,o=campOff(c);return (m&&o)?(m+'か月 '+o+'％引き'):'キャンペーンなし';}
 /* ══ 新しい園の契約の既定値（2026-10-09 安田さんのご依頼）══════════
    園を作ったときに、この値が契約に入る。あとから変えても、すでにある園は変わらない。
