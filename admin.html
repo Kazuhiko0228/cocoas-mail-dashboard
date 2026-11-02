@@ -1290,6 +1290,8 @@ function tenantHTML(){
     +'<div class="f"><label>その間の割引（何％引き・無料で始めるなら 100）</label><input id="c_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
     +'<div class="f"><label>最低契約期間（か月）</label><input id="c_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div>'
     +'</div>'
+    /* 完全無料（2026-11-01 安田さん「設定で完全無料もできるように」） */
+    +'<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:13px;"><input type="checkbox" id="c_free"'+(c.free_forever?' checked':'')+'> <b>完全無料</b>（期間なし・ずっと0円。初期費用・園児数の加算もなし。支払い方法の登録も要りません）</label>'
     +'<div class="f"><label>メモ</label><textarea id="c_note" rows="2">'+esc(c.note||'')+'</textarea></div>'
     +'<div class="row"><button class="btn" id="save">契約を保存する</button><span class="msg" id="sm"></span></div>'
     +'</div>'
@@ -1579,6 +1581,7 @@ function wizBody(k){
       +'<div class="f"><label>割引する月数（なしは 0）</label><input id="wz_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
       +'<div class="f"><label>その間の割引（何％引き・無料で始めるなら 100）</label><input id="wz_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
       +'<div class="f"><label>最低契約期間（か月）</label><input id="wz_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div></div>'
+      +'<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:13px;"><input type="checkbox" id="wz_free"'+(c.free_forever?' checked':'')+'> <b>完全無料</b>（期間なし・ずっと0円。初期費用・園児数の加算もなし。支払い方法の登録も要りません）</label>'
       +'<div class="wzQuote"><span style="flex:1;min-width:200px;">いまの条件でのひと月の金額 <b class="num">'+yen(q.total||0)+'</b>（税別・在籍 '+esc(d.seats||0)+'名）</span>'
       /* 2026-10-11：入れた条件で金額を出し直す（保存はするが、このステップは済にしない） */
       +'<button class="btn sec sm" id="wzRecalc">入れた条件で金額を出し直す</button><span class="msg" id="wzRM"></span></div>'
@@ -2929,7 +2932,7 @@ function plansHTML(){
 function campOff(c){var m=+c.campaign_months||0,r=+c.campaign_rate;if(!m||!(r>=0&&r<1))return 0;return Math.round((1-r)*100);}
 /* 100％引き＝無料モニター（払う割合 0）。2026-11-01 */
 function campSave(m,off){m=+m||0;off=+off||0;if(!m||off<=0)return {months:0,rate:1};if(off>100)off=100;return {months:m,rate:(100-off)/100};}
-function campText(c){var m=+c.campaign_months||0,o=campOff(c);return (m&&o)?(m+'か月 '+o+'％引き'):'キャンペーンなし';}
+function campText(c){if(c&&c.free_forever)return '完全無料';var m=+c.campaign_months||0,o=campOff(c);return (m&&o)?(m+'か月 '+o+'％引き'):'キャンペーンなし';}
 /* ══ 新しい園の契約の既定値（2026-10-09 安田さんのご依頼）══════════
    園を作ったときに、この値が契約に入る。あとから変えても、すでにある園は変わらない。
    園ごとの条件は、その園の 契約・請求 で自由に直せる。変えられるのは owner だけ */
@@ -3499,6 +3502,7 @@ function wire(){
       seat_included:v('c_inc')===''?'':+v('c_inc'),
       seat_unit_yen:v('c_unit')===''?'':+v('c_unit'),
       campaign_months:campSave(v('c_cm'),v('c_coff')).months,campaign_rate:campSave(v('c_cm'),v('c_coff')).rate,min_months:+v('c_mm'),
+      free_forever:!!($('c_free')&&$('c_free').checked),
       /* 空欄は触らない（0で上書きすると、入れてあった額が消える） */
       initial_fee_yen:v('c_init')===''?'':+v('c_init'),
       store_fee_percent:v('c_sfee')===''?'':+v('c_sfee'),
@@ -3674,7 +3678,7 @@ function wire(){
     if(+v('wz_cm')>36||+v('wz_coff')>100){say('wzM','割引する月数は 0〜36、割引は 0〜100％で入れてください');return;}
     say('wzM','保存中…',true);
     API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),
-        campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm')})
+        campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm'),free_forever:!!($('wz_free')&&$('wz_free').checked)})
       .then(function(){return wizFin('hearing')?null:API.call('PUT','/admin/tenants/'+openId+'/onboarding/hearing',{status:'done',note:''});})
       .then(function(){WZ.step=3;GLB_AT=0;render();window.scrollTo(0,0);})
       .catch(function(e){say('wzM',e.message);});
@@ -3684,7 +3688,7 @@ function wire(){
     if(+v('wz_cm')>36){say('wzRM','割引する月数は 0〜36 で入れてください');return;}
     if(+v('wz_coff')>100){say('wzRM','割引は 0〜100％で入れてください');return;}
     var cs=campSave(v('wz_cm'),v('wz_coff'));say('wzRM','計算中…',true);
-    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm')})
+    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm'),free_forever:!!($('wz_free')&&$('wz_free').checked)})
       .then(function(){render();}).catch(function(e){say('wzRM',e.message);});
   };
   if($('wzInv'))$('wzInv').onclick=function(){var em=$('wzBillMail').value.trim();
