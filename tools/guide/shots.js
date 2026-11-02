@@ -193,6 +193,14 @@ async function wizTo(page, key) {
   await page.evaluate(() => { var e = document.getElementById('suId').closest('.card'); e.setAttribute('data-guide-box', '1'); e.scrollIntoView({ block: 'start' }); window.scrollBy(0, -100); });
   await shot(page, 'g-06-staff-add.jpg', '[data-guide-box]', 8); await mark(page, null);
   await page.evaluate(() => { document.querySelector('[data-guide-box]').removeAttribute('data-guide-box'); });
+  /* 職員をまとめて登録する（CSV）。登録したあとの一覧を撮る（パスワードは伏せたまま） */
+  const scsv = '\ufeff氏名,ログインID,役職\r\n山本 さくら,,主任・リーダー\r\n中村 ゆい,,先生\r\n';
+  const scsvPath = path.join(require('os').tmpdir(), 'guide-staff-' + Date.now() + '.csv'); fs.writeFileSync(scsvPath, scsv);
+  await page.evaluate(() => { staffImportModal(); }); await wait(page, 600);
+  await page.setInputFiles('#stFile', scsvPath); await wait(page, 1000);
+  await page.click('#stGo'); await wait(page, 3500); fs.unlinkSync(scsvPath);
+  await mark(page, '#stPrint'); await shot(page, 'g-06d-staff-import.jpg', '#modalRoot .modal-bg:last-child .modal', 10); await mark(page, null);
+  await page.evaluate(() => { document.querySelector('#modalRoot .modal-bg:last-child').remove(); });
 
   /* 保護者の招待 */
   await page.evaluate(() => { obPrep(['wastore', '保護者アカウント新規発行']); go('wastore'); }); await wait(page, 2500);

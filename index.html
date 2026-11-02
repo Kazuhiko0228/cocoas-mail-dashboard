@@ -16373,6 +16373,28 @@ var EN_DICT={
 'この合わせ方で中身を確かめる':'Check the contents with this matching',
 '名簿に、まだ無いクラスがあります：':'The roster has classes that do not exist yet: ',
 'このクラスを作って、読み直す':'Create these classes and re-check',
+'まとめて登録する（CSV）':'Register in bulk (CSV)',
+'まとめて登録する':'Register in bulk',
+'ひな形に1行1人ずつ入れて取り込みます。はじめのパスワードは自動で作ります。':'Fill in the template, one person per row, and import it. Initial passwords are created automatically.',
+'職員をまとめて登録する':'Register staff in bulk',
+'② Excel で開いて、1行に1人ずつ入れます。':'② Open it in Excel and enter one person per row.',
+'列は「氏名＊・ログインID・役職」です（＊は必ず入れる）。':'The columns are Name*, Login ID and Role (* required).',
+'見出しの行が見つかりません。1行目は「氏名,ログインID,役職」にしてください（ひな形のとおり）。':'No header row found. Make the first row "氏名,ログインID,役職" as in the template.',
+'自動で作る':'Created automatically',
+'この内容で登録する':'Register with this content',
+'このログインIDの職員は、すでにいます':'A staff member with this login ID already exists',
+'ファイルの中で同じログインIDがあります':'The same login ID appears more than once in the file',
+'氏名がありません':'Name is missing',
+'パスワードを表示する':'Show passwords',
+'パスワードを伏せる':'Hide passwords',
+'1人1枚のお知らせを印刷する':'Print one notice per person',
+'入れられなかった職員':'Staff who could not be added',
+'職員のログインのお知らせ':'Staff login notice',
+'この一覧は、この窓を閉じると二度と出ません。いま印刷するか、控えてください。':'This list will not be shown again after you close this window. Print it or write it down now.',
+'閉じると、はじめのパスワードは二度と表示されません。控えましたか？':'After closing, the initial passwords will never be shown again. Have you noted them?',
+'このログインIDは、ほかの園で使われています':'This login ID is used by another school',
+'このログインIDは、この園ですでに使われています':'This login ID is already used at this school',
+'すでにいるので飛ばします':'Skipped because they already exist',
 'は使われていないので、置き換えます。':' are not in use, so they will be replaced.',
 'はじめから入っているクラス（':'The default classes (',
 '根拠のチェック':'Basis check',
@@ -35263,9 +35285,14 @@ function suDraw(){
     +'<div class="field" style="margin:0;"><label>役割</label>'+suRoleSel('id="suRole"','一般')+'</div>'
     +'<div class="field" style="margin:0;"><label>はじめのパスワード（8文字以上）</label><input id="suPw" type="password" autocomplete="new-password"></div></div>'
     +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="suAdd">'+ic('plus')+'追加する</button><span class="muted" id="suMsg"></span></div></div>'
+    /* 職員をまとめて登録する（CSV・2026-11-01） */
+    +'<div style="margin-top:10px;padding:12px;border:1px dashed var(--line,#ddd);border-radius:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+    +'<div style="flex:1;min-width:220px;"><div style="font-weight:700;">まとめて登録する（CSV）</div><div class="muted" style="font-size:12px;">ひな形に1行1人ずつ入れて取り込みます。はじめのパスワードは自動で作ります。</div></div>'
+    +'<button class="btn btn-sm" id="suImport">'+ic('folder')+'まとめて登録する</button></div>'
     +'<div style="margin-top:10px;"><button class="btn btn-sm" id="saMyPw">'+ic('shield')+'自分のパスワードを変える</button></div>';
   var msg=function(t){var m=document.getElementById('suMsg');if(m)m.textContent=t;};
   document.getElementById('saMyPw').onclick=function(){passwordChangeModal(false);};
+  document.getElementById('suImport').onclick=function(){staffImportModal();};
   document.getElementById('suAdd').onclick=function(){
     var id=$('#suId').value.trim(),nm=$('#suName').value.trim(),pw=$('#suPw').value,rl=$('#suRole').value;
     if(!id||!nm||!pw){msg('ログインID・氏名・はじめのパスワードを入れてください');return;}
@@ -35292,6 +35319,132 @@ function suDraw(){
 function suLoad(){
   API.call('GET','/users').then(function(j){SU.list=j.users||[];SU.err='';suDraw();})
     .catch(function(e){SU.err=e.message;suDraw();});
+}
+/* ══ 職員をまとめて登録する（CSV・2026-11-01）══════════════
+   園児名簿の取り込み（rosterImportModal）と同じ形：①ひな形 ②1行に1人 ③ファイルを選ぶ → 確かめる → 登録する。
+   サーバ（POST /users/import）が、入れられる行だけ入れ、はじめのパスワードを1人ずつ作って返す。
+   ★返ってきたパスワードは、この窓の中だけで見せる（保存しない・記録にも残さない）。閉じたら二度と出ない */
+var STAFF_COLS=[
+  {k:'name',l:'氏名',need:true,alt:['名前','職員名','お名前']},
+  {k:'loginId',l:'ログインID',alt:['ID','ログインＩＤ']},
+  {k:'role',l:'役職',alt:['役割','職位']}
+];
+var STAFF_ROLE_LABELS=['管理者','園長','主任・リーダー','先生'];
+function staffTemplateCsv(){
+  var q=function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  return '﻿'+STAFF_COLS.map(function(c){return q(c.l);}).join(',')+'\r\n'+['（例）田中 花子','','先生'].map(q).join(',')+'\r\n';
+}
+function staffTemplateDownload(){
+  var b=new Blob([staffTemplateCsv()],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='職員名簿_ひな形.csv';
+  document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
+}
+function staffParse(text){
+  var lines=String(text||'').split(/\r?\n/).filter(function(l){return l.trim();});
+  if(!lines.length)return {ok:[],ng:[],dup:[],noHeader:true};
+  var head=rosterSplit(lines[0]).map(function(h){return String(h).replace(/\s/g,'').replace(/[＊*]/g,'');});
+  var idx={};STAFF_COLS.forEach(function(c){var i=head.findIndex(function(h){return h===c.l.replace(/\s/g,'')||c.alt.indexOf(h)>-1;});if(i>-1)idx[c.k]=i;});
+  if(idx.name==null)return {ok:[],ng:[],dup:[],noHeader:true};
+  var have={};(SU.list||[]).forEach(function(u){have[String(u.login_id).toLowerCase()]=1;});
+  var seen={},ok=[],ng=[],dup=[];
+  lines.slice(1).forEach(function(line,i){
+    var c=rosterSplit(line),no=i+2;
+    var row={name:String(c[idx.name]||'').trim(),loginId:idx.loginId==null?'':String(c[idx.loginId]||'').trim(),role:idx.role==null?'':String(c[idx.role]||'').trim()};
+    if(/^（例）/.test(row.name))return;
+    if(!row.name&&!row.loginId&&!row.role)return;
+    var bad=[];
+    if(!row.name)bad.push('氏名がありません');
+    if(row.role&&STAFF_ROLE_LABELS.indexOf(row.role)<0&&STAFF_ROLES.indexOf(row.role)<0)bad.push('役職は「'+STAFF_ROLE_LABELS.join('・')+'」のどれかで入れてください');
+    if(row.loginId&&!/^[A-Za-z0-9_.-]{3,32}$/.test(row.loginId))bad.push('ログインIDは半角の英数字（と _ . -）で3〜32文字にしてください');
+    if(bad.length){ng.push({no:no,row:row,why:bad.join(' ／ ')});return;}
+    var k=row.loginId.toLowerCase();
+    if(k&&have[k]){dup.push({no:no,row:row,why:'このログインIDの職員は、すでにいます'});return;}
+    if(k&&seen[k]){dup.push({no:no,row:row,why:'ファイルの中で同じログインIDがあります'});return;}
+    if(k)seen[k]=1;
+    ok.push({no:no,row:row});
+  });
+  return {ok:ok,ng:ng,dup:dup};
+}
+function staffImportModal(){
+  var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+  m.innerHTML='<div class="modal" style="max-width:820px;">'
+    +'<h2>'+ic('folder')+'職員をまとめて登録する</h2>'
+    +'<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:12px;font-size:13px;line-height:1.8;">'
+    +'<div><b>① ひな形をダウンロードします</b>　<button type="button" class="btn btn-sm" id="stTpl">'+ic('download')+'ひな形（CSV）をダウンロード</button></div>'
+    +'<div><b>② Excel で開いて、1行に1人ずつ入れます。</b>列は「氏名＊・ログインID・役職」です（＊は必ず入れる）。'
+    +'<span class="muted" style="font-size:12px;">ログインIDが空なら自動で作ります（ほかの園と同じIDは使えません）。役職は「'+esc(STAFF_ROLE_LABELS.join('・'))+'」のどれかで、空なら先生です。保存するときは「CSV UTF-8（コンマ区切り）」を選んでください。</span></div>'
+    +'<div><b>③ 保存したファイルを選びます</b>　<label class="btn btn-sm btn-primary" style="cursor:pointer;">'+ic('folder')+'CSVファイルを選ぶ<input type="file" id="stFile" accept=".csv,text/csv" style="display:none;"></label> <span class="muted" id="stFileName" style="font-size:12px;"></span></div>'
+    +'</div>'
+    +'<div id="stResult"></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">'
+    +'<button class="btn" id="stClose">閉じる</button>'
+    +'<button class="btn btn-primary" id="stGo" style="display:none;">この内容で登録する</button></div></div>';
+  if(typeof langApply==='function')try{langApply(m);}catch(e){}
+  var parsed=null,r=m.querySelector('#stResult');
+  m.querySelector('#stClose').onclick=function(){m.remove();suLoad();};
+  m.querySelector('#stTpl').onclick=staffTemplateDownload;
+  var list=function(L,color,bg,title){if(!L.length)return '';
+    return '<div style="margin-top:10px;"><div style="font-weight:700;font-size:12.5px;color:'+color+';">'+esc(title)+'（'+L.length+'名）</div>'
+      +L.map(function(x){return '<div style="display:flex;gap:9px;flex-wrap:wrap;background:'+bg+';border-radius:8px;padding:5px 10px;margin-top:5px;font-size:12.5px;">'
+        +'<span class="row-sub">'+x.no+'行目</span><span data-nolang="1" style="flex:1;min-width:120px;">'+esc(x.row.name||'（氏名なし）')+(x.row.loginId?'　'+esc(x.row.loginId):'')+'</span><span style="color:'+color+';">'+esc(x.why)+'</span></div>';}).join('')+'</div>';};
+  var draw=function(){
+    if(parsed.noHeader){r.innerHTML='<div style="background:#FCEBEB;color:#A32D2D;padding:10px 13px;border-radius:8px;font-size:12.5px;">見出しの行が見つかりません。1行目は「氏名,ログインID,役職」にしてください（ひな形のとおり）。</div>';m.querySelector('#stGo').style.display='none';return;}
+    r.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      +'<span class="tag" style="background:#EAF3DE;color:#27500A;">登録します '+parsed.ok.length+'名</span>'
+      +'<span class="tag" style="background:#FAEEDA;color:#854F0B;">飛ばします '+parsed.dup.length+'名</span>'
+      +'<span class="tag" style="background:#FCEBEB;color:#A32D2D;">入れられません '+parsed.ng.length+'名</span></div>'
+      +(parsed.ok.length?'<div class="scrollx" style="margin-top:10px;"><table style="font-size:12.5px;"><thead><tr><th style="width:52px;">行</th><th>氏名</th><th>ログインID</th><th>役職</th></tr></thead><tbody>'
+        +parsed.ok.map(function(x){return '<tr><td class="row-sub">'+x.no+'</td><td data-nolang="1">'+esc(x.row.name)+'</td><td data-nolang="1">'+(x.row.loginId?esc(x.row.loginId):'<span class="muted">自動で作る</span>')+'</td><td>'+esc(x.row.role||'先生')+'</td></tr>';}).join('')
+        +'</tbody></table></div>':'<div class="empty" style="margin-top:10px;">登録できる行がありません</div>')
+      +list(parsed.dup,'#854F0B','#FAEEDA','すでにいるので飛ばします')+list(parsed.ng,'#A32D2D','#FCEBEB','入れられません');
+    m.querySelector('#stGo').style.display=parsed.ok.length?'':'none';
+    if(typeof langApply==='function')try{langApply(r);}catch(e){}
+  };
+  m.querySelector('#stFile').onchange=function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    m.querySelector('#stFileName').textContent=f.name+' を読んでいます…';
+    rosterReadFile(f,function(t){
+      if(t==null){m.querySelector('#stFileName').textContent='ファイルを読めませんでした';return;}
+      m.querySelector('#stFileName').textContent=f.name;parsed=staffParse(t);draw();
+    });
+  };
+  m.querySelector('#stGo').onclick=function(){
+    if(!parsed||!parsed.ok.length)return;
+    if(!confirm(parsed.ok.length+'名の職員のログインを作ります。よろしいですか？'))return;
+    var bt=this;bt.disabled=true;bt.textContent='登録しています…';
+    API.call('POST','/users/import',{rows:parsed.ok.map(function(x){return {no:x.no,name:x.row.name,loginId:x.row.loginId,role:x.row.role};})})
+      .then(function(j){staffImportDone(m,j.made||[],j.ng||[]);})
+      .catch(function(e){bt.disabled=false;bt.textContent='この内容で登録する';alert(e.message);});
+  };
+}
+/* 登録したあと：ログイン情報の一覧。パスワードは「表示」を押すまで伏せる。印刷すると1人1枚のお知らせになる */
+function staffImportDone(m,made,ng){
+  var url=location.origin+location.pathname;
+  var box=m.querySelector('.modal');
+  box.innerHTML='<h2>'+ic('check')+'職員を '+made.length+'名 登録しました</h2>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:10px;">それぞれの先生に<b>ログインID・はじめのパスワード</b>を渡してください。はじめのパスワードは、<b>最初のログインで必ずご本人のものに変えてもらいます</b>。<br>この一覧は、この窓を閉じると二度と出ません。いま印刷するか、控えてください。</div>'
+    +(made.length?'<div class="scrollx"><table style="font-size:13px;"><thead><tr><th>氏名</th><th>役職</th><th>ログインID</th><th>はじめのパスワード</th></tr></thead><tbody>'
+      +made.map(function(x,i){return '<tr><td data-nolang="1" style="white-space:nowrap;">'+esc(x.name)+'</td><td style="white-space:nowrap;">'+esc(roleLabel(x.role))+'</td><td data-nolang="1"><b>'+esc(x.loginId)+'</b></td><td data-nolang="1"><span class="num" data-stpw="'+i+'">●●●●●●●●●●●●</span></td></tr>';}).join('')
+      +'</tbody></table></div>':'')
+    +(ng.length?'<div style="margin-top:12px;"><div style="font-weight:700;font-size:12.5px;color:#A32D2D;">入れられなかった職員（'+ng.length+'名）</div>'
+      +ng.map(function(x){return '<div style="background:#FCEBEB;border-radius:8px;padding:5px 10px;margin-top:5px;font-size:12.5px;"><span class="row-sub">'+esc(x.no)+'行目</span>　<span data-nolang="1">'+esc(x.name||'')+(x.loginId?'　'+esc(x.loginId):'')+'</span>　<span style="color:#A32D2D;">'+esc(x.why)+'</span></div>';}).join('')+'</div>':'')
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px;">'
+    +(made.length?'<button class="btn" id="stShow">パスワードを表示する</button><button class="btn" id="stPrint">'+ic('printer')+'1人1枚のお知らせを印刷する</button>':'')
+    +'<button class="btn btn-primary" id="stDone">閉じる</button></div>';
+  if(typeof langApply==='function')try{langApply(box);}catch(e){}
+  var shown=false,sb=box.querySelector('#stShow');
+  if(sb)sb.onclick=function(){shown=!shown;box.querySelectorAll('[data-stpw]').forEach(function(x){x.textContent=shown?made[+x.getAttribute('data-stpw')].password:'●●●●●●●●●●●●';});sb.textContent=shown?'パスワードを伏せる':'パスワードを表示する';if(typeof langApply==='function')try{langApply(sb);}catch(e){}};
+  var pb=box.querySelector('#stPrint');
+  if(pb)pb.onclick=function(){
+    printDoc('職員のログインのお知らせ',made.map(function(x){
+      return '<div style="page-break-after:always;padding:8px 0;"><h2>'+esc(x.name)+' 先生</h2>'
+        +'<p>Miralink にログインするための情報です。</p>'
+        +'<table><tr><th>ログインのURL</th><td>'+esc(url)+'</td></tr><tr><th>ログインID</th><td>'+esc(x.loginId)+'</td></tr><tr><th>はじめのパスワード</th><td>'+esc(x.password)+'</td></tr></table>'
+        +'<p>最初のログインで、ご自身のパスワードに変えてください。この紙は、変えたあと捨ててください。</p></div>';}).join(''));
+  };
+  box.querySelector('#stDone').onclick=function(){if(made.length&&!confirm('閉じると、はじめのパスワードは二度と表示されません。控えましたか？'))return;m.remove();suLoad();};
+  m.onclick=null;
 }
 function staffSetPassword(acc,pw,done){
   done=done||function(){};
