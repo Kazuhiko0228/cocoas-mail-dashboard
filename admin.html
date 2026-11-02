@@ -981,7 +981,7 @@ function computeAttentionItems(){
     it.push({sev:'ng',n:1,text:c.label+'：'+(c.why?String(c.why).replace(/<[^>]*>/g,''):c.now),go:['sys']});
   });
   var due=ts.filter(function(t){return t.past_due_since&&t.status!=='解約済';});
-  if(due.length)it.push({sev:'ng',n:due.length,text:'ご利用料が未納の園（'+nm(due)+'）',go:due.length===1?['one',due[0].id,'contract']:['tenants']});
+  if(due.length)it.push({sev:'ng',n:due.length,text:'利用料金が未納の園（'+nm(due)+'）',go:due.length===1?['one',due[0].id,'contract']:['tenants']});
   var ap=((DATA.apply&&DATA.apply.applications)||[]).filter(function(a){return a.status==='未対応';});
   if(ap.length)it.push({sev:'warn',n:ap.length,text:'未対応の申込',go:['apply']});
   var iq=((DATA.inq&&DATA.inq.inquiries)||[]).filter(function(a){return a.status==='未対応';});
@@ -1188,7 +1188,7 @@ function tenantHTML(){
     +(function(){var c=d.contract||{};
       var t=c.pay_method==='card'?'カード（'+esc(String(c.card_brand||'').toUpperCase())+' •••• '+esc(c.card_last4||'')+'）で自動引き落とし'
         :c.pay_method==='invoice'?'請求書払い（'+esc(c.billing_email||'')+' に毎月メール・振込かカード）'
-        :'<span style="color:#A8701A;">未登録</span>（園が Miralink の設定 ›「Miralink のご利用料のお支払い」で選びます。未登録のあいだは請求しません）';
+        :'<span style="color:#A8701A;">未登録</span>（園が Miralink の設定 ›「利用料金の支払い方法」で選びます。未登録のあいだは請求しません）';
       return '<div style="font-size:12.5px;margin-top:10px;">払い方：'+t+'</div>';})()
     +'<div class="row" style="margin-top:12px;">'
     +'<button class="btn sec sm" id="cnt">いまの在籍数を記録する</button>'
@@ -1590,10 +1590,10 @@ function wizBody(k){
   }
   if(k==='contract'){
     var c2=d.contract||{}, pm=c2.pay_method;
-    var payBox='<div class="card" style="margin-top:4px;"><h3 style="font-size:16px;">ご利用料のお支払いの登録</h3>'
-      +'<div style="color:var(--ink2);margin-bottom:8px;">契約と同じころに、毎月のご利用料の払い方（カードか請求書払い）を登録します。これがそろうと課金を始められます。</div>'
+    var payBox='<div class="card" style="margin-top:4px;"><h3 style="font-size:16px;">利用料金の支払い方法</h3>'
+      +'<div style="color:var(--ink2);margin-bottom:8px;">契約と同じころに、毎月の利用料金の支払い方法（カードか請求書払い）を登録します。これがそろうと課金を始められます。完全無料の園は登録が要りません。</div>'
       +(pm?'<div class="note ok" style="margin:0;">登録ずみ：'+(pm==='card'?'カード（'+esc(String(c2.card_brand||'').toUpperCase())+' •••• '+esc(c2.card_last4||'')+'）':'請求書払い（'+esc(c2.billing_email||'')+'）')+'</div>'
-        :'<div class="hint" style="margin:0 0 8px;">管理者が Miralink の案内（ご利用料の払い方を選ぶ）で登録します。管理者の代わりに運営が登録することもできます。</div>'
+        :'<div class="hint" style="margin:0 0 8px;">管理者が Miralink の案内（利用料金の支払い方法を選ぶ）で登録します。管理者の代わりに運営が登録することもできます。</div>'
           +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">代理で請求書払いにする</div><div class="row"><input id="wzBillMail" type="email" placeholder="請求書の送り先メール" value="'+esc(c2.billing_email||((WZ.app&&WZ.app.email)||''))+'" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;">'
           +'<button class="btn sm" id="wzInv">請求書払いで登録する</button></div></div>'
           +'<div class="wzProxy"><div style="font-weight:800;font-size:12.5px;">カードで払う園</div><div class="hint" style="margin:0 0 6px;">カード番号は管理者が入れます。登録ページの URL を作って管理者に送ってください。</div>'
@@ -1606,7 +1606,7 @@ function wizBody(k){
     /* ログインの確かめは次の「使いはじめを確かめる」で見る。お支払いは「契約とお支払いの登録」で見る */
     var S=((DATA.ob&&DATA.ob.steps)||[]).filter(function(x){return x.side==='school'&&['first_login','parent_login','school_pay'].indexOf(x.key)<0;});
     var fin=function(x){return x.status==='done'||x.status==='skipped';};
-    var msg='Miralink のホームに「オンボーディング」の案内が出ています。上から順に（ご利用料の払い方 → 園児の登録 → 保護者の招待）進めてください。わからないところは、いつでもご連絡ください。';
+    var msg='Miralink のホームに「はじめの準備」の案内が出ています。上から順に（契約書の同意 → 利用料金の支払い方法 → 園児の登録 → 保護者の招待）進めてください。わからないところは、いつでもご連絡ください。';
     var a=WZ.app||{};
     return '<div class="lead">ここは園がやるステップです。管理者の Miralink に同じ並びの案内が出ています。済むと自動でチェックが付きます。下の「代理で登録する」で運営が代わりに入れることもできます。</div>'
       +S.map(function(x){return '<div class="obItem'+(fin(x)?' fin':'')+'"><span class="obMark'+(fin(x)?' on':'')+'">'+(fin(x)?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+esc(x.label)+'</span>'+(x.required?'':' <span class="hint" style="display:inline;">任意</span>')+'<div class="hint" style="margin:0;">'+esc(x.help||'')+'</div></span></div>';}).join('')
