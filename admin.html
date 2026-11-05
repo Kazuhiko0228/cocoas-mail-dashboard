@@ -359,6 +359,24 @@ td.r,th.r{text-align:right}
 .line1.ng{background:var(--bad-w);color:var(--bad)}.line1.ok{background:var(--ok-w);color:var(--ok)}
 .line1 a{color:inherit;font-weight:700;margin-left:6px}
 .pri{background:var(--eg);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;font-size:12.5px}
+/* 運営の SI（右下の紫のまるボタン・2026-11-05） */
+#opsSiBtn{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;border:none;background:#5128C8;color:#fff;
+  font-weight:800;font-size:15px;box-shadow:0 6px 20px rgba(81,40,200,.35);cursor:pointer;z-index:900}
+#opsSiBtn:focus-visible{outline:3px solid #B9A6F2;outline-offset:2px}
+#opsSiBox{position:fixed;right:20px;bottom:88px;width:380px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 120px);
+  background:#fff;border:1px solid #DDD6EE;border-radius:16px;box-shadow:0 12px 40px rgba(40,24,90,.22);display:flex;flex-direction:column;z-index:901;overflow:hidden}
+#opsSiBox .h{display:flex;align-items:center;gap:8px;padding:12px 14px;background:#F4F0FD;border-bottom:1px solid #E6DFF7;font-weight:800;font-size:13.5px;color:#3B1F9A}
+#opsSiBox .h span{flex:1}
+#opsSiBox .h button{border:none;background:none;font-size:18px;cursor:pointer;color:#6C6880}
+#opsSiLog{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.75}
+#opsSiLog .me{align-self:flex-end;background:#5128C8;color:#fff;border-radius:12px 12px 2px 12px;padding:8px 11px;max-width:85%;white-space:pre-wrap}
+#opsSiLog .si{align-self:flex-start;background:#F6F4FB;border-radius:12px 12px 12px 2px;padding:9px 12px;max-width:92%}
+#opsSiLog .si.ng{background:#FCEBEB;color:#A32D2D}
+#opsSiForm{display:flex;gap:8px;padding:10px;border-top:1px solid #EEE}
+#opsSiForm textarea{flex:1;resize:none;height:44px;border:1px solid #DDD6EE;border-radius:10px;padding:8px 10px;font:inherit;font-size:13px}
+#opsSiForm button{border:none;background:#5128C8;color:#fff;border-radius:10px;padding:0 14px;font-weight:700;cursor:pointer}
+#opsSiForm button:disabled{opacity:.5;cursor:default}
+@media(max-width:640px){#opsSiBox{right:8px;left:8px;width:auto;bottom:80px;height:calc(100vh - 110px)}}
 </style>
 </head>
 <body>
@@ -3153,11 +3171,12 @@ function wireInvite(){
 function render(){
   var r=$('root');
   if(INVITE){r.innerHTML=inviteHTML();wireInvite();return;}
-  if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();return;}
+  if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();opsSiMount();return;}
   var inner={wiz:wizHTML,home:homeHTML,inq:inqHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,aifb:aifbHTML,ads:adsHTML,me:meHTML,
     sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML,members:membersHTML,incidents:incidentsHTML,offboard:offboardHTML}[view]||homeHTML;
   r.innerHTML=shell(inner());
   wire();
+  opsSiMount();
   /* ホームとシステム接続は、開くたびに最新の状態を読む（ほかの画面は5分に1回） */
   Promise.all([loadGlobal(view==='home'||view==='sys'),load()]).then(function(){
     r.innerHTML=shell(inner());
@@ -3167,11 +3186,65 @@ function render(){
     if(e.code==='mfa_setup'&&view!=='me'){nav('me');return;}
     r.innerHTML=shell('<div class="note bad">'+esc(e.message)+'</div>');
     wire();
-    if(!API.token()){r.innerHTML=loginHTML();wireLogin();}
+    if(!API.token()){r.innerHTML=loginHTML();wireLogin();opsSiMount();}
   });
 }
 
 function say(id,t,ok){var e=$(id);if(!e)return;e.textContent=t;e.className='msg '+(ok?'ok':'ng');}
+/* ══ 運営の SI（右下の紫のまるボタン・2026-11-05 安田さんのご意向）══════════════
+   「システムの使い方として、SI を使って何かあったら解決するという文化にしたい。運営側にも SI で聴ける機能を」。
+   答えるのは運営管理の使い方だけ（サーバの src/howto-ops.json＝運営マニュアルとこの画面のボタン名で確かめた手順が根拠）。
+   園の記録は送らない。会話はこのタブの中だけ覚える（閉じれば消える）。
+   ★聞いたことは操作ログに残らない（何も書き換えない口のため。使った量だけ残る） */
+var OPSSI={open:false,busy:false,msgs:[]};
+function opsSiHTML(t){
+  var h=esc(t).replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/^#{1,4}\s*(.+)$/mg,'<b>$1</b>');
+  return h.replace(/\n/g,'<br>');
+}
+function opsSiMount(){
+  var on=!!(API.base()&&API.token());
+  var b=$('opsSiBtn');
+  if(!on){if(b)b.remove();var x=$('opsSiBox');if(x)x.remove();OPSSI.open=false;OPSSI.msgs=[];return;}
+  if(b)return;
+  b=document.createElement('button');b.id='opsSiBtn';b.type='button';b.textContent='SI';
+  b.title='SI に聞く（運営管理の使い方）';b.setAttribute('aria-label','SI に聞く（運営管理の使い方）');
+  b.onclick=function(){OPSSI.open=!OPSSI.open;opsSiDraw();};
+  document.body.appendChild(b);
+}
+function opsSiDraw(){
+  var box=$('opsSiBox');
+  if(!OPSSI.open){if(box)box.remove();return;}
+  if(!box){
+    box=document.createElement('div');box.id='opsSiBox';box.setAttribute('role','dialog');box.setAttribute('aria-label','運営 SI');
+    box.innerHTML='<div class="h"><span>運営 SI（スーパーインテリジェンス）</span><button type="button" id="opsSiX" aria-label="閉じる">×</button></div>'
+      +'<div id="opsSiLog"></div>'
+      +'<form id="opsSiForm"><textarea id="opsSiIn" placeholder="例：完全無料の園はどう設定する？" aria-label="SI への質問"></textarea><button type="submit" id="opsSiGo">送る</button></form>';
+    document.body.appendChild(box);
+    $('opsSiX').onclick=function(){OPSSI.open=false;opsSiDraw();};
+    $('opsSiForm').onsubmit=function(ev){ev.preventDefault();opsSiSend();};
+    /* ★日本語の変換中の Enter で送っていた園の SI と同じ事故を起こさないよう、変換中（isComposing）は送らない */
+    $('opsSiIn').onkeydown=function(ev){if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing&&ev.keyCode!==229){ev.preventDefault();opsSiSend();}};
+  }
+  var log=$('opsSiLog');
+  log.innerHTML=(OPSSI.msgs.length?'':'<div class="si">運営管理の使い方を聞けます。導入の進め方・契約・請求・困ったときの対応など、運営マニュアルの内容から答えます。</div>')
+    +OPSSI.msgs.map(function(m){return m.role==='me'?'<div class="me">'+esc(m.text)+'</div>':'<div class="si'+(m.ng?' ng':'')+'">'+opsSiHTML(m.text)+'</div>';}).join('')
+    +(OPSSI.busy?'<div class="si">考えています…</div>':'');
+  log.scrollTop=log.scrollHeight;
+  $('opsSiGo').disabled=OPSSI.busy;
+  if(!OPSSI.busy)$('opsSiIn').focus();
+}
+function opsSiSend(){
+  var inp=$('opsSiIn');if(!inp||OPSSI.busy)return;
+  var q=String(inp.value||'').replace(/^\s+|\s+$/g,'');if(!q)return;
+  inp.value='';OPSSI.msgs.push({role:'me',text:q.slice(0,1500)});OPSSI.busy=true;opsSiDraw();
+  var send=OPSSI.msgs.filter(function(m){return !m.ng;}).slice(-12).map(function(m){return {role:m.role,text:m.text};});
+  API.call('POST','/admin/ai/chat',{messages:send}).then(function(j){
+    OPSSI.msgs.push({role:'ai',text:String((j&&j.text)||'')});
+  }).catch(function(e){
+    OPSSI.msgs.push({role:'ai',text:e.message||'SIに聞けませんでした。時間をおいてお試しください。',ng:true});
+  }).then(function(){OPSSI.busy=false;opsSiDraw();});
+}
+
 
 function wire(){
   /* 消費税の設定 */
