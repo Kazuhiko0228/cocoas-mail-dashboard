@@ -28121,48 +28121,6 @@ function auditWrapWatch(){
   if(sec&&sec.style.display!=='none'&&typeof renderAudit==='function')renderAudit();
 }
 window.addEventListener('resize',auditWrapWatch);
-/* 監査の画面の「必要書類概要（さいたま市）」（もとは月間カレンダーの「年間の一覧」。2026-09-26 に移した） */
-function auditYearListHTML(){
-  ANNUAL_TASKS=taskBuild();
-  return ''
-    /* ★上の「毎月やること」と中身が被って見える、というご指摘（28-5）。
-       重複そのものは、この表から毎月のぶんを外して解消してある（tasksYearOnly）。
-       ただ、見出しだけでは何が違うのか分からないので、そこを書く。 */
-    +'<div class="card" style="margin-top:16px;">'+recHead('必要書類概要（さいたま市）','<button class="btn btn-sm btn-primary" id="tkPrintY">'+ic('printer')+'一覧を印刷</button>')
-    +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">うちの校舎とさいたま市の監査で必要な書類を作るための業務を、時期ごとにまとめたものです。'
-      +'毎月のタスクは月間カレンダーで確かめます。ここには決まった月だけに行うことを出しています。</div>'
-    /* ★スマホでは、時期70・目安250・使う画面160 と決めた残りしか「やること」に回らず、
-       題名の押しどころが 43px まで細って、字が1文字ずつ縦に割れていた（anntbl で下限を置く）。
-       hint は、横に送れることが分かる右はしの影。 */
-    +'<div class="scrollx hint"><table class="anntbl austack"><thead><tr><th style="width:70px;">時期</th><th>やること</th><th style="width:250px;">目安</th><th style="width:160px;">使う画面</th></tr></thead><tbody>'
-    +tasksYearOnly().map(function(t){
-      /* 題名だけを出し、押すと「なぜ必要か」が開く。上の「毎月やること」と同じ動きにそろえる */
-      var ai=ANNUAL_TASKS.indexOf(t),ao=!!annOpen[ai],wy=t.why||'';
-      return '<tr><td class="row-sub">'+esc(t.month)+'</td>'
-        +'<td class="row-name">'+taskTanTag(t)+' '
-        +(wy
-          ?'<button type="button" class="anhead" data-anhead="'+ai+'"><span>'+esc(t.name)+'</span><span class="anarw">'+(ao?'▲':'▼')+'</span></button>'
-            +'<div class="anbody" data-anbody="'+ai+'"'+(ao?'':' style="display:none;"')+'>'+esc(wy)+'</div>'
-          :esc(t.name))
-        +'</td><td class="row-sub">'+esc(t.when||'')+'</td><td class="row-sub">'+esc(t.page||'—')+'</td></tr>';}).join('')
-    +'</tbody></table></div></div>';
-}
-function auditYearListWire(s){
-  s.querySelectorAll('[data-anhead]').forEach(function(b){b.onclick=function(){
-    var i=b.getAttribute('data-anhead'),bd=s.querySelector('[data-anbody="'+i+'"]');if(!bd)return;
-    var op=(bd.style.display==='none');bd.style.display=op?'':'none';annOpen[i]=op;
-    var ar=b.querySelector('.anarw');if(ar)ar.textContent=op?'▲':'▼';};});
-  if($('#tkPrintY'))$('#tkPrintY').onclick=function(){
-    var b5='<table><thead><tr><th style="width:62px;">時期</th><th>やること／なぜ必要か</th><th style="width:150px;">目安</th><th style="width:130px;">使う画面</th></tr></thead><tbody>'
-      +tasksVisible(ANNUAL_TASKS).map(function(t){
-        return '<tr><td>'+esc(t.month)+'</td>'
-          +'<td><b>'+esc(t.name)+'</b>'+(t.why?'<div style="font-size:10px;">'+esc(t.why)+'</div>':'')+'</td>'
-          +'<td style="font-size:10px;">'+esc(String(t.month||'').indexOf('毎月')>-1?'':(t.when||''))+'</td>'
-          +'<td style="font-size:10px;">'+esc(t.page||'—')+'</td></tr>';}).join('')
-      +'</tbody></table>';
-    printDoc('必要書類概要（さいたま市）',b5);
-  };
-}
 function renderAudit(){
   try{auWrapLast=window.matchMedia('(max-width:1024px)').matches;}catch(e){auWrapLast=false;}
   var s=$('section[data-page="audit"]');
@@ -28322,7 +28280,8 @@ function renderAudit(){
   };
   /* ★月間カレンダーの「年間の一覧」を「必要書類概要（さいたま市）」としてここに出していたが、外した（2026-09-26 安田さんのご判断）。
      中身は園ごと・市町村ごとに合っておらず、提出する書類は提出書類ナビ（市町村を選んで出す）にあるため。
-     決まった月のタスクは、月間カレンダーの「今月のタスク」にその月のぶんが出る。auditYearListHTML は使っていないが残してある */
+     決まった月のタスクは、月間カレンダーの「今月のタスク」にその月のぶんが出る。
+     ★使っていなかった auditYearListHTML／auditYearListWire（さいたま市の題名つき）は 2026-11-05 に消した（さいたま市の様式の知識を外す回） */
 }
 
 /* ---------- 日常記録 ---------- */
