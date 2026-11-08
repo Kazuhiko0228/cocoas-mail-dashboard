@@ -13299,7 +13299,7 @@ var EN_DICT={
 '全員分を印刷':'Print All',
 'そろえる時期':'When to prepare',
 '日常記録 →':'Daily Records →',
-'提出書類ナビ':'Document Submission Guide','添付書類':'Attachments','記入のきまり':'Filling rules','園の画面を代理で操作しています':'operating this school’s screens on your behalf','監査書類の準備は「Miralink（運営）」として1回ごとに1行で出ます。':'Audit document preparation is shown as one line per session under “Miralink (operations)”.','は一覧にありません。一覧の名前を選んでください。':' is not in the list. Please choose a name from the list.',
+'提出書類ナビ':'Document Submission Guide','添付書類':'Attachments','記入のきまり':'Filling rules','どんなときに要るか':'When it is needed','この園に当てはまる':'Applies to this school','そのときに出す':'Submit when it happens','確かめが要る':'Needs checking','園の画面を代理で操作しています':'operating this school’s screens on your behalf','監査書類の準備は「Miralink（運営）」として1回ごとに1行で出ます。':'Audit document preparation is shown as one line per session under “Miralink (operations)”.','は一覧にありません。一覧の名前を選んでください。':' is not in the list. Please choose a name from the list.',
 'HPフォーム':'Website form',
 '会社名・園名':'Company / school name',
 '業務日報 未':'Daily report: not done',
@@ -40608,6 +40608,39 @@ function reqLocalBoxHTML(li,muni,itemName){
 function reqGovForm(it){
   return !!it&&(it.category==='設置・認可'||/運営状況報告書|設置届|認可申請|助成申請|提供証明書/.test(String(it.name||'')));
 }
+/* ══ この自治体だけの書類（2026-11-08 安田さん「国で決まったものはそうなんだけど、プラスで自治体だけの書類があるかないかの部分が一番重要」）══
+   ★それまでは国の一覧の下に「独自に必要な書類」として数件だけ出ていた。いちばん上に、件数つきで、
+     どんなときに要るか・提出先・期限・様式・出典まで出す。0件でも「読んだ資料 n件の中に見つかりませんでした」と出す（無いのか、調べていないのかを分ける） */
+function reqCondMark(it){
+  var k=it.condKind||'other';
+  if(k==='always')return '<span class="pill" style="background:#EAF3DE;color:#27500A;font-size:10.5px;">この園に当てはまる</span>';
+  if(k==='mushoka'){
+    var en=enrolled();
+    if(!en.length)return '<span class="pill" style="background:#FAEEDA;color:#854F0B;font-size:10.5px;">確かめが要る</span>';
+    var has=en.some(function(c){return /第[1-3１-３]号/.test(String(c.cert||''));});
+    return has?'<span class="pill" style="background:#EAF3DE;color:#27500A;font-size:10.5px;">この園に当てはまる（無償化の認定の園児がいる）</span>'
+      :'<span class="pill" style="background:#F1EFE8;color:#5F5E5A;font-size:10.5px;">いまは当てはまらない（無償化の認定の園児がいない）</span>';
+  }
+  if(k==='change'||k==='open'||k==='accident')return '<span class="pill" style="background:#E3EEFB;color:#1F5FA8;font-size:10.5px;">そのときに出す</span>';
+  return '<span class="pill" style="background:#FAEEDA;color:#854F0B;font-size:10.5px;">確かめが要る</span>';
+}
+function reqMuniOnlyHTML(LOC,extra,muniNow,t,st){
+  if(!LOC)return '';
+  var mo=LOC.muniOnly||null;
+  var h='<div class="card" style="margin-bottom:14px;border:1.5px solid #1F5FA8;"><h3 style="margin-bottom:4px;">'+esc(muniNow)+' だけの書類（'+extra.length+'件）</h3>';
+  if(!extra.length)return h+'<div style="font-size:13px;">'+(mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）。国の基準の書類だけを用意します。':'まだ調べていません。')+'</div></div>';
+  return h+'<div class="muted" style="font-size:12px;margin-bottom:8px;">国の基準の書類に加えて、'+esc(muniNow)+'が求めている書類です。</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px;">'+extra.map(function(it){
+      var key=t.id+'|'+it.name,cur=st[key]||'未着手';
+      var rows=[['どんなときに要るか',it.cond||it.frequency],['提出先',it.submitTo],['期限',it.deadline],['様式',it.form],['添付書類',(it.attachments||[]).join('、')]].filter(function(x){return x[1];});
+      return '<div style="border:1px solid var(--line,#E5E2D9);border-radius:10px;padding:12px;"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+        +'<div style="flex:1;min-width:250px;"><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:14px;">'+esc(it.name)+'</span>'+reqCondMark(it)+'</div>'
+        +rows.map(function(x){return '<div style="font-size:12px;line-height:1.6;"><b>'+x[0]+'</b>：'+esc(x[1])+'</div>';}).join('')
+        +(it.url?'<div style="font-size:12px;margin-top:4px;">'+reqLinkHTML(it.url,'出典'+(it.page?'（'+it.page+'ページ）':''))+'</div>':'')+'</div>'
+        +'<select data-rqst="'+esc(key)+'" style="width:150px;font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
+        +'</div></div>';
+    }).join('')+'</div></div>';
+}
 function renderReqNav(){
   var s=$('section[data-page="reqnav"]');
   /* 監査書類の自動作成（docflow）。サーバにつないでいるときだけ、書類ごとの状態を取りに行く */
@@ -40653,6 +40686,7 @@ function renderReqNav(){
   }else{
   h+='<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:11px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12.5px;color:#6b3f08;line-height:1.6;">この一覧は<b>暫定（確認日 '+REQ_ASOF+'）</b>です。全国共通の基本項目を中心に整理しています。<b>自治体ごとの様式・上乗せ要件や最新の制度改正は、必ず各自治体の公式情報でご確認ください。</b>「要確認」は特に自治体差が出やすい項目です。</div></div>';
   }
+  h+=reqMuniOnlyHTML(LOC,extra,muniNow,t,st);
   h+='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">'+esc(t.label)+'</span><span class="muted">の主な提出・整備書類</span><span style="flex:1;"></span><span class="tag" style="background:#EAF3DE;color:#27500A;">完了 '+done+' / '+t.items.length+'</span></div>';
   h+='<div style="display:flex;flex-direction:column;gap:10px;">'+t.items.map(function(it){
     var key=t.id+'|'+it.name;var cur=st[key]||'未着手';var tgt=reqTarget(it.systemDoc);var catc=REQ_CATCOLOR[it.category]||'#888780';
@@ -40681,21 +40715,6 @@ function renderReqNav(){
            :'<button class="btn btn-sm" data-rqhow="'+esc(key)+'">'+ic('search')+'様式のもらい方</button>')+'</div>'))
       +'</div></div>';
   }).join('')+'</div>';
-  /* その自治体で独自に求められる書類（出典のあるものだけ。サーバで絞ってある） */
-  if(extra.length){
-    h+='<div class="card" style="margin:14px 0 10px;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">'+esc(muniNow)+' で独自に必要な書類</span></div>'
-      +'<div style="display:flex;flex-direction:column;gap:10px;">'+extra.map(function(it){
-        var key=t.id+'|'+it.name,cur=st[key]||'未着手';
-        return '<div class="card" style="padding:14px;"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
-          +'<div style="flex:1;min-width:250px;"><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:14px;">'+esc(it.name)+'</span>'
-          +'<span class="pill" style="background:#E3EEFB;color:#1F5FA8;font-size:10.5px;">'+esc(muniNow)+'</span></div>'
-          +'<div class="muted" style="font-size:12px;line-height:1.55;"><b>提出先</b>：'+esc(it.submitTo||'—')+'　／　<b>頻度</b>：'+esc(it.frequency||'—')+'</div>'
-          +(it.note?'<div style="font-size:11.5px;color:var(--tx3);margin-top:5px;line-height:1.55;">'+esc(it.note)+'</div>':'')
-          +'<div style="font-size:12px;margin-top:5px;">'+reqLinkHTML(it.url,'出典')+'</div></div>'
-          +'<select data-rqst="'+esc(key)+'" style="width:150px;font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
-          +'</div></div>';
-      }).join('')+'</div>';
-  }
   h+=reqCustomRowsHTML(t,st);
   s.innerHTML=h;
   $('#rqType').onchange=function(){var p=reqProfile();p.type=this.value;reqSaveProfile(p);renderReqNav();};

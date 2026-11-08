@@ -1851,6 +1851,8 @@ function rnTabHTML(){
   else{
     h+=(loc.summary?'<div style="font-size:13px;line-height:1.8;margin-bottom:8px;">'+esc(loc.summary)+'</div>':'')
       +(loc.office&&loc.office.name?'<div style="font-size:12.5px;margin-bottom:8px;">担当：'+(loc.office.url?'<a href="'+esc(loc.office.url)+'" target="_blank" rel="noopener">'+esc(loc.office.name)+'</a>':esc(loc.office.name))+(loc.office.tel?'　'+esc(loc.office.tel):'')+'</div>':'')
+      +rnMuniOnlyHTML(loc,d.cond||{})
+      +'<div style="font-weight:700;font-size:13px;margin:12px 0 6px;">国の基準で決まっている書類</div>'
       +'<div class="tw"><table style="min-width:820px;"><thead><tr><th>書類</th><th>提出先・様式</th><th>時期</th><th>状態</th><th>園の準備</th><th></th></tr></thead><tbody>'
       +docs.map(function(x){
         var it=(loc.items||[]).filter(function(i){return i.name===x.name;})[0]||{};
@@ -1868,7 +1870,6 @@ function rnTabHTML(){
             ?'<button class="btn sm" data-rnmk="'+esc(x.id)+'">'+(rn?(rn.status==='確認済み'?'出力・作り直し':'続きを作る'):'この書類を作る')+'</button>'
             :'<button class="btn sec sm" data-rnmk="'+esc(x.id)+'" data-rnpg="docs">書類格納を開く</button>')+'</td></tr>';}).join('')
       +'</tbody></table></div>'
-      +((loc.extra||[]).length?'<div style="margin-top:10px;font-weight:700;font-size:13px;">この自治体だけの書類</div>'+loc.extra.map(function(x){return '<div style="font-size:12.5px;margin-top:4px;">・'+esc(x.name)+(x.frequency?'（'+esc(x.frequency)+'）':'')+(x.note?'<span style="color:var(--mute);">　'+esc(x.note)+'</span>':'')+(x.url?' <a href="'+esc(x.url)+'" target="_blank" rel="noopener">出典</a>':'')+(x.byOps?' <span class="chip info">運営が足した</span>':'')+'</div>';}).join(''):'')
       +((loc.sources||[]).length?'<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12.5px;">出典（'+loc.sources.length+'）</summary>'+loc.sources.map(function(x){return '<div style="font-size:12px;"><a href="'+esc(x.url)+'" target="_blank" rel="noopener">'+esc(x.title)+'</a></div>';}).join('')+'</details>':'')
       +rnDocsHTML(loc);
     h+='</div>'+rnReviewHTML(loc,docs)+'<div>';
@@ -1922,6 +1923,31 @@ function rnPoll(tid,jid){
   }).catch(function(e){RN_BUSY=false;RN_JOB=null;RN_MSG=e.message;render();});
 }
 function rnLocNow(){var d=DATA.rn||{},p=d.profile||{},full=(p.pref||'')+(p.muni||'');return (d.locals||[]).filter(function(x){return x.type===p.type&&x.muni===full;})[0]||null;}
+/* ══ この自治体だけの書類（2026-11-08 安田さん「国で決まったものはそうなんだけど、プラスで自治体だけの書類があるかないかの部分が一番重要」）══
+   国の一覧に無い書類を、いちばん上に件数つきで出す。0件でも「読んだ資料 n件の中に見つかりませんでした」と出し、
+   「無い」と「調べていない」を見分けられるようにする。条件つきの書類は、園に当てはまるかを印で出す */
+function rnCondMark(x,cond){
+  var k=x.condKind||'other';
+  if(k==='always')return '<span class="st ok" style="margin:0;">当てはまる</span>';
+  if(k==='mushoka')return cond.mushoka===true?'<span class="st ok" style="margin:0;">当てはまる（無償化の認定の園児がいる）</span>'
+    :cond.mushoka===false?'<span class="st" style="margin:0;">当てはまらない（無償化の認定の園児がいない）</span>':'<span class="st warn" style="margin:0;">確かめが要る（生徒情報の「無償化の認定」）</span>';
+  if(k==='change'||k==='open'||k==='accident')return '<span class="st info" style="margin:0;">そのときに出す</span>';
+  return '<span class="st warn" style="margin:0;">確かめが要る</span>';
+}
+function rnMuniOnlyHTML(loc,cond){
+  var L=loc.extra||[],mo=loc.muniOnly||null;
+  var h='<div style="border:1.5px solid var(--edu,#2F6FA3);border-radius:10px;padding:10px 12px;margin:8px 0;">'
+    +'<div style="font-weight:800;font-size:14px;">この自治体だけの書類（'+L.length+'件）</div>';
+  if(!L.length)return h+'<div style="font-size:12.5px;margin-top:4px;">'+(mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）':'まだ手引き・要綱まで読んでいません。「最新の情報に更新」を押してください。')+'</div></div>';
+  return h+'<div class="tw"><table style="min-width:820px;margin-top:6px;"><thead><tr><th>書類</th><th>どんなときに要るか</th><th>提出先</th><th>期限</th><th>様式</th><th>出典</th></tr></thead><tbody>'
+    +L.map(function(x){return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(x.byOps?' <span class="chip info">運営が足した</span>':'')
+      +((x.attachments||[]).length?'<div style="font-size:11px;color:var(--mute);">添付：'+x.attachments.map(esc).join('、')+'</div>':'')+'</td>'
+      +'<td style="font-size:12px;">'+esc(x.cond||x.frequency||'')+'<div style="margin-top:3px;">'+rnCondMark(x,cond)+'</div></td>'
+      +'<td style="font-size:12px;">'+esc(x.submitTo||'')+(x.level?'<div style="color:var(--mute);">'+esc(x.level)+'に出す</div>':'')+'</td>'
+      +'<td style="font-size:12px;">'+esc(x.deadline||'')+'</td><td style="font-size:12px;">'+esc(x.form||'')+'</td>'
+      +'<td style="font-size:12px;">'+(x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener">出典'+(x.page?'（'+esc(x.page)+'ページ）':'')+'</a>':'')+'</td></tr>';}).join('')
+    +'</tbody></table></div>'+(mo?'<div class="hint">読んだページ・資料 '+mo.read+'件から拾いました。</div>':'')+'</div>';
+}
 /* 手引き・要綱から分かったこと（添付書類・きまり・様式の欄）。長いので開いて見る */
 function rnDocInfoHTML(it){
   var a=it.attachments||[],r=it.rules||[],f=it.fields||[];
