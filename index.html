@@ -86,15 +86,31 @@ document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){do
   }
   if(ss.getItem('px:on')!=='1')return;
   var PFX='pxls:';
-  function keys(){var o=[],i,n;for(i=0;i<ss.length;i++){n=ss.key(i);if(n&&n.indexOf(PFX)===0)o.push(n.slice(PFX.length));}return o;}
+  /* ★このタブの入れ物（sessionStorage）は約5MB。記録の多い園では入りきらず、読み直した中身が保存できずに
+     画面が止まるおそれがあった（2026-11-08 安田さんのご依頼で直した）。入りきらない鍵は、このタブを開いている間だけ
+     メモリに持つ（閉じれば消える。再読み込みしたらサーバから読み直す）。中身を捨てて空に見せることはしない
+     （空に見えると、画面が既定の値を書いてサーバへ送り、園の記録を上書きしてしまうため） */
+  var mem={},memWarned=false;
+  function memWarn(){
+    if(memWarned)return;memWarned=true;
+    var show=function(){var b=document.getElementById('pxBar');if(!b)return;
+      var n=document.createElement('span');n.style.cssText='font-weight:400;font-size:12px;opacity:.9;';
+      n.textContent='このタブの保存容量が足りないため、一部の記録はタブを開いている間だけ持っています。';b.insertBefore(n,b.lastChild);};
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(show,500);});else setTimeout(show,0);
+  }
+  function keys(){var o=[],i,n;for(i=0;i<ss.length;i++){n=ss.key(i);if(n&&n.indexOf(PFX)===0)o.push(n.slice(PFX.length));}
+    Object.keys(mem).forEach(function(k){if(o.indexOf(k)<0)o.push(k);});return o;}
   /* ★入れ物の仕事は「ひな形（prototype）」に置く。画面の中に Object.getPrototypeOf(localStorage).setItem で
      じかに書く所（__rawSet・サーバからの読み直し）があり、ひな形に無いと読み直した中身が1つも保存されず
      「保存容量がいっぱい」と出ていた */
   var proto={
-    getItem:function(k){return ss.getItem(PFX+k);},
-    setItem:function(k,v){ss.setItem(PFX+k,String(v));},
-    removeItem:function(k){ss.removeItem(PFX+k);},
-    clear:function(){keys().forEach(function(k){ss.removeItem(PFX+k);});},
+    getItem:function(k){return Object.prototype.hasOwnProperty.call(mem,k)?mem[k]:ss.getItem(PFX+k);},
+    setItem:function(k,v){
+      try{ss.setItem(PFX+k,String(v));delete mem[k];}
+      catch(e){mem[k]=String(v);try{ss.removeItem(PFX+k);}catch(x){}memWarn();}
+    },
+    removeItem:function(k){delete mem[k];ss.removeItem(PFX+k);},
+    clear:function(){keys().forEach(function(k){ss.removeItem(PFX+k);});mem={};},
     key:function(i){return keys()[i]||null;}
   };
   try{Object.defineProperty(proto,'length',{get:function(){return keys().length;}});}catch(e){}
@@ -12860,7 +12876,7 @@ var EN_DICT={
 '郵便番号':'Postal Code',
 'みじたく':'Getting Ready',
 '〔電話〕':'〔Phone〕',
-'運営法人':'Operating Organization',
+'運営法人':'Operating Organization','このタブの保存容量が足りないため、一部の記録はタブを開いている間だけ持っています。':'This tab is out of storage, so some records are kept only while the tab stays open.','設置主体':'Type of establishing body','運営法人の所在地':'Organization address','代表者の職名':'Representative title','施設長の職名':'Director title','事業開始日':'Start of operation','株式会社':'Corporation','社会福祉法人':'Social welfare corporation','NPO法人':'NPO','その他法人':'Other corporation','任意団体':'Voluntary group',
 '靴を履く':'Putting on shoes',
 '代表者名':'Representative Name',
 '5分ごと':'Every 5 minutes',
@@ -12875,7 +12891,7 @@ var EN_DICT={
 '③ 給食':'③ Lunch',
 '印刷する':'Print',
 '支払期日':'Payment Due Date',
-'保有資格':'Qualifications',
+'保有資格':'Qualifications','資格取得日':'Date qualified','入社前':'Not started yet','確定しました。書類格納に入れ、提出書類ナビを「完了」にしました':'Confirmed. Saved to Document Storage and marked complete in the Document Submission Guide',
 '園の名前':'School Name',
 '靴を脱ぐ':'Taking off shoes',
 '全体 済':'All Done',
@@ -16505,7 +16521,7 @@ var EN_DICT={
 'ひな形に1行1人ずつ入れて取り込みます。はじめのパスワードは自動で作ります。':'Fill in the template, one person per row, and import it. Initial passwords are created automatically.',
 '職員をまとめて登録する':'Register staff in bulk',
 '② Excel で開いて、1行に1人ずつ入れます。':'② Open it in Excel and enter one person per row.',
-'列は「氏名＊・ログインID・役職」です（＊は必ず入れる）。':'The columns are Name*, Login ID and Role (* required).',
+'列は「氏名＊・ログインID・役職・資格・資格取得日・入社日・健診日」です（＊は必ず入れる。資格から後ろは職員情報に入ります）。':'The columns are Name*, Login ID, Role, Qualification, Date qualified, Start date and Health check date (* required; the last four go into Staff Information).',
 '見出しの行が見つかりません。1行目は「氏名,ログインID,役職」にしてください（ひな形のとおり）。':'No header row found. Make the first row "氏名,ログインID,役職" as in the template.',
 '自動で作る':'Created automatically',
 'この内容で登録する':'Register with this content',
@@ -26851,6 +26867,48 @@ function schedAbsorb(){
 }
 /* 園の記録は数十秒ごとに読み直しているので、それに合わせて見る（読み直しの中には手を入れない） */
 setInterval(function(){try{schedAbsorb();}catch(e){}},15000);
+/* ══ 確定した監査書類を、書類格納と提出書類ナビに取り込む（2026-11-08 安田さんのご依頼）══
+   ★確定しても、監査書類の格納は「0件」のまま、提出書類ナビの「完了」も増えなかった。
+   サーバは園の帳簿を直接書かず、docflow_done（サーバだけが書く控え）に残す。ここで取り込んで帳簿に入れる。
+   ・書類格納：その書類の枠（無ければ足す）に出した Excel を入れる。園が自分で入れたファイルは上書きしない。
+     作り直して新しい版を確定したら、前の版は枠の「前の版」に残して差し替える
+   ・提出書類ナビ：その書類を「完了」にする
+   ・一度取り込んだ版は覚えておく（園が枠から外したものを、また入れ直さない） */
+function dfDoneAbsorb(extra){
+  var o=null;try{o=stGet('docflow_done',null);}catch(e){o=null;}
+  /* 確定した直後は、読み直しを待たずに、その返事（finished）をそのまま取り込む */
+  if(extra&&extra.docId){o=Object.assign({},o||{});o[extra.docId]=extra;}
+  if(!o||typeof o!=='object')return;
+  if(typeof SYNC!=='undefined'&&SYNC.pulling&&SYNC.pulling())return;
+  if(typeof API==='undefined'||!API.token()||(SYNC.foreign&&SYNC.foreign()))return;
+  /* 書類格納と提出書類ナビの帳簿は、管理者・マネージャーしか書けない */
+  if(typeof isBoss==='function'&&!isBoss())return;
+  var docs=stGet('docs',{}),st=reqStatusAll(),custom=docSlotsCustom().slice(),chD=false,chS=false,chC=false;
+  Object.keys(o).forEach(function(id){
+    var e=o[id];if(!e||!e.name||!e.fileKey)return;
+    var seen=String(e.runId)+':'+String(e.version);
+    if(e.reqKey&&st[e.reqKey]!=='完了'){st[e.reqKey]='完了';chS=true;}
+    if(docSlotsAll().indexOf(e.name)<0&&custom.indexOf(e.name)<0){custom.push(e.name);chC=true;}
+    var r=docs[e.name]||{};
+    if(r.dfSeen===seen)return;
+    if(r.file&&r.file.key&&!r.file.df){r.dfSeen=seen;docs[e.name]=r;chD=true;return;}
+    if(r.file&&r.file.key&&r.file.key!==e.fileKey){r.prev=(r.prev||[]).concat([r.file]).slice(-5);}
+    r.file={key:e.fileKey,name:e.fileName||(e.name+'.xlsx'),size:e.size||0,type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      at:e.at||todayISO(),where:'server',df:true,v:e.version};
+    if(!r.memo)r.memo='Miralink の監査書類で作成（版'+e.version+'）';
+    r.dfSeen=seen;docs[e.name]=r;chD=true;
+  });
+  if(chC)stSet('docSlotsCustom',custom);
+  if(chD)stSet('docs',docs);
+  if(chS)stSet('reqStatus',st);
+  if(chD||chS){
+    try{
+      if(document.querySelector('section[data-page="docs"]:not([hidden])'))renderDocs();
+      else if(document.querySelector('section[data-page="reqnav"]:not([hidden])'))renderReqNav();
+    }catch(x){}
+  }
+}
+setInterval(function(){try{dfDoneAbsorb();}catch(e){}},15000);
 /* 予約の一覧に出す注意。サーバが送れなかった予約（宛先の番号が無い、この直しより前の予約） */
 function schErrNote(q){
   var o=null;try{o=stGet('sched_out',null);}catch(e){}
@@ -27961,7 +28019,7 @@ function renderStaff(){
         '<td class="row-sub">'+(x.dob?ageOf(x.dob):'—')+(x.sex?'<div class="row-sub">'+esc(x.sex)+'</div>':'')+'</td>'+
         '<td>'+x.role+'<div class="row-sub">'+x.employ+'</div></td>'+
         '<td>'+x.qual+'</td>'+
-        '<td>'+(x.joinDate?fmt(x.joinDate):'—')+(x.joinDate?'<div class="row-sub">勤続 '+tenureText(x.joinDate,x.leaveDate)+'</div>':'')+'</td>'+
+        '<td>'+(x.joinDate?fmt(x.joinDate):'—')+(x.joinDate?'<div class="row-sub">'+tenureText(x.joinDate,x.leaveDate)+'</div>':'')+'</td>'+
         '<td>'+(x.kenshinDate?fmt(x.kenshinDate):'未登録')+(nd?'<div class="row-sub">→ '+fmt(iso(nd))+'</div>':'')+' <span class="pill" style="background:'+ks.bg+';color:'+ks.fg+';">'+ks.lab+'</span></td>'+
         '<td>'+(function(){var a=acctOfStaff(x);if(!a)return '<button class="btn btn-sm" data-mkacct="'+esc(x.id)+'">'+ic('plus')+'アカウント作成</button>';var col=roleColor(a.role);return '<span class="pill" style="background:'+col.bg+';color:'+col.fg+';">'+a.role+'</span><div class="row-sub">ID: '+esc(a.loginId)+'</div><button class="btn btn-sm btn-ghost" data-editacct="'+esc(a.id)+'" style="padding:2px 8px;font-size:11px;">編集</button>';})()+'</td>'+
         '<td style="text-align:right;white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-edit="'+esc(x.id)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(x.id)+'">'+ic('trash')+'</button></td></tr>';}).join(''):'<tr><td colspan="8" class="empty">職員が登録されていません</td></tr>')+
@@ -28125,19 +28183,21 @@ function kenbenWire(){
   };
 }
 /* 勤続年数・年齢の自動算出 */
+/* ★月の数え方で日付の比べを2回引いていたうえ、先の日付（これから入社する人）でもマイナスを0に丸めて
+   「0年11ヶ月」と出ていた（2026-11-08 安田さんのご依頼で直した）。月の合計で数え、先の日付は future を返す */
 function yearsBetween(from,to){
   if(!from)return null;
   var a=new Date(from),b=to?new Date(to):new Date();
-  var y=b.getFullYear()-a.getFullYear(),mo=b.getMonth()-a.getMonth();
-  if(mo<0||(mo===0&&b.getDate()<a.getDate())){y--;mo+=12;}
-  if(b.getDate()<a.getDate())mo--;
-  if(mo<0)mo+=12;
-  return {y:Math.max(0,y),m:Math.max(0,mo)};
+  if(isNaN(a.getTime())||isNaN(b.getTime()))return null;
+  var mons=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth())-(b.getDate()<a.getDate()?1:0);
+  if(mons<0)return {y:0,m:0,future:true};
+  return {y:Math.floor(mons/12),m:mons%12};
 }
 function tenureText(joinDate,leaveDate){
   var r=yearsBetween(joinDate,leaveDate);
   if(!r)return '—';
-  return r.y+'年'+r.m+'ヶ月';
+  if(r.future)return '入社前';
+  return '勤続 '+r.y+'年'+r.m+'ヶ月';
 }
 function ageOf(dob){var r=yearsBetween(dob);return r?r.y+'歳':'';}
 /* 職員の身分証・証明書の保管。
@@ -28148,14 +28208,15 @@ function staffDocsOf(id){return staffDocs()[id]||[];}
 function staffDocsSet(id,list){var a=staffDocs();if(list&&list.length)a[id]=list;else delete a[id];stSet('staffDocs',a);}
 var STAFF_DOC_KINDS=['身分証（運転免許証など）','保育士証','幼稚園教諭免許','その他の資格証','健康診断結果','履歴書','雇用契約書','労働条件通知書','その他'];
 function staffModal(id){
-  var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:'',baseShift:'',dob:'',sex:'',spouse:'',zip:'',address:'',tel:'',emgName:'',emgRel:'',emgTel:'',leaveDate:'',note:''};
+  var arr=DB.staff,x=id?arr.filter(function(o){return o.id===id;})[0]:{name:'',kana:'',role:'保育士',employ:'正社員',qual:'',qualNo:'',joinDate:'',kenshinDate:'',qualDate:'',baseShift:'',dob:'',sex:'',spouse:'',zip:'',address:'',tel:'',emgName:'',emgRel:'',emgTel:'',leaveDate:'',note:''};
   var emOpts=['正社員','契約社員','パート','業務委託'].map(function(o){return '<option'+(o===x.employ?' selected':'')+'>'+o+'</option>';}).join('');
   function op(list,v){return list.map(function(o){return '<option'+(o===(v||'')?' selected':'')+'>'+o+'</option>';}).join('');}
   var m=el('div',{class:'modal-bg'});
   m.innerHTML='<div class="modal"><h2>'+(id?'職員を編集':'職員を追加')+'</h2>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>氏名</label><input id="st_name" value="'+esc(x.name)+'"></div><div class="field"><label>ふりがな</label><input id="st_kana" value="'+esc((x.kana||''))+'"></div></div>'+
     '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>役職</label><input id="st_role" value="'+esc(x.role)+'"></div><div class="field"><label>雇用形態</label><select id="st_emp">'+emOpts+'</select></div></div>'+
-    '<div class="field"><label>保有資格</label><input id="st_qual" value="'+esc((x.qual||''))+'" placeholder="保育士 等"></div>'+
+    /* 資格取得日（2026-11-08 安田さんのご依頼）。★職員名簿の様式の「資格取得年月日」の列が、入れる場所が無く空欄のまま出ていた */
+    '<div class="grid" style="grid-template-columns:2fr 1fr;"><div class="field"><label>保有資格</label><input id="st_qual" value="'+esc((x.qual||''))+'" placeholder="保育士 等"></div><div class="field"><label>資格取得日</label><input type="date" id="st_qualDate" value="'+esc((x.qualDate||''))+'"></div></div>'+
     '<div class="field"><label class="tkchk" style="font-size:13px;"><input type="checkbox" id="st_chouri"'+(x.chouri?' checked':'')+' style="width:auto;">調理に関わる（検便の対象）</label>'
       +'<div class="muted" style="font-size:11.5px;margin-top:2px;">印を付けた職員が、下の「調理職員の検便」に並びます。'
       +'給食を外から運んでいる園は、だれにも付けなくてかまいません。</div></div>'+
@@ -28232,14 +28293,14 @@ function staffModal(id){
   function updLabels(){
     var d=$('#st_dob').value,j=$('#st_join').value,lv=$('#st_leave').value;
     $('#st_ageLab').textContent=d?('　'+ageOf(d)):'';
-    $('#st_tenLab').textContent=j?('　勤続 '+tenureText(j,lv)):'';
+    $('#st_tenLab').textContent=j?('　'+tenureText(j,lv)):'';
   }
   ['st_dob','st_join','st_leave'].forEach(function(idd){$('#'+idd).onchange=updLabels;$('#'+idd).oninput=updLabels;});
   updLabels();
   $('#st_cancel').onclick=function(){m.remove();};
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   $('#st_save').onclick=function(){
-    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,klass:$('#st_klass').value,qual:$('#st_qual').value.trim(),qualNo:(x.qualNo||''),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value,
+    var nx={id:id||Date.now(),name:$('#st_name').value.trim(),kana:$('#st_kana').value.trim(),role:$('#st_role').value.trim(),employ:$('#st_emp').value,klass:$('#st_klass').value,qual:$('#st_qual').value.trim(),qualDate:($('#st_qualDate')?$('#st_qualDate').value:(x.qualDate||'')),qualNo:(x.qualNo||''),joinDate:$('#st_join').value,kenshinDate:$('#st_ken').value,baseShift:$('#st_base').value,
       dob:$('#st_dob').value,sex:$('#st_sex').value,spouse:$('#st_spouse').value,zip:$('#st_zip').value.trim(),address:$('#st_addr').value.trim(),tel:$('#st_tel').value.trim(),
       emgName:$('#st_emgName').value.trim(),emgRel:$('#st_emgRel').value.trim(),emgTel:$('#st_emgTel').value.trim(),leaveDate:$('#st_leave').value,note:$('#st_note').value.trim(),
       chouri:!!($('#st_chouri')&&$('#st_chouri').checked)};
@@ -35437,12 +35498,18 @@ function suLoad(){
 var STAFF_COLS=[
   {k:'name',l:'氏名',need:true,alt:['名前','職員名','お名前']},
   {k:'loginId',l:'ログインID',alt:['ID','ログインＩＤ']},
-  {k:'role',l:'役職',alt:['役割','職位']}
+  {k:'role',l:'役職',alt:['役割','職位']},
+  /* 職員情報にも入れる列（任意・2026-11-08 安田さんのご依頼）。
+     ★まとめ登録で作ったログインが職員情報と結びつかず、職員名簿の元になる職員情報が空のままだった */
+  {k:'qual',l:'資格',alt:['保有資格','資格名']},
+  {k:'qualDate',l:'資格取得日',alt:['資格取得年月日','取得日']},
+  {k:'joinDate',l:'入社日',alt:['採用日','採用年月日','入職日']},
+  {k:'kenshinDate',l:'健診日',alt:['健康診断日','健康診断受診日','健診']}
 ];
 var STAFF_ROLE_LABELS=['管理者','園長','主任・リーダー','先生'];
 function staffTemplateCsv(){
   var q=function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
-  return '﻿'+STAFF_COLS.map(function(c){return q(c.l);}).join(',')+'\r\n'+['（例）田中 花子','','先生'].map(q).join(',')+'\r\n';
+  return '﻿'+STAFF_COLS.map(function(c){return q(c.l);}).join(',')+'\r\n'+['（例）田中 花子','','先生','保育士','2015-03-31','2024-04-01','2026-05-10'].map(q).join(',')+'\r\n';
 }
 function staffTemplateDownload(){
   var b=new Blob([staffTemplateCsv()],{type:'text/csv;charset=utf-8'});
@@ -35460,12 +35527,18 @@ function staffParse(text){
   lines.slice(1).forEach(function(line,i){
     var c=rosterSplit(line),no=i+2;
     var row={name:String(c[idx.name]||'').trim(),loginId:idx.loginId==null?'':String(c[idx.loginId]||'').trim(),role:idx.role==null?'':String(c[idx.role]||'').trim()};
+    var col=function(k){return idx[k]==null?'':String(c[idx[k]]||'').trim();};
+    row.qual=col('qual');row.qualDate=col('qualDate');row.joinDate=col('joinDate');row.kenshinDate=col('kenshinDate');
     if(/^（例）/.test(row.name))return;
     if(!row.name&&!row.loginId&&!row.role)return;
     var bad=[];
     if(!row.name)bad.push('氏名がありません');
     if(row.role&&STAFF_ROLE_LABELS.indexOf(row.role)<0&&STAFF_ROLES.indexOf(row.role)<0)bad.push('役職は「'+STAFF_ROLE_LABELS.join('・')+'」のどれかで入れてください');
     if(row.loginId&&!/^[A-Za-z0-9_.-]{3,32}$/.test(row.loginId))bad.push('ログインIDは半角の英数字（と _ . -）で3〜32文字にしてください');
+    ['qualDate','joinDate','kenshinDate'].forEach(function(k){
+      if(!row[k])return;var d=rosterNormDate(row[k]);
+      if(d===null)bad.push('日付を読み取れません（2026-04-01 の形でお願いします）');else row[k]=d;
+    });
     if(bad.length){ng.push({no:no,row:row,why:bad.join(' ／ ')});return;}
     var k=row.loginId.toLowerCase();
     if(k&&have[k]){dup.push({no:no,row:row,why:'このログインIDの職員は、すでにいます'});return;}
@@ -35482,7 +35555,7 @@ function staffImportModal(){
     +'<h2>'+ic('folder')+'職員をまとめて登録する</h2>'
     +'<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:12px;font-size:13px;line-height:1.8;">'
     +'<div><b>① ひな形をダウンロードします</b>　<button type="button" class="btn btn-sm" id="stTpl">'+ic('download')+'ひな形（CSV）をダウンロード</button></div>'
-    +'<div><b>② Excel で開いて、1行に1人ずつ入れます。</b>列は「氏名＊・ログインID・役職」です（＊は必ず入れる）。'
+    +'<div><b>② Excel で開いて、1行に1人ずつ入れます。</b>列は「氏名＊・ログインID・役職・資格・資格取得日・入社日・健診日」です（＊は必ず入れる。資格から後ろは職員情報に入ります）。'
     +'<span class="muted" style="font-size:12px;">ログインIDが空なら自動で作ります（ほかの園と同じIDは使えません）。役職は「'+esc(STAFF_ROLE_LABELS.join('・'))+'」のどれかで、空なら先生です。保存するときは「CSV UTF-8（コンマ区切り）」を選んでください。</span></div>'
     +'<div><b>③ 保存したファイルを選びます</b>　<label class="btn btn-sm btn-primary" style="cursor:pointer;">'+ic('folder')+'CSVファイルを選ぶ<input type="file" id="stFile" accept=".csv,text/csv" style="display:none;"></label> <span class="muted" id="stFileName" style="font-size:12px;"></span></div>'
     +'</div>'
@@ -35524,9 +35597,23 @@ function staffImportModal(){
     if(!confirm(parsed.ok.length+'名の職員のログインを作ります。よろしいですか？'))return;
     var bt=this;bt.disabled=true;bt.textContent='登録しています…';
     API.call('POST','/users/import',{rows:parsed.ok.map(function(x){return {no:x.no,name:x.row.name,loginId:x.row.loginId,role:x.row.role};})})
-      .then(function(j){staffImportDone(m,j.made||[],j.ng||[]);})
+      .then(function(j){try{staffInfoFromImport(parsed.ok,j.made||[]);}catch(e){}staffImportDone(m,j.made||[],j.ng||[]);})
       .catch(function(e){bt.disabled=false;bt.textContent='この内容で登録する';alert(e.message);});
   };
+}
+/* 作ったログインを、職員情報（DB.staff）にも入れる。同じ氏名の職員がいれば結びつけて、空いた欄だけ埋める（重ねて作らない） */
+function staffInfoFromImport(rows,made){
+  var nm=function(v){return String(v||'').replace(/[\s　]+/g,'');};
+  var a=(DB.staff||[]).slice(),ch=false;
+  made.forEach(function(u,i){
+    var src=rows.filter(function(x){return x.no===u.no;})[0]||rows.filter(function(x){return nm(x.row.name)===nm(u.name);})[0];
+    var r=src?src.row:{};
+    var hit=a.filter(function(x){return nm(x.name)===nm(u.name);})[0];
+    if(!hit){hit={id:Date.now()+i,name:u.name,kana:'',role:'',employ:'',qual:'',qualDate:'',qualNo:'',joinDate:'',kenshinDate:'',baseShift:''};a.push(hit);}
+    ['qual','qualDate','joinDate','kenshinDate'].forEach(function(k){if(r[k]&&!hit[k])hit[k]=r[k];});
+    hit.loginId=u.loginId;hit.acctRole=u.role;ch=true;
+  });
+  if(ch)DB.staff=a;
 }
 /* 登録したあと：ログイン情報の一覧。パスワードは「表示」を押すまで伏せる。印刷すると1人1枚のお知らせになる */
 function staffImportDone(m,made,ng){
@@ -35648,7 +35735,10 @@ function applyPerms(){
   }
 }
 /* 職員名簿とログインアカウントの紐付け（staffId で対応、無ければ氏名で判定） */
-function acctOfStaff(st){var a=staffAccounts();return a.filter(function(x){return (x.staffId&&x.staffId===st.id)||x.name===st.name;})[0]||null;}
+function acctOfStaff(st){
+  /* まとめ登録（CSV）でサーバに作ったログインは、職員情報に loginId を持たせて結びつける（2026-11-08） */
+  if(st&&st.loginId)return {loginId:st.loginId,name:st.name,role:st.acctRole||'一般'};
+  var a=staffAccounts();return a.filter(function(x){return (x.staffId&&x.staffId===st.id)||x.name===st.name;})[0]||null;}
 function acctModal(acctId,staffId){
   var accs=staffAccounts();
   var a=acctId?accs.filter(function(x){return x.id===acctId;})[0]:null;
@@ -39452,8 +39542,14 @@ var FAC_INFO=[
     {k:'name',label:'施設名',ph:'例：さくら保育園　◯◯校'},
     {k:'kana',label:'ふりがな'},
     {k:'company',label:'運営法人',ph:'例：〇〇株式会社'},
+    /* 運営状況報告で毎回聞かれていた5つ（2026-11-08 安田さんのご依頼）。一度入れれば監査書類に自動で入る */
+    {k:'shutai',label:'設置主体',opts:['','個人','株式会社','社会福祉法人','NPO法人','その他法人','任意団体','その他']},
+    {k:'companyAddress',label:'運営法人の所在地',wide:true},
     {k:'rep',label:'代表者名'},
+    {k:'repTitle',label:'代表者の職名',ph:'例：代表取締役'},
     {k:'manager',label:'施設長・園長'},
+    {k:'managerTitle',label:'施設長の職名',ph:'例：施設長'},
+    {k:'openDate',label:'事業開始日',type:'date'},
     {k:'zip',label:'郵便番号'},
     {k:'address',label:'所在地',wide:true},
     {k:'tel',label:'電話番号'},{k:'fax',label:'FAX'},
@@ -41220,7 +41316,11 @@ function dfWire(){
   };
   var cf=$('#dfConfirm');if(cf)cf.onclick=function(){
     if(!confirm('確定すると、この版は直せなくなります（直すときは新しい版を作ります）。確定しますか？'))return;
-    dfAct('POST',p+'/confirm',{});
+    dfAct('POST',p+'/confirm',{},function(j){
+      dfApply(j.run);
+      if(j&&j.finished){try{dfDoneAbsorb(j.finished);}catch(e){}
+        aiToast('確定しました。書類格納に入れ、提出書類ナビを「完了」にしました');}
+    });
   };
   var out=$('#dfOut');if(out)out.onclick=function(){
     out.disabled=true;
