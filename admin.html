@@ -159,6 +159,7 @@ td.r,th.r{text-align:right}
 .obColT{font-weight:800;font-size:12.5px;margin-bottom:2px}
 .obItem{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line2)}
 .obItem.fin .obLbl{color:var(--mute)}
+.rfRow{display:block;padding:6px 0;border-top:1px solid var(--line2);font-size:13px;cursor:pointer}
 .obMark{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:800;border:2px solid var(--line);margin-top:2px}
 .obMark.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .obLbl{color:var(--ink);text-decoration:none;font-weight:600}.obLbl:hover{text-decoration:underline}
@@ -533,7 +534,7 @@ var tTab='overview';
 var ROUTES={home:'home',inq:'inquiries',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
   tuition:'tuition',pipe:'onboarding',wiz:'onboard',members:'settings/members',incidents:'incidents',offboard:'offboarding',ads:'ads',forms:'forms',aifb:'si-feedback',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
 /* 提出書類ナビ（2026-11-08 安田さん「運営側でもできるようにしたい」） */
-var T_TABS=[['overview','概要'],['contract','契約・請求'],['subsidy','補助金'],['accounts','アカウント'],['docs','書類'],['reqnav','提出書類ナビ・監査書類'],['log','変更ログ'],['support','サポート閲覧']];
+var T_TABS=[['overview','概要'],['contract','契約・請求'],['subsidy','補助金'],['accounts','アカウント'],['docs','書類'],['reqnav','提出書類ナビ・監査書類'],['recf','記録の項目'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
   if(view==='wiz'&&openId)return '#/onboard/'+openId;
@@ -1402,6 +1403,7 @@ function tenantHTML(){
   P.log=tLogHTML();
   P.support=supTabHTML();
   P.reqnav=rnTabHTML();
+  P.recf=rfPanelHTML(false);
   P.subsidy=subTabHTML();
   return head+'<div class="tabs" role="tablist">'+T_TABS.map(function(t){
       return '<button role="tab" data-tt="'+t[0]+'" class="'+(tTab===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
@@ -1495,7 +1497,7 @@ var WZ={tid:null,app:null,step:-1,created:null};
    課金開始は園の準備より前（サーバの関門も 1〜4段だけにした） */
 var WZ_STEPS=[
   ['app','申込を確かめる'],['acct','園のアカウントを作る'],['terms','プランと金額を決める'],['contract','契約とお支払いの登録'],
-  ['bill','課金を始める'],['school','園の準備'],['live','使いはじめを確かめる']];
+  ['bill','課金を始める'],['audit','監査の様式と記録の項目'],['school','園の準備'],['live','使いはじめを確かめる']];
 function wizLoad(){
   if(!openId){
     WZ.tid=null;
@@ -1508,6 +1510,7 @@ function wizLoad(){
     API.call('GET','/admin/tenants/'+openId).then(function(j){DATA.one=j;}),
     API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}),
     API.call('GET','/admin/tenants/'+openId+'/contracts').then(function(j){DATA.agree=j;DATA.agreeId=openId;}).catch(function(e){DATA.agree={err:e.message};DATA.agreeId=openId;}),
+    rfLoad(),
     WZ.app?null:API.call('GET','/admin/applications').then(function(j){
       var a=(j.applications||[]).filter(function(x){return String(x.tenant_id)===String(openId);})[0];
       return a?API.call('GET','/admin/applications/'+a.id).then(function(d){WZ.app=d.application;}):null;
@@ -1525,6 +1528,7 @@ function wizDone(i){
   if(k==='school')return ['kids','parents'].every(wizFin);
   if(k==='live')return ['first_login','parent_login'].every(wizFin);
   if(k==='bill')return wizFin('billing');
+  if(k==='audit')return wizFin('audit_fields');
   return false;
 }
 function wizHTML(){
@@ -1631,6 +1635,7 @@ function wizBody(k){
       +'</div>';
     return '<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。書類の「中身を見る」で、送る前に文面を確かめられます。</div>'+agreeAdminHTML()+payBox;
   }
+  if(k==='audit')return rfPanelHTML(true);
   if(k==='school'){
     /* ログインの確かめは次の「使いはじめを確かめる」で見る。お支払いは「契約とお支払いの登録」で見る */
     var S=((DATA.ob&&DATA.ob.steps)||[]).filter(function(x){return x.side==='school'&&['first_login','parent_login','school_pay'].indexOf(x.key)<0;});
@@ -1879,6 +1884,105 @@ function rnTabHTML(){
     h+='</div>'+rnReviewHTML(loc,docs)+'<div>';
   }
   return h+'</div>';
+}
+/* ══ 毎日の記録の項目（2026-11-08 安田さん）══════════════════
+   「監査の項目に合わせて、必要に応じて SI が判断して項目の足し引きをしてほしい」「オンボーディングのタイミングで対応したい」。
+   運営が自治体の様式をそろえたあと、SI に記録の項目と様式を突き合わせてもらい、提案を見て反映する。
+   反映すると園の記録の画面に項目が出る（state の recFields・recOff）。園の変更ログには「Miralink（運営）」で残る */
+var RFA={sel:null,msg:'',busy:false,rec:'検食簿'};
+var RF_TY={text:'文字',yesno:'有・無',choice:'選ぶ',time:'時刻',number:'数',date:'日付'};
+function rfLoad(){
+  return API.call('GET','/admin/tenants/'+openId+'/rec-fields').then(function(j){DATA.rf=j;DATA.rfId=openId;RFA.sel=null;})
+    .catch(function(e){DATA.rf={err:e.message};DATA.rfId=openId;});
+}
+function rfPanelHTML(wiz){
+  var d=(DATA.rfId===openId)?DATA.rf:null;
+  if(!d)return '<div class="empty">読み込んでいます…</div>';
+  if(d.err)return '<div class="note bad">'+esc(d.err)+'</div>';
+  var rd=d.ready||{},pr=d.proposal,open=pr&&pr.status==='open';
+  var mark=function(ok,t,sub){return '<div class="obItem'+(ok?' fin':'')+'"><span class="obMark'+(ok?' on':'')+'">'+(ok?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+esc(t)+'</span><div class="hint" style="margin:0;">'+sub+'</div></span></div>';};
+  var h='';
+  if(wiz)h+='<div class="lead">自治体の監査の様式をそろえ、園の毎日の記録の項目を様式に合わせます。3つがそろうと自動で済になります（課金開始の前でも後でもかまいません。稼働の確認までに済ませます）。</div>';
+  h+='<div class="card"><h3>導入の手順：監査の様式をそろえ、日々の記録の項目を合わせる</h3>'
+    +mark(rd.researched,'① 提出書類ナビで自治体を調べた','<a href="#" data-gotab3="reqnav">提出書類ナビ・監査書類</a>で「最新の情報に更新」')
+    +mark(rd.researched&&!rd.missingForms,'② 市の指定様式で未入手のものが無い',rd.missingForms?('未入手が '+rd.missingForms+'件あります（様式を手に入れて登録するか、提出書類ナビで確かめてください）'):'指定様式は登録済み、または様式自由')
+    +mark(rd.fields,'③ SI の項目の提案を反映した（または足す・隠す項目が無かった）','下の「SI に項目を見直してもらう」')
+    +'</div>';
+  h+='<div class="card"><h3>SI の提案</h3>'
+    +'<div class="hint" style="margin:0 0 8px;">運営が登録した様式（この園の都道府県・市区町村）と、この園が入れ込んだ様式を、毎日の記録の項目と突き合わせます。国の基準で要る項目は隠しません。</div>'
+    +'<div class="row"><button class="btn sm" id="rfPropose"'+(RFA.busy?' disabled':'')+'>'+(RFA.busy?'SI が様式を読んでいます…':'SI に項目を見直してもらう')+'</button><span class="msg" id="rfAm">'+esc(RFA.msg)+'</span></div>';
+  if(pr){
+    h+='<div class="hint" style="margin:10px 0 4px;">'+esc(String(pr.at||'').slice(0,16).replace('T',' '))+' の提案（読んだ様式 '+(+pr.forms||0)+'件）'
+      +(pr.status==='applied'?'・<b>反映済み</b>':pr.status==='none'?'・<b>見送り（足す・隠す項目なし）</b>':'')+'</div>';
+    if(pr.note)h+='<div class="note">'+esc(pr.note)+'</div>';
+    if(!(pr.recs||[]).length&&!pr.note)h+='<div class="note ok">足す項目・隠す項目はありませんでした。</div>';
+    if(open&&!RFA.sel){RFA.sel={add:{},hide:{}};(pr.recs||[]).forEach(function(r){RFA.sel.add[r.rec]=(r.add||[]).map(function(_,i){return i;});RFA.sel.hide[r.rec]=(r.hide||[]).map(function(x){return x.k;});});}
+    (pr.recs||[]).forEach(function(r){
+      h+='<div style="margin-top:10px;"><div style="font-weight:800;">'+esc(r.rec)+'</div>';
+      (r.add||[]).forEach(function(a,i){var on=open&&RFA.sel.add[r.rec]&&RFA.sel.add[r.rec].indexOf(i)>-1;
+        h+='<label class="rfRow"><input type="checkbox" data-rfpa="'+esc(r.rec)+'|'+i+'"'+(on?' checked':'')+(open?'':' disabled')+'> <b>足す</b>　'+esc(a.label)+'（'+esc(RF_TY[a.type]||a.type)+(a.choices?'：'+esc(a.choices.join('・')):'')+(a.required?'・必須':'')+'）'
+          +'<div class="hint" style="margin:0 0 0 22px;">'+esc(a.form||'')+(a.cell?'・'+esc(a.cell):'')+(a.why?'　'+esc(a.why):'')+'</div></label>';});
+      (r.hide||[]).forEach(function(x){var on=open&&RFA.sel.hide[r.rec]&&RFA.sel.hide[r.rec].indexOf(x.k)>-1;
+        h+='<label class="rfRow"><input type="checkbox" data-rfph="'+esc(r.rec)+'|'+esc(x.k)+'"'+(on?' checked':'')+(open?'':' disabled')+'> <b>隠す</b>　'+esc(x.l)+'<div class="hint" style="margin:0 0 0 22px;">'+esc(x.why||'')+'</div></label>';});
+      (r.check||[]).forEach(function(x){h+='<div class="rfRow"><b style="color:#A8701A;">確かめが要る</b>　'+esc(x.l)+'<div class="hint" style="margin:0 0 0 0;">'+esc(x.why||'')+'</div></div>';});
+      h+='</div>';
+    });
+    if(open)h+='<div class="row" style="margin-top:12px;"><button class="btn sm" id="rfApply">選んだものを反映する</button>'
+      +'<button class="btn sec sm" id="rfNone">足す・隠す項目は無い（見送る）</button></div>';
+  }
+  h+='</div>';
+  /* いまの項目（手で足す・止める） */
+  var recs=d.recs||[],cur=(d.recFields||{})[RFA.rec]||[],today=new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
+  h+='<div class="card"><h3>いまの項目</h3><div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
+    +recs.map(function(r){return '<button class="btn '+(RFA.rec===r.name?'':'sec ')+'sm" data-rfrec2="'+esc(r.name)+'">'+esc(r.name)+'</button>';}).join('')+'</div>';
+  var R=recs.filter(function(r){return r.name===RFA.rec;})[0]||{base:[],hide:[]},off=d.recOff||{};
+  h+='<div class="hint" style="margin:0 0 6px;">もとからある項目：'+esc((R.base||[]).join('、'))+'</div>';
+  if((R.hide||[]).some(function(x){return off[x.k];}))h+='<div class="hint" style="margin:0 0 6px;">隠している項目：'+esc(R.hide.filter(function(x){return off[x.k];}).map(function(x){return x.l;}).join('、'))+'</div>';
+  h+=(cur.length?'<table><thead><tr><th>この園で足した項目</th><th>入れ方</th><th>出どころ</th><th>状態</th><th></th></tr></thead><tbody>'+cur.map(function(f){var on=!f.off||f.off>today;
+      return '<tr><td>'+esc(f.label)+(f.required?' <span class="chip">必須</span>':'')+'</td><td>'+esc(RF_TY[f.type]||f.type)+(f.choices?'<div class="hint" style="margin:0;">'+esc(f.choices.join('・'))+'</div>':'')+'</td>'
+        +'<td style="font-size:11.5px;">'+esc(f.from||'手で足した')+'</td><td>'+(on?'使っている':'止めた（'+esc(f.off)+'〜）')+'</td>'
+        +'<td><button class="btn sec sm" data-rftog="'+esc(f.id)+'">'+(on?'止める':'また使う')+'</button></td></tr>';}).join('')+'</tbody></table>'
+    :'<div class="empty">'+esc(RFA.rec)+'に足した項目はまだありません。</div>')
+    +'<div class="row" style="margin-top:10px;flex-wrap:wrap;"><input id="rfLab2" placeholder="項目名（例：保存食の採取）" style="flex:1;min-width:180px;">'
+    +'<select id="rfTy2">'+Object.keys(RF_TY).map(function(k){return '<option value="'+k+'">'+RF_TY[k]+'</option>';}).join('')+'</select>'
+    +'<input id="rfCh2" placeholder="選択肢（選ぶのとき・読点で区切る）" style="min-width:160px;">'
+    +'<label style="display:flex;gap:4px;align-items:center;font-size:12.5px;"><input type="checkbox" id="rfReq2">必須</label>'
+    +'<button class="btn sec sm" id="rfAdd2">足す</button><span class="msg" id="rfAm2"></span></div></div>';
+  return h;
+}
+function rfWire(){
+  if(!$('rfPropose')&&!$('rfAdd2'))return;
+  document.querySelectorAll('[data-gotab3]').forEach(function(a){a.onclick=function(e){e.preventDefault();nav('one',openId,a.getAttribute('data-gotab3'));};});
+  if($('rfPropose'))$('rfPropose').onclick=function(){
+    RFA.busy=true;RFA.msg='';render();
+    API.call('POST','/admin/tenants/'+openId+'/rec-fields/propose',{}).then(function(){RFA.busy=false;RFA.msg='';return rfLoad();})
+      .then(function(){render();}).catch(function(e){RFA.busy=false;RFA.msg=e.message;render();});
+  };
+  document.querySelectorAll('[data-rfpa]').forEach(function(x){x.onchange=function(){var p=x.getAttribute('data-rfpa').split('|'),a=RFA.sel.add[p[0]]=RFA.sel.add[p[0]]||[],i=+p[1],k=a.indexOf(i);if(x.checked&&k<0)a.push(i);if(!x.checked&&k>-1)a.splice(k,1);};});
+  document.querySelectorAll('[data-rfph]').forEach(function(x){x.onchange=function(){var p=x.getAttribute('data-rfph').split('|'),a=RFA.sel.hide[p[0]]=RFA.sel.hide[p[0]]||[],k=a.indexOf(p[1]);if(x.checked&&k<0)a.push(p[1]);if(!x.checked&&k>-1)a.splice(k,1);};});
+  var pid=DATA.rf&&DATA.rf.proposal&&DATA.rf.proposal.id;
+  if($('rfApply'))$('rfApply').onclick=function(){
+    if(!confirm('選んだ項目を、この園の記録に反映します。園の記録の画面に項目が出ます（隠す項目は出なくなります）。よろしいですか？'))return;
+    API.call('POST','/admin/tenants/'+openId+'/rec-fields/proposals/'+pid+'/apply',{picks:RFA.sel}).then(function(){GLB_AT=0;return Promise.all([rfLoad(),API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;})]);})
+      .then(function(){render();}).catch(function(e){say('rfAm',e.message);});
+  };
+  if($('rfNone'))$('rfNone').onclick=function(){
+    API.call('POST','/admin/tenants/'+openId+'/rec-fields/proposals/'+pid+'/dismiss',{}).then(function(){return Promise.all([rfLoad(),API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;})]);})
+      .then(function(){render();}).catch(function(e){say('rfAm',e.message);});
+  };
+  document.querySelectorAll('[data-rfrec2]').forEach(function(b){b.onclick=function(){RFA.rec=b.getAttribute('data-rfrec2');render();};});
+  var put=function(list,msgId){return API.call('PUT','/admin/tenants/'+openId+'/rec-fields',{rec:RFA.rec,fields:list}).then(function(j){DATA.rf.recFields=j.recFields;render();}).catch(function(e){say(msgId,e.message);});};
+  document.querySelectorAll('[data-rftog]').forEach(function(b){b.onclick=function(){
+    var id=b.getAttribute('data-rftog'),today=new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
+    var list=((DATA.rf.recFields||{})[RFA.rec]||[]).map(function(f){var g=JSON.parse(JSON.stringify(f));if(g.id===id){if(g.off&&g.off<=today)delete g.off;else g.off=today;}return g;});
+    put(list,'rfAm2');};});
+  if($('rfAdd2'))$('rfAdd2').onclick=function(){
+    var lab=$('rfLab2').value.trim(),ty=$('rfTy2').value,ch=$('rfCh2').value.split(/[、,，・]/).map(function(x){return x.trim();}).filter(Boolean);
+    if(!lab){say('rfAm2','項目名を入れてください');return;}
+    if(ty==='choice'&&ch.length<2){say('rfAm2','選択肢を2つ以上入れてください');return;}
+    var list=((DATA.rf.recFields||{})[RFA.rec]||[]).map(function(f){return JSON.parse(JSON.stringify(f));});
+    list.push({label:lab,type:ty,choices:ty==='choice'?ch:undefined,required:$('rfReq2').checked,from:'運営が手で足した'});
+    put(list,'rfAm2');};
 }
 function rnWire(){
   if(!$('rn_save'))return;
@@ -3421,6 +3525,7 @@ function load(){
       tTab==='log'?API.call('GET','/admin/oplog').then(function(j){DATA.oplog=j.log;}):null,
       tTab==='support'?supLoad():null,
       tTab==='reqnav'?rnLoad():null,
+      tTab==='recf'?rfLoad():null,
       tTab==='subsidy'?API.call('GET','/admin/tenants/'+openId+'/subsidies').then(function(j){DATA.sub=j;DATA.subId=openId;}).catch(function(e){DATA.sub={err:e.message};DATA.subId=openId;}):null,
       tTab==='docs'?API.call('GET','/admin/tenants/'+openId+'/contracts').then(function(j){DATA.agree=j;DATA.agreeId=openId;}).catch(function(e){DATA.agree={err:e.message};DATA.agreeId=openId;}):null,
       tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
@@ -3837,6 +3942,7 @@ function wire(){
     API.call('PUT','/admin/tenants/'+openId+'/contracts/email',{email:em}).then(function(){return API.call('GET','/admin/tenants/'+openId+'/contracts');}).then(function(j){DATA.agree=j;DATA.agreeId=openId;render();}).catch(function(e){say('agEm',e.message);});
   };
   rnWire();
+  rfWire();
   if($('supEnd'))$('supEnd').onclick=function(){API.call('POST','/admin/support/'+SUP.mine.session.id+'/end',{}).then(function(){SUP.view='';SUP.data=null;render();}).catch(function(e){alert(e.message);});};
   /* 導入 */
   document.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){pipeMode=b.getAttribute('data-pm');render();};});
