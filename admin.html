@@ -1787,6 +1787,38 @@ var SUP={tid:null,list:null,mine:null,view:'',data:null,err:'',cells:[],edit:nul
 /* ══ 提出書類ナビ（運営の代理・2026-11-08）══════════════
    園の画面の提出書類ナビと同じ入れ物（reqProfile）・同じ「更新」（SI が自治体の公式情報を調べる）。
    書き換えは園の変更ログに「運営（名前）」で残る */
+/* ══ 市区町村は選ぶ（2026-11-08 安田さん「県を選んだらプルダウンになる方がミスがない」）══
+   一覧は data/municipalities.json（園の画面の提出書類ナビと同じ。Geolonia「japanese-addresses」CC BY 4.0・2026-09-24 取得。
+   政令市の区は市にまとめ、東京23区は区の単位）。使うときだけ読み込む。一覧に無いときだけ手で入れる */
+var MUNI_JP=null,MUNI_LOADING=false;
+function muniLoad(){
+  if(MUNI_JP||MUNI_LOADING)return;
+  MUNI_LOADING=true;
+  fetch('data/municipalities.json').then(function(r){return r.json();}).then(function(j){MUNI_JP=j;MUNI_LOADING=false;render();}).catch(function(){MUNI_LOADING=false;});
+}
+/* 市区町村の選び欄。first は先頭の選択肢（[値,表示]）。manual は手で入れた名前 */
+function muniSelHTML(id,pref,cur,first,manual){
+  muniLoad();
+  var list=(MUNI_JP&&pref&&MUNI_JP[pref])||[],inList=!cur||list.indexOf(cur)>-1;
+  var isMan=!!manual||(cur&&MUNI_JP&&!inList);
+  return '<select id="'+id+'"'+(pref?'':' disabled')+'><option value="'+esc(first[0])+'">'+esc(pref?first[1]:'先に都道府県を選んでください')+'</option>'
+    +list.map(function(k){return '<option'+(k===cur&&!manual?' selected':'')+'>'+esc(k)+'</option>';}).join('')
+    +(pref?'<option value="__manual"'+(manual?' selected':'')+'>一覧に無い（手で入れる）</option>':'')+'</select>'
+    +'<input id="'+id+'_txt" placeholder="市区町村の名前" value="'+esc(manual?cur:'')+'" style="margin-top:6px;'+(manual?'':'display:none;')+'">'
+    +(cur&&MUNI_JP&&!inList&&!manual?'<div class="hint" style="color:var(--warn);">「'+esc(cur)+'」は一覧にありません。一覧の名前を選んでください。</div>':'');
+}
+function muniVal(id){var s=$(id);if(!s)return {muni:'',manual:false};
+  if(s.value==='__manual')return {muni:String(($(id+'_txt')||{}).value||'').replace(/\s+/g,''),manual:true};
+  return {muni:s.value,manual:false};}
+function muniWire(id,prefId,first){
+  var s=$(id),pf=$(prefId);if(!s||!pf)return;
+  s.onchange=function(){var t=$(id+'_txt');if(t)t.style.display=s.value==='__manual'?'':'none';};
+  pf.onchange=function(){var w=s.parentNode;var tmp=document.createElement('div');tmp.innerHTML=muniSelHTML(id,pf.value,'',first,false);
+    /* 選び欄・手入力・注意を入れ替える */
+    [s,$(id+'_txt')].forEach(function(x){if(x&&x.parentNode)x.parentNode.removeChild(x);});
+    var hint=w.querySelector('.hint');if(hint&&/一覧にありません/.test(hint.textContent))hint.parentNode.removeChild(hint);
+    while(tmp.firstChild)w.appendChild(tmp.firstChild);muniWire(id,prefId,first);};
+}
 var RN_TY={ninkagai:'認可外保育施設',shokibo:'小規模保育事業',kigyou:'企業主導型保育事業',ninka:'認可保育所'};
 var RN_BUSY=false,RN_MSG='';
 function rnLoad(){
@@ -1806,7 +1838,7 @@ function rnTabHTML(){
     +'<div class="grid3">'
     +'<div class="f"><label>施設の種別</label><select id="rn_type">'+(d.types||[]).map(function(t){return '<option value="'+t+'"'+(p.type===t?' selected':'')+'>'+esc(RN_TY[t]||t)+'</option>';}).join('')+'</select></div>'
     +'<div class="f"><label>都道府県</label><select id="rn_pref"><option value="">選んでください</option>'+FORMS_PREFS.map(function(x){return '<option'+(p.pref===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'
-    +'<div class="f"><label>市区町村</label><input id="rn_muni" value="'+esc(p.muni||'')+'" placeholder="例：さいたま市"></div>'
+    +'<div class="f"><label>市区町村</label>'+muniSelHTML('rn_muni',p.pref,p.muni||'',['','選んでください'],p.manual)+'</div>'
     +'<div class="f"><label>在園児数</label><input id="rn_cap" class="num" inputmode="numeric" value="'+esc(p.cap||'')+'"></div></div>'
     +'<div class="row"><button class="btn sec sm" id="rn_save">設定を保存する</button>'
     +'<button class="btn sm" id="rn_go"'+((!p.pref||!p.muni||RN_BUSY)?' disabled':'')+'>最新の情報に更新（SIが調べる）</button><span class="msg" id="rn_m">'+esc(RN_MSG)+'</span></div>'
@@ -1841,14 +1873,18 @@ function rnTabHTML(){
 function rnWire(){
   if(!$('rn_save'))return;
   var v=function(id){return $(id).value.trim();};
+  muniWire('rn_muni','rn_pref',['','選んでください']);
   $('rn_save').onclick=function(){
+    var mv=muniVal('rn_muni');
+    if(mv.manual&&!mv.muni){say('rn_m','市区町村の名前を入れてください');return;}
     say('rn_m','保存しています…',true);
-    API.call('PUT','/admin/tenants/'+openId+'/reqnav/profile',{type:v('rn_type'),pref:v('rn_pref'),muni:v('rn_muni'),cap:v('rn_cap')})
+    API.call('PUT','/admin/tenants/'+openId+'/reqnav/profile',{type:v('rn_type'),pref:v('rn_pref'),muni:mv.muni,manual:mv.manual,cap:v('rn_cap')})
       .then(function(){RN_MSG='保存しました';return rnLoad();}).then(render).catch(function(e){say('rn_m',e.message);});
   };
   $('rn_go').onclick=function(){
     var p=(DATA.rn&&DATA.rn.profile)||{};
-    if(v('rn_type')!==p.type||v('rn_pref')!==p.pref||v('rn_muni')!==p.muni||v('rn_cap')!==String(p.cap||'')){say('rn_m','先に「設定を保存する」を押してください');return;}
+    if(v('rn_type')!==p.type||v('rn_pref')!==p.pref||muniVal('rn_muni').muni!==p.muni||v('rn_cap')!==String(p.cap||'')){say('rn_m','先に「設定を保存する」を押してください');return;}
+    if(!p.known){say('rn_m','市区町村を一覧から選び直して、保存してください');return;}
     RN_BUSY=true;RN_MSG=(p.pref+p.muni)+' の公式の情報を調べています…（30秒ほど）';render();
     API.call('POST','/admin/tenants/'+openId+'/reqnav/refresh',{}).then(function(){RN_BUSY=false;RN_MSG='更新しました';return rnLoad();})
       .then(render).catch(function(e){RN_BUSY=false;RN_MSG=e.message;render();});
@@ -2544,7 +2580,7 @@ function formsHTML(){
     +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px;">'
     +'<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;">書類<select id="fm_doc">'+D.docs.map(function(d){return '<option value="'+esc(d.id)+'">'+esc((TY[d.type]||d.type)+'｜'+d.name)+'</option>';}).join('')+'</select></label>'
     +'<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;">都道府県<select id="fm_pref"><option value="">選んでください</option>'+FORMS_PREFS.map(function(p){return '<option>'+p+'</option>';}).join('')+'</select></label>'
-    +'<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;">市町村（県の様式なら空）<input id="fm_muni" placeholder="例：さいたま市"></label>'
+    +'<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;">市町村'+muniSelHTML('fm_muni',($('fm_pref')||{}).value||'','',['','県の様式（市町村なし）'],false)+'</label>'
     +'<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;">メモ（任意）<input id="fm_note" placeholder="例：令和8年度版"></label></div>'
     +'<div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><input type="file" id="fm_file" accept=".xlsx"><button class="btn sm" id="fm_go">登録する</button><span id="fm_msg" class="msg"></span></div>'
     +(formsLast?'<div class="note" style="margin-top:10px;">登録しました。見出しから書く位置が見つかった欄：<b>'+formsLast.found+'</b>'
@@ -2562,13 +2598,16 @@ function formsHTML(){
       :'<div class="empty">まだありません。</div>')+'</div>';
 }
 function formsWire(){
+  muniWire('fm_muni','fm_pref',['','県の様式（市町村なし）']);
   var go=$('fm_go');if(go)go.onclick=function(){
+    var mv=muniVal('fm_muni');
+    if(mv.manual&&!mv.muni){say('fm_msg','市町村の名前を入れてください');return;}
     var f=$('fm_file').files&&$('fm_file').files[0];
     if(!$('fm_pref').value){say('fm_msg','都道府県を選んでください');return;}
     if(!f){say('fm_msg','Excel（.xlsx）の様式を選んでください');return;}
     say('fm_msg','送っています…',true);
     var h={'Content-Type':'application/octet-stream','x-doc-id':$('fm_doc').value,'x-pref':encodeURIComponent($('fm_pref').value),
-      'x-muni':encodeURIComponent($('fm_muni').value.replace(/^\s+|\s+$/g,'')),'x-name':encodeURIComponent(f.name),'x-note':encodeURIComponent($('fm_note').value)};
+      'x-muni':encodeURIComponent(mv.muni),'x-muni-manual':mv.manual?'1':'','x-name':encodeURIComponent(f.name),'x-note':encodeURIComponent($('fm_note').value)};
     if(API.token())h.Authorization='Bearer '+API.token();
     fetch(API.base()+'/admin/docflow/forms',{method:'POST',headers:h,body:f})
       .then(function(r){return r.json().catch(function(){return {};}).then(function(j){if(!r.ok)throw new Error(j.error||('登録できませんでした（'+r.status+'）'));return j;});})

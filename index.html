@@ -87,14 +87,18 @@ document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){do
   if(ss.getItem('px:on')!=='1')return;
   var PFX='pxls:';
   function keys(){var o=[],i,n;for(i=0;i<ss.length;i++){n=ss.key(i);if(n&&n.indexOf(PFX)===0)o.push(n.slice(PFX.length));}return o;}
-  var shim={
+  /* ★入れ物の仕事は「ひな形（prototype）」に置く。画面の中に Object.getPrototypeOf(localStorage).setItem で
+     じかに書く所（__rawSet・サーバからの読み直し）があり、ひな形に無いと読み直した中身が1つも保存されず
+     「保存容量がいっぱい」と出ていた */
+  var proto={
     getItem:function(k){return ss.getItem(PFX+k);},
     setItem:function(k,v){ss.setItem(PFX+k,String(v));},
     removeItem:function(k){ss.removeItem(PFX+k);},
     clear:function(){keys().forEach(function(k){ss.removeItem(PFX+k);});},
     key:function(i){return keys()[i]||null;}
   };
-  try{Object.defineProperty(shim,'length',{get:function(){return keys().length;}});}catch(e){}
+  try{Object.defineProperty(proto,'length',{get:function(){return keys().length;}});}catch(e){}
+  var shim=Object.create(proto);
   var ok=false;
   try{Object.defineProperty(window,'localStorage',{configurable:true,get:function(){return shim;}});ok=(window.localStorage===shim);}catch(e){ok=false;}
   if(!ok){
@@ -13279,7 +13283,7 @@ var EN_DICT={
 '全員分を印刷':'Print All',
 'そろえる時期':'When to prepare',
 '日常記録 →':'Daily Records →',
-'提出書類ナビ':'Document Submission Guide',
+'提出書類ナビ':'Document Submission Guide','園の画面を代理で操作しています':'operating this school’s screens on your behalf','監査書類の準備は「Miralink（運営）」として1回ごとに1行で出ます。':'Audit document preparation is shown as one line per session under “Miralink (operations)”.','は一覧にありません。一覧の名前を選んでください。':' is not in the list. Please choose a name from the list.',
 'HPフォーム':'Website form',
 '会社名・園名':'Company / school name',
 '業務日報 未':'Daily report: not done',
@@ -40391,7 +40395,7 @@ function reqLocalRefresh(){
   if(!dfOn()){REQ_LOCAL_MSG='最新への更新は、サーバにつないでいるときだけ使えます。';renderReqNav();return;}
   var t=reqTypeById(p.type);
   REQ_LOCAL_BUSY=true;REQ_LOCAL_MSG=p.muni+' の公式の情報を調べています…（30秒ほどかかります）';renderReqNav();
-  API.call('POST','/reqnav/local/refresh',{type:p.type,muni:reqMuniFull(p),cap:p.cap,names:t.items.map(function(x){return x.name;})})
+  API.call('POST','/reqnav/local/refresh',{type:p.type,muni:reqMuniFull(p),cap:p.cap,manual:!!p.manual,names:t.items.map(function(x){return x.name;})})
     .then(function(j){REQ_LOCAL_BUSY=false;REQ_LOCAL[reqMuniKey(p)]=(j&&j.local)||null;REQ_LOCAL_MSG='';renderReqNav();})
     .catch(function(e){REQ_LOCAL_BUSY=false;REQ_LOCAL_MSG=(e&&e.message)||'更新できませんでした。';renderReqNav();});
 }
@@ -40507,7 +40511,10 @@ function renderReqNav(){
     +'<div class="field" style="margin:0;"><label>都道府県</label><select id="rqPref"><option value="">選んでください</option>'
       +(REQ_MUNI?Object.keys(REQ_MUNI):[]).map(function(k){return '<option'+(k===prof.pref?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select></div>'
     +'<div class="field" style="margin:0;"><label>市区町村</label><select id="rqMuni"'+(prof.pref?'':' disabled')+'><option value="">'+(prof.pref?'選んでください':'先に都道府県を選んでください')+'</option>'
-      +((REQ_MUNI&&prof.pref&&REQ_MUNI[prof.pref])||[]).map(function(k){return '<option'+(k===prof.muni?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select></div>'
+      +((REQ_MUNI&&prof.pref&&REQ_MUNI[prof.pref])||[]).map(function(k){return '<option'+(k===prof.muni?' selected':'')+'>'+esc(k)+'</option>';}).join('')+'</select>'
+      /* ★前から入っている「埼玉」のような、一覧に無い名前は調べに行けない（サーバも断る・2026-11-08）。選び直してもらう */
+      +((prof.muni&&!prof.manual&&REQ_MUNI&&(!prof.pref||!REQ_MUNI[prof.pref]||REQ_MUNI[prof.pref].indexOf(prof.muni)<0))?'<div class="muted" style="font-size:11.5px;color:#A8701A;margin-top:4px;">「'+esc(prof.muni)+'」は一覧にありません。一覧の名前を選んでください。</div>':'')
+      +'</div>'
     /* ★「定員」は分かりにくい（2026-09-24 安田さんのご指摘）。在園児数にする。空なら生徒情報の在園児の数を薄く出す */
     +'<div class="field" style="margin:0;"><label>在園児数</label><input id="rqCap" type="number" value="'+esc((prof.cap||''))+'" placeholder="'+esc(String(enrolled().length||'例：19'))+'"></div>'
     +'</div>'
@@ -42201,7 +42208,7 @@ function supActiveHTML(){
   if(!SUP_ON||!SUP_ON.length)return '';
   return SUP_ON.map(function(x){
     return '<div class="note-b" style="margin-bottom:12px;font-size:13px;line-height:1.8;border-left:4px solid #B4541F;">'
-      +'<b>いま運営（'+esc(x.adminName)+'）が、サポートのためにこの園の記録を見ています</b>（'+esc(supHm(x.expiresAt))+'まで・'+(x.editable?'<b style="color:#B4541F;">上書きできる状態</b>':'読むだけ')+'）。'
+      +'<b>いま運営（'+esc(x.adminName)+'）が、サポートのためにこの園の記録を見ています</b>（'+esc(supHm(x.expiresAt))+'まで・'+(x.proxy?'<b style="color:#B4541F;">園の画面を代理で操作しています</b>':x.editable?'<b style="color:#B4541F;">上書きできる状態</b>':'読むだけ')+'）。'
       +'<span class="muted">理由と見た記録は「設定 › 運営がアクセスした履歴」で確かめられます。</span></div>';
   }).join('');
 }
@@ -42574,9 +42581,11 @@ function renderSupportAccess(s){
   API.call('GET','/support/access').then(function(j){
     var L=(j&&j.history)||[];
     box.innerHTML='<h3>'+ic('shield')+'運営がアクセスした履歴</h3>'
-      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:10px;">Miralink の運営は、園からのお問い合わせのときだけ、理由を書いて30〜60分のあいだ記録を見ます。'
-      +'健康・事故などの記録は、もう一度理由を書かないと開きません。'
-      +'直す必要があるときは、さらに理由を書いて決まった項目だけを上書きします。直したことは、前と後の値までここに出ます。</div>'
+      /* 2026-11-08：理由はボタンで選ぶ形になり、監査書類の準備も運営が行うので、言い方をそろえた */
+      +'<div class="muted" style="font-size:12px;line-height:1.8;margin-bottom:10px;">Miralink の運営は、園からのお問い合わせや監査書類の準備などのときに、理由を残して60分までのあいだ記録を見ます。'
+      +'健康・事故などの記録は、もう一度理由を残さないと開きません。'
+      +'直す必要があるときは、さらに理由を残して決まった項目だけを上書きします。直したことは、前と後の値までここに出ます。'
+      +'監査書類の準備は「Miralink（運営）」として1回ごとに1行で出ます。</div>'
       +(L.length?'<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>日時</th><th>運営の担当</th><th>理由</th><th>見た記録</th><th>直したこと</th></tr></thead><tbody>'
         +L.map(function(x){
           return '<tr><td class="row-sub" style="white-space:nowrap;">'+esc(supHm(x.startedAt))+'〜'+esc(supHm(x.endedAt||x.expiresAt).slice(-5))+(x.active?' <b style="color:#B4541F;">見ています</b>':'')+'</td>'
