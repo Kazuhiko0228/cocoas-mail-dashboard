@@ -2056,7 +2056,8 @@ function rnMuniOnlyHTML(loc,cond){
   var L=loc.extra||[],mo=loc.muniOnly||null;
   var h='<div style="border:1.5px solid var(--edu,#2F6FA3);border-radius:10px;padding:10px 12px;margin:8px 0;">'
     +'<div style="font-weight:800;font-size:14px;">この自治体だけの書類（'+L.length+'件）</div>';
-  if(!L.length)return h+'<div style="font-size:12.5px;margin-top:4px;">'+(mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）':'まだ手引き・要綱まで読んでいません。「最新の情報に更新」を押してください。')+'</div></div>';
+  if(mo&&mo.incomplete)h+='<div class="note warn" style="font-size:12px;margin:4px 0;">手引き・要綱から書類を書き出す途中で止まりました。この一覧は足りない可能性があります。「最新の情報に更新」をもう一度押してください。</div>';
+  if(!L.length)return h+'<div style="font-size:12.5px;margin-top:4px;">'+(mo&&mo.incomplete?'まだ書き出せていません。':mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）':'まだ手引き・要綱まで読んでいません。「最新の情報に更新」を押してください。')+'</div></div>';
   return h+'<div class="tw"><table style="min-width:820px;margin-top:6px;"><thead><tr><th>書類</th><th>どんなときに要るか</th><th>提出先</th><th>期限</th><th>様式</th><th>出典</th></tr></thead><tbody>'
     +L.map(function(x){return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(x.byOps?' <span class="chip info">運営が足した</span>':'')
       +((x.attachments||[]).length?'<div style="font-size:11px;color:var(--mute);">添付：'+x.attachments.map(esc).join('、')+'</div>':'')+rnFormInfoHTML(x,'',null,false)+'</td>'
