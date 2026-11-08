@@ -54,6 +54,129 @@
 <script>document.documentElement.className+=' egboot';
 /* 何かで止まっても必ず外す。数えはじめは、ページを読み終えてから（遅い回線で、読み終える前に外れないように） */
 document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){document.documentElement.classList.remove('egboot');},5000);});</script>
+<script>
+/* ══ 運営の代理操作（2026-11-08 安田さん「園側でできることは、代理として運営側も基本的にはできる形にしておいてほしい」）══
+   運営管理のサポート閲覧から「園の画面を代理で開く」と、このページが #proxy=… つきで新しいタブに開く。
+   ・札（トークン）は # のあとにだけ載せ、読んだらすぐ消す（履歴・サーバのログに残さない）
+   ・★この端末の園の記録（localStorage）には一切さわらない。代理のあいだは、localStorage をこのタブの中だけの
+     入れ物（sessionStorage）に差し替える。タブを閉じれば消え、ほかのタブ・ほかの園の記録と混ざらない
+   ・期限が来た・運営が終えた・「終える」を押した、のどれでも、このタブの入れ物を空にして終わる
+   ・本人でなければならない操作（同意・カード・パスワード・削除など）はサーバが断る。画面でもボタンを隠す */
+(function(){
+  var ss;try{ss=window.sessionStorage;}catch(e){return;}
+  var m=/[#&]proxy=([^&]+)/.exec(location.hash||''),info=null;
+  if(m){
+    try{info=JSON.parse(decodeURIComponent(m[1]));}catch(e){info=null;}
+    try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+    if(info&&info.t){
+      /* 新しく始める：前の代理の入れ物は捨てる */
+      var old=[],i;for(i=0;i<ss.length;i++){var n=ss.key(i);if(n&&(n.indexOf('pxls:')===0||n.indexOf('px:')===0))old.push(n);}
+      old.forEach(function(n){ss.removeItem(n);});
+      ss.setItem('px:on','1');
+      ss.setItem('px:info',JSON.stringify({admin:info.admin||'',exp:info.exp||'',tenant:info.tenant||null,scope:info.scope||'',go:info.go||null}));
+      ss.setItem('cocoas_apiToken',String(info.t));
+      ss.setItem('cocoas_serverUser',JSON.stringify(info.user||{}));
+      ss.setItem('edugrow_tabTenant',JSON.stringify({id:info.tenant&&info.tenant.id,code:info.tenant&&info.tenant.code}));
+      ss.removeItem('cocoas_staffSession');
+      ss.setItem('pxls:cocoas_apiBase',JSON.stringify(String(info.api||'').replace(/\/$/,'')));
+      ss.setItem('pxls:cocoas_apiTenant',JSON.stringify(info.tenant||null));
+      ss.setItem('pxls:edugrow_apiAlive','1');
+      ss.setItem('pxls:edugrow_serverBound','1');
+    }
+  }
+  if(ss.getItem('px:on')!=='1')return;
+  var PFX='pxls:';
+  function keys(){var o=[],i,n;for(i=0;i<ss.length;i++){n=ss.key(i);if(n&&n.indexOf(PFX)===0)o.push(n.slice(PFX.length));}return o;}
+  var shim={
+    getItem:function(k){return ss.getItem(PFX+k);},
+    setItem:function(k,v){ss.setItem(PFX+k,String(v));},
+    removeItem:function(k){ss.removeItem(PFX+k);},
+    clear:function(){keys().forEach(function(k){ss.removeItem(PFX+k);});},
+    key:function(i){return keys()[i]||null;}
+  };
+  try{Object.defineProperty(shim,'length',{get:function(){return keys().length;}});}catch(e){}
+  var ok=false;
+  try{Object.defineProperty(window,'localStorage',{configurable:true,get:function(){return shim;}});ok=(window.localStorage===shim);}catch(e){ok=false;}
+  if(!ok){
+    /* ★差し替えられないブラウザでは、端末の園の記録を守るため代理を始めない */
+    ss.removeItem('px:on');ss.removeItem('cocoas_apiToken');ss.removeItem('cocoas_serverUser');
+    document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif;">このブラウザでは代理の操作を始められません。Chrome でお試しください。</div>';});
+    return;
+  }
+  var inf={};try{inf=JSON.parse(ss.getItem('px:info'))||{};}catch(e){}
+  window.PXY={admin:inf.admin||'',exp:inf.exp||'',tenant:inf.tenant||null,scope:inf.scope||'',go:inf.go||null};
+  document.documentElement.className+=' px-on';
+  /* 代理ではさせない操作（サーバの PROXY_DENY と同じ線） */
+  window.pxDenied=function(method,path){
+    path=String(path||'').split('?')[0];
+    if(method==='POST'&&/^\/contracts\/[^/]+\/(otp|accept)$/.test(path))return '契約書・覚書への同意は、園の方ご本人が行います';
+    if(method==='POST'&&/^\/school-billing\/card(\/confirm)?$/.test(path))return '利用料金のカードの登録は、園の方ご本人が行います';
+    if(method==='POST'&&/^\/tuition\/(connect|connect\/dashboard|charge)$/.test(path))return '保育料のカード払いの登録・請求は、園の方ご本人が行います';
+    if(method==='POST'&&/^\/auth\/password$/.test(path))return 'パスワードの変更は、ご本人が行います';
+    if(method==='POST'&&/^\/parents\/[^/]+\/password$/.test(path))return '保護者のパスワードの作り直しは、園の方が行います';
+    if(method==='DELETE'&&/^\/(users|parents)\/[^/]+$/.test(path))return 'アカウントの削除・停止は、園の方が行います';
+    if(method==='POST'&&/^\/snapshots\/[^/]+\/restore$/.test(path))return 'まとめて元に戻す操作は、園の方が行います';
+    return '';
+  };
+  /* 終える：このタブの入れ物を空にして、終わったことを出す */
+  window.pxFinish=function(msg){
+    var all=[],i;for(i=0;i<ss.length;i++)all.push(ss.key(i));
+    all.forEach(function(n){if(n&&(n.indexOf('pxls:')===0||n.indexOf('px:')===0||/^(cocoas_apiToken|cocoas_serverUser|cocoas_staffSession|edugrow_tabTenant)$/.test(n)))ss.removeItem(n);});
+    document.body.innerHTML='<div style="max-width:520px;margin:80px auto;padding:28px;border-radius:16px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.12);font-family:sans-serif;line-height:1.8;">'
+      +'<div style="font-size:18px;font-weight:700;margin-bottom:8px;">代理の操作を終えました</div>'
+      +'<div style="font-size:14px;color:#555;">'+String(msg||'')+'このタブは閉じてかまいません。この端末には園の記録を残していません。</div></div>';
+  };
+  function hm(iso){var d=new Date(iso);if(isNaN(d))return '';return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
+  function bar(){
+    if(document.getElementById('pxBar'))return;
+    var b=document.createElement('div');b.id='pxBar';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:100000;background:#B42318;color:#fff;font:600 13px/1.4 sans-serif;padding:8px 14px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;';
+    /* 監査書類の準備は運営の作業（2026-11-08）。この帯は運営の端末だけに出る（園の画面には出ない） */
+    if(window.PXY.scope==='audit')b.style.background='#4A3FB8';
+    b.innerHTML='<span>'+(window.PXY.scope==='audit'?'Miralink の運営として監査書類を準備しています（提出書類ナビ・監査書類）':'運営（'+String(window.PXY.admin).replace(/[<>&"]/g,'')+'）が代理で操作中')+'・'+hm(window.PXY.exp)+'まで</span>'
+      +'<button type="button" id="pxEnd" style="background:#fff;color:#B42318;border:0;border-radius:8px;padding:4px 12px;font:inherit;cursor:pointer;">終える</button>';
+    document.body.appendChild(b);
+    document.body.style.paddingTop='38px';
+    document.getElementById('pxEnd').onclick=function(){
+      if(!confirm('代理の操作を終えます。よろしいですか？'))return;
+      var base='';try{base=JSON.parse(ss.getItem('pxls:cocoas_apiBase'))||'';}catch(e){}
+      fetch(base+'/support/proxy/end',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(ss.getItem('cocoas_apiToken')||'')}})
+        .then(function(){window.pxFinish('');},function(){window.pxFinish('');});
+    };
+  }
+  document.addEventListener('DOMContentLoaded',bar);
+  /* その書類の作成画面を開く：作りかけ（回）があれば開き、無ければ提出書類ナビのその行へ（様式を入れ込むのは人が選ぶ） */
+  window.pxGoDoc=function(g){
+    try{go(g.page==='docs'?'docs':'reqnav');}catch(e){return;}
+    if(g.page==='docs'||!g.doc)return;
+    var n=0,t=setInterval(function(){
+      n++;
+      var dd=(typeof DF!=='undefined'&&DF.docs)?DF.docs.filter(function(x){return x.id===g.doc;})[0]:null;
+      if(dd&&dd.runId&&typeof dfOpen==='function'){clearInterval(t);dfOpen(dd.runId);return;}
+      var el=document.querySelector('[data-dfsh="'+g.doc+'"],[data-dfrec="'+g.doc+'"],[data-dfimp="'+g.doc+'"]');
+      if(dd&&el){clearInterval(t);var row=el.closest('.card,tr,div')||el;row.scrollIntoView({block:'center'});row.style.outline='3px solid #B42318';row.style.outlineOffset='4px';return;}
+      if(n>40)clearInterval(t);
+    },250);
+  };
+  /* 期限が来たら終える（サーバも同じ時刻から断る） */
+  setInterval(function(){var t=new Date(window.PXY.exp).getTime();if(t&&Date.now()>t)window.pxFinish('期限が来ました。');},15000);
+  /* はじめて開いたときだけ、サーバから園の記録を読み込んでから開き直す */
+  window.addEventListener('load',function(){
+    if(ss.getItem('px:pulled')==='1'){
+      /* 運営管理の「この書類を作る」から来たときは、その書類の作成画面へ（1回だけ） */
+      var g=window.PXY.go;
+      if(g&&ss.getItem('px:went')!=='1'){ss.setItem('px:went','1');setTimeout(function(){window.pxGoDoc(g);},600);}
+      return;
+    }
+    ss.setItem('px:pulled','1');
+    try{if(typeof SYNC!=='undefined'&&SYNC.pull)SYNC.pull().then(function(){location.reload();},function(){location.reload();});}catch(e){}
+  });
+})();
+</script>
+<style>
+/* 代理のあいだは、本人でなければならない操作のボタンを出さない（サーバでも断る） */
+html.px-on [data-agopen],html.px-on #spayCard1,html.px-on #tuiStart,html.px-on [data-papw],html.px-on [data-paoff],html.px-on [data-supw],html.px-on #saMyPw{display:none!important}
+</style>
 <style>
   :root{
     --teal:#0B5F8F; --teal-d:#063E5F; --teal-l:#0C84B4; --accent:#28ACD9;
@@ -33812,6 +33935,8 @@ var API={
   enabled:function(){return API_LIVE&&!!API.base()&&API_ALIVE;},
   online:function(){return API.enabled()&&!!API.token();},
   call:function(method,path,body){
+    /* 運営の代理のあいだ、本人でなければならない操作は送らない（サーバも断る・2026-11-08） */
+    if(window.PXY&&window.pxDenied){var _no=window.pxDenied(method,path);if(_no){var _e=new Error(_no+'（運営の代理ではできません）');_e.code='proxy_forbidden';return Promise.reject(_e);}}
     var h={'Content-Type':'application/json'};
     if(API.token())h.Authorization='Bearer '+API.token();
     return fetch(API.base()+path,{method:method,headers:h,body:body?JSON.stringify(body):undefined})
@@ -34966,6 +35091,8 @@ var IDLE={
   /* ══ 通信が401で返ったときに、画面を落とさずパスワードだけ聞き直す ══
      ★書きかけを消さないため。理由（期限切れ／アカウントが止まっている 等）も出す。 */
   relock:function(why){
+    /* 代理の札が切れた（運営が終えた・期限）ときは、パスワードを聞かずに終える */
+    if(window.PXY&&window.pxFinish){window.pxFinish(why?why+'。':'');return;}
     if(IDLE.locked)return;
     try{if(typeof currentStaff==='function'&&!currentStaff())return;}catch(e){return;}
     IDLE.locked=true; IDLE.why=why||'';
@@ -34973,6 +35100,8 @@ var IDLE={
     IDLE.why='';
   },
   lock:function(){
+    /* 代理のあいだは鍵をかけない（パスワードで解けないため。期限はサーバが切る） */
+    if(window.PXY)return;
     if(IDLE.locked)return;
     try{if(typeof currentStaff==='function'&&!currentStaff())return;}catch(e){return;}
     IDLE.locked=true;
@@ -35177,7 +35306,10 @@ function currentStaff(){var id=sessionStorage.getItem('cocoas_staffSession');if(
 function currentRole(){var s=currentStaff();return s?s.role:null;}
 /* 未来WA は、案内（wastore）と、開く先（creator）で1つの権限にする。
    別々にすると、案内は開けるのにボタンを押すと断られる、という食い違いが起きる。 */
-function canView(page){var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;
+function canView(page){
+  /* 監査書類だけの代理（運営管理の「この書類を作る」・2026-11-08）は、提出書類ナビと書類格納だけを見せる（書き込みはサーバも断る） */
+  if(window.PXY&&window.PXY.scope==='audit')return /^(reqnav|docs|noaccess)$/.test(page);
+  var s=currentStaff();if(!s)return true;if(s.role==='管理者')return true;
   if(page==='creator')page='wastore';
   /* 見られる画面が1つも無いことを伝える画面は、権限の一覧に入れない。
      ここを権限で閉じると、伝える画面にすら行けなくなって元も子もない。 */
