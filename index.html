@@ -13299,7 +13299,7 @@ var EN_DICT={
 '全員分を印刷':'Print All',
 'そろえる時期':'When to prepare',
 '日常記録 →':'Daily Records →',
-'提出書類ナビ':'Document Submission Guide','添付書類':'Attachments','記入のきまり':'Filling rules','どんなときに要るか':'When it is needed','この園に当てはまる':'Applies to this school','そのときに出す':'Submit when it happens','確かめが要る':'Needs checking','園の画面を代理で操作しています':'operating this school’s screens on your behalf','監査書類の準備は「Miralink（運営）」として1回ごとに1行で出ます。':'Audit document preparation is shown as one line per session under “Miralink (operations)”.','は一覧にありません。一覧の名前を選んでください。':' is not in the list. Please choose a name from the list.',
+'提出書類ナビ':'Document Submission Guide','添付書類':'Attachments','記入のきまり':'Filling rules','どんなときに要るか':'When it is needed','この園に当てはまる':'Applies to this school','そのときに出す':'Submit when it happens','確かめが要る':'Needs checking','指定様式・取り込み済み':'Designated form (registered)','市の指定様式あり（未登録）':'City form available (not registered)','指定様式・未入手':'Designated form (not obtained)','様式自由・標準で作れる':'Any format (standard template)','市の様式':'City forms','この書類は市の指定様式で出します。様式がまだシステムにありません':'This document must be submitted on the city’s designated form. The form is not in the system yet','。運営が用意するまでは、市の様式をお使いください。':'. Until operations adds it, please use the city’s form.','入手先：':'Where to get it: ','園の画面を代理で操作しています':'operating this school’s screens on your behalf','監査書類の準備は「Miralink（運営）」として1回ごとに1行で出ます。':'Audit document preparation is shown as one line per session under “Miralink (operations)”.','は一覧にありません。一覧の名前を選んでください。':' is not in the list. Please choose a name from the list.',
 'HPフォーム':'Website form',
 '会社名・園名':'Company / school name',
 '業務日報 未':'Daily report: not done',
@@ -40593,12 +40593,30 @@ function reqLinkHTML(u,label){
 /* ★AI が作ったリンクが開けなかった（2026-09-25）。サーバで確かめて捨てたあとは、
    自分で探せるよう検索のリンクを出す（公式のページだと言い切れるものだけを「出典」と呼ぶ） */
 function reqSearchLink(q){return '<a href="https://www.google.com/search?q='+encodeURIComponent(q)+'" target="_blank" rel="noopener noreferrer" style="color:#5B6875;">検索で探す ↗</a>';}
+/* ══ 様式の決まり（2026-11-08 安田さん）══
+   指定様式・取り込み済み／指定様式・未入手／様式自由・標準で作れる／確かめが要る。
+   ★指定の様式が無いときは、園の画面にも注意を出す（その様式でないと受け付けられないため） */
+function reqFormBadgeHTML(li){
+  var k=li&&li.formRule;if(!k)return '';
+  var P=function(bg,c,t){return '<span class="pill" style="background:'+bg+';color:'+c+';font-size:10.5px;">'+t+'</span>';};
+  var b=(k==='designated_found'&&li.formReg)?P('#EAF3DE','#27500A','指定様式・取り込み済み')
+    :k==='designated_found'?P('#FAEEDA','#854F0B','市の指定様式あり（未登録）')
+    :k==='designated_missing'?P('#FCEBEB','#A32D2D','指定様式・未入手')
+    :k==='free'?P('#EAF3DE','#27500A','様式自由・標準で作れる'):P('#FAEEDA','#854F0B','確かめが要る');
+  var w=(k==='designated_missing'||(k==='designated_found'&&!li.formReg))
+    ?'<div style="font-size:11.5px;color:#A32D2D;margin-top:4px;line-height:1.55;">この書類は市の指定様式で出します。様式がまだシステムにありません'+(li.formWhere?'（入手先：'+esc(li.formWhere)+'）':'')+'。運営が用意するまでは、市の様式をお使いください。</div>':'';
+  return '<div style="margin-top:4px;">'+b+'</div>'+w;
+}
+function reqSubsHTML(li){
+  var S=(li&&li.subs)||[];if(!S.length)return '';
+  return '<div><b>市の様式</b>：'+S.map(function(v){return esc(v.name)+((v.form||v.deadline)?'（'+esc([v.form,v.deadline].filter(Boolean).join('・'))+'）':'')+(v.url?' '+reqLinkHTML(v.url,'出典'):'');}).join('／')+'</div>';
+}
 function reqLocalBoxHTML(li,muni,itemName){
   if(!li)return '';
   /* 添付書類・記入のきまりは、自治体の手引き・要綱から読んだもの（2026-11-08） */
   var rows=[['提出先',li.submitTo],['様式',li.form],['期限',li.deadline],['添付書類',(li.attachments||[]).join('、')],['記入のきまり',(li.rules||[]).join('／')],['注意',li.note]].filter(function(x){return x[1];});
-  return '<div class="rqlocal"><div class="rqlocal-h">'+esc(muni)+' では</div>'
-    +rows.map(function(x){return '<div><b>'+x[0]+'</b>：'+esc(x[1])+'</div>';}).join('')
+  return '<div class="rqlocal"><div class="rqlocal-h">'+esc(muni)+' では'+(li.condKind?' '+reqCondMark(li):'')+'</div>'
+    +rows.map(function(x){return '<div><b>'+x[0]+'</b>：'+esc(x[1])+'</div>';}).join('')+reqSubsHTML(li)+reqFormBadgeHTML(li)
     +'<div>'+(li.url?reqLinkHTML(li.url,'出典'):reqSearchLink(muni+' '+String(itemName||li.name||'').replace(/（[^）]*）/g,'')+' 様式'))
     +(li.docUrl?'　'+reqLinkHTML(li.docUrl,'手引き'+(li.docPage?'（'+li.docPage+'ページ）':'')):'')+'</div>'+'</div>';
 }
@@ -40636,7 +40654,8 @@ function reqMuniOnlyHTML(LOC,extra,muniNow,t,st){
       return '<div style="border:1px solid var(--line,#E5E2D9);border-radius:10px;padding:12px;"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
         +'<div style="flex:1;min-width:250px;"><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:14px;">'+esc(it.name)+'</span>'+reqCondMark(it)+'</div>'
         +rows.map(function(x){return '<div style="font-size:12px;line-height:1.6;"><b>'+x[0]+'</b>：'+esc(x[1])+'</div>';}).join('')
-        +(it.url?'<div style="font-size:12px;margin-top:4px;">'+reqLinkHTML(it.url,'出典'+(it.page?'（'+it.page+'ページ）':''))+'</div>':'')+'</div>'
+        +reqFormBadgeHTML(it)
+        +'<div style="font-size:12px;margin-top:4px;">'+((it.srcs&&it.srcs.length>1)?it.srcs:(it.url?[{url:it.url,page:it.page}]:[])).map(function(v,i){return reqLinkHTML(v.url,'出典'+(it.srcs&&it.srcs.length>1?(i+1):'')+(v.page?'（'+v.page+'ページ）':''));}).join('　')+'</div></div>'
         +'<select data-rqst="'+esc(key)+'" style="width:150px;font-weight:600;">'+REQ_STATUSES.map(function(x){return '<option'+(x===cur?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
         +'</div></div>';
     }).join('')+'</div></div>';

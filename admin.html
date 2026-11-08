@@ -585,6 +585,7 @@ function loadGlobal(force){
     API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}).catch(function(){}),
     API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){}),
     API.call('GET','/admin/incidents').then(function(j){DATA.inc=j;}).catch(function(){}),
+    API.call('GET','/admin/reqnav-alerts').then(function(j){DATA.rnAlerts=j.alerts||[];}).catch(function(){}),
     API.call('GET','/admin/offboarding').then(function(j){DATA.off=j;}).catch(function(){}),
     API.call('GET','/admin/ops-settings').then(function(j){DATA.ops=j;}).catch(function(){})
   ]);
@@ -1030,6 +1031,9 @@ function computeAttentionItems(){
   if(DATA.ops&&DATA.ops.invoice&&!DATA.ops.invoice.regNo)it.push({sev:'warn',n:1,text:'インボイス登録番号（T番号）が未設定です（見積書・契約書・請求書に入ります）',go:['fees']});
   var ob=((DATA.pipe&&DATA.pipe.schools)||[]).filter(function(x){return x.overdue;});
   if(ob.length)it.push({sev:'warn',n:ob.length,text:'導入が止まっている園（'+ob.slice(0,3).map(function(x){return x.name+'：'+x.stageName;}).join('・')+'）',go:ob.length===1?['one',ob[0].id,'overview']:['pipe']});
+  /* 指定の様式で出す書類なのに、様式がシステムに無い園（提出書類ナビ・2026-11-08） */
+  var ra=(DATA.rnAlerts||[]).filter(function(x){return !ATT_MINE||ts.some(function(t){return String(t.id)===String(x.tid);});});
+  if(ra.length)it.push({sev:'warn',n:ra.length,text:'市の指定様式で出す書類の様式が、まだシステムにない園（'+ra.slice(0,3).map(function(x){return x.name+'：'+x.docs[0]+(x.n>1?' ほか'+(x.n-1)+'件':'');}).join('・')+'）',go:ra.length===1?['one',ra[0].tid,'reqnav']:['forms']});
   var tf=((DATA.tui&&DATA.tui.tenants)||[]).filter(function(x){return x.failed>0;});
   if(tf.length)it.push({sev:'warn',n:tf.length,text:'保育料の引き落としに失敗した園がある（この30日）',go:['tuition']});
   it.sort(function(a,b){return (a.sev==='ng'?0:1)-(b.sev==='ng'?0:1);});
@@ -1857,7 +1861,7 @@ function rnTabHTML(){
       +docs.map(function(x){
         var it=(loc.items||[]).filter(function(i){return i.name===x.name;})[0]||{};
         var st=(d.status||{})[p.type+'|'+x.name]||'—', rn=runOf(x.id);
-        return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(it.note?'<div style="font-size:11px;color:var(--mute);">'+esc(it.note)+'</div>':'')+rnDocInfoHTML(it)+'</td>'
+        return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(it.condKind?' '+rnCondMark(it,d.cond||{}):'')+(it.note?'<div style="font-size:11px;color:var(--mute);">'+esc(it.note)+'</div>':'')+rnSubsHTML(it)+rnDocInfoHTML(it)+rnFormInfoHTML(it,x.auto?x.id:'',(d.tplLabels||{})[x.id],!!x.auto)+'</td>'
           +'<td style="font-size:12px;">'+esc(it.submitTo||'')+(it.form?'<div>'+esc(it.form)+'</div>':'')
           +(it.url?'<div><a href="'+esc(it.url)+'" target="_blank" rel="noopener">出典を開く</a>'+(it.srcCheck==='ng'?' <span class="st warn" style="margin:0;">出典を確かめてください</span>':'')+'</div>':'')
           +(it.docUrl?'<div><a href="'+esc(it.docUrl)+'" target="_blank" rel="noopener">根拠の文書'+(it.docPage?'（'+esc(it.docPage)+'ページ）':'')+'</a></div>':'')+'</td>'
@@ -1904,6 +1908,16 @@ function rnWire(){
     b.disabled=true;
     API.call('PUT','/admin/tenants/'+openId+'/reqnav/review',{kind:b.getAttribute('data-rnrv'),index:+b.getAttribute('data-i'),action:a})
       .then(function(){return rnLoad();}).then(render).catch(function(e){b.disabled=false;alert(e.message);});};});
+  document.querySelectorAll('[data-rnreg]').forEach(function(b){b.onclick=function(){
+    b.disabled=true;say('rn_m','様式を登録しています…',true);
+    API.call('POST','/admin/tenants/'+openId+'/reqnav/register-form',{url:b.getAttribute('data-u'),docId:b.getAttribute('data-rnreg'),name:b.getAttribute('data-nm')})
+      .then(function(j){RN_MSG='様式を登録しました（書く場所が分かった欄 '+j.found+'）';return rnLoad();}).then(render).catch(function(e){b.disabled=false;say('rn_m',e.message);});};});
+  document.querySelectorAll('[data-rntadd]').forEach(function(b){b.onclick=function(){
+    var L=[];try{L=JSON.parse(b.getAttribute('data-l'))||[];}catch(e){}
+    if(!confirm('この園の標準の様式に、次の項目を足します。書類を作るときに園が答える質問になります。\n\n'+L.join('、')))return;
+    b.disabled=true;
+    API.call('POST','/admin/tenants/'+openId+'/reqnav/template-add',{docId:b.getAttribute('data-rntadd'),labels:L,src:b.getAttribute('data-src')})
+      .then(function(j){RN_MSG='標準の様式に '+j.added+' 項目を足しました';return rnLoad();}).then(render).catch(function(e){b.disabled=false;alert(e.message);});};});
   document.querySelectorAll('[data-rnfm]').forEach(function(b){b.onclick=function(){
     var i=b.getAttribute('data-rnfm'),sel=$('rnfd_'+i),loc=rnLocNow();var f=loc&&loc.formCands&&loc.formCands[+i];
     if(!f||!sel||!sel.value){say('rnfm_'+i,'どの書類の様式かを選んでください');return;}
@@ -1941,12 +1955,55 @@ function rnMuniOnlyHTML(loc,cond){
   if(!L.length)return h+'<div style="font-size:12.5px;margin-top:4px;">'+(mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）':'まだ手引き・要綱まで読んでいません。「最新の情報に更新」を押してください。')+'</div></div>';
   return h+'<div class="tw"><table style="min-width:820px;margin-top:6px;"><thead><tr><th>書類</th><th>どんなときに要るか</th><th>提出先</th><th>期限</th><th>様式</th><th>出典</th></tr></thead><tbody>'
     +L.map(function(x){return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(x.byOps?' <span class="chip info">運営が足した</span>':'')
-      +((x.attachments||[]).length?'<div style="font-size:11px;color:var(--mute);">添付：'+x.attachments.map(esc).join('、')+'</div>':'')+'</td>'
+      +((x.attachments||[]).length?'<div style="font-size:11px;color:var(--mute);">添付：'+x.attachments.map(esc).join('、')+'</div>':'')+rnFormInfoHTML(x,'',null,false)+'</td>'
       +'<td style="font-size:12px;">'+esc(x.cond||x.frequency||'')+'<div style="margin-top:3px;">'+rnCondMark(x,cond)+'</div></td>'
       +'<td style="font-size:12px;">'+esc(x.submitTo||'')+(x.level?'<div style="color:var(--mute);">'+esc(x.level)+'に出す</div>':'')+'</td>'
       +'<td style="font-size:12px;">'+esc(x.deadline||'')+'</td><td style="font-size:12px;">'+esc(x.form||'')+'</td>'
-      +'<td style="font-size:12px;">'+(x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener">出典'+(x.page?'（'+esc(x.page)+'ページ）':'')+'</a>':'')+'</td></tr>';}).join('')
+      +'<td style="font-size:12px;">'+((x.srcs&&x.srcs.length>1)?x.srcs:(x.url?[{url:x.url,page:x.page}]:[])).map(function(v,i){return '<div><a href="'+esc(v.url)+'" target="_blank" rel="noopener">出典'+(x.srcs&&x.srcs.length>1?(i+1):'')+(v.page?'（'+esc(v.page)+'ページ）':'')+'</a></div>';}).join('')+'</td></tr>';}).join('')
     +'</tbody></table></div>'+(mo?'<div class="hint">読んだページ・資料 '+mo.read+'件から拾いました。</div>':'')+'</div>';
+}
+/* ══ 様式の決まり（2026-11-08 安田さん「自治体独自のテンプレートがあったら取り込みたい。書式がそれである必要があるならアラート。独自でいいなら不足のないテンプレートを」）══
+   指定様式・取り込み済み／指定様式・未入手（入手先を出す）／様式自由・標準で作れる／確かめが要る。
+   ★「市の指定様式あり（未登録）」は、様式のファイルは見つかったが、まだ登録していないもの */
+function rnFormBadge(x){
+  var k=x.formRule;if(!k)return '';
+  var why=x.formWhy?' title="'+esc(x.formWhy+(x.formPage?'（'+x.formPage+'ページ）':''))+'"':'';
+  if(k==='designated_found'&&x.formReg)return '<span class="st ok" style="margin:0;"'+why+'>指定様式・取り込み済み</span>';
+  if(k==='designated_found')return '<span class="st warn" style="margin:0;"'+why+'>市の指定様式あり（未登録）</span>';
+  if(k==='designated_missing')return '<span class="st ng" style="margin:0;"'+why+'>指定様式・未入手</span>';
+  if(k==='free')return '<span class="st ok" style="margin:0;"'+why+'>様式自由・標準で作れる</span>';
+  return '<span class="st warn" style="margin:0;">様式の決まりは確かめが要る</span>';
+}
+/* 標準の様式（Miralink のテンプレート）に無い項目。名前が片方に含まれていれば、あるとみなす */
+function rnLackFields(x,labels){
+  var L=labels||[];
+  return (x.needFields||[]).filter(function(f){var c=String(f).replace(/[\s　（）()]/g,'');
+    return !L.some(function(l){var d=String(l).replace(/[\s　（）()]/g,'');return d&&(d.indexOf(c)>-1||c.indexOf(d)>-1);});});
+}
+function rnFormInfoHTML(x,docId,labels,canReg){
+  var k=x.formRule,h='';if(!k)return '';
+  h+='<div style="margin-top:4px;">'+rnFormBadge(x)+'</div>';
+  if(k==='designated_found'&&!x.formReg){
+    h+='<div style="font-size:11.5px;margin-top:2px;"><a href="'+esc(x.formFileUrl||'')+'" target="_blank" rel="noopener">市の様式を開く</a>'
+      +(canReg&&docId?' <button class="btn sm" data-rnreg="'+esc(docId)+'" data-u="'+esc(x.formFileUrl||'')+'" data-nm="'+esc(x.name)+'">この様式を登録する</button>'
+        :'　<a href="#" data-nav="forms">自治体の様式で入れ込む</a>')+'</div>';
+  }
+  if(k==='designated_missing')h+='<div class="note warn" style="font-size:11.5px;margin:3px 0 0;">この書類は市の指定様式で出します。様式がまだシステムにありません'+(x.formWhere?'（入手先：'+esc(x.formWhere)+'）':'')+'。<a href="#" data-nav="forms">自治体の様式で入れ込む</a></div>';
+  if(k==='free'&&(x.needFields||[]).length){
+    var lack=docId&&labels?rnLackFields(x,labels):[];
+    h+='<details style="font-size:11.5px;margin-top:3px;"><summary style="cursor:pointer;">書く必要のある項目（'+x.needFields.length+'）'+(lack.length?' <span class="st warn" style="margin:0;">標準の様式に無い項目 '+lack.length+'</span>':'')+'</summary>'
+      +'<div>'+x.needFields.map(esc).join('、')+(x.needFieldsUrl?' <a href="'+esc(x.needFieldsUrl)+'" target="_blank" rel="noopener">出典</a>':'')+'</div>'
+      +(lack.length?'<div style="margin-top:3px;"><b>標準の様式に無い項目</b>：'+lack.map(esc).join('、')
+        +' <button class="btn sm" data-rntadd="'+esc(docId)+'" data-l="'+esc(JSON.stringify(lack))+'" data-src="'+esc(x.needFieldsUrl||'')+'">標準の様式に足す</button></div>':'')
+      +'</details>';
+  }
+  return h;
+}
+/* 国の行に含まれる市の様式（変更届・廃止届など） */
+function rnSubsHTML(it){
+  var S=it.subs||[];if(!S.length)return '';
+  return '<div style="font-size:11.5px;margin-top:4px;"><b>市の様式</b>：'+S.map(function(v){
+    return esc(v.name)+((v.form||v.deadline)?'（'+esc([v.form,v.deadline].filter(Boolean).join('・'))+'）':'')+(v.url?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener">出典</a>':'');}).join('／')+'</div>';
 }
 /* 手引き・要綱から分かったこと（添付書類・きまり・様式の欄）。長いので開いて見る */
 function rnDocInfoHTML(it){
