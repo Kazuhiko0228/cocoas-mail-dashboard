@@ -13612,6 +13612,13 @@ var EN_DICT={
 '見本を作る':'Preview',
 'このPDFを添付する':'Attach this PDF',
 '更新（自治体の最新の情報を調べる）':'Update (look up the latest local rules)',
+'運営に調べ直しを頼む':'Ask Miralink to look it up again','調べ直しを頼んでいます':'Re-check requested',
+'調べ直しの依頼は、園長・マネージャーが行えます。':'Only the director or a manager can ask for a re-check.',
+'Miralink の運営に調べ直しを頼みました。運営が確かめて出すと、ここに出ます。':'We asked the Miralink team to look it up again. It will appear here once they have checked it.',
+'参考：保護者が出す書類':'For reference: documents parents submit',
+'保護者が市に出す書類です。園は「特定子ども・子育て支援提供証明書」を発行して保護者に渡します。':'Parents submit this to the city. The school issues a certificate of childcare provided and gives it to parents.',
+'都道府県と市区町村を選んでから押してください。':'Choose the prefecture and municipality first.',
+'調べ直しの依頼は、サーバにつないでいるときだけ使えます。':'Re-check requests work only when connected to the server.',
 '調べています…':'Looking up…',
 '最新への更新は、園長・マネージャーが行えます。':'Only the director or managers can update.',
 '出典':'Source',
@@ -40552,6 +40559,8 @@ function reqHowModal(it){
    AI に渡るのは種別・自治体名・在園児数・書類の名前だけ。園児・職員の情報は渡さない。 */
 var REQ_LOCAL={};   /* '種別|自治体' → 保存してある情報（null＝まだ無い） */
 var REQ_LOCAL_BUSY=false,REQ_LOCAL_MSG='';
+/* 運営への調べ直しの依頼（自治体ごと・2026-11-09） */
+var REQ_ASKED={};
 /* ★自治体を手で打つ欄だったので「埼玉」のように県名だけ・打ちまちがいのまま調べに行けた（2026-09-24 安田さんのご指摘）。
    都道府県→市区町村の2つの選び欄にする。一覧は data/municipalities.json
    （Geolonia「japanese-addresses」CC BY 4.0 から作成。政令市の区は市にまとめた。全1,740）。
@@ -40583,22 +40592,29 @@ function reqLocalLoad(p){
   REQ_LOCAL[reqMuniKey(p)]=null;
   API.call('GET','/reqnav/local?type='+encodeURIComponent(p.type)+'&muni='+encodeURIComponent(muni)).then(function(j){
     REQ_LOCAL[reqMuniKey(p)]=(j&&j.local)||null;
+    REQ_ASKED[reqMuniKey(p)]=(j&&j.requested)||null;
     var sec=$('section[data-page="reqnav"]');if(sec&&!sec.hidden)renderReqNav();
   }).catch(function(){delete REQ_LOCAL[reqMuniKey(p)];});
 }
-/* 更新：いま入れた種別・自治体・在園児数を保存し、AI に最新を調べさせる */
+/* 保護者が出す書類（参考）。園は提供証明書を渡す（2026-11-09） */
+function reqRefHTML(L){
+  var R=(L&&L.ref)||[];if(!R.length)return '';
+  return '<div style="font-size:12.5px;margin:6px 0;"><b>参考：保護者が出す書類</b>'+R.map(function(x){return '<div>・'+esc(x.name)+'　<span class="muted">'+esc(x.note||'')+'</span></div>';}).join('')+'</div>';
+}
+/* 運営に調べ直しを頼む（2026-11-09 安田さん「運営が書類に不備・不足がないかチェックした上で園側の画面に反映させるフロー」）。
+   ★それまでは園の「更新」で SI が調べ、確かめる前の結果がそのまま出ていた。調べて確かめるのは運営の作業にし、
+     園の画面には運営が確かめて出した一覧だけを出す。ここでは種別・自治体・在園児数を保存して、運営に依頼するだけ */
 function reqLocalRefresh(){
   if(REQ_LOCAL_BUSY)return;
   var p=reqProfile();
   p.cap=String(($('#rqCap')||{}).value||'');
   reqSaveProfile(p);
-  if(!p.pref||!p.muni){REQ_LOCAL_MSG='都道府県と市区町村を選んでから「更新」を押してください。';renderReqNav();return;}
-  if(!dfOn()){REQ_LOCAL_MSG='最新への更新は、サーバにつないでいるときだけ使えます。';renderReqNav();return;}
-  var t=reqTypeById(p.type);
-  REQ_LOCAL_BUSY=true;REQ_LOCAL_MSG=p.muni+' の公式の情報を調べています…（30秒ほどかかります）';renderReqNav();
-  API.call('POST','/reqnav/local/refresh',{type:p.type,muni:reqMuniFull(p),cap:p.cap,manual:!!p.manual,names:t.items.map(function(x){return x.name;})})
-    .then(function(j){REQ_LOCAL_BUSY=false;REQ_LOCAL[reqMuniKey(p)]=(j&&j.local)||null;REQ_LOCAL_MSG='';renderReqNav();})
-    .catch(function(e){REQ_LOCAL_BUSY=false;REQ_LOCAL_MSG=(e&&e.message)||'更新できませんでした。';renderReqNav();});
+  if(!p.pref||!p.muni){REQ_LOCAL_MSG='都道府県と市区町村を選んでから押してください。';renderReqNav();return;}
+  if(!dfOn()){REQ_LOCAL_MSG='調べ直しの依頼は、サーバにつないでいるときだけ使えます。';renderReqNav();return;}
+  REQ_LOCAL_BUSY=true;REQ_LOCAL_MSG='';renderReqNav();
+  API.call('POST','/reqnav/local/refresh',{type:p.type,muni:reqMuniFull(p),cap:p.cap})
+    .then(function(){REQ_LOCAL_BUSY=false;REQ_ASKED[reqMuniKey(p)]=todayISO();REQ_LOCAL_MSG='Miralink の運営に調べ直しを頼みました。運営が確かめて出すと、ここに出ます。';renderReqNav();})
+    .catch(function(e){REQ_LOCAL_BUSY=false;REQ_LOCAL_MSG=(e&&e.message)||'依頼できませんでした。';renderReqNav();});
 }
 /* ══ 一覧に無い書類を、園で追加する（2026-09-24 安田さんのご依頼）══
    「出てこなかった書類などをインポートできるところが上の方にほしい。確実に正確な情報ではないでしょ？」
@@ -40776,16 +40792,17 @@ function renderReqNav(){
     /* ★自治体・定員を入れても何も起きず、反映されたのか分からなかった（2026-09-24 安田さんのご指摘）。
        入れたら「更新」で、その自治体の最新の情報を調べる */
     +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;">'
-    +(reqCanRefresh()?'<button class="btn btn-primary" id="rqRefresh"'+(REQ_LOCAL_BUSY?' disabled':'')+'>'+ic('refresh')+(REQ_LOCAL_BUSY?'調べています…':'更新（自治体の最新の情報を調べる）')+'</button>'
-      :'<span class="muted" style="font-size:12px;">最新への更新は、園長・マネージャーが行えます。</span>')
+    +(reqCanRefresh()?'<button class="btn btn-primary" id="rqRefresh"'+((REQ_LOCAL_BUSY||REQ_ASKED[reqMuniKey(prof)])?' disabled':'')+'>'+ic('refresh')+(REQ_ASKED[reqMuniKey(prof)]?'調べ直しを頼んでいます':'運営に調べ直しを頼む')+'</button>'
+      :'<span class="muted" style="font-size:12px;">調べ直しの依頼は、園長・マネージャーが行えます。</span>')
     +'<span class="muted" style="font-size:12px;">'+(REQ_LOCAL_MSG?esc(REQ_LOCAL_MSG)
-      :(LOC?esc(muniNow)+' の情報：'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に更新'
-        :(muniNow?esc(muniNow)+' の情報はまだ調べていません。「更新」を押してください。':'都道府県と市区町村を選んで「更新」を押すと、その自治体での提出先・様式・期限を調べます。')))+'</span>'
+      :(LOC?esc(muniNow)+' の情報：'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に Miralink の運営が確かめて出しました'
+        :(muniNow?esc(muniNow)+' の情報は、Miralink の運営が調べて確かめたあとに出ます。':'都道府県と市区町村を選ぶと、Miralink の運営がその自治体での提出先・様式・期限を調べて、ここに出します。')))+'</span>'
     +'</div></div>'
     +reqCustomCardHTML(t);
   if(LOC){
     h+='<div class="card rqlocal-sum" style="margin-bottom:14px;"><h3>'+ic('search')+esc(muniNow)+' の最新の情報</h3>'
-      +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に、SI が公式の情報を検索してまとめました。提出の前に、必ず下の出典のページでもご確認ください。</div>'
+      +'<div class="muted" style="margin:-6px 0 10px;font-size:12px;">'+esc(String(LOC.fetchedAt||'').slice(0,10))+' に、Miralink の運営が公式の情報と手引き・要綱を調べて確かめ、出しました。提出の前に、下の出典のページでもご確認ください。</div>'
+      +reqRefHTML(LOC)
       +(LOC.summary?'<div style="font-size:13px;line-height:1.8;margin-bottom:8px;">'+esc(LOC.summary)+'</div>':'')
       +((LOC.office&&LOC.office.name)?'<div style="font-size:13px;"><b>担当</b>：'+esc(LOC.office.name)+(LOC.office.tel?'　'+esc(LOC.office.tel):'')+'　'+(LOC.office.url?reqLinkHTML(LOC.office.url,'担当のページ'):reqSearchLink(muniNow+' '+LOC.office.name))+'</div>':'')
       +((LOC.sources||[]).length?'<details style="margin-top:8px;font-size:12.5px;"><summary style="cursor:pointer;">出典（'+LOC.sources.length+'件）</summary><div style="display:grid;gap:4px;margin-top:6px;">'+LOC.sources.map(function(x){return reqLinkHTML(x.url,x.title);}).join('')+'</div></details>':'')

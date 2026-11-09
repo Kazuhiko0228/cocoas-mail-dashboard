@@ -581,6 +581,8 @@ function loadGlobal(force){
     API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;}),
     API.call('GET','/admin/applications').then(function(j){DATA.apply=j;}).catch(function(){}),
     API.call('GET','/admin/inquiries').then(function(j){DATA.inq=j;}).catch(function(){}),
+    /* 園からの提出書類ナビの調べ直しの依頼（2026-11-09） */
+    API.call('GET','/admin/reqnav/requests').then(function(j){DATA.rnReq=j;}).catch(function(){}),
     API.call('GET','/admin/tenants').then(function(j){DATA.tenants=j.tenants;DATA.tenantsToday=j.today;}).catch(function(){}),
     API.call('GET','/admin/billing/invoices?month='+encodeURIComponent(ym)).then(function(j){DATA.binvNow=j;}).catch(function(){}),
     API.call('GET','/admin/onboarding').then(function(j){DATA.pipe=j;}).catch(function(){}),
@@ -1008,6 +1010,9 @@ function computeAttentionItems(){
   if(ap.length)it.push({sev:'warn',n:ap.length,text:'未対応の申込',go:['apply']});
   var iq=((DATA.inq&&DATA.inq.inquiries)||[]).filter(function(a){return a.status==='未対応';});
   if(iq.length)it.push({sev:'warn',n:iq.length,text:'未対応のお問い合わせ（HP・LPから）',go:['inq']});
+  var rq=((DATA.rnReq&&DATA.rnReq.requests)||[]);
+  if(rq.length)it.push({sev:'warn',n:rq.length,text:'提出書類ナビの調べ直しの依頼（'+rq.slice(0,3).map(function(x){return x.tenant;}).join('、')+(rq.length>3?' ほか':'')+'）',
+    go:rq.length===1?['one',rq[0].tenantId,'reqnav']:['tenants']});
   /* 課金日を過ぎたのに、この月の請求がまだ作られていない園 */
   var ym=today.slice(0,7), day=+today.slice(8,10);
   var made={};((DATA.binvNow&&DATA.binvNow.invoices)||[]).forEach(function(x){if(x.status!=='canceled')made[String(x.tenant_id)]=1;});
@@ -1836,6 +1841,46 @@ function muniWire(id,prefId,first){
 }
 var RN_TY={ninkagai:'認可外保育施設',shokibo:'小規模保育事業',kigyou:'企業主導型保育事業',ninka:'認可保育所'};
 var RN_BUSY=false,RN_MSG='',RN_JOB=null;
+/* ══ 運営の確認 → 園に出す（2026-11-09 安田さん「運営が書類に不備・不足がないかチェックした上で園側の画面に反映させるフローにしたい」）══
+   ★それまでは「最新の情報に更新」の結果がそのまま園の画面に出ていた。いまは調べた結果は運営の下書きで、
+     行を直す・足す・消すをしてから「この内容を園に出す」を押したときだけ、園の提出書類ナビに出る */
+var RN_EDIT=null;
+var RN_ADD_CANDS=['保育安全計画','誓約書（設置者の役員・代表者が変わったとき）','特定子ども・子育て支援提供証明書（無償化）','改善状況調書'];
+function rnEditBtn(list,name){return ' <button class="btn sec sm" data-rned="'+list+'|'+esc(name)+'" style="padding:1px 8px;font-size:11.5px;">直す</button>'
+  +(list==='extra'?' <button class="btn sec sm" data-rndel="'+esc(name)+'" style="padding:1px 8px;font-size:11.5px;">消す</button>':'');}
+function rnEditedChip(x){return x&&x.edited?' <span class="chip info">'+(x.added?'運営が足した':'運営が直した')+'</span>':'';}
+function rnEditFormHTML(list,x,isNew){
+  var f=function(k,lab,w){return '<div class="f" style="'+(w?'grid-column:1/-1;':'')+'"><label>'+lab+'</label><input id="rnE_'+k+'" value="'+esc((x&&x[k])||'')+'"></div>';};
+  return '<div style="background:var(--bg2,#F4F6F8);border-radius:8px;padding:10px;margin:6px 0;">'
+    +'<div class="grid3">'+f('name','書類の名前')+f('submitTo','提出先')+f('form','様式')+f('deadline','期限')
+    +(list==='extra'?f('cond','どんなときに要るか'):'')+f('url','出典の URL')+f('note','注記',true)+'</div>'
+    +'<div class="row"><button class="btn sm" id="rnE_save" data-list="'+list+'" data-key="'+(isNew?'':esc(x.name))+'">下書きに保存する</button>'
+    +'<button class="btn sec sm" id="rnE_cancel">やめる</button><span class="msg" id="rnE_m"></span></div></div>';
+}
+function rnPubHTML(loc,d){
+  var df=loc.pubDiff||{added:[],removed:[],changed:[]},n=df.added.length+df.removed.length+df.changed.length;
+  var h='<div style="border:1.5px solid #C9A227;border-radius:10px;padding:10px 12px;margin:8px 0;background:#FFFBEA;">'
+    +'<div style="font-weight:800;">園に出す</div>'
+    +'<div style="font-size:12.5px;margin:4px 0;">'+(loc.publishedAt?'園の画面に出ている版：'+esc(fmtAt(loc.publishedAt))+(loc.publishedBy?'（'+esc(loc.publishedBy)+'）':'')
+      :'まだ園に出していません。園の提出書類ナビには、国の基準の一覧だけが出ています。')+'</div>';
+  if((d.requests||[]).length)h+='<div class="note warn" style="font-size:12px;margin:4px 0;">園から調べ直しの依頼があります（'+esc(fmtAt(d.requests[0].at))+(d.requests[0].by?'・'+esc(d.requests[0].by):'')+'）。調べて確かめたら、園に出すと依頼は済になります。</div>';
+  if(n||df.first){
+    h+='<div style="font-size:12.5px;margin:4px 0;">'+(df.first?'はじめて出します。':'前に出した版との違い：')+'追加 '+df.added.length+'・削除 '+df.removed.length+'・変更 '+df.changed.length+'</div>';
+    if(!df.first){
+      h+=(df.added.length?'<div style="font-size:12px;">追加：'+df.added.map(esc).join('、')+'</div>':'')
+        +(df.removed.length?'<div style="font-size:12px;">削除：'+df.removed.map(esc).join('、')+'</div>':'')
+        +(df.changed.length?'<div style="font-size:12px;">変更：'+df.changed.map(function(c){return esc(c.name)+'（'+c.fields.map(function(k){return RN_FIELD[k]||k;}).join('・')+'）';}).join('、')+'</div>':'');
+    }
+    h+='<div class="row" style="margin-top:6px;"><button class="btn sm" id="rnPub">この内容を園に出す</button><span class="msg" id="rnPubM"></span></div>';
+  }else h+='<div style="font-size:12.5px;">園に出している版と同じです。</div>';
+  return h+'<div class="hint" style="margin:4px 0 0;">行の「直す」「消す」と、下の「書類を足す」で下書きを直してから出してください。出したあと調べ直しても、園の画面は出した版のままです。</div></div>';
+}
+var RN_FIELD={name:'名前',submitTo:'提出先',form:'様式',deadline:'期限',note:'注記',url:'出典',cond:'どんなときに要るか'};
+function rnRefHTML(loc){
+  var L=loc.ref||[];if(!L.length)return '';
+  return '<div style="font-weight:700;font-size:13px;margin:12px 0 4px;">参考：保護者が出す書類</div>'
+    +L.map(function(x){return '<div style="font-size:12.5px;margin:2px 0;">・'+esc(x.name)+'　<span style="color:var(--mute);">'+esc(x.note||'')+'</span>'+(x.url?' <a href="'+esc(x.url)+'" target="_blank" rel="noopener">出典を開く</a>':'')+'</div>';}).join('');
+}
 function rnLoad(){
   return API.call('GET','/admin/tenants/'+openId+'/reqnav').then(function(j){DATA.rn=j;DATA.rnId=openId;}).catch(function(e){DATA.rn={err:e.message};DATA.rnId=openId;});
 }
@@ -1864,7 +1909,7 @@ function rnTabHTML(){
   h+='<div class="card"><h3>調べた結果'+(loc?'（'+esc(full)+'・'+esc(fmtAt(loc.fetchedAt))+'）':'')+'</h3>';
   if(!loc)h+='<div class="empty">まだ調べていません。上の「最新の情報に更新」を押してください。</div>';
   else{
-    h+=(loc.summary?'<div style="font-size:13px;line-height:1.8;margin-bottom:8px;">'+esc(loc.summary)+'</div>':'')
+    h+=rnPubHTML(loc,d)+(loc.summary?'<div style="font-size:13px;line-height:1.8;margin-bottom:8px;">'+esc(loc.summary)+'</div>':'')
       +(loc.office&&loc.office.name?'<div style="font-size:12.5px;margin-bottom:8px;">担当：'+(loc.office.url?'<a href="'+esc(loc.office.url)+'" target="_blank" rel="noopener">'+esc(loc.office.name)+'</a>':esc(loc.office.name))+(loc.office.tel?'　'+esc(loc.office.tel):'')+'</div>':'')
       +rnMuniOnlyHTML(loc,d.cond||{})
       +'<div style="font-weight:700;font-size:13px;margin:12px 0 6px;">国の基準で決まっている書類</div>'
@@ -1872,7 +1917,8 @@ function rnTabHTML(){
       +docs.map(function(x){
         var it=(loc.items||[]).filter(function(i){return i.name===x.name;})[0]||{};
         var st=(d.status||{})[p.type+'|'+x.name]||'—', rn=runOf(x.id);
-        return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(it.condKind?' '+rnCondMark(it,d.cond||{}):'')+(it.note?'<div style="font-size:11px;color:var(--mute);">'+esc(it.note)+'</div>':'')+rnSubsHTML(it)+rnDocInfoHTML(it)+rnFormInfoHTML(it,x.auto?x.id:'',(d.tplLabels||{})[x.id],!!x.auto)+'</td>'
+        if(RN_EDIT==='items|'+x.name)return '<tr style="cursor:default;"><td colspan="6"><b>'+esc(x.name)+'</b>'+rnEditFormHTML('items',Object.assign({name:x.name},it),false)+'</td></tr>';
+        return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+rnEditedChip(it)+(it.name?rnEditBtn('items',x.name):'')+(it.condKind?' '+rnCondMark(it,d.cond||{}):'')+(it.note?'<div style="font-size:11px;color:var(--mute);">'+esc(it.note)+'</div>':'')+rnSubsHTML(it)+rnDocInfoHTML(it)+rnFormInfoHTML(it,x.auto?x.id:'',(d.tplLabels||{})[x.id],!!x.auto)+'</td>'
           +'<td style="font-size:12px;">'+esc(it.submitTo||'')+(it.form?'<div>'+esc(it.form)+'</div>':'')
           +(it.url?'<div><a href="'+esc(it.url)+'" target="_blank" rel="noopener">出典を開く</a>'+(it.srcCheck==='ng'?' <span class="st warn" style="margin:0;">出典を確かめてください</span>':'')+'</div>':'')
           +(it.docUrl?'<div><a href="'+esc(it.docUrl)+'" target="_blank" rel="noopener">根拠の文書'+(it.docPage?'（'+esc(it.docPage)+'ページ）':'')+'</a></div>':'')+'</td>'
@@ -1886,7 +1932,7 @@ function rnTabHTML(){
             :'<button class="btn sec sm" data-rnmk="'+esc(x.id)+'" data-rnpg="docs">書類格納を開く</button>')+'</td></tr>';}).join('')
       +'</tbody></table></div>'
       +((loc.sources||[]).length?'<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12.5px;">出典（'+loc.sources.length+'）</summary>'+loc.sources.map(function(x){return '<div style="font-size:12px;"><a href="'+esc(x.url)+'" target="_blank" rel="noopener">'+esc(x.title)+'</a></div>';}).join('')+'</details>':'')
-      +rnDocsHTML(loc);
+      +rnRefHTML(loc)+rnDocsHTML(loc);
     h+='</div>'+rnReviewHTML(loc,docs)+'<div>';
   }
   return h+'</div>';
@@ -1910,7 +1956,7 @@ function rfPanelHTML(wiz){
   var h='';
   if(wiz)h+='<div class="lead">自治体の監査の様式をそろえ、園の毎日の記録の項目を様式に合わせます。3つがそろうと自動で済になります（課金開始の前でも後でもかまいません。稼働の確認までに済ませます）。</div>';
   h+='<div class="card"><h3>導入の手順：監査の様式をそろえ、日々の記録の項目を合わせる</h3>'
-    +mark(rd.researched,'① 提出書類ナビで自治体を調べた','<a href="#" data-gotab3="reqnav">提出書類ナビ・監査書類</a>で「最新の情報に更新」')
+    +mark(rd.researched,'① 提出書類ナビで自治体を調べた','<a href="#" data-gotab3="reqnav">提出書類ナビ・監査書類</a>で「最新の情報に更新」→ 確かめて「この内容を園に出す」')
     +mark(rd.researched&&!rd.missingForms,'② 市の指定様式で未入手のものが無い',rd.missingForms?('未入手が '+rd.missingForms+'件あります（様式を手に入れて登録するか、提出書類ナビで確かめてください）'):'指定様式は登録済み、または様式自由')
     +mark(rd.fields,'③ SI の項目の提案を反映した（または足す・隠す項目が無かった）','下の「SI に項目を見直してもらう」')
     +'</div>';
@@ -2035,10 +2081,32 @@ function rnWire(){
       .catch(function(e){RN_BUSY=false;RN_JOB=null;RN_MSG=e.message;render();});
   };
   document.querySelectorAll('[data-nav="forms"]').forEach(function(a){a.onclick=function(e){e.preventDefault();nav('forms');};});
+  /* 下書きの直し・足し・消し・園に出す（2026-11-09） */
+  var rnDraft=function(ops,msgId){var p=(DATA.rn&&DATA.rn.profile)||{};
+    return API.call('PUT','/admin/tenants/'+openId+'/reqnav/draft',{type:p.type,muni:(p.pref||'')+(p.muni||''),ops:ops})
+      .then(function(){RN_EDIT=null;RN_ADD_NAME='';return rnLoad();}).then(render).catch(function(e){say(msgId,e.message);});};
+  document.querySelectorAll('[data-rned]').forEach(function(b){b.onclick=function(){RN_EDIT=b.getAttribute('data-rned');render();};});
+  document.querySelectorAll('[data-rnadd]').forEach(function(b){b.onclick=function(){RN_EDIT='extra|+';RN_ADD_NAME=b.getAttribute('data-rnadd');render();};});
+  document.querySelectorAll('[data-rndel]').forEach(function(b){b.onclick=function(){
+    var n=b.getAttribute('data-rndel');if(!confirm('「'+n+'」を下書きから消します（園に出すまで園の画面は変わりません）。よろしいですか？'))return;
+    rnDraft([{list:'extra',key:n,remove:true}],'rn_m');};});
+  if($('rnE_cancel'))$('rnE_cancel').onclick=function(){RN_EDIT=null;RN_ADD_NAME='';render();};
+  if($('rnE_save'))$('rnE_save').onclick=function(){
+    var b=$('rnE_save'),list=b.getAttribute('data-list'),key=b.getAttribute('data-key'),row={};
+    ['name','submitTo','form','deadline','cond','url','note'].forEach(function(k){var el=$('rnE_'+k);if(el)row[k]=el.value.trim();});
+    if(!row.name){say('rnE_m','書類の名前を入れてください');return;}
+    var op={list:list,row:row};if(key)op.key=key;
+    rnDraft([op],'rnE_m');};
+  if($('rnPub'))$('rnPub').onclick=function(){
+    var p=(DATA.rn&&DATA.rn.profile)||{},loc=rnLocNow()||{},df=loc.pubDiff||{added:[],removed:[],changed:[]};
+    if(!confirm('この内容を園の提出書類ナビに出します（追加 '+df.added.length+'・削除 '+df.removed.length+'・変更 '+df.changed.length+'）。よろしいですか？'))return;
+    say('rnPubM','出しています…',true);
+    API.call('POST','/admin/tenants/'+openId+'/reqnav/publish',{type:p.type,muni:(p.pref||'')+(p.muni||'')})
+      .then(function(){RN_MSG='園に出しました';return rnLoad();}).then(render).catch(function(e){say('rnPubM',e.message);});};
   document.querySelectorAll('[data-rnmk]').forEach(function(b){b.onclick=function(){rnAuditGo(b.getAttribute('data-rnmk'),b.getAttribute('data-rnpg')||'reqnav');};});
   document.querySelectorAll('[data-rnrv]').forEach(function(b){b.onclick=function(){
     var a=b.getAttribute('data-act');
-    if(a==='add'&&!confirm('「'+b.getAttribute('data-nm')+'」を、この自治体の書類の一覧に足します。園の画面にも出ます。よろしいですか？'))return;
+    if(a==='add'&&!confirm('「'+b.getAttribute('data-nm')+'」を、この自治体の書類の一覧（下書き）に足します。園の画面には「園に出す」を押したときに出ます。よろしいですか？'))return;
     b.disabled=true;
     API.call('PUT','/admin/tenants/'+openId+'/reqnav/review',{kind:b.getAttribute('data-rnrv'),index:+b.getAttribute('data-i'),action:a})
       .then(function(){return rnLoad();}).then(render).catch(function(e){b.disabled=false;alert(e.message);});};});
@@ -2082,20 +2150,29 @@ function rnCondMark(x,cond){
   if(k==='change'||k==='open'||k==='accident')return '<span class="st info" style="margin:0;">そのときに出す</span>';
   return '<span class="st warn" style="margin:0;">確かめが要る</span>';
 }
+/* 下書きに書類を足す（候補はボタンで名前を入れる） */
+function rnAddHTML(){
+  if(RN_EDIT==='extra|+')return rnEditFormHTML('extra',{name:RN_ADD_NAME||''},true);
+  return '<div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px;"><span style="font-size:12.5px;font-weight:700;">書類を足す：</span>'
+    +RN_ADD_CANDS.map(function(n){return '<button class="btn sec sm" data-rnadd="'+esc(n)+'">'+esc(n)+'</button>';}).join('')
+    +'<button class="btn sec sm" data-rnadd="">ほかの書類</button></div>';
+}
+var RN_ADD_NAME='';
 function rnMuniOnlyHTML(loc,cond){
   var L=loc.extra||[],mo=loc.muniOnly||null;
   var h='<div style="border:1.5px solid var(--edu,#2F6FA3);border-radius:10px;padding:10px 12px;margin:8px 0;">'
     +'<div style="font-weight:800;font-size:14px;">この自治体だけの書類（'+L.length+'件）</div>';
   if(mo&&mo.incomplete)h+='<div class="note warn" style="font-size:12px;margin:4px 0;">手引き・要綱から書類を書き出す途中で止まりました。この一覧は足りない可能性があります。「最新の情報に更新」をもう一度押してください。</div>';
-  if(!L.length)return h+'<div style="font-size:12.5px;margin-top:4px;">'+(mo&&mo.incomplete?'まだ書き出せていません。':mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）':'まだ手引き・要綱まで読んでいません。「最新の情報に更新」を押してください。')+'</div></div>';
+  if(!L.length)return h+'<div style="font-size:12.5px;margin-top:4px;">'+(mo&&mo.incomplete?'まだ書き出せていません。':mo?'見つかりませんでした（読んだページ・資料 '+mo.read+'件）':'まだ手引き・要綱まで読んでいません。「最新の情報に更新」を押してください。')+'</div>'+rnAddHTML()+'</div>';
   return h+'<div class="tw"><table style="min-width:820px;margin-top:6px;"><thead><tr><th>書類</th><th>どんなときに要るか</th><th>提出先</th><th>期限</th><th>様式</th><th>出典</th></tr></thead><tbody>'
-    +L.map(function(x){return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(x.byOps?' <span class="chip info">運営が足した</span>':'')
+    +L.map(function(x){if(RN_EDIT==='extra|'+x.name)return '<tr style="cursor:default;"><td colspan="6">'+rnEditFormHTML('extra',x,false)+'</td></tr>';
+      return '<tr style="cursor:default;"><td><b>'+esc(x.name)+'</b>'+(x.byOps?' <span class="chip info">運営が足した</span>':rnEditedChip(x))+rnEditBtn('extra',x.name)
       +((x.attachments||[]).length?'<div style="font-size:11px;color:var(--mute);">添付：'+x.attachments.map(esc).join('、')+'</div>':'')+rnFormInfoHTML(x,'',null,false)+'</td>'
       +'<td style="font-size:12px;">'+esc(x.cond||x.frequency||'')+'<div style="margin-top:3px;">'+rnCondMark(x,cond)+'</div></td>'
       +'<td style="font-size:12px;">'+esc(x.submitTo||'')+(x.level?'<div style="color:var(--mute);">'+esc(x.level)+'に出す</div>':'')+'</td>'
       +'<td style="font-size:12px;">'+esc(x.deadline||'')+'</td><td style="font-size:12px;">'+esc(x.form||'')+'</td>'
       +'<td style="font-size:12px;">'+((x.srcs&&x.srcs.length>1)?x.srcs:(x.url?[{url:x.url,page:x.page}]:[])).map(function(v,i){return '<div><a href="'+esc(v.url)+'" target="_blank" rel="noopener">出典'+(x.srcs&&x.srcs.length>1?(i+1):'')+(v.page?'（'+esc(v.page)+'ページ）':'')+'</a></div>';}).join('')+'</td></tr>';}).join('')
-    +'</tbody></table></div>'+(mo?'<div class="hint">読んだページ・資料 '+mo.read+'件から拾いました。</div>':'')+'</div>';
+    +'</tbody></table></div>'+(mo?'<div class="hint">読んだページ・資料 '+mo.read+'件から拾いました。</div>':'')+rnAddHTML()+'</div>';
 }
 /* ══ 様式の決まり（2026-11-08 安田さん「自治体独自のテンプレートがあったら取り込みたい。書式がそれである必要があるならアラート。独自でいいなら不足のないテンプレートを」）══
    指定様式・取り込み済み／指定様式・未入手（入手先を出す）／様式自由・標準で作れる／確かめが要る。
