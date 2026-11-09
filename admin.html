@@ -424,6 +424,8 @@ var API={
         return j;});});
   }
 };
+/* 本番の住所（miralink.mirai-wa.com・github.io）で開いているか */
+function admOfficialHost(){return /(^|\.)mirai-wa\.com$|\.github\.io$/i.test(location.hostname);}
 /* ?api=… で接続先を入れられる。入れたらURLから消す。 */
 (function(){try{
   var q=new URLSearchParams(location.search),a=q.get('api');
@@ -448,7 +450,7 @@ function loginHTML(){
   return '<div class="login"><div class="card">'
     +'<h1>運営管理</h1><div class="s">未来WA ／ Miralink</div>'
     +'<div class="err" id="e"></div>'
-    +'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>'
+    +(admOfficialHost()?'':'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>')
     +'<div class="f"><label>メールアドレス</label><input id="em" type="email" autocomplete="username"></div>'
     +'<div class="f"><label>パスワード</label><input id="pw" type="password" autocomplete="current-password"></div>'
     +'<div class="f" id="mfaBox" hidden><label>2段階認証のコード（認証アプリの6けた）</label><input id="mc" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>'
@@ -460,7 +462,10 @@ function loginHTML(){
 function wireLogin(){
   function go(){
     var b=$('go'),e=$('e');
-    API.setBase($('ap').value.trim());
+    /* ★本番の住所で開いたときも「接続先」の欄が出ていて、何を入れるのか迷わせていた（2026-11-09 安田さん）。
+       本番の住所では欄を出さず、メールアドレスとパスワードだけでログインする（手元で試すときだけ欄を出す） */
+    if($('ap'))API.setBase($('ap').value.trim());
+    else if(admOfficialHost()){try{localStorage.removeItem('adm_api');}catch(x){}}
     if(!API.base()){e.textContent='接続先を入れてください。';e.style.display='block';return;}
     e.style.display='none';b.disabled=true;b.textContent='確認中…';
     var body={email:$('em').value.trim(),password:$('pw').value};
@@ -3719,7 +3724,7 @@ var INVITE=(function(){try{var m=String(location.search).match(/[?&]invite=([A-Z
 function inviteHTML(){
   return '<div class="login"><div class="card"><h1>運営メンバーの招待</h1><div class="s">未来WA ／ Miralink 運営管理</div>'
     +'<div class="err" id="e"></div>'
-    +'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>'
+    +(admOfficialHost()?'':'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>')
     +'<div class="f"><label>お名前</label><input id="iv_nm" autocomplete="name"></div>'
     +'<div class="f"><label>パスワード（10文字以上）</label><input id="iv_pw" type="password" autocomplete="new-password"></div>'
     +'<button class="btn" id="iv_go" style="width:100%;margin-top:6px;">メンバーになる</button>'
@@ -3727,7 +3732,7 @@ function inviteHTML(){
 }
 function wireInvite(){
   $('iv_go').onclick=function(){
-    var e=$('e');API.setBase($('ap').value.trim());
+    var e=$('e');if($('ap'))API.setBase($('ap').value.trim());else if(admOfficialHost()){try{localStorage.removeItem('adm_api');}catch(x){}}
     API.call('POST','/admin/invite/accept',{token:INVITE,name:$('iv_nm').value.trim(),password:$('iv_pw').value})
       .then(function(j){INVITE='';history.replaceState(null,'',location.pathname);alert('メンバーになりました（'+j.email+'）。このメールアドレスでログインしてください。');render();})
       .catch(function(x){e.textContent=x.message;e.style.display='block';});
