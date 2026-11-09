@@ -13778,6 +13778,10 @@ var EN_DICT={
 'Excelで書き出す':'Export to Excel',
 '預かり保育の通常料金':'After-Hours Care Standard Rate',
 'の主な提出・整備書類':': Main Documents to Submit & Maintain',
+'の毎年の監査の書類':': Documents for the Annual Inspection',
+'参考：起きたときに出す届出（{0}件）':'For reference: notifications filed when something happens ({0})',
+'事故があったとき・長期滞在の子がいるときなどに出す届出です。毎年の監査の書類とは別です。':'These are filed when an accident occurs, when a child stays long-term, and similar. They are separate from the annual inspection documents.',
+'どんなときに出すか':'When to file',
 '防犯対策の全体の流れ':'Overall Flow of Security Measures',
 'Kinder（2名）':'Kinder (2)',
 '〔アンケートURL〕':'〔Survey URL〕',
@@ -40746,6 +40750,26 @@ function reqCondMark(it){
   if(k==='change'||k==='open'||k==='accident')return '<span class="pill" style="background:#E3EEFB;color:#1F5FA8;font-size:10.5px;">そのときに出す</span>';
   return '<span class="pill" style="background:#FAEEDA;color:#854F0B;font-size:10.5px;">確かめが要る</span>';
 }
+/* 書類の区分（audit＝毎年の監査／event＝起きたときに出す／open＝開設・変更のとき）。運営が出した一覧に区分があればそれを使う */
+function reqScopeOf(it,locItem){
+  var l=locItem&&locItem[it.name];if(l&&l.scope)return l.scope;
+  var n=String(it.name||'');
+  if(/長期滞在/.test(n)||(/事故(等)?(発生時)?の?報告|事故報告/.test(n)&&!/記録/.test(n)))return 'event';
+  if(/設置届|設置認可|認可申請|助成申請|運営規程/.test(n))return 'open';
+  return 'audit';
+}
+/* 参考：起きたときに出す届出（閉じておく） */
+function reqEventsHTML(tE,LOC,reqRow){
+  var E=(LOC&&LOC.events)||[];if(!tE.length&&!E.length)return '';
+  return '<details class="card" style="margin-top:14px;"><summary style="cursor:pointer;font-weight:700;font-size:14px;">参考：起きたときに出す届出（'+(tE.length+E.length)+'件）</summary>'
+    +'<div class="muted" style="font-size:12px;margin:6px 0 10px;">事故があったとき・長期滞在の子がいるときなどに出す届出です。毎年の監査の書類とは別です。</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px;">'+tE.map(reqRow).join('')
+    +E.map(function(x){var rows=[['どんなときに出すか',x.cond||x.frequency],['提出先',x.submitTo],['期限',x.deadline],['様式',x.form]].filter(function(r){return r[1];});
+      return '<div style="border:1px solid var(--line,#E5E2D9);border-radius:10px;padding:12px;"><div style="font-weight:700;font-size:14px;margin-bottom:4px;">'+esc(x.name)+'</div>'
+        +rows.map(function(r){return '<div style="font-size:12px;line-height:1.6;"><b>'+r[0]+'</b>：'+esc(r[1])+'</div>';}).join('')
+        +(x.url?'<div style="font-size:12px;margin-top:4px;">'+reqLinkHTML(x.url,'出典')+'</div>':'')+'</div>';}).join('')
+    +'</div></details>';
+}
 function reqMuniOnlyHTML(LOC,extra,muniNow,t,st){
   if(!LOC)return '';
   var mo=LOC.muniOnly||null;
@@ -40774,7 +40798,11 @@ function renderReqNav(){
   var LOC=reqLocalOf(prof)||null,muniNow=String(prof.muni||'').replace(/\s+/g,'');
   var locItem={};(LOC&&LOC.items||[]).forEach(function(x){locItem[x.name]=x;});
   var extra=(LOC&&LOC.extra)||[];
-  var done=t.items.concat(extra,reqCustomOf(t.id)).filter(function(it){return st[t.id+'|'+it.name]==='完了';}).length;
+  /* 監査のページに出すのは毎年の監査の書類だけ（2026-11-09 安田さん「園を開園するときとかの書類は含めない」）。
+     設置届などの開設・変更のときの書類は出さず、事故報告など起きたときに出す届出は下の参考に */
+  var tA=t.items.filter(function(it){return reqScopeOf(it,locItem)==='audit';}),
+    tE=t.items.filter(function(it){return reqScopeOf(it,locItem)==='event';}),reqRow;
+  var done=tA.concat(extra,reqCustomOf(t.id)).filter(function(it){return st[t.id+'|'+it.name]==='完了';}).length;
   var h='<div class="card" style="margin-bottom:14px;"><h3>'+ic('gear')+'施設プロフィール</h3>'
     +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;">種別を選ぶと、その施設が行政に提出・整備すべき書類の一覧に切り替わります。</div>'
     +'<div class="grid rqprof" style="grid-template-columns:1.6fr 1fr 1.2fr 0.7fr;gap:12px;">'
@@ -40811,8 +40839,8 @@ function renderReqNav(){
   h+='<div style="display:flex;gap:10px;align-items:flex-start;background:#FAEEDA;border:1px solid #E9C88B;border-radius:12px;padding:11px 14px;margin-bottom:14px;"><span style="color:#854F0B;flex-shrink:0;width:18px;height:18px;display:inline-block;">'+ic('alert')+'</span><div style="font-size:12.5px;color:#6b3f08;line-height:1.6;">この一覧は<b>暫定（確認日 '+REQ_ASOF+'）</b>です。全国共通の基本項目を中心に整理しています。<b>自治体ごとの様式・上乗せ要件や最新の制度改正は、必ず各自治体の公式情報でご確認ください。</b>「要確認」は特に自治体差が出やすい項目です。</div></div>';
   }
   h+=reqMuniOnlyHTML(LOC,extra,muniNow,t,st);
-  h+='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">'+esc(t.label)+'</span><span class="muted">の主な提出・整備書類</span><span style="flex:1;"></span><span class="tag" style="background:#EAF3DE;color:#27500A;">完了 '+done+' / '+t.items.length+'</span></div>';
-  h+='<div style="display:flex;flex-direction:column;gap:10px;">'+t.items.map(function(it){
+  h+='<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0.85rem 1.25rem;"><span style="font-size:15px;font-weight:700;">'+esc(t.label)+'</span><span class="muted">の毎年の監査の書類</span><span style="flex:1;"></span><span class="tag" style="background:#EAF3DE;color:#27500A;">完了 '+done+' / '+(tA.length+extra.length)+'</span></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:10px;">'+tA.map(reqRow=function(it){
     var key=t.id+'|'+it.name;var cur=st[key]||'未着手';var tgt=reqTarget(it.systemDoc);var catc=REQ_CATCOLOR[it.category]||'#888780';
     var dd=dfDocOf(t.id,it.name),gov=reqGovForm(it);
     if(gov)tgt=null;
@@ -40839,6 +40867,7 @@ function renderReqNav(){
            :'<button class="btn btn-sm" data-rqhow="'+esc(key)+'">'+ic('search')+'様式のもらい方</button>')+'</div>'))
       +'</div></div>';
   }).join('')+'</div>';
+  h+=reqEventsHTML(tE,LOC,reqRow);
   h+=reqCustomRowsHTML(t,st);
   s.innerHTML=h;
   $('#rqType').onchange=function(){var p=reqProfile();p.type=this.value;reqSaveProfile(p);renderReqNav();};
