@@ -587,6 +587,7 @@ function loadGlobal(force){
     API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){}),
     API.call('GET','/admin/incidents').then(function(j){DATA.inc=j;}).catch(function(){}),
     API.call('GET','/admin/reqnav-alerts').then(function(j){DATA.rnAlerts=j.alerts||[];}).catch(function(){}),
+    API.call('GET','/admin/rec-auto/pending').then(function(j){DATA.raPend=j.pending||[];}).catch(function(){}),
     API.call('GET','/admin/offboarding').then(function(j){DATA.off=j;}).catch(function(){}),
     API.call('GET','/admin/ops-settings').then(function(j){DATA.ops=j;}).catch(function(){})
   ]);
@@ -1035,6 +1036,11 @@ function computeAttentionItems(){
   /* 指定の様式で出す書類なのに、様式がシステムに無い園（提出書類ナビ・2026-11-08） */
   var ra=(DATA.rnAlerts||[]).filter(function(x){return !ATT_MINE||ts.some(function(t){return String(t.id)===String(x.tid);});});
   if(ra.length)it.push({sev:'warn',n:ra.length,text:'市の指定様式で出す書類の様式が、まだシステムにない園（'+ra.slice(0,3).map(function(x){return x.name+'：'+x.docs[0]+(x.n>1?' ほか'+(x.n-1)+'件':'');}).join('・')+'）',go:ra.length===1?['one',ra[0].tid,'reqnav']:['forms']});
+  /* 毎日の記録の項目：自動の見直しのあと、運営の確認が残っている園・自動の見直しが失敗した園（2026-11-09） */
+  var rp=(DATA.raPend||[]).filter(function(x){return !ATT_MINE||ts.some(function(t){return String(t.id)===String(x.tenantId);});});
+  var rpc=rp.filter(function(x){return x.kind!=='failed';}),rpf=rp.filter(function(x){return x.kind==='failed';});
+  if(rpc.length)it.push({sev:'warn',n:rpc.length,text:'監査の様式に合わせた記録の項目で、運営の確認待ちがある園（'+nm(rpc.map(function(x){return {name:x.name};}))+'）',go:rpc.length===1?['one',rpc[0].tenantId,'recf']:['tenants']});
+  if(rpf.length)it.push({sev:'warn',n:rpf.length,text:'記録の項目の自動の見直しが失敗した園（'+nm(rpf.map(function(x){return {name:x.name};}))+'）。「記録の項目」で「SI に項目を見直してもらう」を押してください',go:rpf.length===1?['one',rpf[0].tenantId,'recf']:['tenants']});
   var tf=((DATA.tui&&DATA.tui.tenants)||[]).filter(function(x){return x.failed>0;});
   if(tf.length)it.push({sev:'warn',n:tf.length,text:'保育料の引き落としに失敗した園がある（この30日）',go:['tuition']});
   it.sort(function(a,b){return (a.sev==='ng'?0:1)-(b.sev==='ng'?0:1);});
@@ -1908,7 +1914,7 @@ function rfPanelHTML(wiz){
     +mark(rd.researched&&!rd.missingForms,'② 市の指定様式で未入手のものが無い',rd.missingForms?('未入手が '+rd.missingForms+'件あります（様式を手に入れて登録するか、提出書類ナビで確かめてください）'):'指定様式は登録済み、または様式自由')
     +mark(rd.fields,'③ SI の項目の提案を反映した（または足す・隠す項目が無かった）','下の「SI に項目を見直してもらう」')
     +'</div>';
-  h+='<div class="card"><h3>SI の提案</h3>'
+  h+='<div class="card"><h3>SI の提案・運営の確認待ち</h3>'
     +'<div class="hint" style="margin:0 0 8px;">運営が登録した様式（この園の都道府県・市区町村）と、この園が入れ込んだ様式を、毎日の記録の項目と突き合わせます。国の基準で要る項目は隠しません。</div>'
     +'<div class="row"><button class="btn sm" id="rfPropose"'+(RFA.busy?' disabled':'')+'>'+(RFA.busy?'SI が様式を読んでいます…':'SI に項目を見直してもらう')+'</button><span class="msg" id="rfAm">'+esc(RFA.msg)+'</span></div>';
   if(pr){
@@ -1916,12 +1922,15 @@ function rfPanelHTML(wiz){
       +(pr.status==='applied'?'・<b>反映済み</b>':pr.status==='none'?'・<b>見送り（足す・隠す項目なし）</b>':'')+'</div>';
     if(pr.note)h+='<div class="note">'+esc(pr.note)+'</div>';
     if(!(pr.recs||[]).length&&!pr.note)h+='<div class="note ok">足す項目・隠す項目はありませんでした。</div>';
-    if(open&&!RFA.sel){RFA.sel={add:{},hide:{}};(pr.recs||[]).forEach(function(r){RFA.sel.add[r.rec]=(r.add||[]).map(function(_,i){return i;});RFA.sel.hide[r.rec]=(r.hide||[]).map(function(x){return x.k;});});}
+    if(pr.auto)h+='<div class="hint" style="margin:0 0 4px;">この提案は自動で走った見直しです（きっかけ：'+esc(pr.auto.trigger||'')+'）。確かめを全部通った「足す」は自動で足し、下に残っているのは<b>運営の確認待ち</b>です。</div>';
+    /* 自動で走った提案の「足す」は、はじめは選ばない（自動で足せなかった理由があるため、1件ずつ確かめてから選ぶ） */
+    if(open&&!RFA.sel){RFA.sel={add:{},hide:{}};(pr.recs||[]).forEach(function(r){RFA.sel.add[r.rec]=(r.add||[]).map(function(a,i){return a.hold?-1:i;}).filter(function(i){return i>-1;});RFA.sel.hide[r.rec]=pr.auto?[]:(r.hide||[]).map(function(x){return x.k;});});}
     (pr.recs||[]).forEach(function(r){
       h+='<div style="margin-top:10px;"><div style="font-weight:800;">'+esc(r.rec)+'</div>';
       (r.add||[]).forEach(function(a,i){var on=open&&RFA.sel.add[r.rec]&&RFA.sel.add[r.rec].indexOf(i)>-1;
         h+='<label class="rfRow"><input type="checkbox" data-rfpa="'+esc(r.rec)+'|'+i+'"'+(on?' checked':'')+(open?'':' disabled')+'> <b>足す</b>　'+esc(a.label)+'（'+esc(RF_TY[a.type]||a.type)+(a.choices?'：'+esc(a.choices.join('・')):'')+(a.required?'・必須':'')+'）'
-          +'<div class="hint" style="margin:0 0 0 22px;">'+esc(a.form||'')+(a.cell?'・'+esc(a.cell):'')+(a.why?'　'+esc(a.why):'')+'</div></label>';});
+          +'<div class="hint" style="margin:0 0 0 22px;">'+esc(a.form||'')+(a.cell?'・'+esc(a.cell):'')+(a.why?'　'+esc(a.why):'')+'</div>'
+          +(a.hold?'<div class="hint" style="margin:0 0 0 22px;color:#A8701A;">自動で足さなかった理由：'+esc(a.hold)+'</div>':'')+'</label>';});
       (r.hide||[]).forEach(function(x){var on=open&&RFA.sel.hide[r.rec]&&RFA.sel.hide[r.rec].indexOf(x.k)>-1;
         h+='<label class="rfRow"><input type="checkbox" data-rfph="'+esc(r.rec)+'|'+esc(x.k)+'"'+(on?' checked':'')+(open?'':' disabled')+'> <b>隠す</b>　'+esc(x.l)+'<div class="hint" style="margin:0 0 0 22px;">'+esc(x.why||'')+'</div></label>';});
       (r.check||[]).forEach(function(x){h+='<div class="rfRow"><b style="color:#A8701A;">確かめが要る</b>　'+esc(x.l)+'<div class="hint" style="margin:0 0 0 0;">'+esc(x.why||'')+'</div></div>';});
@@ -1931,6 +1940,7 @@ function rfPanelHTML(wiz){
       +'<button class="btn sec sm" id="rfNone">足す・隠す項目は無い（見送る）</button></div>';
   }
   h+='</div>';
+  h+=rfAutoHTML(d);
   /* いまの項目（手で足す・止める） */
   var recs=d.recs||[],cur=(d.recFields||{})[RFA.rec]||[],today=new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
   h+='<div class="card"><h3>いまの項目</h3><div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
@@ -1940,7 +1950,7 @@ function rfPanelHTML(wiz){
   if((R.hide||[]).some(function(x){return off[x.k];}))h+='<div class="hint" style="margin:0 0 6px;">隠している項目：'+esc(R.hide.filter(function(x){return off[x.k];}).map(function(x){return x.l;}).join('、'))+'</div>';
   h+=(cur.length?'<table><thead><tr><th>この園で足した項目</th><th>入れ方</th><th>出どころ</th><th>状態</th><th></th></tr></thead><tbody>'+cur.map(function(f){var on=!f.off||f.off>today;
       return '<tr><td>'+esc(f.label)+(f.required?' <span class="chip">必須</span>':'')+'</td><td>'+esc(RF_TY[f.type]||f.type)+(f.choices?'<div class="hint" style="margin:0;">'+esc(f.choices.join('・'))+'</div>':'')+'</td>'
-        +'<td style="font-size:11.5px;">'+esc(f.from||'手で足した')+'</td><td>'+(on?'使っている':'止めた（'+esc(f.off)+'〜）')+'</td>'
+        +'<td style="font-size:11.5px;">'+esc(f.from||'手で足した')+'</td><td>'+(on?(f.since&&f.since>today?esc(f.since)+'から使う':'使っている'):'止めた（'+esc(f.off)+'〜）')+'</td>'
         +'<td><button class="btn sec sm" data-rftog="'+esc(f.id)+'">'+(on?'止める':'また使う')+'</button></td></tr>';}).join('')+'</tbody></table>'
     :'<div class="empty">'+esc(RFA.rec)+'に足した項目はまだありません。</div>')
     +'<div class="row" style="margin-top:10px;flex-wrap:wrap;"><input id="rfLab2" placeholder="項目名（例：保存食の採取）" style="flex:1;min-width:180px;">'
@@ -1950,8 +1960,28 @@ function rfPanelHTML(wiz){
     +'<button class="btn sec sm" id="rfAdd2">足す</button><span class="msg" id="rfAm2"></span></div></div>';
   return h;
 }
+/* 自動で足したもの（src/recauto.js・2026-11-09）：いつ・どの様式から・元に戻す。止めるだけで、入れてあった値は消さない */
+function rfAutoHTML(d){
+  var A=d.auto||[],S=d.autoSettings||{};
+  var h='<div class="card"><h3>自動で足したもの</h3>'
+    +'<div class="hint" style="margin:0 0 8px;">様式の登録・入れ込み・提出書類ナビの更新のあと、SI の見直しが裏で走ります。名前の言い換え・様式の見出し・様式への書き込みの試し、の確かめを全部通った「足す」だけを翌日から自動で足します（1回 '+esc(S.max==null?3:S.max)+'件まで'+(S.enabled===false?'・<b>いまは自動の反映を止めています</b>':'')+'）。隠す・確かめが要るものは運営の確認待ちに回ります。</div>';
+  if(!A.length)return h+'<div class="empty">自動で足した項目はまだありません。</div></div>';
+  h+='<table><thead><tr><th>いつ</th><th>足した項目</th><th>どの様式から</th><th>使い始め</th><th></th></tr></thead><tbody>'
+    +A.map(function(a){
+      return '<tr><td style="font-size:11.5px;">'+esc(String(a.at||'').slice(0,16).replace('T',' '))+'</td>'
+        +'<td>'+(a.items||[]).map(function(i){return esc(i.rec)+'：'+esc(i.label);}).join('<br>')+'</td>'
+        +'<td style="font-size:11.5px;">'+(a.items||[]).map(function(i){return esc(i.form||'')+(i.head?'（'+esc(i.head)+'）':'');}).join('<br>')+'</td>'
+        +'<td>'+esc(a.since)+'</td>'
+        +'<td>'+(a.undoneAt?'<span style="font-size:11.5px;color:var(--mute);">元に戻しました（'+esc(String(a.undoneAt).slice(0,10))+'）</span>':'<button class="btn sec sm" data-rfundo="'+a.id+'">この自動反映を元に戻す</button>')+'</td></tr>';
+    }).join('')+'</tbody></table><span class="msg" id="rfUm"></span></div>';
+  return h;
+}
 function rfWire(){
   if(!$('rfPropose')&&!$('rfAdd2'))return;
+  document.querySelectorAll('[data-rfundo]').forEach(function(b){b.onclick=function(){
+    if(!confirm('この自動の反映を元に戻します。足した項目を止めます（入れてあった値は残ります）。同じ様式では、自動でもう足しません。よろしいですか？'))return;
+    API.call('POST','/admin/tenants/'+openId+'/rec-fields/auto/'+b.getAttribute('data-rfundo')+'/undo',{}).then(function(){GLB_AT=0;return rfLoad();})
+      .then(function(){render();}).catch(function(e){say('rfUm',e.message);});};});
   document.querySelectorAll('[data-gotab3]').forEach(function(a){a.onclick=function(e){e.preventDefault();nav('one',openId,a.getAttribute('data-gotab3'));};});
   if($('rfPropose'))$('rfPropose').onclick=function(){
     RFA.busy=true;RFA.msg='';render();
@@ -2450,6 +2480,15 @@ function offboardHTML(){
         +'<td class="num">'+(x.retentionUntil?'<span class="st '+(x.expired?'warn':'off')+'" style="margin:0;">'+esc(x.retentionUntil)+(x.expired?' 期限':'')+'</span>':'—')+'</td>'
         +'<td>'+x.steps.map(function(st){return '<label style="display:block;font-size:12px;"><input type="checkbox" data-offs="'+x.id+'" data-step="'+st.key+'"'+(st.done?' checked':'')+'> '+esc(st.label)+(st.done?' <span style="color:var(--mute);font-size:10.5px;">'+esc(fmtAt(st.at).slice(0,10))+'</span>':'')+'</label>';}).join('')+'</td></tr>';}).join('')
       +'</tbody></table></div>':'<div class="card"><div class="empty">解約予定・解約済の園はありません</div></div>');
+}
+/* 記録の項目の自動の反映（src/recauto.js・2026-11-09）。変えられるのはオーナーだけ */
+function raSettingsHTML(){
+  var s=DATA.raSet;if(!s)return '';
+  return '<div class="card"><h2>記録の項目の自動の反映</h2>'
+    +'<div class="lead">様式の登録・入れ込み・提出書類ナビの更新のあと、確かめを全部通った「足す」だけを翌日から自動で足します。1回で上限より多く足すことになるときは、何も足さずに全部を運営の確認に回します。変えられるのはオーナーだけです。</div>'
+    +'<div class="grid3"><div class="f"><label>自動の反映</label><select id="ra_on"><option value="1"'+(s.enabled!==false?' selected':'')+'>する</option><option value="0"'+(s.enabled===false?' selected':'')+'>しない</option></select></div>'
+    +'<div class="f"><label>1回の上限（0〜10件）</label><input id="ra_max" class="num" inputmode="numeric" value="'+esc(s.max)+'"></div><div class="f"></div></div>'
+    +'<div class="row"><button class="btn sm" id="ra_save">保存</button><span class="msg" id="ra_m"></span></div></div>';
 }
 function opsSettingsHTML(){
   var o=DATA.ops;if(!o)return '';
@@ -3391,7 +3430,7 @@ function cdefHTML(){
 }
 function feesHTML(){
   return '<h2>料金・税</h2><div class="lead">変えると、次に作る請求・次の引き落としから新しい値になります（作ってある請求は変わりません）。</div>'
-    +cdefHTML()+opsSettingsHTML()+taxHTML()+tuiFeeHTML()+plansHTML();
+    +cdefHTML()+opsSettingsHTML()+raSettingsHTML()+taxHTML()+tuiFeeHTML()+plansHTML();
 }
 function tuitionHTML(){
   return sysLine('tui')+tuiListHTML();
@@ -3509,6 +3548,7 @@ function load(){
   if(view==='fees')  return Promise.all([
       API.call('GET','/admin/tax').then(function(j){DATA.tax=j;DATA.taxErr='';}).catch(function(e){DATA.tax=null;DATA.taxErr=e.message;}),
       API.call('GET','/admin/contract-defaults').then(function(j){DATA.cdef=j;}).catch(function(){DATA.cdef=null;}),
+      API.call('GET','/admin/rec-auto/settings').then(function(j){DATA.raSet=j.settings;}).catch(function(){DATA.raSet=null;}),
       API.call('GET','/admin/tuition').then(function(j){DATA.tui=j;DATA.tuiErr='';}).catch(function(e){DATA.tui=null;DATA.tuiErr=e.message;}),
       API.call('GET','/admin/ops-settings').then(function(j){DATA.ops=j;}).catch(function(){})
     ]);
@@ -3819,6 +3859,11 @@ function wire(){
   document.querySelectorAll('[data-offs]').forEach(function(c){c.onchange=function(){
     var note=c.checked?prompt('ひとこと（任意。例：園長から書き出し済みと連絡）',''):'';if(note===null){render();return;}
     API.call('POST','/admin/tenants/'+c.getAttribute('data-offs')+'/offboarding',{step:c.getAttribute('data-step'),done:c.checked,note:note||''}).then(function(){GLB_AT=0;render();}).catch(function(e){alert(e.message);render();});};});
+  if($('ra_save'))$('ra_save').onclick=function(){
+    say('ra_m','保存中…',true);
+    API.call('PUT','/admin/rec-auto/settings',{enabled:$('ra_on').value==='1',max:+$('ra_max').value})
+      .then(function(j){DATA.raSet=j.settings;say('ra_m','保存しました',true);}).catch(function(e){say('ra_m',e.message);});
+  };
   if($('os_save'))$('os_save').onclick=function(){
     say('os_m','保存中…',true);
     API.call('PUT','/admin/ops-settings',{regNo:$('os_reg').value.trim(),retentionYears:+$('os_ret').value,quickDays:+$('os_q').value,finalDays:+$('os_f').value,finalDaysMalicious:+$('os_fm').value})
