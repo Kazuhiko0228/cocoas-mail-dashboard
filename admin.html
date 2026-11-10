@@ -455,7 +455,8 @@ function loginHTML(){
     +'<div class="f"><label>パスワード</label><input id="pw" type="password" autocomplete="current-password"></div>'
     +'<div class="f" id="mfaBox" hidden><label>2段階認証のコード（認証アプリの6けた）</label><input id="mc" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>'
     +'<button class="btn" id="go" style="width:100%;margin-top:6px;">ログイン</button>'
-    +'<div style="margin-top:15px;font-size:11.5px;color:var(--mute);line-height:1.75;">'
+    +'<div style="margin-top:11px;text-align:right;"><a href="#" id="pwForgot" style="font-size:12.5px;color:var(--eg);">パスワードを忘れた方</a></div>'
+    +'<div style="margin-top:12px;font-size:11.5px;color:var(--mute);line-height:1.75;">'
     +'この画面は運営のためのものです。園の職員・保護者のアカウントでは入れません。</div>'
     +'</div></div>';
 }
@@ -467,7 +468,7 @@ function wireLogin(){
     if($('ap'))API.setBase($('ap').value.trim());
     else if(admOfficialHost()){try{localStorage.removeItem('adm_api');}catch(x){}}
     if(!API.base()){e.textContent='接続先を入れてください。';e.style.display='block';return;}
-    e.style.display='none';b.disabled=true;b.textContent='確認中…';
+    e.className='err';e.style.display='none';b.disabled=true;b.textContent='確認中…';
     var body={email:$('em').value.trim(),password:$('pw').value};
     if(!$('mfaBox').hidden)body.code=$('mc').value.trim();
     API.call('POST','/admin/login',body)
@@ -484,6 +485,8 @@ function wireLogin(){
         e.textContent=x.message;e.style.display='block';});
   }
   $('go').onclick=go;
+  $('pwForgot').onclick=function(ev){ev.preventDefault();PWR.mode='forgot';PWR.email=$('em').value.trim();PWR.done='';render();};
+  if(PWR.notice){var n=$('e');n.className='note ok';n.textContent=PWR.notice;n.style.display='block';PWR.notice='';}
   $('pw').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
   $('mc').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
 }
@@ -569,6 +572,8 @@ function nav(v,id,tab){
   if(location.hash!==h0)location.hash=h0; else render();
 }
 window.addEventListener('hashchange',function(){
+  /* 開いたままの画面で再設定のリンクを開いたときも、札を住所から消して再設定の画面を出す */
+  if(/^#\/?reset\?t=/.test(location.hash)){location.reload();return;}
   var v0=view,i0=openId,t0=tTab; readHash();
   if(v0!==view||i0!==openId||t0!==tTab){adsDraft=null;adsMsg='';render();}
 });
@@ -3738,9 +3743,94 @@ function wireInvite(){
       .catch(function(x){e.textContent=x.message;e.style.display='block';});
   };
 }
+/* ══ パスワードを忘れた方（2026-11-10 安田さん「作成して」）══
+   ログインの画面の「パスワードを忘れた方」→ メールアドレスを入れる → 届いたリンク（#/reset?t=…）で新しいパスワードを決める。
+   ★リンクの札は開いた瞬間に住所から消す（履歴・画面共有・ほかの人が後ろから見ても残らないように）。
+   答えは登録の有無で変えない（サーバが同じ文を返す）。決めたら、ほかの端末のログインは切れる */
+var PWR=(function(){
+  var t='';
+  try{var m=String(location.hash||'').match(/^#\/?reset\?t=([A-Za-z0-9_-]{20,100})/);
+    if(m){t=m[1];history.replaceState(null,'',location.pathname+location.search);}}catch(e){}
+  return {token:t,mode:t?'reset':'',email:'',done:'',notice:''};
+})();
+if(PWR.token)readHash();
+function pwrApHTML(){
+  return admOfficialHost()?'':'<div class="f"><label>接続先</label><input id="ap" value="'+esc(API.base())+'" placeholder="https://…"></div>';
+}
+function pwrApSet(){
+  if($('ap'))API.setBase($('ap').value.trim());else if(admOfficialHost()){try{localStorage.removeItem('adm_api');}catch(x){}}
+}
+function pwForgotHTML(){
+  if(PWR.done)return '<div class="login"><div class="card"><h1>パスワードを忘れた方</h1><div class="s">未来WA ／ Miralink 運営管理</div>'
+    +'<div class="note ok" style="margin-bottom:14px;">'+esc(PWR.done)+'</div>'
+    +'<div style="font-size:12.5px;line-height:1.8;">メールのリンクは1時間・1回だけ使えます。届かないときは、迷惑メールのフォルダもご確認ください。</div>'
+    +'<button class="btn sec" id="pf_back" style="width:100%;margin-top:14px;">ログインの画面に戻る</button></div></div>';
+  return '<div class="login"><div class="card"><h1>パスワードを忘れた方</h1><div class="s">未来WA ／ Miralink 運営管理</div>'
+    +'<div class="err" id="e"></div>'
+    +pwrApHTML()
+    +'<div style="font-size:12.5px;line-height:1.8;margin-bottom:12px;">運営メンバーとして登録しているメールアドレスを入れてください。パスワードを決め直すリンクをお送りします。</div>'
+    +'<div class="f"><label>メールアドレス</label><input id="pf_em" type="email" autocomplete="username" value="'+esc(PWR.email)+'"></div>'
+    +'<button class="btn" id="pf_go" style="width:100%;margin-top:6px;">リンクを送る</button>'
+    +'<button class="btn sec" id="pf_back" style="width:100%;margin-top:8px;">ログインの画面に戻る</button>'
+    +'<div style="margin-top:15px;font-size:11.5px;color:var(--mute);line-height:1.75;">園の職員・保護者のパスワードは、ここでは決め直せません（園の管理者か、園のログインの画面から）。</div>'
+    +'</div></div>';
+}
+function wirePwForgot(){
+  $('pf_back').onclick=function(){PWR.mode='';PWR.done='';render();};
+  if(!$('pf_go'))return;
+  function go(){
+    var b=$('pf_go'),e=$('e'),em=$('pf_em').value.trim();
+    pwrApSet();
+    if(!API.base()){e.textContent='接続先を入れてください。';e.style.display='block';return;}
+    if(!em){e.textContent='メールアドレスを入れてください。';e.style.display='block';return;}
+    e.style.display='none';b.disabled=true;b.textContent='送っています…';PWR.email=em;
+    API.call('POST','/admin/password/forgot',{email:em})
+      .then(function(j){PWR.done=j.message||'登録されていれば、再設定のリンクを送りました。';render();})
+      .catch(function(x){b.disabled=false;b.textContent='リンクを送る';e.textContent=x.message;e.style.display='block';});
+  }
+  $('pf_go').onclick=go;
+  $('pf_em').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
+  setTimeout(function(){var i=$('pf_em');if(i&&!i.value)i.focus();},50);
+}
+function pwResetHTML(){
+  return '<div class="login"><div class="card"><h1>新しいパスワードを決める</h1><div class="s">未来WA ／ Miralink 運営管理</div>'
+    +'<div class="err" id="e"></div>'
+    +pwrApHTML()
+    +'<div class="f"><label>新しいパスワード（8文字以上）</label><input id="pr_pw" type="password" autocomplete="new-password"></div>'
+    +'<div class="f"><label>もう一度（確認）</label><input id="pr_pw2" type="password" autocomplete="new-password"></div>'
+    +'<button class="btn" id="pr_go" style="width:100%;margin-top:6px;">このパスワードにする</button>'
+    +'<div style="margin-top:15px;font-size:11.5px;color:var(--mute);line-height:1.75;">決めると、ほかの端末のログインは切れます。2段階認証を設定している方は、ログインのときにこれまでどおりコードが要ります。</div>'
+    +'</div></div>';
+}
+function wirePwReset(){
+  function go(){
+    var b=$('pr_go'),e=$('e'),p1=$('pr_pw').value,p2=$('pr_pw2').value;
+    pwrApSet();
+    function bad(t){e.textContent=t;e.style.display='block';}
+    if(!API.base())return bad('接続先を入れてください。');
+    if(p1.length<8)return bad('パスワードは8文字以上にしてください。');
+    if(p1!==p2)return bad('確認のパスワードが一致しません。');
+    e.style.display='none';b.disabled=true;b.textContent='確認中…';
+    API.call('POST','/admin/password/reset',{token:PWR.token,password:p1})
+      .then(function(j){
+        PWR.token='';PWR.mode='';API.setToken('');
+        PWR.notice='パスワードを決め直しました。新しいパスワードでログインしてください。';
+        render();
+        if($('em')&&j&&j.email)$('em').value=j.email;
+      })
+      .catch(function(x){b.disabled=false;b.textContent='このパスワードにする';bad(x.message);
+        /* 期限切れ・使用済みのリンクは、もう一度申し込めるようにする */
+        if(x.code==='reset_gone'){PWR.token='';b.textContent='もう一度リンクを送る';b.disabled=false;b.onclick=function(){PWR.mode='forgot';PWR.done='';render();};}
+      });
+  }
+  $('pr_go').onclick=go;
+  $('pr_pw2').addEventListener('keydown',function(ev){if(ev.key==='Enter')go();});
+}
 function render(){
   var r=$('root');
   if(INVITE){r.innerHTML=inviteHTML();wireInvite();return;}
+  if(PWR.mode==='reset'&&PWR.token){r.innerHTML=pwResetHTML();wirePwReset();return;}
+  if(PWR.mode==='forgot'&&!API.token()){r.innerHTML=pwForgotHTML();wirePwForgot();opsSiMount();return;}
   if(!API.base()||!API.token()){r.innerHTML=loginHTML();wireLogin();opsSiMount();return;}
   var inner={wiz:wizHTML,home:homeHTML,inq:inqHTML,apply:applyHTML,tenants:tenantsHTML,one:tenantHTML,bill:billHTML,pay:payHTML,docs:docsHTML,forms:formsHTML,aifb:aifbHTML,ads:adsHTML,me:meHTML,
     sys:sysHTML,fees:feesHTML,tuition:tuitionHTML,oplog:oplogHTML,pipe:pipeHTML,members:membersHTML,incidents:incidentsHTML,offboard:offboardHTML}[view]||homeHTML;
