@@ -2348,6 +2348,7 @@ body.qrk-on{overflow:hidden;}
 .rf-req{display:inline-block;margin-left:6px;padding:0 6px;border-radius:6px;background:#FCEBEB;color:#A32D2D;font-size:10.5px;font-weight:700;}
 .rf-miss label{color:#A32D2D;}
 .rf-warn{margin-top:8px;font-size:12px;color:#A32D2D;}
+.rf-misb{border-color:#E24B4A;color:#A32D2D;}
 .kschips .ks-bad{background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;font-weight:600;}
 .ks-warn{font-size:12px;color:#854F0B;background:#FAEEDA;border-radius:8px;padding:6px 10px;margin:0 0 8px;}
 @media (max-width:640px){.ksgrid{grid-template-columns:1fr;}.kstbl th{width:90px;white-space:normal;}}
@@ -4493,14 +4494,18 @@ function recOffSet(k,off){var o=stGet('recOff',{});if(!o||typeof o!=='object')o=
    ・項目は消さない。止める（off の日付）だけ。止めた日より前の記録の値は残り、紙と監査書類にも出る
    ・id は作ったあと変えない（名前を直しても同じ id）。監査書類（docflow）は ext.〈id〉 から読む
    ・書けるのは管理者・マネージャー（サーバの KEY_RULES）。運営も 運営管理 › 園の詳細 › 記録の項目 から足せる */
-var RF_RECS=['検食簿','安全点検','保育日誌・業務日報'];
+/* ★はじめは3つだけで、午睡・健康・登園など監査で見られる記録に足す場所が無かった（2026-11-10 安田さん「監査に影響するものは全て」）。
+   名前はサーバ（cocoas-api src/recfields.js の RECS）と同じにすること。違うと、運営が足した項目がこの画面に出ない */
+var RF_RECS=['検食簿','安全点検','保育日誌・業務日報','登園（出席）','午睡チェック','健康チェック','身体測定','児童票（成長の記録）',
+  '事故・ヒヤリハットの記録','保護者対応の記録','散歩・園外活動','プール・水遊び','避難訓練','保育研修'];
 var RF_TYPES=[['text','文字'],['yesno','有・無'],['choice','選ぶ'],['time','時刻'],['number','数'],['date','日付']];
 function rfAll(){var o=stGet('recFields',{});return (o&&typeof o==='object'&&!Array.isArray(o))?o:{};}
 function rfOf(rec){var a=rfAll()[rec];return Array.isArray(a)?a.filter(function(f){return f&&f.id&&f.label;}):[];}
 /* その日に使っている項目（使い始めた日から、止めた日の前の日まで） */
 function rfOn(rec,date){var d=String(date||todayISO());return rfOf(rec).filter(function(f){return (!f.since||f.since<=d)&&(!f.off||f.off>d);});}
 /* 紙に出す項目：その期間に一日でも使っていた項目（止めた項目も、期間中に使っていれば出す） */
-function rfInPeriod(rec,from,to){return rfOf(rec).filter(function(f){return (!f.since||f.since<=to)&&(!f.off||f.off>from);});}
+/* ★同じ日に足して止めた項目は off>from に当たらず、月の1日にそうすると、その日に入れた値が紙から消えた。期間の中で使い始めた項目も出す */
+function rfInPeriod(rec,from,to){return rfOf(rec).filter(function(f){return (!f.since||f.since<=to)&&(!f.off||f.off>from||(f.since&&f.since>=from));});}
 function rfVal(row,id){var v=row&&row.ext?row.ext[id]:'';return v==null?'':String(v);}
 function rfMissing(rec,row,date){return rfOn(rec,date).filter(function(f){return f.required&&!rfVal(row,f.id);}).map(function(f){return f.label;});}
 function rfInputs(rec,row,date){
@@ -4537,6 +4542,72 @@ function rfMonthTable(rec,mo,data){
   return '<h4 style="margin:10px 0 4px;font-size:10px;">この園で足した項目</h4><div class="scrollx"><table style="font-size:9px;"><thead><tr><th>日付</th>'
     +L.map(function(f){return '<th>'+esc(f.label)+'</th>';}).join('')+'</tr></thead><tbody>'
     +(rows||'<tr><td colspan="'+(L.length+1)+'">この月の記録はありません</td></tr>')+'</tbody></table></div>';
+}
+/* ══ 足した項目を、監査に関わる記録すべてに広げる（2026-11-10 安田さんのご依頼「監査に影響するものは全てこの機能を入れてほしい」）══
+   記録の形ごとに4つの出し方を持つ。値はどれも「その行」の ext:{id:値}（行が無ければ作る）。
+   ・1日に1行（検食簿・安全点検・日誌・午睡）……rfInputs をそのまま画面に置く
+   ・1件ずつ（ヒヤリハット・保護者対応・散歩・プール・避難訓練・研修）……開いた窓の中に rfInputs（保存は窓の「保存」と一緒）
+   ・園児ごと（登園・健康チェック・身体測定・児童票）……表に「足した項目」の列を1つだけ足し、押すと小窓で入れる
+     （列を項目の数だけ増やすと、紙と表の並びが毎回変わるため。もとの列の並び・CSV の列はそのまま）
+   ★未来WA（保護者）には渡さない。parent.html は ext を読まず、サーバの PARENT_READ にも recFields は無い
+   ★あとから必須にした項目・あとから足した項目は、使い始めた日（since）より前の行では出ない＝前の記録は必須にならない */
+/* その行の、出すべき項目（その日に使っていた項目＋値が入っている項目。止めた項目も値があれば出す） */
+function rfShown(rec,row,date){var d=String(date||'');return rfOf(rec).filter(function(f){
+  if(rfVal(row,f.id))return true;return (!f.since||!d||f.since<=d)&&(!f.off||!d||f.off>d);});}
+/* 一覧の1行に添える文（例：「砂場の消毒：済　点検した人：佐藤」） */
+function rfSumText(rec,row){return rfOf(rec).filter(function(f){return rfVal(row,f.id);}).map(function(f){return f.label+'：'+rfVal(row,f.id);}).join('　');}
+/* 紙の表の行（<tr><th>項目</th><td>値</td></tr>）。値の無い項目は出さない */
+function rfPrintRows(rec,row,date){return rfShown(rec,row,date).filter(function(f){return rfVal(row,f.id);}).map(function(f){
+  return '<tr><th>'+esc(f.label)+'</th><td>'+esc(rfVal(row,f.id))+'</td></tr>';}).join('');}
+/* 窓の中などに入れ欄を置く。値は row.ext に入るだけ（保存は呼ぶ側）。選ぶボタンを押したら box だけ描き直す */
+function rfMount(box,rec,row,date,save){
+  if(!box)return;
+  box.innerHTML=rfInputs(rec,row,date);
+  rfWire(box,row,save||function(){},function(){rfMount(box,rec,row,date,save);});
+  try{langApply(box);}catch(e){}
+}
+/* 園児ごとの表に足す列（項目が1つも無い記録では、列も出さない） */
+function rfKidTh(rec,date,lab){return rfOn(rec,date).length?'<th style="white-space:nowrap;">'+esc(lab||'この園で足した項目')+'</th>':'';}
+function rfKidTd(rec,row,date,key,canEdit){
+  var L=rfOn(rec,date);if(!L.length)return '';
+  var s=rfSumText(rec,row),miss=rfMissing(rec,row,date);
+  /* data-rfval：「データ保存」（tableToHtml）では、ボタンの文字（入れる・直す）ではなく値を書き出す */
+  return '<td style="min-width:120px;" data-rfval="'+esc(s)+'">'+(s?'<div style="font-size:11.5px;">'+esc(s)+'</div>':'')
+    +(canEdit?'<button type="button" class="btn btn-sm'+(miss.length?' rf-misb':'')+'" data-rfkid="'+esc(key)+'" data-rfrec="'+esc(rec)+'">'+(s?'直す':'入れる')+'</button>':(s?'':'<span class="muted">—</span>'))+'</td>';
+}
+/* 列のボタンを押すと、その子の行（rowOf(key)）に入れる小窓を開く。閉じたら rer で表を描き直す */
+function rfKidWire(root,rec,date,rowOf,save,rer,titleOf){
+  (root||document).querySelectorAll('[data-rfkid]').forEach(function(b){if(b.getAttribute('data-rfrec')!==rec)return;b.onclick=function(){
+    var key=b.getAttribute('data-rfkid'),row=rowOf(key);if(!row)return;
+    var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
+    m.innerHTML='<div class="modal" style="width:480px;"><h2 style="margin-top:0;">'+esc(rec)+'：'+esc(titleOf?titleOf(key):'')+'</h2><div data-rfkbox="1"></div>'
+      +'<div style="display:flex;justify-content:flex-end;margin-top:14px;"><button class="btn btn-primary" data-rfkx="1">閉じる</button></div></div>';
+    rfMount(m.querySelector('[data-rfkbox]'),rec,row,date,save);
+    var close=function(){m.remove();if(rer)rer();};
+    m.querySelector('[data-rfkx]').onclick=close;
+    m.addEventListener('click',function(e){if(e.target===m)close();});
+    try{langApply(m);}catch(e){}
+  };});
+}
+/* 園児ごとの記録の紙に添える表（園児 × 足した項目）。値が1つも無ければ空 */
+function rfKidTable(rec,date,rows,kids){
+  var L=rfOf(rec).filter(function(f){return kids.some(function(c){return rfVal((rows||{})[c.id],f.id);});});
+  if(!L.length)return '';
+  return '<h4 style="margin:10px 0 4px;font-size:10px;">この園で足した項目</h4><table style="font-size:9px;"><thead><tr><th>園児</th>'
+    +L.map(function(f){return '<th>'+esc(f.label)+'</th>';}).join('')+'</tr></thead><tbody>'
+    +kids.filter(function(c){return L.some(function(f){return rfVal((rows||{})[c.id],f.id);});}).map(function(c){
+      return '<tr><td>'+esc(childFullName(c))+'</td>'+L.map(function(f){return '<td>'+esc(rfVal((rows||{})[c.id],f.id))+'</td>';}).join('')+'</tr>';}).join('')
+    +'</tbody></table>';
+}
+/* 1件ずつの記録の紙の下に添える表（日付・足した項目）。もとの表の列は動かさない */
+function rfEntryTable(rec,rows,dateOf){
+  var L=rfOf(rec).filter(function(f){return rows.some(function(r){return rfVal(r,f.id);});});
+  if(!L.length)return '';
+  return '<h4 style="margin:10px 0 4px;font-size:11px;">この園で足した項目</h4><table style="font-size:10px;"><thead><tr><th style="width:80px;">日付</th>'
+    +L.map(function(f){return '<th>'+esc(f.label)+'</th>';}).join('')+'</tr></thead><tbody>'
+    +rows.filter(function(r){return L.some(function(f){return rfVal(r,f.id);});}).map(function(r){
+      return '<tr><td>'+esc(dateOf(r)||'')+'</td>'+L.map(function(f){return '<td>'+esc(rfVal(r,f.id))+'</td>';}).join('')+'</tr>';}).join('')
+    +'</tbody></table>';
 }
 function recTabOn(t){return recOn('tab:'+t);}
 /* 外した項目に付ける印。要素ごと隠す（中の入力欄は残るので、保存の処理はそのまま動く） */
@@ -5701,7 +5772,9 @@ function tableToHtml(t){
     [].slice.call(tr.children).forEach(function(cell){
       var tag=cell.tagName==='TH'?'th':'td',cs=cell.getAttribute('colspan'),rs=cell.getAttribute('rowspan');
       var val='',inp=cell.querySelector('input,select,textarea');
-      if(inp){val=inp.tagName==='SELECT'?(inp.options[inp.selectedIndex]?inp.options[inp.selectedIndex].text:''):inp.value;}
+      /* ★園で足した項目の列（2026-11-10）は、ボタンの文字ではなく値を出す */
+      if(cell.hasAttribute('data-rfval')){val=cell.getAttribute('data-rfval')||'';}
+      else if(inp){val=inp.tagName==='SELECT'?(inp.options[inp.selectedIndex]?inp.options[inp.selectedIndex].text:''):inp.value;}
       else{var btn=cell.querySelector('button');val=(btn?btn.textContent:exportCellText(cell)).replace(/\s+/g,' ').trim();}
       if(val==='—')val='';
       out+='<'+tag+(cs?' colspan="'+cs+'"':'')+(rs?' rowspan="'+rs+'"':'')+'>'+val.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</'+tag+'>';
@@ -7280,10 +7353,15 @@ var LOCK_LABELS={att:'出欠',temp:'体温',opts:'オプション',h:'身長',w:
   charge:'担当',result:'結果',lab:'検査機関',date:'日づけ',
   come:'登園時刻',leave:'降園時刻',comeSrc:'登園時刻の出どころ',leaveSrc:'降園時刻の出どころ',
   attSrc:'出欠の出どころ',attCi:'未来WAの登園から入れた出欠',attDiff:'連絡とのちがい',fromParent:'保護者からの連絡の種類',
-  ciOff:'先生が外した未来WAの登園・降園'};
+  ciOff:'先生が外した未来WAの登園・降園',ext:'この園で足した項目'};
 var LOCK_LAB_OVERRIDE=null;
 function lockLab(k){
   if(LOCK_LAB_OVERRIDE&&LOCK_LAB_OVERRIDE[k])return LOCK_LAB_OVERRIDE[k];
+  /* 園で足した項目の id（f1 など）は、項目の名前で出す（2026-11-10）。記録をまたいで同じ id があれば名前をつなぐ */
+  if(/^f\d+$/.test(String(k))&&typeof rfAll==='function'){
+    var _ra=rfAll(),_rn=[],_rr;for(_rr in _ra){if(Object.prototype.hasOwnProperty.call(_ra,_rr)&&Array.isArray(_ra[_rr]))_ra[_rr].forEach(function(f){if(f&&f.id===String(k)&&_rn.indexOf(f.label)<0)_rn.push(f.label);});}
+    if(_rn.length)return _rn.join('／');
+  }
   return LOCK_LABELS[k]||String(k);
 }
 function lockFlatten(o,lab,out,depth,skip){
@@ -19353,6 +19431,18 @@ var EN_DICT={
 '直したこと':'Changes made',
 '上書きした理由：':'Reason for editing: ',
 '施設の基本情報':'Facility details',
+/* 記録の項目を監査に関わる記録すべてに広げた（2026-11-10） */
+'足した項目（出欠）':'Added fields (attendance)',
+'足した項目（健康）':'Added fields (health)',
+'同じ名前の項目があります。別の名前にしてください。':'A field with this name already exists. Please use a different name.',
+'同じ名前の項目をいま使っています。どちらかの名前を直してから、もう一度押してください。':'A field with the same name is in use. Rename one of them, then try again.',
+'安全点検の記録（施設・設備・遊具）':'Safety inspection records (building, equipment, play equipment)',
+'安全計画で決めた頻度（点検日・点検者を決めて定期的に）':'As set in the safety plan (regular checks with set dates and inspectors)',
+'安全点検記録':'Safety inspection records',
+'認可外保育施設指導監督基準（安全計画：施設の設備の安全点検）、事故防止ガイドライン':'Guidance standards for unlicensed childcare facilities (safety plan: facility inspections); accident prevention guidelines',
+'児童福祉施設の設備及び運営に関する基準 第6条の3（安全計画：設備の安全点検）、事故防止ガイドライン':'Standards for child welfare facilities, Art. 6-3 (safety plan: facility inspections); accident prevention guidelines',
+'家庭的保育事業等の設備及び運営に関する基準 第6条の3（安全計画：設備の安全点検）、事故防止ガイドライン':'Standards for home-based childcare, Art. 6-3 (safety plan: facility inspections); accident prevention guidelines',
+'安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。':'Include facility inspections in the safety plan. Set the items, dates and inspectors, check regularly, keep written records and fix problems (Dec 2022 notice, Nursery Care Guidelines commentary, accident prevention guidelines). Walking routes and parks used regularly are also covered. If your municipality has an inspection form, Audit Documents can fill it in from the daily checks.',
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -29901,7 +29991,7 @@ function edTouen(){
   if(!_hd.entries)_hd.entries=[];
   var HL_F=[{k:'by',l:'記録者'},{k:'allHealthy',l:'全員「症状なし」'},
             {k:'entries',l:'症状の記録',deep:true,idKey:'childId',keyer:'kid'},
-            {k:'obs',l:'登園時の様子',deep:true,keyer:'kid'}];
+            {k:'obs',l:'登園時の様子',deep:true,keyer:'kid'},{k:'kx',l:'この園で足した項目',deep:true,keyer:'kid'}];
   var _hlSnap=lockSnap(_hd,HL_F);
   function _hsave(){
     lockDiff(_hd,_hlSnap,HL_F);
@@ -29915,7 +30005,7 @@ function edTouen(){
     thermoBarHTML()+
     /* ★横に送ると園児名の列まで一緒に流れて、誰の記録か分からなくなっていた。
        stickycol で左の1列を貼り付け、hint で「横に送れる」影を出す。 */
-    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th><th style="white-space:nowrap;"'+rfHide('hobs')+'>登園時の様子</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th></tr></thead><tbody>'+
+    '<div class="scrollx hint"><table class="stickycol"><thead><tr><th>園児</th><th>歳児</th><th>出欠</th><th>体温</th><th style="white-space:nowrap;">健康チェック</th><th style="white-space:nowrap;"'+rfHide('hobs')+'>登園時の様子</th>'+opts.map(function(op){return '<th style="white-space:nowrap;">'+esc(op)+(isAutoAttendOpt(op)?'<span data-noexport="1" style="font-weight:400;color:#7A756B;">（自動）</span>':'')+'</th>';}).join('')+'<th style="white-space:nowrap;">保護者からの連絡</th>'+rfKidTh('登園（出席）',recDate,'足した項目（出欠）')+rfKidTh('健康チェック',recDate,'足した項目（健康）')+'</tr></thead><tbody>'+
     kids.map(function(c){var r=viewOf(c),al=ageClassOf(c),ac=ageColor(al);return '<tr><td class="row-name" style="white-space:nowrap;">'+esc(childFullName(c))+'<div class="row-sub">'+(c.dob||'')+'</div></td><td><span class="tag" style="background:'+ac.bg+';color:'+ac.fg+';border-color:'+ac.bd+';font-weight:600;">'+al+'</span></td>'+
       '<td style="white-space:nowrap;"><button class="btn btn-sm" data-ta="'+esc(c.id)+'" title="'+(r.attCi?'保護者が未来WAで押した登園です。押し間違いのときは、1回押すと外れます。':'タップすると切り替わります：●出席 → 早早退 → 遅遅刻 → 休欠席')+'" style="'+attStyle(r.att)+'">'+(r.att||'—')+'</button>'
         /* 登園・降園の時刻（シート4行「登園時間」）。保護者が未来WAで押したものには「保護者」の札 */
@@ -29935,7 +30025,10 @@ function edTouen(){
            押しても反応しないので、点線の枠とグレーでタップできるボタンと見分けられるようにする */
         if(isAutoAttendOpt(op))return '<td><span class="tag" title="通園曜日の設定から自動で表示しています。この画面では変更できません" style="cursor:default;border-style:dashed;'+(on?'background:#F1EFE8;border-color:#A9A296;color:#4A463E;font-weight:600;':'background:transparent;border-color:#DAD6CC;color:#B0AAA0;')+'">'+(on?'●':'—')+'</span></td>';
         return '<td><button class="btn btn-sm" data-to="'+esc(c.id)+'" data-oi="'+esc(oi)+'" style="'+(on?'background:#E6F1FB;border-color:#378ADD;color:#123E6B;font-weight:600;':'')+'">'+(on?'●':'—')+'</button></td>';}).join('')+
-      '<td class="row-sub" style="max-width:220px;">'+parentNoteText(r)+'</td></tr>';}).join('')+
+      '<td class="row-sub" style="max-width:220px;">'+parentNoteText(r)+'</td>'
+      /* 園で足した項目（2026-11-10）。出欠は登園の行（d.rows）、健康は健康チェックの行（kx）に入る */
+      +rfKidTd('登園（出席）',d.rows[c.id]||{},recDate,c.id,lockCanEdit(d))
+      +rfKidTd('健康チェック',(_hd.kx||{})[c.id]||{},recDate,c.id,lockCanEdit(d)&&lockCanEdit(_hd))+'</tr>';}).join('')+
     '</tbody></table></div>'+
     healthBarHtml(_hd,kids,_hlFever)+
     '<div class="field" style="margin-top:12px;"><label>MEMO</label><input id="tsMemo" value="'+esc((d.memo||''))+'"></div>'+
@@ -30095,6 +30188,12 @@ function edTouen(){
       _hdata[recDate]=_cur;stSet(HK,_hdata);
     }
   }
+  /* 園で足した項目の小窓（出欠・健康で別々の列。ボタンの data-rfrec で見分ける） */
+  (function(){
+    var nm=function(id){var c=kids.filter(function(x){return String(x.id)===String(id);})[0];return c?childFullName(c):'';};
+    rfKidWire($('#recBody'),'登園（出席）',recDate,function(id){var c=kids.filter(function(x){return String(x.id)===String(id);})[0];return c?rowOf(c):null;},save,edTouen,nm);
+    rfKidWire($('#recBody'),'健康チェック',recDate,function(id){_hd.kx=_hd.kx||{};return _hd.kx[id]||(_hd.kx[id]={});},_hsave,edTouen,nm);
+  })();
   lockBarWire($('#recBody'),d,saveBoth,edTouen);
   /* 確定を押したときだけ、画面に出ている保護者の登園・降園を帳簿へ入れてから確定する。
      入れたあとに見比べの控えをとり直す（とり直さないと、確定と同時に「直したところ」に積まれる）。
@@ -30475,7 +30574,7 @@ function napBlock(klass){
      生の JSON がそのまま監査の紙に刷られていた */
   var NAP_F=[{k:'cells',l:'午睡の記録',deep:true,keyer:'kidTime'},
              {k:'charge',l:'担当',deep:true,idKey:'from',keyer:'time',labels:{by:'担当の先生'}},
-             {k:'memo',l:'メモ'}];
+             {k:'memo',l:'メモ'},{k:'kx',l:'この園で足した項目',deep:true,keyer:'kid'}];
   var _npSnap=lockSnap(d,NAP_F);
   function save(){
     lockDiff(d,_npSnap,NAP_F);
@@ -30520,14 +30619,16 @@ function napBlock(klass){
     +'<div class="muted" style="margin-bottom:10px;">マスを押すと記録します：仰向け ↑ → 横向き → → うつ伏せ ↓（要注意・赤） → 消す。<br>国の目安は 0歳児 5分に1回／1〜2歳児 10分に1回／3歳以上 15〜30分に1回。'+napGuide(klass)+'</div>'
     /* ★時間の列を送ると園児名まで一緒に流れていた。5分間隔にして列が増えても同じなので、
        左の1列を貼り付ける。hint は「横に送れる」ことを知らせる影。 */
-    +'<div class="scrollx hint"><table class="stickycol"><thead><tr><th style="min-width:90px;">園児</th>'+slots.map(function(t){return '<th style="font-size:10px;padding:4px 2px;">'+t+'</th>';}).join('')+'</tr>'
-    +'<tr><th style="font-size:10px;color:var(--tx3);font-weight:400;">担当</th>'+slots.map(function(t){return '<th style="padding:2px;"><select data-cb2="'+esc(t)+'" style="width:88px;font-size:11px;padding:3px 4px;">'+staffOpts(chargeAt(t))+'</select></th>';}).join('')+'</tr></thead><tbody>'
-    +kids.map(function(c){return '<tr><td class="row-name" style="white-space:nowrap;">'+childFullName(c)+'</td>'+slots.map(function(t){var v=d.cells[c.id+'|'+t]||'';return '<td style="padding:2px;"><button class="napcell v'+v+'" data-nc="'+esc(c.id+'|'+t)+'">'+(NAP_MARK[v]||'・')+'</button></td>';}).join('')+'</tr>';}).join('')
+    +'<div class="scrollx hint"><table class="stickycol"><thead><tr><th style="min-width:90px;">園児</th>'+slots.map(function(t){return '<th style="font-size:10px;padding:4px 2px;">'+t+'</th>';}).join('')+rfKidTh('午睡チェック',recDate)+'</tr>'
+    +'<tr><th style="font-size:10px;color:var(--tx3);font-weight:400;">担当</th>'+slots.map(function(t){return '<th style="padding:2px;"><select data-cb2="'+esc(t)+'" style="width:88px;font-size:11px;padding:3px 4px;">'+staffOpts(chargeAt(t))+'</select></th>';}).join('')+(rfOn('午睡チェック',recDate).length?'<th></th>':'')+'</tr></thead><tbody>'
+    +kids.map(function(c){return '<tr><td class="row-name" style="white-space:nowrap;">'+childFullName(c)+'</td>'+slots.map(function(t){var v=d.cells[c.id+'|'+t]||'';return '<td style="padding:2px;"><button class="napcell v'+v+'" data-nc="'+esc(c.id+'|'+t)+'">'+(NAP_MARK[v]||'・')+'</button></td>';}).join('')+rfKidTd('午睡チェック',(d.kx||{})[c.id]||{},recDate,c.id,lockCanEdit(d))+'</tr>';}).join('')
     +'</tbody></table></div>'
     +'<div class="field" style="margin:12px 0 0;"><label>メモ（体調・寝つき・気になったことなど）</label>'
     +'<input id="npMemo" value="'+esc(d.memo||'')+'"></div></div>';
   /* 配線は、差し込んだあとに呼ぶ */
   function wire(redraw){
+    /* 園で足した項目（2026-11-10）。園児ごとの値は d.kx[園児] に入る */
+    rfKidWire($('#napBox'),'午睡チェック',recDate,function(id){d.kx=d.kx||{};return d.kx[id]||(d.kx[id]={});},save,redraw,function(id){var c=kids.filter(function(x){return String(x.id)===String(id);})[0];return c?childFullName(c):'';});
     var nst=$('#npStep');
     if(nst)nst.onchange=function(){
       var v=+nst.value,old=napStep(klass);if(v===old)return;
@@ -30553,6 +30654,7 @@ function napBlock(klass){
     if(pr)pr.onclick=function(){
       var body='<table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+kids.map(function(c){return '<tr><td>'+childFullName(c)+'</td>'+slots.map(function(t){return '<td>'+(NAP_MARK[d.cells[c.id+'|'+t]||'']||'')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'
         +(d.memo?'<p>メモ：'+esc(d.memo)+'</p>':'')
+        +rfKidTable('午睡チェック',recDate,d.kx,kids)
         +'<p>眠る向き：仰向け ↑／横向き →／うつ伏せ ↓　　この表は'+napStep(klass)+'分ごと　　国の目安：0歳児 5分／1〜2歳児 10分／3歳以上 15〜30分に1回</p>'
         +lockFootHtml(d);
       printDoc('午睡チェック表（'+fmt(recDate)+'・'+klass+'）',body);
@@ -30653,7 +30755,7 @@ function edBody(){
     '<div class="muted" style="margin-bottom:10px;">「保護者へ結果を送付」を押すと、それぞれのご家庭の未来WA に届きます（ほかのお子さまの結果は見えません）。</div>'+
     /* ★「クラス」「カウプ指数」の見出しが1文字ずつ縦に割れていた。
        nwtbl で折り返しを止め、はばがたりないぶんは表ごと横に動かす。 */
-    '<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th></tr></thead><tbody>'+
+    '<div class="scrollx hint"><table class="nwtbl"><thead><tr><th>園児</th><th>クラス</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th><th style="width:110px;">保護者へ送信</th>'+rfKidTh('身体測定',recMonth+'-31')+'</tr></thead><tbody>'+
     (kids.length?kids.map(function(c){var r=rowOf(c.id);
       /* 同じ名前の園児がいると測定値を取り違えるので、記録の画面は姓＋名で出す */
       var _bd=(typeof kidDob==='function')?kidDob(c):(c.dob||'');
@@ -30662,7 +30764,7 @@ function edBody(){
       '<td><input data-b="'+c.id+'|h" type="number" step="0.1" value="'+esc(r.h)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td><input data-b="'+c.id+'|w" type="number" step="0.05" value="'+esc(r.w)+'" style="width:100px;"'+(bmCanEdit(d)?'':' disabled')+'></td>'+
       '<td id="kp'+c.id+'" style="font-weight:500;">'+kaup(r)+'</td>'+
-      '<td class="row-sub">'+(function(){var sd=bmSharedOf(recMonth,c.id);return sd?esc(fmt(sd)):'<span class="muted">—</span>';})()+'</td></tr>';}).join(''):'<tr><td colspan="6" class="empty">このクラスには園児がいません</td></tr>')+'</tbody></table></div>'+
+      '<td class="row-sub">'+(function(){var sd=bmSharedOf(recMonth,c.id);return sd?esc(fmt(sd)):'<span class="muted">—</span>';})()+'</td>'+rfKidTd('身体測定',r,recMonth+'-31',c.id,bmCanEdit(d))+'</tr>';}).join(''):'<tr><td colspan="6" class="empty">このクラスには園児がいません</td></tr>')+'</tbody></table></div>'+
     '<div class="muted" style="margin-top:10px;">カウプ指数の目安は15〜17です（体重g ÷ 身長cm² × 10）。</div></div>';
   /* ★控えを BM_F（by と locked だけ）で取り、差分を BM_F2（rows を含む）で
      取っていた。before.rows が毎回 undefined になり、触っていない園児まで
@@ -30703,6 +30805,7 @@ function edBody(){
   };
   $('#bmPrint').onclick=function(){
     var body='<table><thead><tr><th>氏名</th><th>クラス</th><th>歳児</th><th>身長（cm）</th><th>体重（kg）</th><th>カウプ指数</th></tr></thead><tbody>'+kids.map(function(c){var r=d.rows[c.id]||{};return '<tr><td>'+esc(childFullName(c))+'</td><td>'+esc(c.klass)+'</td><td>'+ageClassOf(c)+'</td><td>'+(r.h||'')+'</td><td>'+(r.w||'')+'</td><td>'+kaup(r)+'</td></tr>';}).join('')+'</tbody></table>'+lockFootHtml(d);
+    body+=rfKidTable('身体測定',recMonth+'-31',d.rows,kids);
     printDoc('身体測定記録（'+recMonth.replace('-','年')+'月'+(bmKlass!=='すべて'?'・'+bmKlass:'')+'）',body);
   };
   /* 送信の控え。記録（rec_身体測定）の外に持つので、確定ずみでも記録は変わらない */
@@ -30731,6 +30834,8 @@ function edBody(){
       +'控えは、個別メッセージの「未来WAで送付した記録」に残っています。');
     edBody();
   };
+  /* 園で足した項目（2026-11-10）。保護者へ送る結果（未来WA）には入れない */
+  rfKidWire($('#recBody'),'身体測定',recMonth+'-31',function(id){return rowOf(id);},save,edBody,function(id){var c=kids.filter(function(x){return String(x.id)===String(id);})[0];return c?childFullName(c):'';});
   lockBarWire($('#recBody'),d,save,edBody);
   lockDisable($('#recBody'),d);
   attachRecPaperCard(d);
@@ -30762,7 +30867,7 @@ function rowLockCanDel(r){
 function edHiyari(){
   var K='rec_hiyari',log=stGet(K,[]);
   $('#recBody').innerHTML='<div class="card">'+recHead('事故・ヒヤリハットの記録','<button class="btn btn-sm btn-primary" id="hyAdd">'+ic('plus')+'記録を追加</button><button class="btn btn-sm" id="hyPrint">'+ic('printer')+'1年分を印刷</button>')+
-    (log.length?'<table><thead><tr><th>発生日時</th><th>内容</th><th>児童</th><th>状況・対応・今後</th><th style="width:92px;">状態</th><th></th></tr></thead><tbody>'+log.slice().sort(function(a,b){return (a.date+(a.time||''))<(b.date+(b.time||''))?1:-1;}).map(function(r){var idx=log.indexOf(r);var types=(r.types||[]).join('・')||r.type||'';var hy=types.indexOf('ヒヤリ')>-1&&types.indexOf('怪我')<0;return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(hy?'#FAEEDA;color:#854F0B':'#FCEBEB;color:#A32D2D')+';">'+(types||'—')+'</span>'+((r.marks||[]).length?'<div class="row-sub">図あり</div>':'')+'</td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+(r.content||r.desc||'')+'<div class="row-sub">対応：'+(r.treatment||r.action||'—')+(r.future?' ／ 今後：'+r.future:'')+'</div></td><td>'+rowLockPill(r)+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hyedit="'+esc(idx)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(idx)+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ記録はありません。</div>')+
+    (log.length?'<table><thead><tr><th>発生日時</th><th>内容</th><th>児童</th><th>状況・対応・今後</th><th style="width:92px;">状態</th><th></th></tr></thead><tbody>'+log.slice().sort(function(a,b){return (a.date+(a.time||''))<(b.date+(b.time||''))?1:-1;}).map(function(r){var idx=log.indexOf(r);var types=(r.types||[]).join('・')||r.type||'';var hy=types.indexOf('ヒヤリ')>-1&&types.indexOf('怪我')<0;return '<tr><td>'+fmt(r.date)+'<div class="row-sub">'+(r.time||'')+'</div></td><td><span class="pill" style="background:'+(hy?'#FAEEDA;color:#854F0B':'#FCEBEB;color:#A32D2D')+';">'+(types||'—')+'</span>'+((r.marks||[]).length?'<div class="row-sub">図あり</div>':'')+'</td><td>'+(r.child||'—')+'</td><td style="font-size:12.5px;">'+(r.content||r.desc||'')+'<div class="row-sub">対応：'+(r.treatment||r.action||'—')+(r.future?' ／ 今後：'+r.future:'')+'</div>'+(rfSumText('事故・ヒヤリハットの記録',r)?'<div class="row-sub">'+esc(rfSumText('事故・ヒヤリハットの記録',r))+'</div>':'')+'</td><td>'+rowLockPill(r)+'</td><td style="white-space:nowrap;"><button class="btn btn-sm btn-ghost" data-hyedit=""'+esc(idx)+'">'+ic('edit')+'</button><button class="btn btn-sm btn-ghost" data-del="'+esc(idx)+'">'+ic('trash')+'</button></td></tr>';}).join('')+'</tbody></table>':'<div class="empty">まだ記録はありません。</div>')+
     '</div>';
   $('#hyAdd').onclick=function(){hiyariModal(null,log,K);};
   document.querySelectorAll('[data-hyedit]').forEach(function(b){b.onclick=function(){hiyariModal(+b.getAttribute('data-hyedit'),log,K);};});
@@ -30771,7 +30876,7 @@ function edHiyari(){
     if(!rowLockCanDel(log[di]))return;
     log.splice(di,1);stSet(K,log);edHiyari();};});
   $('#hyPrint').onclick=function(){
-    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつけること</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr>'+((r.marks||[]).length?'<tr><th>部位図</th><td>'+bodyFigSVG(r.marks,'front',false)+' '+bodyFigSVG(r.marks,'back',false)+'</td></tr>':'')+'</tbody></table>'
+    var body=log.length?log.map(function(r){return '<h3>'+fmt(r.date)+' '+(r.time||'')+'　'+(r.child||'')+'</h3><table><tbody><tr><th style="width:110px;">内容</th><td>'+((r.types||[]).join('・'))+(r.other?'（'+r.other+'）':'')+'　'+(r.content||'')+'</td></tr><tr><th>処置対応</th><td>'+(r.treatment||'')+'</td></tr><tr><th>今後気をつけること</th><td>'+(r.future||'')+'</td></tr><tr><th>備考</th><td>'+(r.remarks||'')+'</td></tr>'+((r.marks||[]).length?'<tr><th>部位図</th><td>'+bodyFigSVG(r.marks,'front',false)+' '+bodyFigSVG(r.marks,'back',false)+'</td></tr>':'')+rfPrintRows('事故・ヒヤリハットの記録',r,r.date)+'</tbody></table>'
       /* 確定した日時・確定した人・確定のあとに直したところ。
          監査で「後から書き換えていないか」を見るのは、この脚注。 */
       +lockFootHtml(r);}).join(''):'<p>記録なし</p>';
@@ -30836,7 +30941,7 @@ function hiyariModal(idx,log,K){
   var HY_F=[{k:'date',l:'発生日'},{k:'time',l:'時刻'},{k:'child',l:'児童'},
             {k:'types',l:'種類'},{k:'other',l:'その他'},{k:'content',l:'状況（何があったか）'},
             {k:'treatment',l:'処置・対応'},{k:'future',l:'今後気をつけること'},
-            {k:'remarks',l:'備考'},{k:'by',l:'報告者'},{k:'marks',l:'部位'}];
+            {k:'remarks',l:'備考'},{k:'by',l:'報告者'},{k:'marks',l:'部位'},{k:'ext',l:'この園で足した項目',deep:true}];
   var _hySnap=lockSnap(r,HY_F);
   function collect(){if($('#hy_content')){r.date=$('#hy_date').value;r.time=$('#hy_time').value;r.child=$('#hy_child').value;if($('#hy_cls'))hyCls=$('#hy_cls').value;r.other=$('#hy_other').value;r.content=$('#hy_content').value;r.treatment=$('#hy_treat').value;r.future=$('#hy_future').value;r.remarks=$('#hy_remarks').value;r.by=$('#hy_by').value;}}
   function render(){
@@ -30852,6 +30957,7 @@ function hiyariModal(idx,log,K){
         '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>備考</label><input id="hy_remarks" value="'+esc(v(r.remarks))+'"></div><div class="field"><label>報告者</label><input id="hy_by" value="'+esc(v(r.by))+'"></div></div></div>'+
         '<div><label style="margin-bottom:6px;display:block;">けがの場所（人の形を押して印を付けます）<button class="btn btn-sm btn-ghost" id="hy_clear" style="float:right;padding:2px 8px;">クリア</button></label><div style="display:flex;gap:6px;justify-content:center;">'+bodyFigSVG(r.marks,'front',true)+bodyFigSVG(r.marks,'back',true)+'</div></div>'+
       '</div>'+
+      '<div data-rfbox="1"></div>'+
       '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;"><button class="btn lk-skip" id="hy_cancel">キャンセル</button><button class="btn btn-primary" id="hy_save">保存</button></div></div>';
     /* クラスを変えたら、児童は「—」に戻す。
        前のクラスの子が選ばれたまま残ると、別の子の記録になってしまうため */
@@ -30877,6 +30983,8 @@ function hiyariModal(idx,log,K){
       if(idx!=null)log[idx]=r;else{log.push(r);idx=log.length-1;}
       stSet(K,log);
     },render);
+    /* 園で足した項目は確定の止めより前に置く（確定ずみなら一緒に止まる） */
+    rfMount(m.querySelector('[data-rfbox]'),'事故・ヒヤリハットの記録',r,r.date||todayISO());
     lockDisable(m,r);
   }
   render();
@@ -30994,7 +31102,8 @@ function kujoModal(idx,log,K){
   /* 確定したあとに直したところを、赤文字で残すための見比べ用 */
   var KJ_F=[{k:'date',l:'受付日'},{k:'way',l:'受けた方法'},{k:'person',l:'申し出た方'},
             {k:'content',l:'言われたこと'},{k:'shori',l:'対応したこと'},
-            {k:'by',l:'対応した職員'},{k:'doneDate',l:'完了した日'},{k:'third',l:'第三者委員へ報告'}];
+            {k:'by',l:'対応した職員'},{k:'doneDate',l:'完了した日'},{k:'third',l:'第三者委員へ報告'},
+            {k:'ext',l:'この園で足した項目',deep:true}];
   var _kjSnap=lockSnap(r,KJ_F);
   /* 窓の中で入力した値を、いったん記録に写す（確定のボタンを押すときにも使う） */
   function kjCollect(){
@@ -31021,10 +31130,13 @@ function kujoModal(idx,log,K){
       +'<div class="field"><label>対応した職員</label><input id="kj_by" value="'+v(r.by)+'"></div>'
       +'<div class="field"><label>完了した日</label><input type="date" id="kj_done" value="'+esc(r.doneDate||'')+'"></div>'
       +'<div class="field"><label>第三者委員へ報告</label><select id="kj_third">'+['なし','報告した'].map(function(w){return '<option'+(w===(r.third||'')?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div></div>'
+    +'<div data-rfbox="1"></div>'
     +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">'
       +'<button class="btn lk-skip" id="kj_cancel">キャンセル</button>'
       +'<button class="btn btn-primary" id="kj_save">保存</button></div></div>';
   $('#kj_cancel').onclick=function(){m.remove();};
+  /* 園で足した項目は、確定の止め（lockDisable）より前に置く。確定ずみなら一緒に止まる */
+  rfMount(m.querySelector('[data-rfbox]'),'保護者対応の記録',r,r.date||todayISO());
   /* 確定の帯。確定したあとは読むだけになり、直すには園長・管理者の許可が要る。 */
   lockBarWire(m,r,function(){kjCollect();kjWrite();},kjRender);
   lockDisable(m,r);
@@ -31117,7 +31229,7 @@ function edLogList(type){
         var ks=dn?D.sum:D.sum.slice(0,1).concat(D.fields.filter(function(f){return f.k&&/^plan(Go|Start)$/.test(f.k);}).map(function(f){return f.k;}));
         return '<tr><td>'+esc(fmt(r.date||''))+'</td><td>'+esc(r.klass||'')+'</td>'
           +'<td><span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FFF4DC;color:#7A4E00;')+'">'+(dn?'記録ずみ':'計画だけ')+'</span></td><td style="font-size:12.5px;">'
-          +ks.map(function(k){var t=fm[k]&&fm[k].t==='ages'?logAgesText(r):logValText(fm[k],r[k]);return (t&&fm[k])?esc(fm[k].t==='ages'?'子どもの人数':fm[k].l)+'：'+esc(t):'';}).filter(Boolean).join('　')+'</td>'
+          +ks.map(function(k){var t=fm[k]&&fm[k].t==='ages'?logAgesText(r):logValText(fm[k],r[k]);return (t&&fm[k])?esc(fm[k].t==='ages'?'子どもの人数':fm[k].l)+'：'+esc(t):'';}).filter(Boolean).concat(rfSumText(type,r)?[esc(rfSumText(type,r))]:[]).join('　')+'</td>'
           +'<td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm" data-lgedit="'+x.i+'">'+ic('edit')+'開く</button> <button class="btn btn-sm btn-ghost" data-lgdel="'+x.i+'">'+ic('trash')+'</button></td></tr>';}).join('')
       +'</tbody></table></div>':'<div class="empty">まだありません。</div>')
     +'</div>';
@@ -31131,6 +31243,7 @@ function edLogList(type){
       +D.fields.filter(function(f){return f.k!=='date'&&f.k!=='klass';}).map(function(f){
         if(f.sec)return '<tr><th colspan="2" style="background:#F1EFE8;text-align:left;">'+esc(f.sec)+'</th></tr>';
         return '<tr><th style="width:170px;">'+esc(f.l)+'</th><td>'+esc(f.t==='ages'?logAgesText(r):logValText(f,r[f.k]))+'</td></tr>';}).join('')
+      +rfPrintRows(type,r,r.date)
       +'</tbody></table>'+(r.by?'<p style="font-size:10px;">記録：'+esc(r.by)+'</p>':'');}).join(''):'<p>記録なし</p>';
     printDoc(D.title,body);
   };
@@ -31167,7 +31280,10 @@ function logModal(type,idx){
     m.innerHTML='<div class="modal" style="width:680px;padding:22px 24px;"><h2 style="margin-top:0;">'+esc(D.title)+'</h2>'
       +'<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;">'
       +D.fields.map(function(f){return '<div style="'+(wide(f)?'grid-column:1/-1;':'')+'">'+fieldHTML(f)+'</div>';}).join('')+'</div>'
+      /* 園で足した項目（2026-11-10）。値は r.ext に入り、下の「保存」で一緒に残る */
+      +'<div data-rfbox="1"></div>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"><button class="btn" id="lgX">キャンセル</button><button class="btn btn-primary" id="lgSave">保存</button></div></div>';
+    rfMount(m.querySelector('[data-rfbox]'),type,r,r.date);
     m.querySelectorAll('[data-lp]').forEach(function(b){b.onclick=function(){collect();var k=b.getAttribute('data-lp'),v=b.getAttribute('data-lv');r[k]=(r[k]===v?'':v);draw();};});
     m.querySelectorAll('[data-lm]').forEach(function(b){b.onclick=function(){collect();var k=b.getAttribute('data-lm'),v=b.getAttribute('data-lv'),a=Array.isArray(r[k])?r[k]:[];
       var j=a.indexOf(v);if(j>-1)a.splice(j,1);else a.push(v);r[k]=a;draw();};});
@@ -31226,7 +31342,7 @@ function edKujo(){
         +'<td class="row-sub">'+esc(r.way||'')+'</td>'
         +'<td class="row-sub">'+esc(r.person||'')+'</td>'
         +'<td class="row-sub wrapcell">'+esc(kujoCut(r.content))+'</td>'
-        +'<td class="row-sub wrapcell">'+esc(kujoCut(r.shori))+'</td>'
+        +'<td class="row-sub wrapcell">'+esc(kujoCut(r.shori))+(rfSumText('保護者対応の記録',r)?'<div style="font-size:11px;">'+esc(rfSumText('保護者対応の記録',r))+'</div>':'')+'</td>'
         +'<td class="row-sub">'+esc(r.by||'')+'</td>'
         +'<td>'+(r.doneDate?'<span class="pill" style="background:#EAF3DE;color:#27500A;">'+esc(fmt(r.doneDate))+'</span>'
                           :'<span class="pill" style="background:#FCEBEB;color:#A32D2D;">対応中</span>')+'</td>'
@@ -31283,7 +31399,8 @@ function edKujo(){
               :'未保存')+'</td></tr>';
         }).join('')
         :'<tr><td colspan="9">記録がありません</td></tr>')
-      +'</tbody></table>';
+      +'</tbody></table>'
+      +rfEntryTable('保護者対応の記録',log,function(r){return r.date;});
     printDoc('苦情受付・処理の記録（'+fy+'年度）',b5);
   };
 }
@@ -31489,7 +31606,8 @@ function edDev(){
   periods.sort(function(a,b){var x=devSortKey(a),y=devSortKey(b);return x<y?-1:x>y?1:0;});
   var prevKey=cur?devPrevKey(mine,recDevMonth):'';
   var boss=(typeof isBoss!=='function'||isBoss());
-  var DV_F=[{k:'lv',l:'各項目の段階',deep:true,keyer:'devLv'},{k:'notes',l:'特記事項',deep:true,keyer:'devCat'},{k:'memo',l:'メモ'},{k:'by',l:'記録者'},{k:'tpl',l:'様式'}];
+  var DV_F=[{k:'lv',l:'各項目の段階',deep:true,keyer:'devLv'},{k:'notes',l:'特記事項',deep:true,keyer:'devCat'},{k:'memo',l:'メモ'},{k:'by',l:'記録者'},{k:'tpl',l:'様式'},
+            {k:'ext',l:'この園で足した項目',deep:true}];
   var _snap=lockSnap(rec,DV_F);
   function save(){lockDiff(rec,_snap,DV_F);_snap=lockSnap(rec,DV_F);rec.tpl=rec.tpl||tk;stampWho(rec);
     data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
@@ -31527,6 +31645,7 @@ function edDev(){
     +'<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+esc(rec.memo||'')+'"></div>'
     +'<div class="field" style="margin:0;"><label>記録者</label><select id="dvBy"><option value="">選択</option>'+(DB.staff||[]).map(function(st){return '<option'+(st.name===rec.by?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select></div></div>';
   }
+  h+='<div data-rfbox="1"></div>';
   h+='</div>';
   $('#recBody').innerHTML=h;
   wireHead();
@@ -31561,6 +31680,8 @@ function edDev(){
     if($('#dvPrintAll'))$('#dvPrintAll').onclick=function(){devPrintYear(devKids);};
     if($('#dvTplEd'))$('#dvTplEd').onclick=function(){devTplEditor(tk);};
   }
+  /* 園で足した項目（2026-11-10）。月の終わりの日で見る（月の途中で足した項目も、その月から出す） */
+  rfMount($('#recBody').querySelector('[data-rfbox]'),'児童票（成長の記録）',rec,recDevMonth+'-31',save);
   lockBarWire($('#recBody'),rec,save,edDev);
   lockDisable($('#recBody'),rec);
 }
@@ -31669,7 +31790,8 @@ function devPrintYear(list){
         +t.cats.map(function(cat){
           return '<table style="font-size:9.5px;"><thead><tr><th style="text-align:left;">'+esc(cat.cat)+'</th>'+cols.map(function(col){return '<th style="width:'+(q?46:26)+'px;">'+esc(col.l)+'</th>';}).join('')+'</tr></thead><tbody>'
             +cat.items.map(function(it){return '<tr><td>'+esc(it[1])+'</td>'+cols.map(function(col){return '<td style="text-align:center;">'+val(col,it[0])+'</td>';}).join('')+'</tr>';}).join('')
-            +'<tr><td colspan="'+(cols.length+1)+'" style="font-size:9.5px;"><b>特記事項</b>　'+note(cat.id).map(esc).join('　')+'</td></tr></tbody></table>';}).join('');
+            +'<tr><td colspan="'+(cols.length+1)+'" style="font-size:9.5px;"><b>特記事項</b>　'+note(cat.id).map(esc).join('　')+'</td></tr></tbody></table>';}).join('')
+        +rfEntryTable('児童票（成長の記録）',MS.filter(function(m){return rs[m];}).map(function(m){return {ext:rs[m].ext,_m:m};}),function(r){return (+r._m.slice(5,7))+'月';});
     }).join('<div style="page-break-after:always;"></div>');
   }).join('<div style="page-break-after:always;"></div>');
   printDoc('児童票（発達及び経過記録）'+fy+'年度',body);
@@ -31788,6 +31910,8 @@ function napHas(d){
   if(d.memo)return true;              /* メモだけ書いた日も「記録あり」にする */
   var c=d.cells||{},k;
   for(k in c){ if(Object.prototype.hasOwnProperty.call(c,k)&&c[k])return true; }
+  /* 園で足した項目だけ入れた日も「記録あり」（2026-11-10。入れないと、まとめて印刷にその日が出なかった） */
+  var x=d.kx||{};for(k in x){ if(Object.prototype.hasOwnProperty.call(x,k)&&x[k]&&x[k].ext&&Object.keys(x[k].ext).length)return true; }
   return (d.charge||[]).filter(function(e){return e&&e.by;}).length>0;
 }
 function safetyHas(d){
@@ -31891,6 +32015,8 @@ function touenDayBody(dk,d,kids){
         +'<td style="font-size:9px;line-height:1.5;">'+esc(_hc)+'</td>'
         +opts.map(function(op){return '<td>'+(attendOptOn(r.opts,op)?'●':'')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table><p>MEMO：'+esc(d.memo||'')+'</p>'
+    +rfKidTable('登園（出席）',dk,d.rows,kids)
+    +rfKidTable('健康チェック',dk,(_hd||{}).kx,kids)
     +touenFixPaper(d,kids)
     /* 健康チェックの記録者は、登園の記録者とは別に持っている。
        「全員に症状なし」を押した人がだれかは、監査で必ず聞かれる。 */
@@ -31916,7 +32042,7 @@ function napDayBody(dk){
   });
   return '<h3>午睡チェック（'+esc(nd.klass||'')+'）</h3><table><thead><tr><th>園児</th>'+slots.map(function(t){return '<th style="font-size:9px;">'+t+'</th>';}).join('')+'</tr><tr><td>担当</td>'+slots.map(function(t){return '<td style="font-size:8px;">'+esc(chargeAt(t)||'')+'</td>';}).join('')+'</tr></thead><tbody>'+
     kids.map(function(c){return '<tr><td>'+esc(childFullName(c))+'</td>'+slots.map(function(t){return '<td>'+esc(cells[c.id+'|'+t]||'')+'</td>';}).join('')+'</tr>';}).join('')+
-    '</tbody></table><p>確認間隔：'+napStep(nd.klass)+'分</p>';
+    '</tbody></table>'+rfKidTable('午睡チェック',dk,nd.kx,kids)+'<p>確認間隔：'+napStep(nd.klass)+'分</p>';
 }
 /* 安全点検の月間表。もとは印刷ボタンの中に書いてあったものを、そのままここへ移した */
 function safetyMonthBody(mo){
@@ -31965,6 +32091,7 @@ function healthDayBody(dk,d,showKids){
         +(d.allHealthy?'症状なし':'<span style="color:#888;">—（未記録）</span>')+'</td><td></td></tr>';}).join('')+
     '</tbody></table>'
     +hobsTableHTML(dk,d,showKids)
+    +rfKidTable('健康チェック',dk,d.kx,showKids)
     +'<p>記録者：'+esc(d.by||'　　　　')+'</p>'
     +lockFootHtml(d);
 }
@@ -32036,7 +32163,8 @@ function nippoDayBody(dk,d){
     +'<tr><th>記録者</th><td>'+or(d.by)+'</td></tr>'
     +'</tbody></table>'
     /* 園で足した項目（2026-11-08） */
-    +(function(){var L=rfInPeriod('保育日誌・業務日報',dk,dk).filter(function(f){return rfVal(d,f.id);});
+    /* ★その日に止めた項目は rfInPeriod から外れ、止める前に入れた値が紙から消えていた（2026-11-10 通しの確かめで見つけた）。値のある項目は出す */
+    +(function(){var L=rfShown('保育日誌・業務日報',d,dk).filter(function(f){return rfVal(d,f.id);});
       return L.length?'<h2>この園で足した項目</h2><table><tbody>'+L.map(function(f){return '<tr><th>'+esc(f.label)+'</th><td>'+esc(rfVal(d,f.id))+'</td></tr>';}).join('')+'</tbody></table>':'';})()
     +lockFootHtml(d);
 }
@@ -32421,7 +32549,9 @@ function drillModal(i){
         '<div class="grid" style="grid-template-columns:1fr 1fr;"><div class="field"><label>避難タイム</label><div style="display:flex;gap:4px;align-items:center;"><input type="number" id="r_tm" value="'+esc((rec.tm||''))+'" style="width:60px;">分<input type="number" id="r_ts" value="'+esc((rec.ts||''))+'" style="width:60px;">秒</div></div><div class="field"><label>避難場所（実施）</label><input id="r_place" value="'+esc(v(rec.place||r.plan.place))+'"></div></div>'+
         '<div class="field"><label>実施内容</label><textarea id="r_content" rows="2">'+esc((rec.content||''))+'</textarea></div>'+
         '<div class="field"><label>反省及び感想</label><textarea id="r_reflection" rows="2">'+esc((rec.reflection||''))+'</textarea></div>'+
-        toolsUI('r',rec.tools);
+        toolsUI('r',rec.tools)+'<div data-rfbox="1"></div>';
+      /* 園で足した項目（2026-11-10）。この窓は押すたびに残るので、足した項目も入れたらすぐ残す */
+      rfMount(box.querySelector('[data-rfbox]'),'避難訓練',rec,rec.date||todayISO(),save);
       $('#r_date').onchange=function(e){rec.date=e.target.value;save();renderBody();};
       $('#r_weather').onchange=function(e){rec.weather=e.target.value;save();};
       box.querySelectorAll('[data-rcls]').forEach(function(b){b.onclick=function(){var k=b.getAttribute('data-rcls');rec.classes=rec.classes||[];var x=rec.classes.indexOf(k);if(x>-1)rec.classes.splice(x,1);else rec.classes.push(k);save();renderBody();};});
@@ -32476,7 +32606,9 @@ function drillPrint(i){
     '<tr><th>避難場所</th><td colspan="3">'+(rec.place||p.place||'')+'</td></tr>'+
     '<tr><th>実施内容</th><td colspan="3">'+(rec.content||'').replace(/\n/g,'<br>')+'</td></tr>'+
     '<tr><th>反省及び感想</th><td colspan="3">'+(rec.reflection||'').replace(/\n/g,'<br>')+'</td></tr>'+
-    '<tr><th>用具の確認</th><td colspan="3">'+tl(rec.tools)+'</td></tr></tbody></table>'+
+    '<tr><th>用具の確認</th><td colspan="3">'+tl(rec.tools)+'</td></tr>'+
+    rfShown('避難訓練',rec,rec.date).filter(function(f){return rfVal(rec,f.id);}).map(function(f){return '<tr><th>'+esc(f.label)+'</th><td colspan="3">'+esc(rfVal(rec,f.id))+'</td></tr>';}).join('')+
+    '</tbody></table>'+
     (att.length?'<h3>参加者名簿（当日の登園者）</h3><table><thead><tr><th>No.</th><th>氏名</th><th>歳児</th></tr></thead><tbody>'+att.map(function(c,idx){return '<tr><td>'+(idx+1)+'</td><td>'+childFullName(c)+'</td><td>'+ageClassOf(c)+'</td></tr>';}).join('')+'</tbody></table>':'');
   printDoc('避難訓練 実施計画・記録（'+r.month+'・'+r.kind+'）',body);
 }
@@ -39595,6 +39727,7 @@ function renderKenshu(){
           +'<label class="ks-f"><span>感想・活かすこと</span><textarea class="autogrow" rows="3" data-ks="'+i+'|impression" placeholder="感じたこと、保育で活かすこと">\n'+esc(r.impression||'')+'</textarea></label>'
         +'</div>'
         +'<label class="ks-f ks-note"><span>備考</span><input type="text" data-ks="'+i+'|note" value="'+esc(r.note||'')+'"></label>'
+        +'<div data-ksrf="'+i+'"></div>'
         +'</div>';
       }).join('')+'</div>'
       :'<div class="empty" style="padding:26px 0;">まだ記録がありません。「研修を追加」から書きはじめてください。</div>')
@@ -39603,6 +39736,8 @@ function renderKenshu(){
   $('#ksYear').onchange=function(e){kenshuYear=+e.target.value;renderKenshu();};
   var ksave=function(){kenshuSet(fy,kd);};
   if($('#ksAdd'))$('#ksAdd').onclick=function(){kd.rows.push(kenshuNewRow());ksave();renderKenshu();};
+  /* 園で足した項目（2026-11-10）。この画面は打つたびに残るので、足した項目もすぐ残す */
+  s.querySelectorAll('[data-ksrf]').forEach(function(bx){var r=kd.rows[+bx.getAttribute('data-ksrf')];if(r)rfMount(bx,'保育研修',r,r.date||todayISO(),ksave);});
   s.querySelectorAll('[data-ks]').forEach(function(el3){
     var fn=function(){var p=el3.getAttribute('data-ks').split('|');kd.rows[+p[0]][p[1]]=el3.value;ksave();};
     el3.onchange=fn;
@@ -39627,7 +39762,8 @@ function renderKenshu(){
           +'<td style="font-size:10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;">'+esc(r.note||'')+'</td></tr>';
         }).join('')
         :'<tr><td colspan="7">記録がありません</td></tr>')
-      +'</tbody></table>';
+      +'</tbody></table>'
+      +rfEntryTable('保育研修',kd.rows,function(r){return r.date;});
     printDoc('保育研修の記録（'+fy+'年度）',b4);
   };
   autoGrowAll(s);
@@ -40471,7 +40607,7 @@ function renderTasks(){
 /* ========== 提出書類ナビ（施設プロフィール駆動・暫定シード／将来AI自動更新） ==========
    種別×自治体プロフィールから「出すべき書類・証明書」を提示。データは保守的な暫定シード。
    将来：バックエンド+AIが公式情報から最新要件を自動取得してREQ_DATAを更新する設計。 */
-var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。自治体の様式に「様式を入れ込む」でそのまま記入できる。", "confidence": "確立"}, {"name": "特定子ども・子育て支援提供証明書（無償化）", "category": "届出・報告", "basis": "子ども・子育て支援法（施設等利用費の支給。認可外保育施設は特定子ども・子育て支援施設等）", "submitTo": "市区町村の保育・幼児教育無償化の担当課（自治体へ要確認）", "frequency": "自治体が決めた時期（3か月ごと・月ごとなど）", "systemDoc": "生徒情報・請求書作成", "note": "利用者（保護者）が施設等利用費の請求に添える証明。様式は自治体ごとに違うので、自治体の様式を入れて作ります。生徒情報の「続柄」「無償化の認定」と、請求書作成の請求から書き込みます。", "confidence": "要確認"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "保育日誌・業務日報", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "保育日誌・業務日報", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。自治体の様式に「様式を入れ込む」でそのまま記入できる。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムのカリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "保育日誌・業務日報", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの保育日誌・業務日報に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}]}]};
+var REQ_DATA={"types": [{"id": "ninkagai", "label": "認可外保育施設", "items": [{"name": "認可外保育施設 設置届（変更届・廃止届を含む）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・政令市・中核市等の保育担当課（自治体へ要確認）", "frequency": "設置時（変更・廃止時は都度）", "systemDoc": "", "note": "児童福祉法に基づく届出義務（設置・変更・廃止）。届出の期限・様式・提出先は自治体へ要確認。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "児童福祉法に基づく定期報告。報告時期・様式は自治体が指定するため要確認。自治体の様式に「様式を入れ込む」でそのまま記入できる。", "confidence": "確立"}, {"name": "特定子ども・子育て支援提供証明書（無償化）", "category": "届出・報告", "basis": "子ども・子育て支援法（施設等利用費の支給。認可外保育施設は特定子ども・子育て支援施設等）", "submitTo": "市区町村の保育・幼児教育無償化の担当課（自治体へ要確認）", "frequency": "自治体が決めた時期（3か月ごと・月ごとなど）", "systemDoc": "生徒情報・請求書作成", "note": "利用者（保護者）が施設等利用費の請求に添える証明。様式は自治体ごとに違うので、自治体の様式を入れて作ります。生徒情報の「続柄」「無償化の認定」と、請求書作成の請求から書き込みます。", "confidence": "要確認"}, {"name": "職員名簿（保育従事者の資格・健康診断の記録を含む）", "category": "運営体制", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示（自治体へ要確認）", "frequency": "随時（採用・異動時に更新）", "systemDoc": "職員管理（資格・健診期限アラート）", "note": "従事者の数・資格・健康状態を把握できる記録として整備。具体的な様式は自治体へ要確認。", "confidence": "確立"}, {"name": "保育従事者の資格を証する書類（保育士証の写し等）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "採用時／随時", "systemDoc": "", "note": "有資格者の配置を確認できる書類を備置。必要な有資格者の割合は種別・自治体へ要確認。", "confidence": "確立"}, {"name": "午睡時のSIDS（乳幼児突然死症候群）チェック記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の乳幼児の状態を定期的に確認・記録することは指導監督基準上求められる。確認間隔は年齢等に応じ自治体へ要確認。", "confidence": "確立"}, {"name": "園児の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "日常／定期", "systemDoc": "健康チェック / 身体測定記録", "note": "乳幼児の健康状態の把握・記録。健康診断の実施頻度は自治体へ要確認。", "confidence": "確立"}, {"name": "避難訓練・消火訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備し監査時に提示", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "指導監督基準は避難・消火訓練を少なくとも毎月1回行うことを求めている。消防法上の消防計画とは別途整理が必要な場合があり、詳細は消防機関・自治体へ要確認。", "confidence": "確立"}, {"name": "重大事故等発生時の報告（事故報告）", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "都度（事故発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・重篤な事故等が発生した場合の自治体への報告。国の通知に基づく報告様式・経路は自治体へ要確認。", "confidence": "確立"}, {"name": "利用者への提供内容の掲示・契約時の書面交付", "category": "運営体制", "basis": "児童福祉法", "submitTo": "施設内に掲示・利用者へ交付", "frequency": "契約時／都度", "systemDoc": "", "note": "児童福祉法に基づくサービス内容・料金等の掲示および利用契約時の書面交付。記載事項の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "安全点検の記録（施設・設備・遊具）", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準（安全計画：施設の設備の安全点検）、事故防止ガイドライン", "submitTo": "施設で整備し監査時に提示", "frequency": "安全計画で決めた頻度（点検日・点検者を決めて定期的に）", "systemDoc": "安全点検記録", "note": "安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。", "confidence": "確立"}]}, {"id": "shokibo", "label": "小規模認可（地域型保育事業 A/B/C型）", "items": [{"name": "地域型保育事業 認可申請書（設置認可）", "category": "設置・認可", "basis": "児童福祉法／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "設置時（変更時は変更届）", "systemDoc": "", "note": "地域型保育事業は市町村の認可を受けて実施し、地域型保育給付の対象となる。様式・添付書類は自治体で異なるため詳細は要確認。", "confidence": "確立"}, {"name": "運営規程", "category": "運営体制", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "自治体の保育担当課（施設備付け）", "frequency": "設置時（変更時に整備・届出）", "systemDoc": "", "note": "職員体制・保育時間・利用料等を定める基本規程。同基準で整備が求められる全国共通要件。", "confidence": "確立"}, {"name": "職員名簿（保育士資格証・健康診断結果）", "category": "証明書・資格", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）／自治体へ要確認", "frequency": "設置時／随時更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格要件（A型は全員保育士、B型は半数以上、C型は家庭的保育者）と職員の健康管理の整備が基本要件。C型では非保育士職員もあり得る点に留意。", "confidence": "確立"}, {"name": "保育日誌（業務日誌）", "category": "日常記録", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日", "systemDoc": "保育日誌・業務日報", "note": "日々の保育・出欠・活動の記録。法令上の名称明記はないが指導監査で確認される標準記録。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康診断・発育記録）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "定期／随時", "systemDoc": "健康チェック", "note": "入所時・定期の健康診断、日々の健康観察、身体測定を含む健康管理。身体測定記録も併用可。", "confidence": "確立"}, {"name": "避難訓練・非常災害対策の記録", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準", "submitTo": "施設備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準で避難及び消火の訓練は少なくとも毎月一回と定められ、非常災害対策計画の整備が全国共通で求められる。", "confidence": "確立"}, {"name": "重大事故等の報告（事故報告書）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン／子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "都度（発生時）", "systemDoc": "ヒヤリハット・事故記録", "note": "死亡・治療を要する重大事故等の発生時に自治体へ報告（国へ情報集約）。ヒヤリハット記録は再発防止の内部記録。", "confidence": "確立"}, {"name": "午睡時のSIDSチェック記録", "category": "日常記録", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "施設備付け（監査時提示）", "frequency": "毎日（午睡ごと）", "systemDoc": "午睡(SIDS)チェック", "note": "睡眠中の定期的な状態確認はガイドラインで強く推奨され広く実施されるが、記録様式・確認間隔を全国一律に義務づける法令規定はないため要確認に引下げ。", "confidence": "要確認"}, {"name": "運営状況報告書（年次報告）", "category": "届出・報告", "basis": "子ども・子育て支援法", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "特定地域型保育事業者への年次報告。名称・様式・提出時期は自治体で異なるため要確認。", "confidence": "要確認"}, {"name": "安全点検の記録（施設・設備・遊具）", "category": "安全・衛生", "basis": "家庭的保育事業等の設備及び運営に関する基準 第6条の3（安全計画：設備の安全点検）、事故防止ガイドライン", "submitTo": "施設で整備し監査時に提示", "frequency": "安全計画で決めた頻度（点検日・点検者を決めて定期的に）", "systemDoc": "安全点検記録", "note": "安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。", "confidence": "確立"}]}, {"id": "kigyou", "label": "企業主導型保育事業", "items": [{"name": "認可外保育施設 設置届（事業開始の届出）", "category": "設置・認可", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課（都道府県知事等）", "frequency": "設置時", "systemDoc": "", "note": "企業主導型は制度上「認可外保育施設」に位置づけられ、事業開始時に都道府県知事等への設置届が求められる。届出義務の直接の根拠は児童福祉法。様式・提出先の詳細は自治体へ要確認。", "confidence": "確立"}, {"name": "企業主導型保育事業 助成申請（整備費・運営費）", "category": "設置・認可", "basis": "子ども・子育て支援法、企業主導型保育事業費補助金実施要綱", "submitTo": "実施機関へ要確認", "frequency": "設置時/毎年", "systemDoc": "", "note": "企業主導型の中核となる助成（整備費・運営費）の申請・継続手続。実施機関（従来は児童育成協会だが年度により変更の可能性あり）・様式・締切は実施機関へ要確認。本文中に数値・期限を創作しない。", "confidence": "確立"}, {"name": "運営状況報告書（認可外保育施設の年次報告）", "category": "届出・報告", "basis": "児童福祉法、認可外保育施設指導監督基準", "submitTo": "自治体の保育担当課", "frequency": "毎年", "systemDoc": "運営状況報告書", "note": "認可外保育施設として運営状況を定期的に自治体へ報告することが求められる（根拠は児童福祉法の報告徴収）。報告様式・提出時期は自治体へ要確認。", "confidence": "確立"}, {"name": "職員名簿（保育従事者の資格・健康診断）", "category": "証明書・資格", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査・報告時に確認）", "frequency": "設置時/随時", "systemDoc": "職員名簿（資格・健診）", "note": "保育従事者の資格保有状況・健康診断の実施状況を整備し、指導監査・報告時に提示する。求められる有資格者割合等の細部は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "保育日誌・業務日誌（保育内容の記録）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "毎日", "systemDoc": "保育日誌・業務日報", "note": "指導監督基準上、保育の内容・在籍・活動の記録整備が求められる。指導監査時に確認される基本記録。具体的な様式は定められておらず施設ごとの運用。", "confidence": "確立"}, {"name": "児童の健康管理記録（健康観察・身体測定等）", "category": "日常記録", "basis": "認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "随時/定期", "systemDoc": "健康チェック / 身体測定記録", "note": "入所児童の健康状態の把握・記録が求められる。健康診断の実施頻度・様式の細部は自治体へ要確認。", "confidence": "確立"}, {"name": "事故・ヒヤリハット記録および重大事故の報告", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体の保育担当課（重大事故発生時）", "frequency": "都度", "systemDoc": "ヒヤリハット・事故記録", "note": "事故防止の取組・記録の整備、重大事故発生時の行政（および実施機関）への報告が求められる。報告対象範囲・様式・提出先は自治体・実施機関へ要確認。", "confidence": "確立"}, {"name": "非常災害対策・避難訓練の記録", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準、消防法", "submitTo": "施設で整備（消防計画は消防署）", "frequency": "定期（頻度は要確認）", "systemDoc": "避難訓練記録 / 安全点検記録", "note": "非常災害への具体的計画と避難・消火訓練の実施・記録が求められる点は確立。ただし『毎月』の頻度は認可施設基準（児童福祉施設基準）由来で、認可外の指導監督基準は『定期的に』とされ、企業主導型に一律の毎月義務があるかは自治体・実施機関へ要確認。", "confidence": "要確認"}, {"name": "安全計画・危機管理マニュアルの策定", "category": "運営体制", "basis": "児童福祉施設の設備及び運営に関する基準、認可外保育施設指導監督基準", "submitTo": "施設で整備（監査時に確認）", "frequency": "設置時/定期見直し", "systemDoc": "保育安全計画 / 危機管理マニュアル", "note": "安全計画策定の義務化（令和5年改正）は児童福祉施設の設備運営基準に基づき主に認可施設が対象。認可外である企業主導型への直接適用の有無・範囲は自治体・実施機関へ要確認。危機管理マニュアル整備自体は安全確保の観点で推奨される。", "confidence": "要確認"}, {"name": "安全点検の記録（施設・設備・遊具）", "category": "安全・衛生", "basis": "認可外保育施設指導監督基準（安全計画：施設の設備の安全点検）、事故防止ガイドライン", "submitTo": "施設で整備し監査時に提示", "frequency": "安全計画で決めた頻度（点検日・点検者を決めて定期的に）", "systemDoc": "安全点検記録", "note": "安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。", "confidence": "確立"}]}, {"id": "ninka", "label": "認可保育所", "items": [{"name": "設置認可申請書（設備・運営に関する認可申請書類）", "category": "設置・認可", "basis": "児童福祉法", "submitTo": "都道府県・指定都市・中核市等（自治体へ要確認）", "frequency": "設置時（変更時も随時）", "systemDoc": "", "note": "認可保育所として開設・変更する際に必要。設備や職員配置など認可基準を満たすことの疎明を含む。児童福祉法に基づく認可制度は実在し確立。", "confidence": "確立"}, {"name": "運営状況報告書", "category": "届出・報告", "basis": "児童福祉法", "submitTo": "自治体の保育担当課（自治体へ要確認）", "frequency": "毎年（定期）", "systemDoc": "運営状況報告書", "note": "運営体制・利用状況等を定期的に自治体へ報告する実務は広く存在するが、様式・提出時期・名称は自治体により異なり全国統一の法定様式ではないため要確認。自治体の様式に「様式を入れ込む」でそのまま記入できる。", "confidence": "要確認"}, {"name": "職員名簿（保育士資格証明・健康診断結果を含む）", "category": "証明書・資格", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け・自治体へ要確認（監査時提示）", "frequency": "随時（採用時）／毎年更新", "systemDoc": "職員名簿（資格・健診）", "note": "保育士資格の確認と職員の健康管理は同基準に規定があり指導監査の基本項目。検便等の具体様式は自治体により異なる。当システムの職員管理（資格・健診期限アラート）に対応。", "confidence": "確立"}, {"name": "全体的な計画・指導計画（保育計画）", "category": "運営体制", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎年（全体計画）／毎月（月間計画）", "systemDoc": "カリキュラム", "note": "保育所保育指針（厚労省告示）に基づき全体的な計画の作成が求められる基本書類。当システムのカリキュラム機能に対応。", "confidence": "確立"}, {"name": "保育日誌（保育の記録）", "category": "日常記録", "basis": "保育所保育指針", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（毎日）", "systemDoc": "保育日誌・業務日報", "note": "日々の保育内容・園児の状況を記録。保育指針は記録に基づく振り返りを求め、監査で継続的記録が確認される。具体様式は法定ではない。当システムの保育日誌・業務日報に対応。", "confidence": "確立"}, {"name": "児童健康管理記録（健康観察・身体測定・午睡時チェック）", "category": "日常記録", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "都度（日常）／定期（測定・健診）", "systemDoc": "健康チェック / 身体測定記録 / 午睡(SIDS)チェック", "note": "児童の健康診断は同基準に規定があり確立。ただし午睡時の呼吸確認（SIDS対策）は事故防止ガイドラインに基づく推奨で法定様式ではなく、記録様式は自治体・施設により異なるため要確認。当システムの健康チェック・身体測定・午睡チェックに対応。", "confidence": "要確認"}, {"name": "避難訓練記録", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "毎月", "systemDoc": "避難訓練記録", "note": "同基準は避難及び消火に対する訓練を少なくとも毎月1回行うことを定めており、実施記録は指導監査の確認項目。当システムの避難訓練記録に対応。", "confidence": "確立"}, {"name": "保育安全計画・危機管理マニュアル", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準", "submitTo": "施設内備付け（監査時提示）", "frequency": "設置時（作成）／毎年見直し", "systemDoc": "保育安全計画", "note": "2023年（令和5年）4月施行の同基準改正により安全計画の策定が義務化され確立。定期的な見直しが求められる。当システムの保育安全計画自動生成に対応。", "confidence": "確立"}, {"name": "重大事故・ヒヤリハット記録（事故発生時の報告を含む）", "category": "届出・報告", "basis": "教育・保育施設等における事故防止及び事故発生時の対応のためのガイドライン", "submitTo": "自治体・国（自治体へ要確認）", "frequency": "随時／都度", "systemDoc": "ヒヤリハット・事故記録", "note": "重大事故の自治体・国への報告制度は実在し確立。日常のヒヤリハット記録は再発防止の基礎資料。ガイドラインは実在する内閣府・厚労省の文書。当システムのヒヤリハット・事故記録に対応。", "confidence": "確立"}, {"name": "安全点検の記録（施設・設備・遊具）", "category": "安全・衛生", "basis": "児童福祉施設の設備及び運営に関する基準 第6条の3（安全計画：設備の安全点検）、事故防止ガイドライン", "submitTo": "施設で整備し監査時に提示", "frequency": "安全計画で決めた頻度（点検日・点検者を決めて定期的に）", "systemDoc": "安全点検記録", "note": "安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。", "confidence": "確立"}]}]};
 var REQ_ASOF='2026-07';
 var REQ_CATCOLOR={'設置・認可':'#185FA5','運営体制':'#0B5F8F','日常記録':'#854F0B','届出・報告':'#3C3489','証明書・資格':'#72243E','安全・衛生':'#27500A'};
 var REQ_STATUSES=['未着手','準備中','完了'];
@@ -42510,11 +42646,17 @@ function renderRecFieldSettings(s){
   card.querySelectorAll('[data-rfup]').forEach(function(b){b.onclick=function(){var a=list(),i=+b.getAttribute('data-rfup'),t=a[i-1];a[i-1]=a[i];a[i]=t;rfSave(RFS.rec,a);rer();};});
   card.querySelectorAll('[data-rfren]').forEach(function(b){b.onclick=function(){RFS.edit=b.getAttribute('data-rfren');rer();};});
   card.querySelectorAll('[data-rfnameok]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-rfnameok'),inp=card.querySelector('[data-rfname="'+id+'"]'),v=(inp&&inp.value||'').trim();
-    if(!v)return;var a=list();a.forEach(function(f){if(f.id===id)f.label=v.slice(0,40);});rfSave(RFS.rec,a);RFS.edit=null;rer();};});
+    if(!v)return;
+    /* ★名前を直すときは同じ名前を見ていなかったので、使っている2つの項目が同じ名前になり、紙の列の見出しが2つ並んだ（2026-11-10） */
+    if(rfOf(RFS.rec).some(function(f){return f.id!==id&&f.label===v&&(!f.off||f.off>today);})){alert('同じ名前の項目があります。別の名前にしてください。');return;}
+    var a=list();a.forEach(function(f){if(f.id===id)f.label=v.slice(0,40);});rfSave(RFS.rec,a);RFS.edit=null;rer();};});
   card.querySelectorAll('[data-rfoff]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-rfoff');
     if(!confirm('この項目を止めます。今日から記録の画面に出なくなります。それまでに書いた値は残ります。よろしいですか？'))return;
     var a=list();a.forEach(function(f){if(f.id===id)f.off=today;});rfSave(RFS.rec,a);rer();};});
-  card.querySelectorAll('[data-rfon]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-rfon'),a=list();a.forEach(function(f){if(f.id===id)delete f.off;});rfSave(RFS.rec,a);rer();};});
+  card.querySelectorAll('[data-rfon]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-rfon'),a=list();
+    var me=a.filter(function(f){return f.id===id;})[0];
+    if(me&&a.some(function(f){return f.id!==id&&f.label===me.label&&(!f.off||f.off>today);})){alert('同じ名前の項目をいま使っています。どちらかの名前を直してから、もう一度押してください。');return;}
+    a.forEach(function(f){if(f.id===id)delete f.off;});rfSave(RFS.rec,a);rer();};});
   $('#rfAdd').onclick=function(){
     var lab=($('#rfLab').value||'').trim(),ty=$('#rfTy').value,ch=($('#rfCh').value||'').split(/[、,，・]/).map(function(x){return x.trim();}).filter(function(x){return x&&x.indexOf('|')<0;}).slice(0,12);
     if(!lab){$('#rfMsg').textContent='項目名を入れてください';return;}
