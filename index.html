@@ -42887,13 +42887,18 @@ var OBW_STEPS=[
 ];
 function obwSteps(){
   var L=(OB_ME&&OB_ME.steps)||[], hasAg=!!((AGR_LIST&&AGR_LIST.docs)||[]).length;
-  /* 完全無料の園は、利用料金の支払い方法の手順を出さない（2026-11-01） */
-  return OBW_STEPS.filter(function(x){return (x.k!=='agree'||hasAg)&&!(x.k==='school_pay'&&OB_ME&&OB_ME.freeForever);});
+  /* ★2026-11-12：契約書がまだ届いていない園でも、契約書の手順は出す（「運営から届くのを待っています」）。
+     以前は届くまで手順ごと消えていて、契約書なしで準備が進んでしまった（安田さん「契約書入ってないんじゃない？」）。
+     導入の手順を持っている園（OB_ME.tracked）だけ。前からいる園は契約書が届いたときだけ出す。
+     完全無料の園は、利用料金の支払い方法の手順を出さない（2026-11-01） */
+  var showAg=hasAg||!!(OB_ME&&OB_ME.tracked);
+  return OBW_STEPS.filter(function(x){return (x.k!=='agree'||showAg)&&!(x.k==='school_pay'&&OB_ME&&OB_ME.freeForever);});
 }
 function obwStepOf(k){return ((OB_ME&&OB_ME.steps)||[]).filter(function(x){return x.key===k;})[0]||null;}
 function obwDone(x){
   if(x.k==='welcome')return true;
-  if(x.k==='agree')return !((AGR_LIST&&AGR_LIST.docs)||[]).some(function(d){return d.status!=='signed';});
+  /* 届いた契約書がすべて同意済みのとき済。1つも届いていなければ済にしない（以前は「無い」を済と数えていた） */
+  if(x.k==='agree'){var ds=(AGR_LIST&&AGR_LIST.docs)||[];return ds.length>0&&!ds.some(function(d){return d.status!=='signed';});}
   if(x.k==='done')return false;
   var o=obwStepOf(x.k);return !!(o&&(o.status==='done'||o.status==='skipped'));
 }
@@ -42962,6 +42967,11 @@ function obwDraw(){
       :'<div class="obw-done">🎉</div><div class="obw-lead" style="text-align:center;">準備はおしまいです。おつかれさまでした。<br>'
         +((pl&&pl.status==='done')?'保護者の方も未来WAにログインしています。':'保護者の方が未来WAにログインすると、すべて完了です。')+'</div>';
     main='<button class="btn btn-primary" data-obwclose="1">ホームへ</button>';
+  }else if(x.k==='agree'&&!((AGR_LIST&&AGR_LIST.docs)||[]).length){
+    body=AGR_LIST
+      ?'<div class="obw-lead">Miralink の運営から契約書が届くのを待っています。届くと、この画面で読んで同意できます（メールでもお知らせします）。<br>待っているあいだに、次の手順へ進めます。</div>'
+      :'<div class="obw-lead">契約書を読み込んでいます…</div>';
+    main='<button class="btn btn-primary" data-obwnext="1">次へ →</button>';
   }else if(x.k==='agree'){
     var open=((AGR_LIST&&AGR_LIST.docs)||[]).filter(function(d){return d.status!=='signed';});
     body='<div class="obw-lead">Miralink の運営からの契約書です。全文をお読みのうえ、ご同意ください。同意できるのは管理者だけです。</div>'

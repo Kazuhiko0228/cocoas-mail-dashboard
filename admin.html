@@ -1518,6 +1518,10 @@ var WZ={tid:null,app:null,step:-1,created:null};
    課金開始は園の準備より前（サーバの関門も 1〜4段だけにした） */
 var WZ_STEPS=[
   ['app','申込を確かめる'],['acct','園のアカウントを作る'],['terms','プランと金額を決める'],['contract','契約とお支払いの登録'],
+  /* ★2026-11-12 安田さん「運営側のアカウントを作るフローの中に契約書の確定のフローを入れよう」。
+     以前は園を作った直後にログイン情報を出していたため、契約書が届く前に園長がログインでき、
+     園の「はじめの準備」に契約書の手順が出なかった。ログイン情報は、条件を決めて契約書を送ってから渡す */
+  ['hand','ログイン情報を渡す'],
   ['bill','課金を始める'],['audit','監査の様式と記録の項目'],['school','園の準備'],['live','使いはじめを確かめる']];
 function wizLoad(){
   if(!openId){
@@ -1550,7 +1554,31 @@ function wizDone(i){
   if(k==='live')return ['first_login','parent_login'].every(wizFin);
   if(k==='bill')return wizFin('billing');
   if(k==='audit')return wizFin('audit_fields');
+  if(k==='hand'){var ua=wizAdminUser();return wizFin('first_login')||!!(ua&&!ua.has_initial_pw);}
   return false;
+}
+/* 管理者のアカウント（ログイン情報を渡す相手） */
+function wizAdminUser(){var d=DATA.one||{};return (d.staff||[]).filter(function(x){return x.role==='管理者';})[0]||(d.staff||[])[0]||null;}
+/* ログイン情報を渡す前に済んでいること：プランと金額が決まっている／利用契約書（またはモニター契約書）と覚書を送ってある */
+function handMissing(){
+  var miss=[], a=(DATA.agreeId===openId&&DATA.agree&&DATA.agree.docs)||[];
+  var sent=function(kinds){return a.some(function(x){return kinds.indexOf(x.kind)>-1&&x.status!=='superseded'&&x.status!=='expired'&&x.status!=='declined';});};
+  if(!wizFin('hearing'))miss.push(['terms','プランと金額を決める']);
+  if(!sent(['normal','monitor']))miss.push(['contract','利用契約書（またはモニター契約書）を送る']);
+  if(!sent(['memo']))miss.push(['contract','個人情報の取扱いに関する覚書を送る']);
+  return miss;
+}
+function wizStepIndex(k){for(var i=0;i<WZ_STEPS.length;i++)if(WZ_STEPS[i][0]===k)return i;return 0;}
+/* 管理者にお伝えする内容（URL・ID・初期パスワード）。園の詳細 › アカウント と同じ口を使う */
+function wizCredHTML(u){
+  return '<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
+    +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
+    /* ★園コードはログインに要らなくなった（2026-10-24）。園にお伝えするのは URL・ID・パスワードの3つ */
+    +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(u.login_id)+'</b></div>'
+    +'<div class="apCR"><span>初期パスワード</span>'+(u.has_initial_pw?'<b class="big num" id="ipw'+esc(u.id)+'">●●●●●●●●●●●●</b><button class="btn sec sm" data-ipw="'+esc(u.id)+'">表示</button>'
+      :'<b style="font-size:13px;font-weight:600;">管理者が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
+    +(u.has_initial_pw?'<div class="row" style="margin-top:12px;"><button class="btn" data-ipc="'+esc(u.id)+'" data-ipl="'+esc(u.login_id)+'">3つまとめてコピー</button>'
+      +'<span class="hint">URL・ID・パスワードの3行がコピーされます。管理者が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'');
 }
 function wizHTML(){
   if(!openId&&!WZ.app)return wizPickHTML();
@@ -1613,17 +1641,23 @@ function wizBody(k){
     if(!openId){var a=WZ.app||{};
       return '<div class="lead">押すと、園・管理者のログイン・導入の手順がまとめてできます。二度押しても園は1つです。</div>'
         +apFormHTML('wz',a.school||a.corp||'',a.person,'園のアカウントを作る','wz_go');}
-    var u=(d.staff||[]).filter(function(x){return x.role==='管理者';})[0]||(d.staff||[])[0];
+    var u=wizAdminUser();
     if(!u)return '<div class="note">管理者のアカウントがありません。<button class="btn sec sm" data-t="'+esc(openId)+'">園の詳細 › アカウント で作る</button></div>';
-    return '<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
-      +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
-      /* ★園コードはログインに要らなくなった（2026-10-24）。園にお伝えするのは URL・ID・パスワードの3つ */
-      +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(u.login_id)+'</b></div>'
-      +'<div class="apCR"><span>初期パスワード</span>'+(u.has_initial_pw?'<b class="big num" id="ipw'+esc(u.id)+'">●●●●●●●●●●●●</b><button class="btn sec sm" data-ipw="'+esc(u.id)+'">表示</button>'
-        :'<b style="font-size:13px;font-weight:600;">管理者が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
-      +(u.has_initial_pw?'<div class="row" style="margin-top:12px;"><button class="btn" data-ipc="'+esc(u.id)+'" data-ipl="'+esc(u.login_id)+'">ログイン情報をまとめてコピー</button>'
-        +'<span class="hint">そのままメールや LINE に貼れる文になります。管理者が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'')
-      +'<div class="hint" style="margin-top:10px;">管理者が最初にログインすると、Miralink に「はじめの準備」の案内が出て、園がやること（契約書の同意・利用料金の支払い方法・園児・保護者）を順番に進められます。</div>';
+    return '<div class="note ok" style="margin:0 0 10px;">園のアカウントはできています（管理者のログインID：<b>'+esc(u.login_id)+'</b>）。</div>'
+      +'<div class="lead">ログイン情報は、まだ園に渡しません。次の「プランと金額を決める」「契約とお支払いの登録」で契約書を送ってから、'
+      +'「ログイン情報を渡す」でお渡しします。先にログインされると、園の「はじめの準備」に契約書が届いていない状態になるためです。</div>';
+  }
+  if(k==='hand'){
+    var uh=wizAdminUser();
+    if(!uh)return '<div class="note">管理者のアカウントがありません。<button class="btn sec sm" data-t="'+esc(openId)+'">園の詳細 › アカウント で作る</button></div>';
+    var miss=handMissing();
+    if(miss.length&&uh.has_initial_pw)return '<div class="lead">ログイン情報を渡す前に、次を済ませてください。済むと、ここにログイン情報が出ます。</div>'
+      +'<div class="note"><ul style="margin:0;padding-left:1.2em;">'+miss.map(function(m){return '<li>'+esc(m[1])+'</li>';}).join('')+'</ul></div>'
+      +'<div class="row" style="margin-top:10px;">'+miss.filter(function(m,i){return miss.map(function(z){return z[0];}).indexOf(m[0])===i;})
+        .map(function(m){return '<button class="btn sec sm" data-wzs="'+wizStepIndex(m[0])+'">'+esc(WZ_STEPS[wizStepIndex(m[0])][1])+'へ</button>';}).join('')+'</div>'
+      +'<div class="hint" style="margin-top:10px;">急ぎで先に渡すときは、園の詳細 › アカウント でも見られます（その場合、契約書は届きしだい園の「はじめの準備」に出ます）。</div>';
+    return '<div class="lead">条件が決まり、契約書も送ってあります。この3つを管理者にお伝えください。</div>'+wizCredHTML(uh)
+      +'<div class="hint" style="margin-top:10px;">管理者が最初にログインすると、Miralink に「はじめの準備」の案内が出て、契約書の同意 → 利用料金の支払い方法 → 園児 → 保護者 の順に進めます。</div>';
   }
   if(k==='terms'){
     var c=d.contract||{}, q=d.quote||{}, plans=['connect','standard','pro','business'];
@@ -1654,7 +1688,11 @@ function wizBody(k){
           +'<div class="row"><button class="btn sec sm" id="wzCardLink">カード登録のページを作る</button><input id="wzCardUrl" readonly placeholder="ここに URL が出ます" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--line2);" onclick="this.select()"></div></div>'
           +'<span class="msg" id="wzPM"></span>')
       +'</div>';
-    return '<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。書類の「中身を見る」で、送る前に文面を確かめられます。</div>'+agreeAdminHTML()+payBox;
+    /* 2026-11-12：契約書と覚書を送ったら、ログイン情報を渡すステップへ（お支払いの登録は園がログインしてから） */
+    var handGo=wizFin('hearing')&&!handMissing().length&&!wizDone(wizStepIndex('hand'))
+      ?'<div class="note ok" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span style="flex:1;min-width:200px;">契約書と覚書を送りました。次は、管理者にログイン情報を渡します。</span>'
+        +'<button class="btn" data-wzs="'+wizStepIndex('hand')+'">ログイン情報を渡す →</button></div>':'';
+    return handGo+'<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。書類の「中身を見る」で、送る前に文面を確かめられます。</div>'+agreeAdminHTML()+payBox;
   }
   if(k==='audit')return rfPanelHTML(true);
   if(k==='school'){
@@ -2949,26 +2987,23 @@ function apLoginUrl(){return location.origin+location.pathname.replace(/[^/]*$/,
 function apCredText(code,login,pw){
   return 'URL：'+apLoginUrl()+'\nID：'+login+'\nPW：'+pw;
 }
-function apCredHTML(code,login,pw,tid,title){
+/* ★2026-11-12：作った直後にログイン情報を出すのをやめた。契約書を送ってから「ログイン情報を渡す」で渡す */
+function apMadeHTML(tid,login,title){
   return '<div class="card"><div class="apDoneH"><span class="apOk">✓</span><h3 style="margin:0;">'+esc(title)+'</h3></div>'
-    +'<div class="apCred"><div class="apCredT">管理者にお伝えする内容</div>'
-    +'<div class="apCR"><span>ログインのURL</span><b>'+esc(apLoginUrl().replace(/^https?:\/\//,'').replace(/\/$/,''))+'</b></div>'
-    +'<div class="apCR"><span>ログインID</span><b class="big">'+esc(login)+'</b></div>'
-    +'<div class="apCR"><span>初期パスワード</span><b class="big num" id="apPw" data-pw="'+esc(pw)+'">●●●●●●●●●●●●</b><button class="btn sec sm" id="apPwShow">表示</button></div></div>'
-    +'<div class="row" style="margin-top:12px;"><button class="btn" id="apCopyAll" data-txt="'+esc(apCredText(code,login,pw))+'">3つまとめてコピー</button>'
-    +'<span class="hint">管理者が最初のログインでパスワードを変えるまで、<b>園の詳細 › アカウント</b>でいつでも見られます</span></div>'
-    +'<div class="apNext"><span>次は、園の詳細で<b>プランと金額を決めます</b>。</span><button class="btn sec" data-t="'+esc(tid)+'">導入の進み具合を開く →</button></div></div>';
+    +'<div class="lead" style="margin-top:8px;">管理者のログインID：<b>'+esc(login)+'</b>。ログイン情報は<b>まだ園に渡しません</b>。</div>'
+    +'<div class="apNext" style="margin-top:6px;"><span>次は オンボーディングで <b>プランと金額 → 契約書を送る → ログイン情報を渡す</b> の順に進めます。</span>'
+    +'<button class="btn" data-wz="'+esc(tid)+'">オンボーディングで進める →</button></div></div>';
 }
 function applyOpenHTML(a){
   if(apOpened&&apOpened.appId===a.id&&!apOpened.site){
     var r=apOpened.r;
     if(r.existed)return '<div class="card"><h3>この申込の園</h3><div class="note ok">すでにこの申込で園のアカウントを作っています：<b>'+esc(r.tenant&&r.tenant.name)+'</b>（'+esc(r.tenant&&r.tenant.code)+'）</div>'
       +'<button class="btn sm" data-t="'+esc(r.tenant&&r.tenant.id)+'">園の詳細を開く</button></div>';
-    return apCredHTML(r.tenant.code,r.loginId,r.initialPassword,r.tenant.id,'園のアカウントを作りました');
+    return apMadeHTML(r.tenant.id,r.loginId,'園のアカウントを作りました');
   }
   if(apOpened&&apOpened.appId===a.id&&apOpened.site&&apOpened.r&&!apOpened.r.existed){
     var s2=apOpened.r;
-    return apCredHTML(s2.tenant.code,s2.loginId,s2.initialPassword,s2.tenant.id,'施設 '+apOpened.site+' の園のアカウントを作りました');
+    return apMadeHTML(s2.tenant.id,s2.loginId,'施設 '+apOpened.site+' の園のアカウントを作りました');
   }
   if(a.tenant_id){
     var t=apTenant||{};
@@ -4081,7 +4116,8 @@ function wire(){
     var id=b.getAttribute('data-ipc'), lg=b.getAttribute('data-ipl'), code=(DATA.one&&DATA.one.tenant&&DATA.one.tenant.code)||'';
     ipwGet(id).then(function(pw){
       var t=apCredText(code,lg,pw);
-      function ok(){b.textContent='コピーしました';setTimeout(function(){b.textContent='ログイン情報をまとめてコピー';},1800);}
+      var lbl=b.getAttribute('data-lbl')||b.textContent;b.setAttribute('data-lbl',lbl);
+      function ok(){b.textContent='コピーしました';setTimeout(function(){b.textContent=lbl;},1800);}
       if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,function(){prompt('この文をコピーしてください',t);});
       else prompt('この文をコピーしてください',t);
     }).catch(function(x){alert(x.message);});
