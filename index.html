@@ -35145,6 +35145,14 @@ function serverLogin(pickTenantId){
   var body={loginId:id,password:pw};if(pickTenantId)body.tenantId=pickTenantId;
   API.call('POST','/auth/login',body)
     .then(function(j){
+      /* ★この端末に、前にログインした別の園の記録が残っていた（2026-11-12 安田さん「今登録した園なのに園児の情報が入っている」）。
+         読み込みは園の記録にある項目しか書き替えないので、新しい園（まだ何も無い）では前の園の園児・連絡ボードがそのまま出ていた。
+         そのまま何か保存すると、前の園の記録が新しい園へ送られるところだった。ログインした園が前と違えば、先に消す */
+      var tnNew=String((j.tenant&&j.tenant.id)!=null?j.tenant.id:''), tnMark=null, tnPrev=null, tnLegacy=false;
+      try{tnMark=localStorage.getItem(DATA_TENANT_KEY);}catch(e){}
+      try{tnPrev=API.tenant();}catch(e){}
+      if(tnNew&&((tnMark&&tnMark!==tnNew)||(!tnMark&&tnPrev&&tnPrev.id!=null&&String(tnPrev.id)!==tnNew)))wipeOtherTenantData();
+      else if(tnNew&&!tnMark&&serverBound())tnLegacy=true;   /* どの園の記録か控えが無い端末（この直し以前から使っている端末） */
       API.setToken(j.token);API.setTenant(j.tenant);
       sessionStorage.setItem('cocoas_serverUser',JSON.stringify(j.user));
       /* このタブでログインした園（タブごと）。ロックを解くときに同じ園でログインを取り直す（IDLE.check）。
@@ -35168,8 +35176,14 @@ function serverLogin(pickTenantId){
           stSet('staffAccounts',accs);
         });
       }catch(e){}
-      /* 読み込みで重ねて送り待ちに載った分（SYNC.mergeIn）を送ってから開き直す。開き直すと送り待ちは消える */
-      return SYNC.pull().then(function(){return SYNC.flush();}).then(function(){
+      /* 控えの無い端末は、園の記録に無い項目だけを消す（まだ送っていない写真・書類の目印は残す） */
+      var tnPrune=tnLegacy
+        ? API.call('GET','/state').then(function(st){pruneTenantDataNotOn((st&&st.data)||{});}).catch(function(){})
+        : Promise.resolve();
+      return tnPrune.then(function(){
+        try{if(tnNew)localStorage.setItem(DATA_TENANT_KEY,tnNew);}catch(e){}
+        return SYNC.pull();
+      }).then(function(){return SYNC.flush();}).then(function(){
         /* ★開き直す（reload）ので、ここで窓を出しても消えていた。初回のパスワード変更が一度も出なかった（2026-10-22）。
            印を残して、開き直したあとのホームで出す（mustChangeMaybe） */
         location.reload();
@@ -35206,6 +35220,40 @@ function mustChangeMaybe(){
    そのあとは通信が切れても、デモのアカウントでは入れないようにする。
    代わりに、その端末でログインした本人だけが、自分のIDとパスワードで入れる
    （パスワードは PBKDF2 で15万回かけた形でだけ端末に残す。元に戻せない形）。 */
+/* ══ 園ごとに分ける（2026-11-12）══════════════════════════════
+   この端末の手元の記録が、どの園のものかを控える（edugrow_dataTenant）。
+   ・ログインした園が控えと違う → 前の園の記録をすべて消してから、新しい園の記録を読み込む
+   ・控えが無い（この直しより前から使っている端末）→ 園の記録に無い項目だけを消す
+   消すのはこの端末の中だけで、園の記録（サーバ）には何も送らない（消すことは送り待ちに載らない） */
+var DATA_TENANT_KEY='edugrow_dataTenant';
+function tenantLocalKeys(){
+  var out=[],i,n;
+  try{
+    for(i=0;i<localStorage.length;i++){
+      n=localStorage.key(i);
+      if(!n||n.indexOf('cocoas_')!==0)continue;
+      /* つなぎ先・この端末の設定・未来WA が端末にだけ置く鍵は、園の記録ではないので残す */
+      if(/^cocoas_(apiToken|apiBase|apiTenant|staffSession|lang)$/.test(n))continue;
+      if(WA_DEVICE_KEY.test(n))continue;
+      out.push(n);
+    }
+  }catch(e){}
+  return out;
+}
+function wipeOtherTenantData(){
+  /* 前の園の記録・オフライン用のログイン控え・操作の控え（eventLog/snapshots）・写真や書類の目印まで、すべて */
+  tenantLocalKeys().forEach(function(n){try{localStorage.removeItem(n);}catch(e){}});
+}
+function pruneTenantDataNotOn(serverData){
+  var hop=Object.prototype.hasOwnProperty;
+  tenantLocalKeys().forEach(function(n){
+    if(!syncTracked(n))return;                              /* 送らない鍵（ログイン控えなど）は触らない */
+    var k=n.slice(7);
+    if(FILE_STATE_KEYS[k])return;                           /* まだ送っていない写真・書類があるかもしれない */
+    if(hop.call(serverData,k))return;
+    try{localStorage.removeItem(n);}catch(e){}
+  });
+}
 function purgeMock(){
   try{
     /* 見本だけのときに限って消す（見本には日付が入るので、中身の一致ではなく番号で見分ける）。
@@ -42864,10 +42912,15 @@ function obwOpen(){
   /* 開いているあいだは、ほかの画面・端末での登録を拾う（契約の同意・カードの登録など） */
   OBW.timer=setInterval(function(){if(!OBW.el)return;if(document.querySelector('.modal-bg:not(.obw-bg)'))return;obwRefresh();},8000);
 }
+/* ★開いているあいだ8秒ごとに描き直していたため、「利用料金の支払い方法」が毎回「読み込んでいます…」に戻り、
+   入れかけたメールアドレスも消えていた（2026-11-12 安田さん「この二つの画面を行き来してしまう」）。
+   済んだ手順・手順の数が変わったときだけ描き直す */
+function obwSig(){return obwSteps().map(function(x){return x.k+(obwDone(x)?'1':'0');}).join(',');}
 function obwRefresh(){
+  var before=obwSig();
   var p1=API.call('GET','/onboarding').then(function(j){OB_ME=j;}).catch(function(){});
   var p2=new Promise(function(r){agreeLoad(r);setTimeout(r,4000);});
-  Promise.all([p1,p2]).then(function(){if(OBW.el)obwDraw();});
+  Promise.all([p1,p2]).then(function(){if(OBW.el&&obwSig()!==before)obwDraw();});
 }
 function obwClose(min,leaving){
   if(OBW.timer){clearInterval(OBW.timer);OBW.timer=null;}
