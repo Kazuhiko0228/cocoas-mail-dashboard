@@ -43034,7 +43034,21 @@ function agreeOnline(){return !!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.ba
 function agreeLoad(done){
   if(!agreeOnline()||!(typeof currentRole!=='function'||currentRole()==='管理者'))return;
   AGR_AT=Date.now();
-  API.call('GET','/contracts').then(function(j){AGR_LIST=j;if(done)done();}).catch(function(){});
+  API.call('GET','/contracts').then(function(j){AGR_LIST=j;if(done)done();agreeDeepOpen();}).catch(function(){});
+}
+/* メールのリンク（?agree=書類の番号）から来たら、その書類の「読んで同意する」を開く（2026-11-12 安田さん
+   「サインできるページに直接飛べるリンクだと優しい」）。ログインがまだならログインのあと、管理者のときだけ。
+   1回開いたら住所から外す（読み込み直すたびに開かないように） */
+var AGR_DEEP_DONE=false;
+function agreeDeepOpen(){
+  if(AGR_DEEP_DONE)return;
+  var m=deepQuery().match(/[?&]agree=(\d+)/);if(!m)return;
+  AGR_DEEP_DONE=true;
+  try{var u=new URL(location.href);u.searchParams.delete('agree');
+    u.hash=String(u.hash||'').replace(/([?&])agree=\d+&?/,'$1').replace(/[?&]$/,'');
+    history.replaceState(history.state,'',u.pathname+u.search+u.hash);}catch(e){}
+  var id=+m[1],d=((AGR_LIST&&AGR_LIST.docs)||[]).filter(function(x){return +x.id===id;})[0];
+  if(d&&d.status!=='signed')agreeOpen(id);
 }
 function agreeHomeHTML(){
   if(!agreeOnline()||(typeof currentRole==='function'&&currentRole()!=='管理者'))return '';
