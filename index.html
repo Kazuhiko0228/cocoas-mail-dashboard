@@ -4425,21 +4425,21 @@ var AUDIT_CATS=[
     {key:'keikaku',opt:1,name:'保育計画（全体的な計画・年間・月間の指導計画・デイリープログラム）',place:'システム内（カリキュラム）',when:'年度前',sys:'curriculum'},
     {key:'nisshi',name:'保育日誌・業務日報',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
     {key:'renraku',opt:1,name:'家庭との連絡帳',place:'システム内（保護者連絡・連絡帳）',when:'運営中',sys:'feed'},
-    {key:'sanpo_rec',opt:1,name:'散歩・園外活動の記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
-    {key:'pool',opt:1,name:'プール・水遊びの記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
+    {key:'sanpo_rec',opt:1,cond:'sanpo',name:'散歩・園外活動の記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
+    {key:'pool',opt:1,cond:'pool',name:'プール・水遊びの記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
     {key:'manual',opt:1,name:'保育安全計画と事故防止・緊急時対応のマニュアル',place:'',when:'年度前',sys:'docs',note:'保育安全計画は提出書類ナビで作れます。事故防止・緊急時対応などのマニュアルは書類格納に置いてください。'},
     {key:'gosui',name:'午睡チェック',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'kega',name:'事故・ヒヤリハットの記録',place:'事故・ヒヤリハット記録ファイル',when:'運営中',sys:'carerec'},
     {key:'kujo',name:'苦情受付・処理の記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
     {key:'gyakutai',name:'虐待防止チェックシート（職員の意識チェック）',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
-    {key:'sanpo_map',name:'散歩マップ（園外保育の経路・危ない場所）',place:'',when:'年度前',sys:'docs',note:'散歩で行く場所と道順、危ない場所を書いた地図です。散歩の記録とは別に、書類格納に1つ置いてください。'},
-    {key:'bus',opt:1,name:'バス等運行簿（送迎の車を使う園だけ）',place:'システム内（保育記録）',when:'運営中',sys:'carerec',note:'乗った人数・降りた人数と、車内に子どもが残っていないかを確かめた人・時刻を毎回残します。設定 › 記録で使う項目 で「バス等運行簿」を入れると使えます。'}
+    {key:'sanpo_map',cond:'sanpo',name:'散歩マップ（園外保育の経路・危ない場所）',place:'',when:'年度前',sys:'docs',note:'散歩で行く場所と道順、危ない場所を書いた地図です。散歩の記録とは別に、書類格納に1つ置いてください。'},
+    {key:'bus',opt:1,cond:'bus',name:'バス等運行簿',place:'システム内（保育記録）',when:'運営中',sys:'carerec',note:'乗った人数・降りた人数と、車内に子どもが残っていないかを確かめた人・時刻を毎回残します。設定 › 園の条件 で「運んでいる」と答えると、保育記録にこの記録が出ます。'}
   ]},
   {cat:'③ 給食',items:[
-    {key:'kondate',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'},
+    {key:'kondate',cond:'meal',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'},
     {key:'seikatsu',name:'アレルギー児の生活管理指導表',place:'',when:'年度前',sys:'docs',note:'食物アレルギーのある園児について、お医者さんに書いてもらう用紙です。園児ごとにそろえて保管します。'},
-    {key:'kenshoku',name:'検食簿',place:'',when:'運営中',sys:'records',note:'給食を出す前に職員が食べて確かめ、日づけ・献立・時こく・確かめた人・気づいたことを書き残します。'},
-    {key:'kenben',name:'調理職員の検便（腸内細菌検査）',place:'',when:'運営中',sys:'staff',note:'月に1回。職員管理の下にある「調理職員の検便」に書きます。外から給食を運んでいる園は要りません。'}
+    {key:'kenshoku',cond:'meal',name:'検食簿',place:'',when:'運営中',sys:'records',note:'給食を出す前に職員が食べて確かめ、日づけ・献立・時こく・確かめた人・気づいたことを書き残します。'},
+    {key:'kenben',cond:'cook',name:'調理職員の検便（腸内細菌検査）',place:'',when:'運営中',sys:'staff',note:'月に1回。職員管理の下にある「調理職員の検便」に書きます。外から給食を運んでいる園は要りません。'}
   ]},
   {cat:'④ 非常災害対策',items:[
     {key:'kunren',name:'消火・避難訓練 実施記録',place:'消防設備届出ファイル',when:'運営中',sys:'drill'},
@@ -5557,7 +5557,7 @@ function auditDataInfo(key,fy){
       return fa.length?(fa.length+'品目登録済み'+(faX?'・期限切れ '+faX+'品目':'')+'（現在）'):'まだ登録がありません';
     }
     case 'bus': {
-      if(!recTabOn('バス等運行簿'))return '使っていません（車を使う園は 設定 › 記録で使う項目 で入れてください）';
+      if(!recTabOn('バス等運行簿'))return '使っていません（車を使う園は 設定 › 園の条件 で「運んでいる」と答えてください）';
       var bl=(stGet('rec_bus',[])||[]).filter(function(r){return r&&r.date&&fyOf(String(r.date))===fy;});
       var bw=bl.filter(function(r){return LOG_DEFS['バス等運行簿'].warn(r);}).length;
       return bl.length?(bl.length+'便の記録あり（'+fy+'年度）'+(bw?'・確かめが足りない便 '+bw:'')):(fy+'年度の記録はありません');
@@ -5917,23 +5917,67 @@ function wireSentMail(root){
 /* ══ この園の監査の項目（2026-11-13 安田さんのご判断「オンボーディングで前年度の監査の詳細をもらい、それをベースにその園の項目を整理する」）══
    運営が導入のときに前年度の監査資料（通知・当日の書類一覧・指摘事項）を上げ、SI が読んで、運営が確かめて反映する（cocoas-api src/auditbase.js）。
    反映した結果は state の auditPlan（書くのはサーバだけ）。
-   ・auditPlan があれば、出すのは「前年度の一覧にあった項目」と「国の基準にある項目」（AUDIT_NAT）と、園が自分で足した項目（auditAddOn）だけ。
-     ほかの項目は一番下の畳んだカードに並べ、押せば足せる。要らない項目まで園にやらせないため
-   ・Miralink に置き場の無い項目は「⑥ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける
-   ・auditPlan が無い園は今までどおり。opt の項目（その市の一覧にあるときだけ出すもの）は出さない
-   ・バス等運行簿は、記録を使う設定にしている園には出す */
+   2026-11-13 の2回目のご依頼で、出し方を3段に分けた（「一覧に無い＝監査の対象外」とは言えないため）。
+   ① この園の一覧にある項目（＋園が自分で足した項目）…準備して「済」まで持っていく。準備状況の数に入れる
+   ② 一覧には無いが、国の基準・労働基準法で作ることが決まっているもの（AUDIT_NAT・AUDIT_LAW）…「求められたら出す」の欄。
+      記録はふだんどおりためる。準備状況の数には入れない
+   ③ どちらにも無いもの…一番下に畳む。押せば①に足せる
+   ・auditPlan が無い園は今までどおり（AUDIT_NAT も①に入れる。opt の項目は出さない）
+   ・園の条件（schoolCond：バス・プール・散歩・給食）に当てはまらない項目は、どの段にも出さない（畳んだカードに理由つきで並べる）
+   ・Miralink に置き場の無い項目は「⑥ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける */
 var AUDIT_NAT={jido_meibo:1,shusseki:1,shintai:1,kid_kenshin:1,keiyaku:1,kunren:1,roudou_meibo:1,shikaku:1,kenshin:1,kenben:1};
+/* ②に出すときの根拠（2026-11-13 認可外保育施設指導監督基準・労働基準法で確かめたもの。確かめていないものは足さない） */
+var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）'};
+/* ══ 園の条件（2026-11-13 安田さんのご依頼「条件付きの項目は、条件付きと分かる形で、園の設定で分かりやすく自動で外せる仕組み」）══
+   答えるまでは外さない（「条件つき」の印だけ付けて出す）。答えると、当てはまらない項目が監査の一覧から外れ、
+   tab のある条件は保育記録のタブも合わせて出し入れする（同じことを2か所で答えさせない）。
+   値は state の schoolCond（園長・マネージャーが書く。server.js KEY_RULES） */
+var SCHOOL_COND=[
+  {k:'bus',q:'送迎バス・園の車で、子どもを運んでいますか',opts:[['yes','運んでいる'],['no','運んでいない']],tab:'バス等運行簿',need:['yes'],lab:'送迎の車を使う園だけ'},
+  {k:'pool',q:'プール・水遊びをしますか',opts:[['yes','する'],['no','しない']],tab:'プール・水遊び',need:['yes'],lab:'プール・水遊びをする園だけ'},
+  {k:'sanpo',q:'散歩・園外活動をしますか',opts:[['yes','する'],['no','しない']],tab:'散歩・園外活動',need:['yes'],lab:'散歩・園外活動をする園だけ'},
+  {k:'meal',q:'給食はどうしていますか',opts:[['self','園で作っている'],['out','外から運んでいる'],['none','出していない（お弁当など）']],need:['self','out'],lab:'給食を出す園だけ'}
+];
+/* 給食の条件から出す2つめの条件（検便は園で作っている園だけ） */
+var SCHOOL_COND_SUB={cook:{base:'meal',need:['self'],lab:'給食を園で作っている園だけ'}};
+function schoolCond(){var v=stGet('schoolCond',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+function schoolCondDef(k){return SCHOOL_COND.filter(function(c){return c.k===k;})[0]||null;}
+function schoolCondSet(k,val){
+  var v=schoolCond(),c=schoolCondDef(k);
+  if(val)v[k]=val;else delete v[k];
+  stSet('schoolCond',v);
+  /* 記録のタブも合わせる。答えを消したときは触らない（今の出し方のまま） */
+  if(c&&c.tab&&val)recOffSet('tab:'+c.tab,c.need.indexOf(val)<0);
+  try{buildNav&&buildNav();}catch(e){}
+}
+/* 項目の条件。{base:条件の鍵, need:当てはまる答え, lab:印の文字, ans:いまの答え, ok:出すか} */
+function auditCondOf(it){
+  if(!it||!it.cond)return null;
+  var d=schoolCondDef(it.cond),sub=SCHOOL_COND_SUB[it.cond],base=d?d.k:(sub?sub.base:''),need=d?d.need:(sub?sub.need:[]);
+  if(!base)return null;
+  var ans=schoolCond()[base]||'';
+  return {base:base,need:need,lab:(d?d.lab:sub.lab),ans:ans,ok:!ans||need.indexOf(ans)>-1};
+}
+function auditCondOK(it){var c=auditCondOf(it);return !c||c.ok;}
 function auditPlan(){var p=stGet('auditPlan',null);return (p&&typeof p==='object'&&Array.isArray(p.items))?p:null;}
 function auditPlanKeys(){var p=auditPlan(),o={};if(p)p.items.forEach(function(x){if(x&&x.key)o[x.key]=x;});return o;}
+/* 資料のどの書類が、この項目に当たったか（1つの項目に資料の書類が2つ以上当たることがある） */
+function auditPlanNames(){var p=auditPlan(),o={};if(p)p.items.forEach(function(x){if(x&&x.key&&x.name){(o[x.key]=o[x.key]||[]).push(x.name);}});return o;}
 function auditAddOn(){var v=stGet('auditAddOn',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
 function auditAddOnSet(k,on){var v=auditAddOn();if(on)v[k]=1;else delete v[k];stSet('auditAddOn',v);}
-function auditInScope(it){
-  if(auditAddOn()[it.key])return true;
-  if(it.key==='bus'&&recTabOn('バス等運行簿'))return true;
+/* 段：1＝一覧にある／2＝求められたら出す／3＝畳む／0＝条件に当てはまらない */
+function auditTier(it){
+  if(!auditCondOK(it))return 0;
+  if(auditAddOn()[it.key])return 1;
+  if(it.key==='bus'&&schoolCond().bus==='yes')return 1;
+  if(it.key==='bus'&&!schoolCond().bus&&recTabOn('バス等運行簿'))return 1;
   var p=auditPlan();
-  if(!p)return !it.opt;
-  return !!(auditPlanKeys()[it.key]||AUDIT_NAT[it.key]);
+  if(!p)return (it.opt?3:1);
+  if(auditPlanKeys()[it.key])return 1;
+  if(AUDIT_NAT[it.key]||AUDIT_LAW[it.key])return 2;
+  return 3;
 }
+function auditInScope(it){return auditTier(it)===1;}
 /* 前年度の一覧にあって、Miralink に置き場の無い項目 */
 function auditPlanExtra(){
   var p=auditPlan();if(!p)return [];
@@ -5945,19 +5989,66 @@ function auditCats(){
   var ex=auditPlanExtra();if(ex.length)out.push({cat:'⑥ この園の一覧にある、ほかの書類',items:ex});
   return out;
 }
-/* 出していない項目（畳んだカードから足せる） */
-function auditOutOfScope(){return AUDIT_CATS.reduce(function(a,c){return a.concat(c.items.filter(function(it){return !auditInScope(it);}));},[]);}
+function auditTierItems(t){return AUDIT_CATS.reduce(function(a,c){return a.concat(c.items.filter(function(it){return auditTier(it)===t;}));},[]);}
+/* 畳んだカードに並べる項目（③と、条件に当てはまらないもの） */
+function auditOutOfScope(){return auditTierItems(3).concat(auditTierItems(0));}
 function auditItemsFlat(){return auditCats().reduce(function(a,c){return a.concat(c.items);},[]);}
-/* 項目の名前の横の印：どこから来た項目か（言い切らず、出どころだけを書く） */
+/* Miralink のどこに入れれば、この項目の記録になるか（2026-11-13 安田さんのご依頼「どの項目がどこに反映されているか、園側でも分かるように」）。
+   画面の名前 › その中の場所。ボタンの行き先（auditGo）と同じ表から出す */
+function auditWhere(it){
+  if(!it)return '';
+  if(/^p_/.test(it.key))return 'Miralink の外（園で用意して、ここで「済」を付けます）';
+  var r=AUDIT_REC[it.key];if(r)return (SYS_PAGE[r[0]]||r[0])+' › '+r[1];
+  if(it.sys==='docs'&&AUDIT_DOC_SLOT[it.key])return '書類格納 › '+AUDIT_DOC_SLOT[it.key];
+  var X={'staff:qual':'職員管理 › 資格証','staff:kenshin':'職員管理 › 健康診断',timecard:'シフト表 › 出勤簿',drill:'避難訓練 › 実施記録'};
+  if(X[it.sys])return X[it.sys];
+  var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
+    shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
+    gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌'};
+  if(K[it.key])return K[it.key];
+  return it.sys?(SYS_PAGE[it.sys]||''):'';
+}
+/* 項目の名前の横の印：どこから来た項目か・条件つきか（言い切らず、出どころだけを書く） */
+function auditPill(t,bg,fg){return ' <span class="pill" style="background:'+bg+';color:'+fg+';font-size:11px;font-weight:500;">'+esc(t)+'</span>';}
 function auditPlanTag(it){
-  var p=auditPlan();if(!p)return '';
+  var p=auditPlan(),h='';
+  var c=auditCondOf(it);
+  if(c)h+=auditPill('条件つき：'+c.lab+(c.ans?'':'（未回答）'),'#FAEEDA','#854F0B');
+  if(!p)return h;
   var x=auditPlanKeys()[it.key],t='',bg='#E6F1FB',fg='#123E6B';
   if(x||/^p_/.test(it.key))t=(p.fy?p.fy+'年度':'前年度')+'の一覧'+(x&&x.period?'（'+x.period+'）':'');
-  else if(AUDIT_NAT[it.key])t='国の基準';
+  else if(AUDIT_NAT[it.key]||it.key==='kega')t='国の基準';
+  else if(AUDIT_LAW[it.key])t='労働基準法';
   else if(auditAddOn()[it.key]){t='園で足した項目';bg='#F1EFE8';fg='#5F5E5A';}
-  return t?' <span class="pill" style="background:'+bg+';color:'+fg+';font-size:11px;font-weight:500;">'+esc(t)+'</span>':'';
+  return (t?auditPill(t,bg,fg):'')+h;
+}
+/* 資料ではどの名前だったか（①の行に出す） */
+function auditFromHTML(it){
+  var n=auditPlanNames()[it.key];if(!n||!n.length)return '';
+  return '<div class="row-sub" style="color:#123E6B;">資料では：'+n.map(function(x){return '「'+esc(x)+'」';}).join('')+'</div>';
+}
+function auditWhereHTML(it){
+  var w=auditWhere(it);if(!w)return '';
+  return '<div class="row-sub" style="color:#0B5F8F;">入れる場所：<b style="font-weight:600;">'+esc(w)+'</b></div>';
 }
 function auditFindDone(){var v=stGet('auditFindDone',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+/* 資料の書類と、Miralink の入れる場所の対応表（運営が反映した中身を、そのまま園にも見せる） */
+function auditMapTableHTML(p){
+  var byKey={};AUDIT_CATS.forEach(function(c){c.items.forEach(function(it){byKey[it.key]=it;});});
+  var L=(p.items||[]).filter(function(x){return x&&x.name;});
+  if(!L.length)return '';
+  return '<details style="margin-top:12px;"><summary style="cursor:pointer;font-weight:700;font-size:13.5px;">資料の書類と、Miralink の入れる場所（'+L.length+'件）</summary>'
+    +'<div class="muted" style="font-size:12px;margin:6px 0;">資料に書かれていた書類が、Miralink のどの項目・どこに入るかの一覧です。当て方は、運営が資料を読んで確かめました。違っていたら運営にお知らせください。</div>'
+    +'<div class="scrollx"><table class="wraptbl" style="font-size:12.5px;"><thead><tr><th>資料の書類</th><th style="width:26%;">Miralink の項目</th><th style="width:34%;">入れる場所</th></tr></thead><tbody>'
+    +L.map(function(x){
+      var it=x.key?byKey[x.key]:null,c=it?auditCondOf(it):null;
+      var name=it?esc(it.name)+(c&&!c.ok?'<div class="row-sub" style="color:#854F0B;">園の条件（'+esc(c.lab)+'）に当てはまらないので、外しています</div>':''):'<span class="muted">当たる項目なし（⑥に並べています）</span>';
+      var where=it?esc(auditWhere(it)):esc(auditWhere({key:'p_'}));
+      return '<tr><td>'+esc(x.name)+(x.period?'<div class="row-sub">'+esc(x.period)+'</div>':'')+'</td><td>'+name+'</td><td>'+where+'</td></tr>';
+    }).join('')
+    +'</tbody></table></div></details>';
+}
 /* 前回の指摘事項と、もとにした資料。指摘は次の監査で確かめられるので、いちばん上に出す */
 function auditPlanCardHTML(){
   var p=auditPlan();if(!p)return '';
@@ -5965,26 +6056,68 @@ function auditPlanCardHTML(){
   var left=F.filter(function(f){return !fd[f.id];}).length;
   return '<div class="card" style="margin-bottom:14px;border-color:#B5D4F4;"><h3>'+ic('clipboard')+'この園の監査の項目</h3>'
     +'<div class="muted" style="font-size:12.5px;line-height:1.8;">'+esc(p.title||'前年度の監査資料')+(p.fy?'（'+esc(p.fy)+'年度）':'')+'をもとに、運営が整えました'+(p.appliedAt?'（'+esc(fmt(String(p.appliedAt).slice(0,10)))+'）':'')+'。'
-    +'下の一覧には、この資料にあった項目と、国の基準にある項目だけを出しています。</div>'
+    +'下の一覧には、この資料にあった項目を出しています。資料に無く、国の基準で作ることが決まっているものは「求められたら出す」に分けています。</div>'
+    +auditMapTableHTML(p)
     +(F.length?'<div style="margin-top:12px;"><div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">前回の指摘事項'+(left?'　<span style="color:#A32D2D;">直していないもの '+left+'件</span>':'　<span style="color:#27500A;">すべて直しました</span>')+'</div>'
       +F.map(function(f){var on=!!fd[f.id];return '<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line);font-size:13px;'+(on?'color:var(--tx2);':'')+'">'
         +'<input type="checkbox" data-aufd="'+esc(f.id)+'"'+(on?' checked':'')+(typeof isBoss==='function'&&!isBoss()?' disabled':'')+' style="margin-top:3px;width:auto;">'
         +'<span>'+(f.kind?'<span class="pill" style="background:#FCEBEB;color:#A32D2D;font-size:11px;margin-right:6px;">'+esc(f.kind)+'</span>':'')+esc(f.text)+(on?'（直しました）':'')+'</span></label>';}).join('')+'</div>':'')
     +'</div>';
 }
-/* 出していない項目。押すとこの園の一覧に足す（園長・管理者） */
+/* 園の条件のカード（設定と監査対応の両方に出す。答えはどちらから入れても同じ） */
+function schoolCondHTML(compact){
+  var v=schoolCond(),boss=!(typeof isBoss==='function'&&!isBoss());
+  var un=SCHOOL_COND.filter(function(c){return !v[c.k];}).length;
+  return '<div class="card" data-scond="1" style="'+(compact?'':'max-width:820px;')+'margin-bottom:14px;"><h3>'+ic('check')+'園の条件</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;">答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。'
+    +(un?'<br><b style="color:#854F0B;">まだ答えていない条件が '+un+'つあります。</b>':'')+'</div>'
+    +SCHOOL_COND.map(function(c){
+      return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);">'
+        +'<span style="flex:1;min-width:220px;font-size:13px;">'+esc(c.q)+'</span>'
+        +'<div class="chips" style="margin:0;">'+c.opts.map(function(o){
+          return '<span class="chip'+(v[c.k]===o[0]?' on':'')+'"'+(boss?' data-scset="'+esc(c.k+'|'+o[0])+'"':'')+'>'+esc(o[1])+'</span>';}).join('')+'</div></div>';
+    }).join('')
+    +(boss?'':'<div class="muted" style="font-size:12px;margin-top:6px;">変えられるのは園長・マネージャーです。</div>')
+    +'</div>';
+}
+function schoolCondWire(root,after){
+  root.querySelectorAll('[data-scset]').forEach(function(b){b.onclick=function(){
+    var p=b.getAttribute('data-scset').split('|'),cur=schoolCond()[p[0]];
+    schoolCondSet(p[0],cur===p[1]?'':p[1]);
+    if(after)after();};});
+}
+/* ② 求められたら出すもの。準備状況の数には入れない */
+function auditAskCardHTML(fy){
+  var L=auditTierItems(2);if(!L.length)return '';
+  return '<div class="card" style="margin-bottom:14px;"><h3>'+ic('folder')+'求められたら出すもの（'+L.length+'件）</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:6px;">この園の資料の一覧にはありませんが、国の基準や労働基準法で作ることが決まっている記録です。当日に求められることがあるので、記録はふだんどおりためておきます。上の準備状況の数には入れていません。</div>'
+    +L.map(function(it){
+      var di=auditDataInfo(it.key,fy);
+      return '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);"><div style="flex:1;">'
+        +'<div class="row-name">'+esc(it.name)+auditPlanTag(it)+'</div>'
+        +(AUDIT_LAW[it.key]?'<div class="row-sub">根拠：'+esc(AUDIT_LAW[it.key])+'</div>':'')
+        +auditWhereHTML(it)
+        +(di?'<div class="row-sub" style="color:#0B5F8F;">システム内データ：'+esc(di)+'</div>':'')+'</div>'
+        +((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+esc(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'')
+        +'</div>';
+    }).join('')+'</div>';
+}
+/* 出していない項目。押すとこの園の一覧に足す（園長・管理者）。条件に当てはまらないものは理由だけ出す */
 function auditOutCardHTML(){
-  var L=auditOutOfScope();if(!L.length)return '';
+  var L3=auditTierItems(3),L0=auditTierItems(0);if(!L3.length&&!L0.length)return '';
   var boss=!(typeof isBoss==='function'&&!isBoss());
-  return '<details class="card" style="margin-bottom:14px;"><summary style="cursor:pointer;font-weight:600;">この園の一覧に出していない項目（'+L.length+'件）</summary>'
-    +'<div class="muted" style="font-size:12.5px;margin:8px 0;">'+(auditPlan()?'もとにした資料に無かった項目です。':'その市の一覧にあるときだけ出す項目です。')+'必要なものは「足す」で一覧に入れられます。</div>'
-    +L.map(function(it){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);"><span style="flex:1;font-size:13px;">'+esc(it.name)+'</span>'
-      +(boss?'<button class="btn btn-sm" data-auadd="'+esc(it.key)+'">'+ic('plus')+'足す</button>':'')+'</div>';}).join('')
+  return '<details class="card" style="margin-bottom:14px;"><summary style="cursor:pointer;font-weight:600;">この園の一覧に出していない項目（'+(L3.length+L0.length)+'件）</summary>'
+    +(L3.length?'<div class="muted" style="font-size:12.5px;margin:8px 0;">'+(auditPlan()?'もとにした資料に無く、国の基準でも決まっていない項目です。':'その市の一覧にあるときだけ出す項目です。')+'必要なものは「足す」で一覧に入れられます。</div>'
+      +L3.map(function(it){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);"><span style="flex:1;font-size:13px;">'+esc(it.name)+'<span class="row-sub" style="display:block;">'+esc(auditWhere(it))+'</span></span>'
+        +(boss?'<button class="btn btn-sm" data-auadd="'+esc(it.key)+'">'+ic('plus')+'足す</button>':'')+'</div>';}).join(''):'')
+    +(L0.length?'<div class="muted" style="font-size:12.5px;margin:12px 0 8px;">園の条件に当てはまらないので外している項目です。条件は上の「園の条件」で変えられます。</div>'
+      +L0.map(function(it){var c=auditCondOf(it);return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);"><span style="flex:1;font-size:13px;">'+esc(it.name)+'</span><span class="row-sub">'+esc(c?c.lab:'')+'</span></div>';}).join(''):'')
     +'</details>';
 }
 function auditPlanWire(s){
   s.querySelectorAll('[data-aufd]').forEach(function(x){x.onchange=function(){var v=auditFindDone(),k=x.getAttribute('data-aufd');if(x.checked)v[k]=1;else delete v[k];stSet('auditFindDone',v);renderAudit();};});
   s.querySelectorAll('[data-auadd]').forEach(function(b){b.onclick=function(){auditAddOnSet(b.getAttribute('data-auadd'),true);renderAudit();};});
+  schoolCondWire(s,renderAudit);
 }
 /* 書類の保管先は園ごとに異なるため編集可能に（未入力なら表示しない） */
 function auditPlaces(){return stGet('auditPlaces',{});}
@@ -12969,6 +13102,16 @@ var EN_DICT={
 '研修の修了証':'Training certificate','誓約書（個人情報の取扱い）':'Confidentiality pledge (personal information)','健康診断票（園医の健診）':'Health check record (school doctor)','登園許可証（医師の意見書）':'Return-to-school certificate (doctor)','登園届（保護者の記入）':'Return-to-school notice (parent)',
 '就業規則':'Work rules','この園の監査の項目':'This school\'s inspection items','前回の指摘事項':'Findings from the last inspection','⑥ この園の一覧にある、ほかの書類':'⑥ Other documents on this school\'s list',
 '国の基準':'National standard','園で足した項目':'Added by the school',
+'園の条件':'School conditions','送迎バス・園の車で、子どもを運んでいますか':'Do you transport children by school bus or car?','運んでいる':'Yes','運んでいない':'No',
+'プール・水遊びをしますか':'Do you have pool / water play?','散歩・園外活動をしますか':'Do you go on walks / outings?','する':'Yes','しない':'No',
+'給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
+'答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
+'変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
+'入れる場所：':'Where to enter: ','労働基準法':'Labour Standards Act','資料では：':'In the document: ',
+'この園の資料の一覧にはありませんが、国の基準や労働基準法で作ることが決まっている記録です。当日に求められることがあるので、記録はふだんどおりためておきます。上の準備状況の数には入れていません。':'Not on this school\'s list, but required by national standards or the Labour Standards Act. You may be asked for them on the day, so keep recording as usual. They are not counted in the progress above.',
+'園の条件に当てはまらないので外している項目です。条件は上の「園の条件」で変えられます。':'Removed because they do not apply to this school. Change this under “School conditions”.',
+'資料に書かれていた書類が、Miralink のどの項目・どこに入るかの一覧です。当て方は、運営が資料を読んで確かめました。違っていたら運営にお知らせください。':'How each document in the source list maps to a Miralink item and where to enter it. The operator checked the mapping; please tell us if anything is wrong.',
+'資料の書類':'Document in the list','Miralink の項目':'Miralink item','入れる場所':'Where to enter','当たる項目なし（⑥に並べています）':'No matching item (listed under ⑥)',
 '入園申込書・児童票（基本情報）':'Application forms / child records (basic info)','個人情報の提供についての同意書':'Consent forms for sharing personal information',
 '保育の提供日・時間帯・内容の記録':'Records of care dates, hours and content','領収証・提供証明書の控え':'Copies of receipts / service certificates',
 '保育計画（全体的な計画・年間・月間の指導計画・デイリープログラム）':'Care plans (overall, annual, monthly, daily programme)','家庭との連絡帳':'Home–school contact book',
@@ -28263,6 +28406,17 @@ function renderSettings(){
   }
   /* 新年度の準備（2026-09-25）。管理者・マネージャー */
   if(typeof renderNewYearSettings==='function')renderNewYearSettings(s);
+  /* 園の条件（2026-11-13）。園長・マネージャーだけ。押したらその場で印を付け替える
+     （カード全体を描き直すと、設定の畳み（settingsFold）が外れて閉じてしまう） */
+  if(!(typeof isBoss==='function'&&!isBoss())){
+    s.insertAdjacentHTML('beforeend',schoolCondHTML(false));
+    var scc=s.querySelector('[data-scond]');
+    schoolCondWire(scc,function(){
+      var v=schoolCond();
+      scc.querySelectorAll('[data-scset]').forEach(function(b){var q=b.getAttribute('data-scset').split('|');b.className='chip'+(v[q[0]]===q[1]?' on':'');});
+      SCHOOL_COND.forEach(function(c){if(!c.tab)return;var x=s.querySelector('[data-ro="tab:'+c.tab+'"]');if(x)x.checked=recOn('tab:'+c.tab);});
+    });
+  }
   renderRecOptSettings(s);
   renderRecFieldSettings(s);
   if(typeof renderFileMoveSettings==='function'
@@ -28675,6 +28829,8 @@ function renderAudit(){
     +(isCur?'':'<div class="cal-banner" style="margin:0;background:#FAEEDA;border-color:#854F0B;"><div style="flex:1;"><div style="font-weight:600;color:#854F0B;">'+fy+'年度を見ています。いまは '+curFY()+'年度です。</div><div class="muted">保管先と、名簿・打刻・現在の登録状況を出す項目（末尾に「現在」と書いてあるもの）は、年度で分けていません。</div></div><button class="btn btn-sm" id="auNow">今年度に戻す</button></div>')
     +'</div>'+
     auditPlanCardHTML()+
+    /* 園の条件にまだ答えていないものがあるときだけ、ここにも出す（答えると消える。ふだんは設定にある） */
+    (SCHOOL_COND.some(function(c){return !schoolCond()[c.k];})?schoolCondHTML(true):'')+
     /* ★「監査シーズン（5〜11月）現場監査は無通告…」の帯は外した（2026-09-25 安田さんのご指示「記載削除」） */
     '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">'+
       '<div class="card"><h3>'+ic('cal')+'書類監査</h3><div class="muted" style="margin-bottom:10px;">年1回。実施期間の目安は 5〜11月。<b>日程は自治体から連絡が入り次第確定</b>します。</div><label>'+fy+'年度の監査日（決まったら入力）</label><input type="date" id="auDate" value="'+esc(auditDateOf(fy))+'"><div id="auCount" class="muted" style="margin-top:8px;"></div></div>'+
@@ -28715,6 +28871,7 @@ function renderAudit(){
       _its.map(function(it){var cur=stt[it.key];var opt=['未','対応中','済'].map(function(o){return '<option'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('');var wc=it.when==='年度前'?'background:#E6F1FB;color:#123E6B':'background:#FAEEDA;color:#854F0B';return '<tr>'+
         '<td style="width:110px;"><select data-st="'+esc(it.key)+'" style="background:'+STO[cur].bg+';color:'+STO[cur].fg+';font-weight:500;">'+opt+'</select></td>'+
         '<td><div class="row-name">'+it.name+auditPlanTag(it)+'</div>'
+        +auditFromHTML(it)+auditWhereHTML(it)
         +(it.note?'<div class="row-sub" style="color:#5F5E5A;">'+esc(it.note)+'</div>':'')
         /* ★保管先の欄は、入れた文字の長さに関わらず 179px のままだった。
            園での置き場所は「入園者名簿・月間名簿・退園者ファイル」のように長いので、
@@ -28727,10 +28884,10 @@ function renderAudit(){
         /* ★書類格納の書類は「書類格納 →」で別の画面へ飛ばしていた。その書類の枠を探し直す手間になるので、
            ここで直接ファイルを選んで取り込めるようにした（2026-09-25 安田さんのご依頼） */
         ((it.sys==='docs'&&AUDIT_DOC_SLOT[it.key]&&auditCanGoItem(it.sys,it.key))?auditDocCell(it.key):
-        '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?'この画面を見る権限がありません':'園で紙に残す')+'</span>')+'</td>')+'</tr>';}).join('')+
+        '<td style="width:130px;text-align:right;">'+((it.sys&&auditCanGoItem(it.sys,it.key))?'<button class="btn btn-sm" data-sys="'+esc(it.sys)+'" data-auk="'+esc(it.key)+'">'+(SYS_PAGE[it.sys]||({'staff:qual':'資格証明書の保管状況','staff:kenshin':'健診記録の保管状況','timecard':'出勤簿'})[it.sys]||it.sys)+' →</button>':'<span class="row-sub">'+(it.sys?(auditCanGo(it.sys)?'この記録は外しています（設定 › '+(it.cond?'園の条件':'記録で使う項目')+'）':'この画面を見る権限がありません'):'園で紙に残す')+'</span>')+'</td>')+'</tr>';}).join('')+
       '</tbody></table></div>';}).join('')
     +((function(){var sn=0;auditCats().forEach(function(c){c.items.forEach(function(it){if(auditItemShow(it))sn++;});});return sn;})()?'':'<div class="card"><div class="empty">この絞り込みに当てはまる書類はありません。上の「すべて」に戻してください。</div></div>');
-  s.insertAdjacentHTML('beforeend',auditOutCardHTML());
+  s.insertAdjacentHTML('beforeend',auditAskCardHTML(fy)+auditOutCardHTML());
   auditPlanWire(s);
   function upd(){var d=$('#auDate').value;if(d){var du=daysUntil(new Date(d));$('#auCount').textContent=du>=0?('書類監査まで あと '+du+'日'):'入力された監査日は過ぎています';}else{$('#auCount').textContent='';}}
   upd();
