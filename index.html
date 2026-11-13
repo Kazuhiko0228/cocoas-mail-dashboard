@@ -31271,7 +31271,8 @@ var LOG_DEFS={
     {k:'left',l:'車内に残っていないか確かめた',t:'checks',opts:['最後列・座席の下まで見た','置き去りを防ぐ装置が正しく動いた','別の職員がもう一度確かめた']},
     {k:'checker',l:'車内を確かめた人',t:'staffs'},{k:'checkAt',l:'確かめた時刻',t:'time'},
     {k:'note',l:'気づいたこと（遅れ・体調・ヒヤリハット）',t:'area'}],
-    /* 一覧に赤で出す・保存の前に聞く */
+    /* 一覧に赤で出す・保存の前に聞く。
+       ★一覧の文に ic() の絵を入れたら、大きさの指定が無いところで行いっぱいに広がった（2026-11-13 出した直後に直した）。文字だけにする */
     warn:function(r){
       var on=r.kidsOn,off=r.kidsOff,has=function(v){return v!=null&&String(v)!=='';};
       if(has(on)&&has(off)&&+on!==+off)return '乗った人数（'+on+'名）と降りた人数（'+off+'名）が合いません';
@@ -31310,7 +31311,7 @@ function edLogList(type){
         var ks=dn?D.sum:D.sum.slice(0,1).concat(D.fields.filter(function(f){return f.k&&/^plan(Go|Start)$/.test(f.k);}).map(function(f){return f.k;}));
         return '<tr><td>'+esc(fmt(r.date||''))+'</td><td>'+esc(r.klass||'')+'</td>'
           +'<td><span class="tag" style="'+(dn?'background:#EAF3DE;color:#27500A;':'background:#FFF4DC;color:#7A4E00;')+'">'+(dn?'記録ずみ':'計画だけ')+'</span></td><td style="font-size:12.5px;">'
-          +(D.warn&&D.warn(r)?'<div style="color:#A32D2D;font-weight:700;margin-bottom:3px;">'+ic('alert')+esc(D.warn(r))+'</div>':'')
+          +(D.warn&&D.warn(r)?'<div style="color:#A32D2D;font-weight:700;margin-bottom:3px;">確かめが足りません：'+esc(D.warn(r))+'</div>':'')
           +ks.map(function(k){var t=fm[k]&&fm[k].t==='ages'?logAgesText(r):logValText(fm[k],r[k]);return (t&&fm[k])?esc(fm[k].t==='ages'?'子どもの人数':fm[k].l)+'：'+esc(t):'';}).filter(Boolean).concat(rfSumText(type,r)?[esc(rfSumText(type,r))]:[]).join('　')+'</td>'
           +'<td style="white-space:nowrap;text-align:right;"><button class="btn btn-sm" data-lgedit="'+x.i+'">'+ic('edit')+'開く</button> <button class="btn btn-sm btn-ghost" data-lgdel="'+x.i+'">'+ic('trash')+'</button></td></tr>';}).join('')
       +'</tbody></table></div>':'<div class="empty">まだありません。</div>')
