@@ -904,7 +904,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
    園から届く鍵を増やしたら（園の記録の側の parent.js の PARENT_READ）、ここにも足す。
    保護者ご自身が書く鍵（WA_SEND）は、もともと未来WA だけの名前なので、ここには入れない。 */
 var WA_SRV_PFX='cocoas_wa_srv_';
-var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|renrakuForm|pcal|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
+var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|renrakuForm|pcal|dbsSoudan|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
 function waSrvOn(){
   /* WAPI.enabled（接続先が入っているか）と同じ見方を、保存の中身から直に読む。
      WAPI はこのずっと後ろで作るので、起動の途中（同意の鍵の写し替えなど）で WAPI に頼ると、
@@ -3682,6 +3682,7 @@ function langToggleHTML(){
 function langToggleWire(){ var b=document.getElementById('langTg'); if(b)b.onclick=function(){ langSet(langNow()==='en'?'ja':'en'); }; }
 /* 英語の辞書。鍵は日本語そのもの。無いことばは日本語のまま出る。 */
 var EN_DICT={
+'🤝 こまったときの相談窓口':'🤝 Where to get help','お子さまのことで、こまったこと・心配なことがあれば、ひとりで抱えずにご相談ください。':'If anything about your child worries you, please don\'t keep it to yourself — reach out.','園の相談員':'School contact person',
 /* ★札の右に件数が付くと、辞書が引けずに日本語のまま残っていた。
    「すべて 17」のように数まで書いた鍵しか無く、数が変わったとたんに外れていた。
    {0} は数の入るところ。これで件数がいくつでも英語になる。 */
@@ -5987,6 +5988,20 @@ function meHTML(c){
         +(past?'':'background:var(--c);color:#fff;border:none;')+'">'+(past?'終了':'申込ずみ')+'</div></div>';}).join('')
      :bloomEmpty('まだお申し込みはありません'));
   h2+=ptCardHTML();
+  /* こども性暴力防止法の相談窓口（2026-11-13）。園が入れた窓口の名前と連絡先だけが届く（サーバの PARENT_READ.dbsSoudan） */
+  (function(){
+    var so=stGet('dbsSoudan',null);if(!so||typeof so!=='object')return;
+    var outs=(Array.isArray(so.outs)?so.outs:[]).filter(function(x){return x&&x.name;});
+    if(!so.inName&&!outs.length)return;
+    h2+='<h2 class="sec sec-b">🤝 こまったときの相談窓口</h2><div class="card">'
+      +'<div class="muted" style="line-height:1.75;margin-bottom:8px;">お子さまのことで、こまったこと・心配なことがあれば、ひとりで抱えずにご相談ください。</div>'
+      +(so.inName?'<div style="padding:8px 0;border-top:1px solid var(--line,#eee);"><div style="font-weight:700;font-size:13.5px;">園の相談員</div><div data-nolang>'+esc(so.inName)+'</div>'+(so.inHow?'<div class="muted" data-nolang>'+esc(so.inHow)+'</div>':'')+'</div>':'')
+      +outs.map(function(x){var tel=String(x.tel||'');var dial=/^[#0-9\-+ ]+$/.test(tel)?tel.replace(/[^#0-9+]/g,''):'';
+        return '<div style="padding:8px 0;border-top:1px solid var(--line,#eee);"><div style="font-weight:700;font-size:13.5px;" data-nolang>'+esc(x.name)+'</div>'
+          +(tel?'<div>'+(dial?'<a href="tel:'+esc(dial)+'" data-nolang>'+esc(tel)+'</a>':'<span data-nolang>'+esc(tel)+'</span>')+'</div>':'')
+          +(x.note?'<div class="muted" data-nolang>'+esc(x.note)+'</div>':'')+'</div>';}).join('')
+      +'</div>';
+  })();
   if(c){
     var gd=guideDocs(),nf=gd.filter(function(g){return g.kind==='form';}).length;
     h2+='<h2 class="sec sec-b">📚 スクールガイド</h2>'

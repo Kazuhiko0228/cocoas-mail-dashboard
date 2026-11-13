@@ -2489,6 +2489,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       <section data-page="drill" hidden></section>
       <section data-page="bouka" hidden></section>
       <section data-page="kenshu" hidden></section>
+      <section data-page="dbs" hidden></section>
       <section data-page="shift" hidden></section>
       <section data-page="timecard" hidden></section>
       <section data-page="expense" hidden></section>
@@ -4461,10 +4462,11 @@ var AUDIT_CATS=[
     {key:'kaigi',name:'職員会議・クラス議事録',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
     {key:'kenshu',opt:1,name:'職員の研修の記録（救命処置の講習・訓練を含む）',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
     {key:'shuryo',name:'研修の修了証',place:'システム内（職員管理）',when:'運営中',sys:'staff',note:'外部の研修（救命講習など）の修了証を、職員ごとの書類に「研修の修了証」の種類で入れてください。研修の記録は 研修・訓練 にあります。'},
+    {key:'dbs',cond:'dbs',name:'こども性暴力防止法の措置（犯罪事実確認・研修・相談窓口）',place:'',when:'運営中',sys:'dbs',note:'2026年12月25日から。確認の結果は Miralink に置かず、手続きの進み方と日付だけを残します。'},
     {key:'shugyo',name:'就業規則・職員の誓約書（個人情報の取扱い）',place:'',when:'年度前',sys:'docs',note:'就業規則は書類格納に、職員が書いた誓約書は職員ごとの書類に「誓約書（個人情報の取扱い）」の種類で入れてください。'}
   ]}
 ];
-var SYS_PAGE={feed:'保護者連絡・連絡帳',billing:'請求書発行',contacts:'生徒情報',roster:'生徒情報',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
+var SYS_PAGE={dbs:'こども性暴力防止',feed:'保護者連絡・連絡帳',billing:'請求書発行',contacts:'生徒情報',roster:'生徒情報',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
 
 /* generic store helpers */
 function stGet(key,def){try{var v=JSON.parse(localStorage.getItem('cocoas_'+key));return v==null?def:v;}catch(e){return def;}}
@@ -5471,6 +5473,10 @@ function auditDataInfo(key,fy){
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
+    case 'dbs': {
+      var dbm=dbsSummary();
+      return '準備 '+dbm.prep+'/'+dbm.prepN+'・確認の手続き済み '+dbm.ok+'/'+dbm.n+'名・研修 '+dbm.tr+'/'+dbm.n+'名（現在）';
+    }
     case 'kega': {
       var hy=stGet('rec_hiyari',[]),hn=0;
       (Object.prototype.toString.call(hy)==='[object Array]'?hy:[]).forEach(function(r){
@@ -5927,7 +5933,7 @@ function wireSentMail(root){
    ・Miralink に置き場の無い項目は「⑥ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける */
 var AUDIT_NAT={jido_meibo:1,shusseki:1,shintai:1,kid_kenshin:1,keiyaku:1,kunren:1,roudou_meibo:1,shikaku:1,kenshin:1,kenben:1};
 /* ②に出すときの根拠（2026-11-13 認可外保育施設指導監督基準・労働基準法で確かめたもの。確かめていないものは足さない） */
-var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）'};
+var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）',dbs:'こども性暴力防止法（2026年12月25日 施行）'};
 /* ══ 園の条件（2026-11-13 安田さんのご依頼「条件付きの項目は、条件付きと分かる形で、園の設定で分かりやすく自動で外せる仕組み」）══
    答えるまでは外さない（「条件つき」の印だけ付けて出す）。答えると、当てはまらない項目が監査の一覧から外れ、
    tab のある条件は保育記録のタブも合わせて出し入れする（同じことを2か所で答えさせない）。
@@ -5936,7 +5942,9 @@ var SCHOOL_COND=[
   {k:'bus',q:'送迎バス・園の車で、子どもを運んでいますか',opts:[['yes','運んでいる'],['no','運んでいない']],tab:'バス等運行簿',need:['yes'],lab:'送迎の車を使う園だけ'},
   {k:'pool',q:'プール・水遊びをしますか',opts:[['yes','する'],['no','しない']],tab:'プール・水遊び',need:['yes'],lab:'プール・水遊びをする園だけ'},
   {k:'sanpo',q:'散歩・園外活動をしますか',opts:[['yes','する'],['no','しない']],tab:'散歩・園外活動',need:['yes'],lab:'散歩・園外活動をする園だけ'},
-  {k:'meal',q:'給食はどうしていますか',opts:[['self','園で作っている'],['out','外から運んでいる'],['none','出していない（お弁当など）']],need:['self','out'],lab:'給食を出す園だけ'}
+  {k:'meal',q:'給食はどうしていますか',opts:[['self','園で作っている'],['out','外から運んでいる'],['none','出していない（お弁当など）']],need:['self','out'],lab:'給食を出す園だけ'},
+  /* こども性暴力防止法：認可は義務、認可外は国の認定を受けた園だけ。「対象でない」で画面と監査の項目を出さない */
+  {k:'dbs',q:'こども性暴力防止法の対象ですか',opts:[['yes','対象（認可の園・国の認定を受けた園）'],['no','対象でない']],need:['yes'],lab:'こども性暴力防止法の対象の園だけ'}
 ];
 /* 給食の条件から出す2つめの条件（検便は園で作っている園だけ） */
 var SCHOOL_COND_SUB={cook:{base:'meal',need:['self'],lab:'給食を園で作っている園だけ'}};
@@ -6022,6 +6030,7 @@ function auditPlanTag(it){
   var x=auditPlanKeys()[it.key],t='',bg='#E6F1FB',fg='#123E6B';
   if(x||/^p_/.test(it.key))t=[(p.fy?p.fy+'年度':'前年度')+'の一覧'].concat(x&&x.period?[['（'+x.period+'）']]:[]);
   else if(AUDIT_NAT[it.key]||it.key==='kega')t='国の基準';
+  else if(it.key==='dbs')t='こども性暴力防止法';
   else if(AUDIT_LAW[it.key])t='労働基準法';
   else if(auditAddOn()[it.key]){t='園で足した項目';bg='#F1EFE8';fg='#5F5E5A';}
   return (t?auditPill(t,bg,fg):'')+h;
@@ -6070,13 +6079,15 @@ function auditPlanCardHTML(){
     +'</div>';
 }
 /* 園の条件のカード（設定と監査対応の両方に出す。答えはどちらから入れても同じ） */
-function schoolCondHTML(compact){
+/* only に条件の鍵を渡すと、その1つだけを出す（こども性暴力防止の画面では、対象かどうかだけを聞く） */
+function schoolCondHTML(compact,only){
   var v=schoolCond(),boss=!(typeof isBoss==='function'&&!isBoss());
-  var un=SCHOOL_COND.filter(function(c){return !v[c.k];}).length;
+  var CS=SCHOOL_COND.filter(function(c){return !only||c.k===only;});
+  var un=CS.filter(function(c){return !v[c.k];}).length;
   return '<div class="card" data-scond="1" style="'+(compact?'':'max-width:820px;')+'margin-bottom:14px;"><h3>'+ic('check')+'園の条件</h3>'
     +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;">答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。'
-    +(un?'<br><b style="color:#854F0B;">まだ答えていない条件が '+un+'つあります。</b>':'')+'</div>'
-    +SCHOOL_COND.map(function(c){
+    +(un&&!only?'<br><b style="color:#854F0B;">まだ答えていない条件が '+un+'つあります。</b>':'')+'</div>'
+    +CS.map(function(c){
       return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);">'
         +'<span style="flex:1;min-width:220px;font-size:13px;">'+esc(c.q)+'</span>'
         +'<div class="chips" style="margin:0;">'+c.opts.map(function(o){
@@ -6783,7 +6794,7 @@ function wireNav(){
 wireNav();
 navGroups();
 
-var TITLES={home:['','ホーム'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],qrtouen:['日常チェック','登園・退園'],pcal:['連絡・配信','保護者カレンダー'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],missing:['日常チェック','日常点検チェック表'],feed:['連絡・配信','保護者連絡・連絡帳'],wastore:['配信','未来WA'],photosale:['未来WA','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メッセージ'],broadcast:['配信','全体配信・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['日常チェック','毎日記録'],carerec:['日常チェック','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['スクール情報','監査書類の格納'],facility:['管理','施設管理'],contacts:['生徒情報','生徒情報'],roster:['生徒情報','生徒情報'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['請求・経費管理','請求書作成・管理'],templates:['全体配信・お知らせ','配信テンプレート'],curriculum:['記録・書類','カリキュラム作成'],deliveries:['全体配信・お知らせ','定期配信スケジュール'],staff:['管理','職員管理'],tasks:['管理','月間カレンダー'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['','Miralink SI'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析'],noaccess:['','見られる画面がありません']};
+var TITLES={dbs:['職員情報','こども性暴力防止'],home:['','ホーム'],menu:['ホーム','メニュー'],kiosk:['保育記録','登降園（保護者用）'],qrtouen:['日常チェック','登園・退園'],pcal:['連絡・配信','保護者カレンダー'],annual:['カリキュラム','年間スケジュール'],revenue:['請求・経費管理','売上チャート'],missing:['日常チェック','日常点検チェック表'],feed:['連絡・配信','保護者連絡・連絡帳'],wastore:['配信','未来WA'],photosale:['未来WA','写真販売'],dashboard:['ホーム','ダッシュボード'],compose:['配信','個別メッセージ'],broadcast:['配信','全体配信・お知らせ'],dm:['配信','保護者DM'],trial:['配信','体験結果報告'],records:['日常チェック','毎日記録'],carerec:['日常チェック','保育記録'],drill:['記録・書類','避難訓練'],bouka:['記録・書類','研修・訓練'],kenshu:['記録・書類','保育研修'],shift:['記録・書類','シフト表'],timecard:['記録・書類','打刻（タイムカード）'],expense:['記録・書類','経費管理'],docgen:['記録・書類','書類作成'],creator:['配信','未来WA 投稿'],reqnav:['記録・書類','提出書類ナビ'],guide:['記録・書類','スクールガイド'],docs:['スクール情報','監査書類の格納'],facility:['管理','施設管理'],contacts:['生徒情報','生徒情報'],roster:['生徒情報','生徒情報'],kidsview:['保育記録','生徒情報一覧'],enroll:['管理','生徒の契約内容'],billing:['請求・経費管理','請求書作成・管理'],templates:['全体配信・お知らせ','配信テンプレート'],curriculum:['記録・書類','カリキュラム作成'],deliveries:['全体配信・お知らせ','定期配信スケジュール'],staff:['管理','職員管理'],tasks:['管理','月間カレンダー'],audit:['管理','監査対応'],settings:['設定','設定'],aiplan:['','Miralink SI'],leads:['新規顧客管理','顧客リスト'],sales:['新規顧客管理','営業分析'],noaccess:['','見られる画面がありません']};
 /* その画面が、いまのプランで使えるかどうか。
    EG_NAV では、組（cat）にも品目（item）にもプランの指定が付くので、
    どちらか厳しいほうに合わせる。品目の中の sub にも画面が入っている。 */
@@ -7104,7 +7115,7 @@ function go(page){
       if(wsec)wsec.hidden=false;
       renderWaOpen();
     })() :
-  ({home:renderHome,menu:renderMenu,kiosk:renderKiosk,qrtouen:renderQrTouen,pcal:renderPcal,feed:renderFeed,annual:renderAnnual,revenue:renderRevenue,missing:renderMissing,photosale:renderPhotoSale,aiplan:renderMiraAI,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings,noaccess:renderNoAccess})[page]();
+  ({dbs:renderDbs,home:renderHome,menu:renderMenu,kiosk:renderKiosk,qrtouen:renderQrTouen,pcal:renderPcal,feed:renderFeed,annual:renderAnnual,revenue:renderRevenue,missing:renderMissing,photosale:renderPhotoSale,aiplan:renderMiraAI,leads:renderLeads,sales:renderSales,guide:renderGuide,wastore:renderWaOpen,dashboard:renderDash,compose:renderCompose,broadcast:renderBroadcast,dm:renderDM,trial:renderTrial,facility:renderFacility,contacts:renderContacts,roster:renderRoster,enroll:renderBilling,billing:renderBilling,templates:renderTemplates,curriculum:renderCurriculum,deliveries:renderDeliveries,staff:renderStaff,timecard:renderPunch,tasks:renderTasks,audit:renderAudit,records:renderRecords,carerec:renderCareRec,drill:renderDrill,bouka:renderBouka,kenshu:renderKenshu,shift:renderShift,expense:renderExpense,docgen:renderDocgen,reqnav:renderReqNav,docs:renderDocs,settings:renderSettings,noaccess:renderNoAccess})[page]();
   /* 全体配信・お知らせの中のタブ（全体配信・デイリーレポート・配信カレンダー・配信テンプレート） */
   try{ bcTabsPaint(page); }catch(e){}
 }
@@ -8070,7 +8081,9 @@ var EG_NAV=[
    {k:'kenshug', l:'職員研修', i:'ic:44',si:'book', c:'#854F0B', bg:'#FAEEDA', pw:true, sub:[
      {p:'bouka',  l:'防火・消火訓練', tab:'daichou'},
      {p:'kenshu', l:'保育研修'}]},
-   {k:'shift',   l:'シフト表', i:'ic:70',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'shift'}
+   {k:'shift',   l:'シフト表', i:'ic:70',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'shift'},
+   /* こども性暴力防止法（2026-12-25 施行・2026-11-13）。園の条件で「対象でない」と答えた園には出さない（scond） */
+   {k:'dbs',     l:'こども性暴力防止', i:'ic:70',si:'shield', c:'#A32D2D', bg:'#FCEBEB', p:'dbs', scond:'dbs'}
  ]},
  {cat:'請求・経費管理',boss:true,items:[
    /* 契約とオプションはこの画面の上部にまとめてある（2026-08-19 安田さん）。サイドバーの「生徒台帳（契約情報）」は同じ画面を開く2行目だったので消し、
@@ -8122,6 +8135,7 @@ function egNav(){
       if(x.boss&&!isBoss())return false;
       if(!planAllows(x.plan))return false;
       if(x.opt&&!optOn(x.opt))return false;
+      if(x.scond&&typeof schoolCond==='function'&&schoolCond()[x.scond]==='no')return false;
       if(x.sub){
         x=Object.assign({},x,{sub:x.sub.filter(function(y){return egHasPage(y.p);})});
         return x.sub.length>0;
@@ -13112,7 +13126,34 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','生徒情報 →':'Student info →','園児ごとの書類（健康診断票）':'Per-child documents (health check record)','園児ごとの書類（登園許可証・登園届）':'Per-child documents (return-to-school certificate / notice)','園児ごとの書類（同意書）':'Per-child documents (consent form)','園児ごとの書類（利用契約書）':'Per-child documents (service agreement)',
+'入れる場所：':'Where to enter: ','準備 {0}/{1}・確認の手続き済み {2}/{3}名・研修 {4}/{5}名（現在）':'Preparation {0}/{1} · checks done {2}/{3} · training {4}/{5} (current)','2026年12月25日に始まります':'Starts 25 December 2026','（あと {0}日）':' ({0} days left)','認可の園は義務、認可外は国の認定を受けた園が対象です。':'Mandatory for licensed schools; unlicensed schools are covered only if certified by the government.',
+'この画面は、こども家庭庁の準備ガイド（Ver.1.2）の項目にそって、準備・職員ごとの確認と研修・相談窓口をそろえます。':'This page follows the Children and Families Agency preparation guide (Ver.1.2): preparation, checks and training for each staff member, and the help desk.',
+'こどもと接する仕事の方は性犯罪前科の確認が要ること、施行後は国のシステムで手続きすること（マイナンバーカードが要る）を知らせます。':'Tell staff that anyone working with children needs a sex-offence record check, done through the government system after the Act starts (My Number Card needed).',
+'性暴力ではないが、続けばつながりかねない行為（こどもと SNS で私的にやりとりする など）を、職員と話して決めます。':'Agree with staff on conduct that is not abuse but could lead to it (e.g. private social media contact with children).',
+'保育士は必ず対象です。事務・運転手などは、こどもとの関わり方で決めます。':'Childcare workers are always covered. For office staff, drivers etc., decide based on how they interact with children.',
+'対象の範囲・不適切な行為の禁止・確認の手続きに応じる義務・懲戒の理由などを書き足します。':'Add the scope, the ban on inappropriate conduct, the duty to take part in checks, grounds for discipline, etc.',
+'採用の途中で性犯罪歴が無いことを書面で確かめる、内定を取り消す理由を前もって示す、などです。':'For example, confirm in writing during hiring that there is no sex-offence record, and state in advance the grounds for withdrawing an offer.',
+'誰に・どう報告し、誰が・どう対応するか。法律で、決めて知らせることが求められています。':'Who reports to whom and how, and who responds and how. The Act requires you to set and share these rules.',
+'下の「相談窓口」に入れると、未来WA に出て、掲示用にも印刷できます。':'Enter it under “Help desk” below to show it in Miraiwa and print it for the notice board.',
+'座学と演習を組み合わせます。こども家庭庁の標準の研修動画が使えます。':'Combine lectures and exercises. The Agency\'s standard training videos can be used.',
+'確認の結果を見る人を決め、国のシステムの外には残さないなどの決まりです。国のひな型があります。':'Rules such as who may view check results and not keeping them outside the government system. A government template is available.',
+'施行のときに働いている方の確認は、2029年12月24日までに済ませます（国の指針）。':'Staff already working when the Act starts must be checked by 24 December 2029 (government guideline).',
+'施行のあとに入る方は、こどもと接する仕事の前に研修を受けます。':'Staff who join after the Act starts take the training before working with children.',
+'「次に確かめる日」は、国のシステムに出る日付を入れてください。':'For “Next check date”, enter the date shown in the government system.','入職':'Joined',
+'園の中の相談員（または窓口）と、外の相談窓口の両方を知らせることが求められています。ここに入れた名前と連絡先は、未来WA の保護者の画面に出ます。':'You must share both an in-school contact person (or desk) and external help desks. The names and contacts entered here appear on the parents\' Miraiwa screen.',
+'こども性暴力防止':'Child sexual abuse prevention','こども性暴力防止法':'Child Sexual Abuse Prevention Act','こども性暴力防止法の対象ですか':'Is your school covered by the Child Sexual Abuse Prevention Act?','対象（認可の園・国の認定を受けた園）':'Covered (licensed, or certified by the government)','対象でない':'Not covered','こども性暴力防止法の対象の園だけ':'Only schools covered by the Act',
+'こども性暴力防止法の措置（犯罪事実確認・研修・相談窓口）':'Child Sexual Abuse Prevention Act measures (record checks, training, help desk)','2026年12月25日から。確認の結果は Miralink に置かず、手続きの進み方と日付だけを残します。':'From 25 Dec 2026. Check results are not kept in Miralink — only the progress of the procedure and dates.',
+'職員の一覧を印刷':'Print staff list','確認の結果は、ここに書かないでください':'Do not write check results here',
+'犯罪事実確認書の中身は、国のシステム（こまもろうシステム）の中だけで扱い、ほかに記録・保存しないことが求められています。ここに残すのは、手続きをどこまで進めたかと日付だけです。':'The contents of the criminal record certificate must be handled only inside the government system (Komamorou) and not recorded or stored elsewhere. Only the progress of the procedure and dates are kept here.',
+'園の条件で「対象でない」と答えています。監査の一覧には出しません。':'School conditions say “Not covered”, so this is not shown in the inspection list.',
+'施行までの準備':'Preparation before the Act starts','確認の手続き済み':'Check procedure done','研修を受けた':'Training done','国の準備ガイドが「施行までに最低限」とあげている項目です。済んだら日付を入れます。':'Items the government preparation guide lists as the minimum before the Act starts. Enter the date when done.','済んだ日':'Date done',
+'制度のことを職員に知らせた':'Told staff about the system','「不適切な行為」の範囲を決めた':'Decided what counts as “inappropriate conduct”','確認の対象になる職員の範囲を決めた':'Decided which staff are subject to checks','就業規則を見直した':'Reviewed work rules','採用の募集要項を見直した':'Reviewed job postings','疑いがあったときの報告・対応のルールを決めて、職員・保護者に知らせた':'Set and shared reporting/response rules for suspected cases','相談窓口を置いて、こども・保護者に知らせた':'Set up a help desk and told children and parents','職員の研修の計画を立てた':'Planned staff training','情報管理規程を作った':'Created information management rules',
+'職員ごとの確認と研修':'Checks and training by staff member','対象外':'Not covered','確認の手続き':'Check procedure','手続きが済んだ日':'Date completed','次に確かめる日':'Next check date','研修を受けた日':'Training date','研修の方法':'Training method','手続き中':'In progress','標準動画':'Standard video','要点動画':'Summary video','園の研修':'In-house training',
+'施行後に入った方は、こどもと接する仕事の前に研修が要ります':'Staff who join after the Act starts need training before working with children','次に確かめる日を過ぎています':'Next check date has passed','次に確かめる日まで {0}日':'{0} days until next check',
+'相談窓口':'Help desk','掲示用に印刷':'Print for notice board','園の相談員の名前':'School contact person','相談のしかた':'How to contact','外の相談窓口':'External help desks','窓口を足す':'Add help desk','国の資料にある窓口を入れる':'Add help desks from the government guide','職員に知らせた日':'Date staff informed','保護者に知らせた日':'Date parents informed','こどもに知らせた日':'Date children informed',
+'市区町村の子どもの相談窓口・保育課の虐待の相談窓口があれば、それも足してください（国の準備ガイドにあります）。':'If your municipality has a children\'s help desk or an abuse help desk at the childcare section, add it too (as in the government guide).',
+'この画面は園長・マネージャーだけが開けます。':'Only the principal or a manager can open this page.','職員がまだ登録されていません。職員情報から入れてください。':'No staff registered yet. Add them in Staff Info.',
+'生徒情報 →':'Student info →','園児ごとの書類（健康診断票）':'Per-child documents (health check record)','園児ごとの書類（登園許可証・登園届）':'Per-child documents (return-to-school certificate / notice)','園児ごとの書類（同意書）':'Per-child documents (consent form)','園児ごとの書類（利用契約書）':'Per-child documents (service agreement)',
 '職員会議の議事録':'Staff meeting minutes','職員ごとの書類（研修の修了証）':'Per-staff documents (training certificate)','Miralink の外（園で用意して、ここで「済」を付けます）':'Outside Miralink (prepare it yourselves and mark it done here)',
 'もとにした資料：':'Source document: ','運営が整えて反映しました。':'Set up and applied by the Miralink team.','下の一覧には、この資料にあった項目を出しています。':'The list below shows the items in this document.',
 '資料に無く、国の基準で作ることが決まっているものは「求められたら出す」に分けています。':'Records not in the document but required by national standards are under “Show if asked”.',
@@ -35930,7 +35971,7 @@ function roleLabel(r){return ROLE_LABEL[r]||r||'';}
 function isChief(){var r=(typeof currentRole==='function')?currentRole():null;return r==='主任'||r==='マネージャー'||r==='管理者';}
 var ACCESS_PAGES=[
   {p:'home',label:'ホーム（アプリ一覧）'},{p:'dashboard',label:'ダッシュボード（いまは入口から外しています）'},{p:'wastore',label:'未来WA'},{p:'guide',label:'スクールガイド'},{p:'compose',label:'個別メッセージ'},{p:'broadcast',label:'全体配信・お知らせ'},{p:'dm',label:'保護者DM'},{p:'trial',label:'体験結果報告'},
-  {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'kenshu',label:'保育研修'},{p:'bouka',label:'研修・訓練'},{p:'shift',label:'シフト表'},{p:'timecard',label:'打刻（タイムカード）'},{p:'expense',label:'経費管理'},
+  {p:'records',label:'日常チェック（毎日）'},{p:'carerec',label:'保育記録'},{p:'drill',label:'避難訓練'},{p:'kenshu',label:'保育研修'},{p:'dbs',label:'こども性暴力防止'},{p:'bouka',label:'研修・訓練'},{p:'shift',label:'シフト表'},{p:'timecard',label:'打刻（タイムカード）'},{p:'expense',label:'経費管理'},
   {p:'docgen',label:'書類作成・請求書'},{p:'reqnav',label:'提出書類ナビ'},{p:'docs',label:'監査書類の格納'},
   {p:'facility',label:'施設管理'},{p:'contacts',label:'連絡先（いまは生徒情報の中です）'},{p:'roster',label:'生徒情報'},
   {p:'menu',label:'メニュー（アプリの一覧）'},{p:'kiosk',label:'登降園（なくしました・未来WAで保護者が押します）'},{p:'qrtouen',label:'登園・退園（QRコード）'},{p:'pcal',label:'保護者カレンダー（未来WAに配信）'},{p:'annual',label:'年間スケジュール'},{p:'missing',label:'日常点検チェック表'},{p:'revenue',label:'売上チャート'},{p:'feed',label:'デイリーレポート'},{p:'photosale',label:'写真販売'},{p:'enroll',label:'生徒の契約内容'},{p:'billing',label:'請求書発行'},{p:'templates',label:'配信テンプレート'},
@@ -36003,7 +36044,7 @@ function staffAccounts(){
    増えた画面だけを一度だけ差し込む。差し込み済みの印は permsAdded に残す。 */
 /* 未入力書類（missing）は 2026-09-13 に増えた画面。版を上げずにここから足す（手直しを残した端末にも一度だけ入る）。 */
 /* QR登降園（qrtouen）は 2026-09-30 に増えた画面 */
-var PERMS_ADDED={kenshu:['一般','マネージャー'],timecard:['一般','マネージャー'],missing:['一般','主任','マネージャー'],qrtouen:['一般','主任','マネージャー'],pcal:['一般','主任','マネージャー']};
+var PERMS_ADDED={dbs:['管理者','マネージャー'],kenshu:['一般','マネージャー'],timecard:['一般','マネージャー'],missing:['一般','主任','マネージャー'],qrtouen:['一般','主任','マネージャー'],pcal:['一般','主任','マネージャー']};
 function permsMigrateAdd(p){
   var done=stGet('permsAdded',{}),ch=false;
   Object.keys(PERMS_ADDED).forEach(function(pg){
@@ -40174,6 +40215,153 @@ function renderKenshu(){
     printDoc('保育研修の記録（'+fy+'年度）',b4);
   };
   autoGrowAll(s);
+}
+
+/* ========== こども性暴力防止（2026-11-13 安田さんのご指示「すぐに着手」）==========
+   こども性暴力防止法（2026年12月25日 施行）で園に求められることを、1つの画面でそろえる。
+   出どころ：こども家庭庁「こども性暴力防止法施行（12月25日）に向けた 義務事業者用準備ガイド Ver.1.2」・監督等の指針。
+   ・施行までの準備（ガイドの「最低限実施すべき事項」）／職員ごとの犯罪事実確認と研修／相談窓口（未来WAと掲示）
+   ★確認の結果（犯罪事実確認書の中身）は Miralink に置かない。国のガイドは「専用システム（こまもろうシステム）でのみ扱い、
+     別の記録・保存は極力控える」と書いている。ここに残すのは「手続きをどこまで進めたか」と日付だけ。
+     「確認済み」は手続きが済んだという意味で、結果を表さない。結果を書く欄・ファイルを置く口を足さないこと
+   ・置き場は state の dbsPrep・dbsStaff・dbsSoudan。dbsStaff は園長・マネージャーだけが読み書きする（server.js KEY_RULES）
+   ・dbsSoudan の窓口の名前と連絡先だけを、未来WA（保護者の画面）に渡す（parent.js PARENT_READ） */
+var DBS_START='2026-12-25';
+var DBS_GENSHOKU_DUE='2029-12-24';   /* 施行のときに働いている方の確認の期限（監督等の指針・法第4条第3項） */
+var DBS_PREP=[
+  {k:'shuchi',l:'制度のことを職員に知らせた',h:'こどもと接する仕事の方は性犯罪前科の確認が要ること、施行後は国のシステムで手続きすること（マイナンバーカードが要る）を知らせます。'},
+  {k:'futekisetsu',l:'「不適切な行為」の範囲を決めた',h:'性暴力ではないが、続けばつながりかねない行為（こどもと SNS で私的にやりとりする など）を、職員と話して決めます。'},
+  {k:'hani',l:'確認の対象になる職員の範囲を決めた',h:'保育士は必ず対象です。事務・運転手などは、こどもとの関わり方で決めます。'},
+  {k:'kisoku',l:'就業規則を見直した',h:'対象の範囲・不適切な行為の禁止・確認の手続きに応じる義務・懲戒の理由などを書き足します。'},
+  {k:'boshu',l:'採用の募集要項を見直した',h:'採用の途中で性犯罪歴が無いことを書面で確かめる、内定を取り消す理由を前もって示す、などです。'},
+  {k:'rule',l:'疑いがあったときの報告・対応のルールを決めて、職員・保護者に知らせた',h:'誰に・どう報告し、誰が・どう対応するか。法律で、決めて知らせることが求められています。'},
+  {k:'soudan',l:'相談窓口を置いて、こども・保護者に知らせた',h:'下の「相談窓口」に入れると、未来WA に出て、掲示用にも印刷できます。'},
+  {k:'kenshu',l:'職員の研修の計画を立てた',h:'座学と演習を組み合わせます。こども家庭庁の標準の研修動画が使えます。'},
+  {k:'kanri',l:'情報管理規程を作った',h:'確認の結果を見る人を決め、国のシステムの外には残さないなどの決まりです。国のひな型があります。'}
+];
+var DBS_ST=['未','手続き中','確認済み'];
+var DBS_TR=['標準動画','要点動画','園の研修'];
+function dbsObj(k){var v=stGet(k,{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+function dbsStaffList(){var t=todayISO();return (DB.staff||[]).filter(function(x){return x&&!(x.leaveDate&&x.leaveDate<=t);});}
+function dbsDays(a,b){return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);}
+/* 監査の一覧と見出しに出す数 */
+function dbsSummary(){
+  var ds=dbsObj('dbsStaff'),L=dbsStaffList(),tg=L.filter(function(x){return (ds[x.id]||{}).tgt!=='no';});
+  var ok=tg.filter(function(x){return (ds[x.id]||{}).st==='確認済み';}).length;
+  var tr=tg.filter(function(x){return !!(ds[x.id]||{}).tr;}).length;
+  var pp=dbsObj('dbsPrep'),pd=DBS_PREP.filter(function(p){return pp[p.k]&&pp[p.k].done;}).length;
+  return {n:tg.length,ok:ok,tr:tr,prep:pd,prepN:DBS_PREP.length,decided:L.filter(function(x){return !!(ds[x.id]||{}).tgt;}).length,all:L.length};
+}
+/* 職員1人の注意。言い切れることだけを書く */
+function dbsWarn(x,r){
+  var t=todayISO(),w=[];
+  if(r.tgt==='no')return w;
+  var isNew=!!(x.joinDate&&x.joinDate>=DBS_START);
+  if(isNew&&(!r.tr||r.tr>x.joinDate))w.push(['bad','施行後に入った方は、こどもと接する仕事の前に研修が要ります']);
+  if(!isNew&&r.st!=='確認済み'&&t>=DBS_START)w.push([t>DBS_GENSHOKU_DUE?'bad':'warn','確認の期限 '+fmtY(DBS_GENSHOKU_DUE)]);
+  if(r.next){var d=dbsDays(t,r.next);if(d<0)w.push(['bad','次に確かめる日を過ぎています']);else if(d<=60)w.push(['warn','次に確かめる日まで '+d+'日']);}
+  return w;
+}
+function renderDbs(){
+  var s=$('section[data-page="dbs"]');if(!s)return;
+  var boss=!(typeof isBoss==='function'&&!isBoss());
+  if(!boss){s.innerHTML='<div class="card"><div class="empty">この画面は園長・マネージャーだけが開けます。</div></div>';return;}
+  var t=todayISO(),cond=schoolCond().dbs||'',sm=dbsSummary(),pp=dbsObj('dbsPrep'),ds=dbsObj('dbsStaff'),so=dbsObj('dbsSoudan');
+  var left=dbsDays(t,DBS_START);
+  function q(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+  var h='<div class="card" style="margin-bottom:14px;">'+recHead('こども性暴力防止','<button class="btn btn-sm" id="dbsPrint">'+ic('printer')+'職員の一覧を印刷</button>')
+    /* ★文の途中に <b> を挟むと、英語の切替で文が割れて辞書を引けない。太字は1文まるごとにする */
+    +'<div style="line-height:1.9;font-size:13px;"><b>2026年12月25日に始まります</b>'+(left>0?'<span>（あと '+left+'日）</span>':'')+'</div>'
+    +'<div class="muted" style="line-height:1.9;font-size:13px;"><div>認可の園は義務、認可外は国の認定を受けた園が対象です。</div>'
+    +'<div>この画面は、こども家庭庁の準備ガイド（Ver.1.2）の項目にそって、準備・職員ごとの確認と研修・相談窓口をそろえます。</div></div>'
+    +'<div class="cal-banner" style="margin:10px 0 0;background:#FCEBEB;border-color:#A32D2D;"><div style="flex:1;"><div style="font-weight:600;color:#A32D2D;">確認の結果は、ここに書かないでください</div>'
+    +'<div class="muted" style="font-size:12.5px;">犯罪事実確認書の中身は、国のシステム（こまもろうシステム）の中だけで扱い、ほかに記録・保存しないことが求められています。ここに残すのは、手続きをどこまで進めたかと日付だけです。</div></div></div>'
+    +(cond==='no'?'<div class="cal-banner" style="margin:10px 0 0;"><div style="flex:1;">園の条件で「対象でない」と答えています。監査の一覧には出しません。</div></div>':'')
+    +(cond?'':'<div style="margin-top:10px;">'+schoolCondHTML(true,'dbs').replace('data-scond="1"','data-scond="1" data-dbscond="1"')+'</div>')
+    +'<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:12px;">'
+      +'<div><div style="font-size:22px;font-weight:600;">'+sm.prep+' / '+sm.prepN+'</div><div class="muted">施行までの準備</div></div>'
+      +'<div><div style="font-size:22px;font-weight:600;">'+sm.ok+' / '+sm.n+'</div><div class="muted">確認の手続き済み</div></div>'
+      +'<div><div style="font-size:22px;font-weight:600;">'+sm.tr+' / '+sm.n+'</div><div class="muted">研修を受けた</div></div>'
+    +'</div></div>';
+  /* 施行までの準備。★済んだ印に大きさを決めない絵（ic）を置くと、行いっぱいに広がる（11/13 バス等運行簿でも踏んだ）。文字の印にする */
+  h+='<div class="card" style="margin-bottom:14px;"><h3>'+ic('check')+'施行までの準備</h3>'
+    +'<div class="muted" style="font-size:12.5px;margin-bottom:6px;">国の準備ガイドが「施行までに最低限」とあげている項目です。済んだら日付を入れます。</div>'
+    +DBS_PREP.map(function(p){var v=pp[p.k]||{};
+      return '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap;">'
+        +'<div style="flex:1;min-width:240px;"><div class="row-name">'+esc(p.l)+(v.done?' <span class="pill" style="background:#EAF3DE;color:#27500A;font-size:11px;">済</span>':'')+'</div><div class="row-sub">'+esc(p.h)+'</div></div>'
+        +'<label style="font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:6px;">済んだ日<input type="date" data-dbsp="'+p.k+'" value="'+q(v.done)+'" style="width:150px;"></label></div>';}).join('')
+    +'</div>';
+  /* 職員ごと */
+  var L=dbsStaffList();
+  h+='<div class="card" style="margin-bottom:14px;"><h3>'+ic('staff')+'職員ごとの確認と研修</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;"><div>施行のときに働いている方の確認は、2029年12月24日までに済ませます（国の指針）。</div><div>施行のあとに入る方は、こどもと接する仕事の前に研修を受けます。</div>'
+    +'<div>「次に確かめる日」は、国のシステムに出る日付を入れてください。</div></div>'
+    /* ★はじめは7列の表にしていたが、日付の欄が広く、職員の名前の列が1文字ずつ縦に折れていた。1人ずつの段にして、欄は折り返して並べる */
+    +(L.length?L.map(function(x){var r=ds[x.id]||{},w=dbsWarn(x,r),off=r.tgt==='no';
+        function sel(f,opts,ph){return '<select data-dbss="'+x.id+'|'+f+'"'+(off&&f!=='tgt'?' disabled':'')+' style="width:130px;">'+(ph!=null?'<option value="">'+ph+'</option>':'')+opts.map(function(o){var v=Array.isArray(o)?o[0]:o,l=Array.isArray(o)?o[1]:o;return '<option value="'+q(v)+'"'+(r[f]===v?' selected':'')+'>'+esc(l)+'</option>';}).join('')+'</select>';}
+        function dt(f){return '<input type="date" data-dbss="'+x.id+'|'+f+'" value="'+q(r[f])+'"'+(off?' disabled':'')+' style="width:150px;">';}
+        function fl(lab,inner){return '<label style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--tx2);">'+'<span>'+lab+'</span>'+inner+'</label>';}
+        return '<div style="padding:10px 0;border-top:1px solid var(--line);'+(off?'opacity:.6;':'')+'">'
+          +'<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><span class="row-name" data-nolang>'+esc(x.name||'')+'</span><span class="row-sub">'+esc(x.role||'')+'</span>'+(x.joinDate?'<span class="row-sub">入職 </span><span class="row-sub">'+esc(fmt(x.joinDate))+'</span>':'')+'</div>'
+          +w.map(function(z){return '<div class="row-sub" style="color:'+(z[0]==='bad'?'#A32D2D':'#854F0B')+';font-weight:600;">'+esc(z[1])+'</div>';}).join('')
+          +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">'
+            +fl('対象',sel('tgt',[['yes','対象'],['no','対象外']],'未定'))+fl('確認の手続き',sel('st',DBS_ST,null))+fl('手続きが済んだ日',dt('at'))+fl('次に確かめる日',dt('next'))+fl('研修を受けた日',dt('tr'))+fl('研修の方法',sel('trHow',DBS_TR,'—'))
+          +'</div></div>';}).join('')
+      :'<div class="empty">職員がまだ登録されていません。職員情報から入れてください。</div>')
+    +'</div>';
+  /* 相談窓口 */
+  var outs=Array.isArray(so.outs)?so.outs:[];
+  h+='<div class="card" style="margin-bottom:14px;">'+recHead('相談窓口','<button class="btn btn-sm" id="dbsSoPrint">'+ic('printer')+'掲示用に印刷</button>')
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;">園の中の相談員（または窓口）と、外の相談窓口の両方を知らせることが求められています。ここに入れた名前と連絡先は、未来WA の保護者の画面に出ます。</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr;">'
+      +'<div class="field"><label>園の相談員の名前</label><input data-dbso="inName" value="'+q(so.inName)+'" placeholder="例：園長 山田"></div>'
+      +'<div class="field"><label>相談のしかた</label><input data-dbso="inHow" value="'+q(so.inHow)+'" placeholder="例：園の電話・未来WA のメッセージ・直接"></div></div>'
+    +'<div style="font-weight:600;font-size:13px;margin:8px 0 4px;">外の相談窓口</div>'
+    +outs.map(function(o,i){return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">'
+      +'<input data-dbsoo="'+i+'|name" value="'+q(o.name)+'" placeholder="窓口の名前" style="flex:2;min-width:160px;">'
+      +'<input data-dbsoo="'+i+'|tel" value="'+q(o.tel)+'" placeholder="電話・連絡先" style="flex:1;min-width:120px;">'
+      +'<input data-dbsoo="'+i+'|note" value="'+q(o.note)+'" placeholder="受付の時間など" style="flex:2;min-width:160px;">'
+      +'<button class="btn btn-sm btn-ghost" data-dbsodel="'+i+'" aria-label="この窓口を消す">'+ic('trash')+'</button></div>';}).join('')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;"><button class="btn btn-sm" id="dbsOAdd">'+ic('plus')+'窓口を足す</button>'
+      +(outs.length?'':'<button class="btn btn-sm" id="dbsOSeed">国の資料にある窓口を入れる</button>')+'</div>'
+    +'<div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:12px;">'
+      +'<div class="field"><label>職員に知らせた日</label><input type="date" data-dbso="toStaff" value="'+q(so.toStaff)+'"></div>'
+      +'<div class="field"><label>保護者に知らせた日</label><input type="date" data-dbso="toParents" value="'+q(so.toParents)+'"></div>'
+      +'<div class="field"><label>こどもに知らせた日</label><input type="date" data-dbso="toKids" value="'+q(so.toKids)+'"></div></div>'
+    +'<div class="row-sub">市区町村の子どもの相談窓口・保育課の虐待の相談窓口があれば、それも足してください（国の準備ガイドにあります）。</div>'
+    +'</div>';
+  s.innerHTML=h;
+  var dc=s.querySelector('[data-dbscond]');if(dc)schoolCondWire(dc,renderDbs);
+  s.querySelectorAll('[data-dbsp]').forEach(function(el){el.onchange=function(){var v=dbsObj('dbsPrep'),k=el.getAttribute('data-dbsp');if(el.value)v[k]={done:el.value};else delete v[k];stSet('dbsPrep',v);renderDbs();};});
+  s.querySelectorAll('[data-dbss]').forEach(function(el){el.onchange=function(){
+    var p=el.getAttribute('data-dbss').split('|'),v=dbsObj('dbsStaff'),r=v[p[0]]||{};
+    if(el.value)r[p[1]]=el.value;else delete r[p[1]];
+    v[p[0]]=r;stSet('dbsStaff',v);renderDbs();};});
+  function soSave(o){stSet('dbsSoudan',o);}
+  s.querySelectorAll('[data-dbso]').forEach(function(el){el.onchange=function(){var o=dbsObj('dbsSoudan');o[el.getAttribute('data-dbso')]=el.value;soSave(o);};});
+  s.querySelectorAll('[data-dbsoo]').forEach(function(el){el.onchange=function(){var o=dbsObj('dbsSoudan'),p=el.getAttribute('data-dbsoo').split('|');o.outs=Array.isArray(o.outs)?o.outs:[];if(o.outs[+p[0]])o.outs[+p[0]][p[1]]=el.value;soSave(o);};});
+  s.querySelectorAll('[data-dbsodel]').forEach(function(b){b.onclick=function(){var o=dbsObj('dbsSoudan');o.outs=(o.outs||[]).filter(function(x,i){return i!==+b.getAttribute('data-dbsodel');});soSave(o);renderDbs();};});
+  if($('#dbsOAdd'))$('#dbsOAdd').onclick=function(){var o=dbsObj('dbsSoudan');o.outs=Array.isArray(o.outs)?o.outs:[];o.outs.push({name:'',tel:'',note:''});soSave(o);renderDbs();};
+  /* 国の準備ガイド Ver.1.2 の「公的機関等が設置する主な相談窓口」から、番号まで書いてあったものだけ */
+  if($('#dbsOSeed'))$('#dbsOSeed').onclick=function(){var o=dbsObj('dbsSoudan');o.outs=[
+    {name:'児童相談所 相談専用ダイヤル',tel:'0120-189-783',note:'お住まいの地域の児童相談所につながります'},
+    {name:'性犯罪被害相談電話（警察）',tel:'#8103',note:'都道府県警察の窓口につながります'},
+    {name:'こどもの人権110番（法務局）',tel:'0120-007-110',note:'平日 8:30〜17:15'}];soSave(o);renderDbs();};
+  $('#dbsSoPrint').onclick=function(){
+    var o=dbsObj('dbsSoudan'),sc=esc(schoolNameFixed()||'');
+    printDoc('相談窓口','<p style="text-align:center;font-size:22px;font-weight:700;margin:10px 0 4px;">こまったこと、いやなことがあったら</p><p style="text-align:center;font-size:15px;margin:0 0 18px;">ひとりでがまんしないで、そうだんしてね</p>'
+      +'<table><tbody>'+(o.inName?'<tr><th style="width:34%;">'+sc+'の そうだんいん</th><td style="font-size:16px;">'+esc(o.inName)+(o.inHow?'<div style="font-size:12px;">'+esc(o.inHow)+'</div>':'')+'</td></tr>':'')
+      +(o.outs||[]).filter(function(x){return x&&x.name;}).map(function(x){return '<tr><th>'+esc(x.name)+'</th><td style="font-size:16px;">'+esc(x.tel||'')+(x.note?'<div style="font-size:12px;">'+esc(x.note)+'</div>':'')+'</td></tr>';}).join('')
+      +'</tbody></table>');
+  };
+  $('#dbsPrint').onclick=function(){
+    var v=dbsObj('dbsStaff');
+    printDoc('こども性暴力防止 職員の確認と研修','<p style="text-align:center;font-size:18px;font-weight:700;">こども性暴力防止法 職員の確認と研修の状況</p><p>'+esc(schoolNameFixed()||'')+'　'+esc(fmt(todayISO()))+' 現在</p>'
+      +'<p style="font-size:11px;">確認の結果は記載していません（国のシステムの中だけで扱います）。</p>'
+      +'<table><thead><tr><th>職員</th><th>対象</th><th>確認の手続き</th><th>済んだ日</th><th>次に確かめる日</th><th>研修を受けた日</th><th>研修の方法</th></tr></thead><tbody>'
+      +dbsStaffList().map(function(x){var r=v[x.id]||{};return '<tr><td>'+esc(x.name||'')+'</td><td>'+(r.tgt==='no'?'対象外':r.tgt==='yes'?'対象':'未定')+'</td><td>'+esc(r.tgt==='no'?'':(r.st||'未'))+'</td><td>'+esc(r.at||'')+'</td><td>'+esc(r.next||'')+'</td><td>'+esc(r.tr||'')+'</td><td>'+esc(r.trHow||'')+'</td></tr>';}).join('')
+      +'</tbody></table>');
+  };
 }
 
 /* ========== 施設管理（園の基本情報・提携先） ==========
@@ -45840,7 +46028,7 @@ var EG_TONE_PAGE={
   annual:'curr', curriculum:'curr', tasks:'curr', aiplan:'curr', carerec:'curr', drill:'curr',
   contacts:'kid', roster:'kid', kidsview:'kid', enroll:'kid',
   leads:'money',
-  staff:'staff', shift:'staff', timecard:'staff', kenshu:'staff', bouka:'staff',
+  staff:'staff', shift:'staff', timecard:'staff', kenshu:'staff', bouka:'staff', dbs:'staff',
   billing:'money', expense:'money', revenue:'money', sales:'money',
   audit:'audit', docgen:'audit', reqnav:'audit', docs:'audit',
   photosale:'photo',
@@ -46137,7 +46325,7 @@ var EG_PIC_PAGE={
   annual:'annual_schedule', curriculum:'monthly_curriculum', tasks:'monthly_schedule',
   aiplan:'ai_plan', carerec:'childcare', drill:'activity',
   roster:'students', contacts:'students', kidsview:'students', enroll:'students',
-  leads:'students', staff:'staff', kenshu:'training', bouka:'training',
+  leads:'students', staff:'staff', kenshu:'training', bouka:'training', dbs:'staff',
   shift:'shifts', timecard:'timecard', billing:'billing', expense:'expenses',
   revenue:'sales', sales:'sales', audit:'audit', docgen:'documents',
   reqnav:'documents', docs:'documents',
