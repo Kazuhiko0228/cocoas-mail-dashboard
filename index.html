@@ -4508,10 +4508,24 @@ var REC_OPT=[
 /* ★はじめは外しておく項目（2026-11-13 バス等運行簿）。車を使わない園のほうが多いので、使う園が設定で入れる。
    入れたことは recOn の { 鍵:1 } に持つ（recOff は「外した」しか持てないため。サーバの提案は recOff の npo: だけを見るので混ぜない） */
 var REC_DEF_OFF={'tab:バス等運行簿':1};
+/* はじめは外しておく記録のうち、この園の監査の項目（auditPlan）に入っていれば出すもの。記録のタブ → 監査の項目の鍵
+   （2026-11-13 安田さん「システムは対応できるように作っておき、導入のときに、どの監査が来るかで要る画面を決める」） */
+var REC_AUDIT_KEY={'tab:バス等運行簿':'bus'};
+/* 園の条件（schoolCond）で出し入れする記録のタブ。条件 → タブ。条件に答えてあれば、タブはその答えに従う（スイッチと条件の2か所で食い違わせない） */
+function recCondOf(k){
+  if(typeof SCHOOL_COND==='undefined')return null;
+  var c=SCHOOL_COND.filter(function(x){return x.tab&&('tab:'+x.tab)===k;})[0];return c||null;
+}
 function recOn(k){
-  if(REC_DEF_OFF[k]){var p=stGet('recOn',{});return !!(p&&typeof p==='object'&&p[k]);}
+  var cc=recCondOf(k),ans=cc&&typeof schoolCond==='function'?schoolCond()[cc.k]:'';
+  if(ans)return cc.need.indexOf(ans)>-1;
+  if(REC_DEF_OFF[k]){var p=stGet('recOn',{});if(p&&typeof p==='object'&&p[k])return true;
+    var ak=REC_AUDIT_KEY[k];return !!(ak&&typeof auditPlanKeys==='function'&&auditPlanKeys()[ak]);}
   var o=stGet('recOff',{});return !(o&&typeof o==='object'&&o[k]);}
 function recOffSet(k,off){
+  /* 条件で出し入れするタブは、スイッチを押したら条件の答えを変える（バス・プール・散歩は「あり／なし」） */
+  var cc=recCondOf(k);
+  if(cc&&typeof schoolCondSet==='function'){schoolCondSet(cc.k,off?'no':'yes');return;}
   if(REC_DEF_OFF[k]){var p=stGet('recOn',{});if(!p||typeof p!=='object')p={};if(off)delete p[k];else p[k]=1;stSet('recOn',p);return;}
   var o=stGet('recOff',{});if(!o||typeof o!=='object')o={};if(off)o[k]=1;else delete o[k];stSet('recOff',o);}
 /* ══ 園ごとに足した記録の項目（2026-11-08 安田さんのご依頼）══════════
@@ -5955,8 +5969,7 @@ function schoolCondSet(k,val){
   var v=schoolCond(),c=schoolCondDef(k);
   if(val)v[k]=val;else delete v[k];
   stSet('schoolCond',v);
-  /* 記録のタブも合わせる。答えを消したときは触らない（今の出し方のまま） */
-  if(c&&c.tab&&val)recOffSet('tab:'+c.tab,c.need.indexOf(val)<0);
+  /* 記録のタブは recOn が schoolCond から読む（ここで recOff に書き写さない。書き写すと2か所で食い違う） */
   try{buildNav&&buildNav();}catch(e){}
 }
 /* 項目の条件。{base:条件の鍵, need:当てはまる答え, lab:印の文字, ans:いまの答え, ok:出すか} */
@@ -6086,7 +6099,7 @@ function schoolCondHTML(compact,only){
   var CS=SCHOOL_COND.filter(function(c){return !only||c.k===only;});
   var un=CS.filter(function(c){return !v[c.k];}).length;
   return '<div class="card" data-scond="1" style="'+(compact?'':'max-width:820px;')+'margin-bottom:14px;"><h3>'+ic('check')+'園の条件</h3>'
-    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;">答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;">導入のときに運営が設定します。変わったときは、ここで直せます。答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。'
     +(un&&!only?'<br><b style="color:#854F0B;">まだ答えていない条件が '+un+'つあります。</b>':'')+'</div>'
     +CS.map(function(c){
       return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);">'
@@ -13173,7 +13186,7 @@ var EN_DICT={
 'もとにした資料：':'Source document: ','運営が整えて反映しました。':'Set up and applied by the Miralink team.','下の一覧には、この資料にあった項目を出しています。':'The list below shows the items in this document.',
 '資料に無く、国の基準で作ることが決まっているものは「求められたら出す」に分けています。':'Records not in the document but required by national standards are under “Show if asked”.',
 '資料の書類と、Miralink の入れる場所（{0}件）':'Documents in the list and where to enter them in Miralink ({0})',
-'答えると、当てはまらない項目が監査対応の一覧から外れます。':'Answering removes items that do not apply from the inspection list.','バス・プール・散歩は、保育記録のタブも合わせて出し入れします。':'Bus, pool and walks also show or hide the matching care-record tab.','答えるまでは外さず、「条件つき」の印を付けて出します。':'Until answered, items stay and are marked as conditional.',
+'答えると、当てはまらない項目が監査対応の一覧から外れます。':'Answering removes items that do not apply from the inspection list.','導入のときに運営が設定します。変わったときは、ここで直せます。':'Set by the Miralink team at onboarding. Change it here if things change.','バス・プール・散歩は、保育記録のタブも合わせて出し入れします。':'Bus, pool and walks also show or hide the matching care-record tab.','答えるまでは外さず、「条件つき」の印を付けて出します。':'Until answered, items stay and are marked as conditional.',
 'まだ答えていない条件が {0}つあります。':'{0} conditions not answered yet.','{0}年度の一覧':'FY{0} list','条件つき：':'Conditional: ','（未回答）':' (not answered)',
 '送迎の車を使う園だけ':'Only schools that transport children by car','プール・水遊びをする園だけ':'Only schools with pool / water play','散歩・園外活動をする園だけ':'Only schools that go on walks / outings','給食を出す園だけ':'Only schools that serve meals','給食を園で作っている園だけ':'Only schools that cook meals on site',
 '：当てはまらないので外しています':': does not apply, so removed',

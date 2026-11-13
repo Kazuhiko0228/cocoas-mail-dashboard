@@ -2031,6 +2031,12 @@ var RF_TY={text:'文字',yesno:'有・無',choice:'選ぶ',time:'時刻',number:
    園の監査対応の画面には、この一覧にある項目と国の基準にある項目だけが出る（要らない項目まで園にやらせない）。
    ★資料の中身（PDF・写真）はサーバに残らない。読んだ結果だけが残るので、資料そのものは園でも保管してもらう */
 var ABA={busy:false,msg:'',edit:null};
+var AB_COND=[
+  {k:'bus',q:'送迎バス・園の車で、子どもを運んでいるか',o:[['yes','運んでいる'],['no','運んでいない']]},
+  {k:'pool',q:'プール・水遊びをするか',o:[['yes','する'],['no','しない']]},
+  {k:'sanpo',q:'散歩・園外活動をするか',o:[['yes','する'],['no','しない']]},
+  {k:'meal',q:'給食はどうしているか',o:[['self','園で作っている'],['out','外から運んでいる'],['none','出していない（お弁当など）']]},
+  {k:'dbs',q:'こども性暴力防止法の対象か',o:[['yes','対象（認可の園・国の認定を受けた園）'],['no','対象でない']]}];
 function abLoad(){
   return API.call('GET','/admin/tenants/'+openId+'/audit-base').then(function(j){DATA.ab=j;DATA.abId=openId;ABA.edit=null;})
     .catch(function(e){DATA.ab={err:e.message};DATA.abId=openId;});
@@ -2048,6 +2054,13 @@ function abTabHTML(){
     +'<div class="row"><input type="file" id="abFile" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><button class="btn sm" id="abRead"'+(ABA.busy?' disabled':'')+'>'+(ABA.busy?'SI が資料を読んでいます…（1分ほど）':'SI に読んでもらう')+'</button><span class="msg" id="abMsg">'+esc(ABA.msg)+'</span></div>'
     +(d.muni?'<div class="hint" style="margin:8px 0 0;">この園の市区町村：'+esc(d.muni)+'（提出書類ナビの設定から）。反映すると、この市の台帳にも残ります。</div>':'<div class="hint" style="margin:8px 0 0;color:#A8701A;">提出書類ナビで市区町村を決めていないので、反映しても市の台帳には残りません。</div>')
     +'</div>';
+  /* 園の条件（2026-11-13 安田さん「導入のときに運営が決め、そのあとは園でも変えられる」）。園の画面の SCHOOL_COND と同じ鍵と答え */
+  var cd=d.cond||{};
+  h+='<div class="card"><h3>園の条件</h3>'
+    +'<div class="hint" style="margin:0 0 8px;">ヒアリングで聞いて入れます。当てはまらない項目は、園の監査対応の一覧と記録のタブから外れます。答えていない条件は外さず、「条件つき」の印で出します。園の園長・マネージャーも、あとから設定で直せます。</div>'
+    +AB_COND.map(function(c){return '<div class="row" style="align-items:center;gap:10px;margin-bottom:6px;"><span style="flex:1;min-width:220px;">'+esc(c.q)+'</span>'
+      +'<select data-abc="'+c.k+'" style="width:220px;"><option value="">まだ決めていない</option>'+c.o.map(function(o){return '<option value="'+o[0]+'"'+(cd[c.k]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>';}).join('')+'</select></div>';}).join('')
+    +'<div class="row" style="margin-top:8px;"><button class="btn sm" id="abCondSave">園の条件を保存</button><span class="msg" id="abCm"></span></div></div>';
   if(b&&!draft){
     h+='<div class="card"><h3>いま園に出している一覧 <span class="pill" style="background:#EAF3DE;color:#27500A;">反映済み</span></h3>'
       +'<div class="hint" style="margin:0 0 8px;">'+esc(b.title||'')+(b.fy?'（'+esc(b.fy)+'年度）':'')+'・'+esc(String(b.appliedAt||'').slice(0,10))+' '+esc(b.appliedBy||'')+'が反映。直すときは、資料をもう一度読んでください。</div>'
@@ -2099,6 +2112,10 @@ function abCollect(){
   if($('abFy'))e.fy=$('abFy').value;
 }
 function abWire(){
+  if($('abCondSave'))$('abCondSave').onclick=function(){
+    var c={};document.querySelectorAll('[data-abc]').forEach(function(x){c[x.getAttribute('data-abc')]=x.value;});
+    API.call('PUT','/admin/tenants/'+openId+'/school-cond',{cond:c}).then(function(j){if(DATA.ab)DATA.ab.cond=j.cond;say('abCm',j.changed?'保存しました（園の変更ログにも残ります）':'変わったところはありません');})
+      .catch(function(e){say('abCm',e.message);});};
   if(!$('abRead'))return;
   $('abRead').onclick=function(){
     var fs=$('abFile').files;
