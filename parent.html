@@ -904,7 +904,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
    園から届く鍵を増やしたら（園の記録の側の parent.js の PARENT_READ）、ここにも足す。
    保護者ご自身が書く鍵（WA_SEND）は、もともと未来WA だけの名前なので、ここには入れない。 */
 var WA_SRV_PFX='cocoas_wa_srv_';
-var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|renrakuForm|pcal|dbsSoudan|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
+var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|renrakuForm|pcal|dbsSoudan|dbsSurvey|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
 function waSrvOn(){
   /* WAPI.enabled（接続先が入っているか）と同じ見方を、保存の中身から直に読む。
      WAPI はこのずっと後ろで作るので、起動の途中（同意の鍵の写し替えなど）で WAPI に頼ると、
@@ -3682,6 +3682,7 @@ function langToggleHTML(){
 function langToggleWire(){ var b=document.getElementById('langTg'); if(b)b.onclick=function(){ langSet(langNow()==='en'?'ja':'en'); }; }
 /* 英語の辞書。鍵は日本語そのもの。無いことばは日本語のまま出る。 */
 var EN_DICT={
+'お答えいただきました。ありがとうございました。':'Thank you for your answers.','気になることがあれば、いつでも園にご相談ください。':'If anything concerns you, please contact the school at any time.','送る':'Send','ない':'No','ある':'Yes','わからない':'Not sure','1つ以上お答えください。':'Please answer at least one question.',
 '🤝 こまったときの相談窓口':'🤝 Where to get help','お子さまのことで、こまったこと・心配なことがあれば、ひとりで抱えずにご相談ください。':'If anything about your child worries you, please don\'t keep it to yourself — reach out.','園の相談員':'School contact person',
 /* ★札の右に件数が付くと、辞書が引けずに日本語のまま残っていた。
    「すべて 17」のように数まで書いた鍵しか無く、数が変わったとたんに外れていた。
@@ -5988,6 +5989,22 @@ function meHTML(c){
         +(past?'':'background:var(--c);color:#fff;border:none;')+'">'+(past?'終了':'申込ずみ')+'</div></div>';}).join('')
      :bloomEmpty('まだお申し込みはありません'));
   h2+=ptCardHTML();
+  /* こども性暴力防止のアンケート（2026-11-13）。園が配った期間だけ出す。答えたら「お答えいただきました」だけにする */
+  (function(){
+    var sv=stGet('dbsSurvey',null),t=todayISO();
+    if(!sv||!sv.id||!Array.isArray(sv.qs)||!sv.qs.length)return;
+    if((sv.from&&t<sv.from)||(sv.to&&t>sv.to))return;
+    var mine=stGet('wa_dbs_ans',{})||{},done=mine[sv.id];
+    h2+='<h2 class="sec sec-c">📝 '+esc(sv.title||'アンケートのお願い')+'</h2><div class="card" id="dbsSv" data-sid="'+esc(sv.id)+'">';
+    if(done){h2+='<div style="font-weight:600;">お答えいただきました。ありがとうございました。</div><div class="muted" style="margin-top:4px;">気になることがあれば、いつでも園にご相談ください。</div></div>';return;}
+    h2+='<div class="muted" style="line-height:1.75;margin-bottom:8px;">'+esc(sv.intro||'')+(sv.to?'<br>締め切り：'+esc(sv.to):'')+'</div>'
+      +sv.qs.map(function(q){
+        return '<div style="padding:8px 0;border-top:1px solid var(--line,#eee);"><div style="font-weight:600;font-size:13.5px;margin-bottom:6px;" data-nolang>'+esc(q.q)+'</div>'
+          +(q.type==='free'?'<textarea data-dbsa="'+esc(q.id)+'" rows="3" style="width:100%;box-sizing:border-box;"></textarea>'
+            :'<div style="display:flex;gap:14px;flex-wrap:wrap;">'+['ない','ある','わからない'].map(function(o){return '<label style="display:flex;gap:5px;align-items:center;"><input type="radio" name="dbsa_'+esc(q.id)+'" value="'+o+'" data-dbsa="'+esc(q.id)+'">'+o+'</label>';}).join('')+'</div>')
+          +'</div>';}).join('')
+      +'<button class="btn" id="dbsSvSend" style="margin-top:10px;width:100%;">送る</button></div>';
+  })();
   /* こども性暴力防止法の相談窓口（2026-11-13）。園が入れた窓口の名前と連絡先だけが届く（サーバの PARENT_READ.dbsSoudan） */
   (function(){
     var so=stGet('dbsSoudan',null);if(!so||typeof so!=='object')return;
@@ -6066,6 +6083,16 @@ function wireMe(c){
     openDoc(b.getAttribute('data-doc'),c);};});
   var gg=document.getElementById('goGuide');
   if(gg)gg.onclick=function(){waGuideView=true;ptGuideOpened();render();};
+  /* こども性暴力防止のアンケートを送る。保護者の控え（wa_dbs_ans）に入れて、園へ送る（WA_SEND）。園で読めるのは園長・マネージャーだけ */
+  var dsb=document.getElementById('dbsSvSend');
+  if(dsb)dsb.onclick=function(){
+    var box=document.getElementById('dbsSv'),sid=box.getAttribute('data-sid'),a={},n=0;
+    box.querySelectorAll('[data-dbsa]').forEach(function(el){var k=el.getAttribute('data-dbsa');
+      if(el.type==='radio'){if(el.checked){a[k]=el.value;n++;}}else if(String(el.value||'').trim()){a[k]=String(el.value).trim().slice(0,1000);n++;}});
+    if(!n){alert('1つ以上お答えください。');return;}
+    var mine=stGet('wa_dbs_ans',{})||{};mine[sid]={at:new Date().toISOString(),a:a};stSet('wa_dbs_ans',mine);
+    try{WSYNC.mark('wa_dbs_ans');if(WAPI.online()){clearTimeout(WSYNC.timer);WSYNC.push();}}catch(er){}
+    render();};
   /* ダウンロードは、押されたときだけサーバに取りにいく。
      開いただけでファイルを持ってくると、回数を知らないうちに使ってしまう。 */
   document.querySelectorAll('[data-dl]').forEach(function(b){b.onclick=function(){
@@ -8121,7 +8148,7 @@ var WAPI={
 /* wa_health_consent … 健康に関する情報の同意。
    規約では取得の記録を残す必要があるため、端末の中だけでなく園にも送る。 */
 /* checkin_log … 登園・降園を押した控え。園の登園シートの空欄に出すため、園にも送る。 */
-var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_feed_comment|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|checkin_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen|wa_renraku)$/;
+var WA_SEND=/^(wa_orders|wa_ev_joins|wa_ev_joindetail|wa_prod_reviews|wa_ev_reviews|wa_feed_fav|wa_feed_save|wa_feed_seen|wa_feed_comment|wa_viewed|wa_track|wa_help_log|wa_help_esc|wa_consent|wa_health_consent|wa_hid_salt|absence_log|checkin_log|posts_seen_[0-9]+|wa_pref|dm_out|dm_seen|wa_renraku|wa_dbs_ans)$/;
 
 /* ── ご家庭が変わるときに、この端末から消してよい鍵（未来WA・保護者のものだけ）──────
    同じURLの頭で開く Miralink（園の職員の画面）・出品者の画面と、端末の保存場所を分け合っている。
