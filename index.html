@@ -6010,14 +6010,17 @@ function auditWhere(it){
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
 /* 項目の名前の横の印：どこから来た項目か・条件つきか（言い切らず、出どころだけを書く） */
-function auditPill(t,bg,fg){return ' <span class="pill" style="background:'+bg+';color:'+fg+';font-size:11px;font-weight:500;">'+esc(t)+'</span>';}
+/* t は配列でもよい（英語の切替で、文字ごとに辞書を引けるように別々の文字にする。[文字, 訳さない] の形も受ける） */
+function auditPill(t,bg,fg){
+  var a=Array.isArray(t)?t:[t];
+  return ' <span class="pill" style="background:'+bg+';color:'+fg+';font-size:11px;font-weight:500;">'+a.map(function(x){return Array.isArray(x)?'<span data-nolang>'+esc(x[0])+'</span>':'<span>'+esc(x)+'</span>';}).join('')+'</span>';}
 function auditPlanTag(it){
   var p=auditPlan(),h='';
   var c=auditCondOf(it);
-  if(c)h+=auditPill('条件つき：'+c.lab+(c.ans?'':'（未回答）'),'#FAEEDA','#854F0B');
+  if(c)h+=auditPill(['条件つき：',c.lab].concat(c.ans?[]:['（未回答）']),'#FAEEDA','#854F0B');
   if(!p)return h;
   var x=auditPlanKeys()[it.key],t='',bg='#E6F1FB',fg='#123E6B';
-  if(x||/^p_/.test(it.key))t=(p.fy?p.fy+'年度':'前年度')+'の一覧'+(x&&x.period?'（'+x.period+'）':'');
+  if(x||/^p_/.test(it.key))t=[(p.fy?p.fy+'年度':'前年度')+'の一覧'].concat(x&&x.period?[['（'+x.period+'）']]:[]);
   else if(AUDIT_NAT[it.key]||it.key==='kega')t='国の基準';
   else if(AUDIT_LAW[it.key])t='労働基準法';
   else if(auditAddOn()[it.key]){t='園で足した項目';bg='#F1EFE8';fg='#5F5E5A';}
@@ -6026,11 +6029,13 @@ function auditPlanTag(it){
 /* 資料ではどの名前だったか（①の行に出す） */
 function auditFromHTML(it){
   var n=auditPlanNames()[it.key];if(!n||!n.length)return '';
-  return '<div class="row-sub" style="color:#123E6B;">資料では：'+n.map(function(x){return '「'+esc(x)+'」';}).join('')+'</div>';
+  return '<div class="row-sub" style="color:#123E6B;"><span>資料では：</span><span data-nolang>'+n.map(function(x){return '「'+esc(x)+'」';}).join('')+'</span></div>';
 }
+/* 「画面 › 場所」を部品ごとの文字にして出す（英語の切替で、部品ごとに辞書を引くため） */
+function auditWhereParts(w){return String(w||'').split(' › ').map(function(x){return '<span>'+esc(x)+'</span>';}).join('<span aria-hidden="true"> › </span>');}
 function auditWhereHTML(it){
   var w=auditWhere(it);if(!w)return '';
-  return '<div class="row-sub" style="color:#0B5F8F;">入れる場所：<b style="font-weight:600;">'+esc(w)+'</b></div>';
+  return '<div class="row-sub" style="color:#0B5F8F;"><span>入れる場所：</span><b style="font-weight:600;">'+auditWhereParts(w)+'</b></div>';
 }
 function auditFindDone(){var v=stGet('auditFindDone',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
 /* 資料の書類と、Miralink の入れる場所の対応表（運営が反映した中身を、そのまま園にも見せる） */
@@ -6043,9 +6048,9 @@ function auditMapTableHTML(p){
     +'<div class="scrollx"><table class="wraptbl" style="font-size:12.5px;"><thead><tr><th>資料の書類</th><th style="width:26%;">Miralink の項目</th><th style="width:34%;">入れる場所</th></tr></thead><tbody>'
     +L.map(function(x){
       var it=x.key?byKey[x.key]:null,c=it?auditCondOf(it):null;
-      var name=it?esc(it.name)+(c&&!c.ok?'<div class="row-sub" style="color:#854F0B;">園の条件（'+esc(c.lab)+'）に当てはまらないので、外しています</div>':''):'<span class="muted">当たる項目なし（⑥に並べています）</span>';
-      var where=it?esc(auditWhere(it)):esc(auditWhere({key:'p_'}));
-      return '<tr><td>'+esc(x.name)+(x.period?'<div class="row-sub">'+esc(x.period)+'</div>':'')+'</td><td>'+name+'</td><td>'+where+'</td></tr>';
+      var name=it?esc(it.name)+(c&&!c.ok?'<div class="row-sub" style="color:#854F0B;"><span>'+esc(c.lab)+'</span><span>：当てはまらないので外しています</span></div>':''):'<span class="muted">当たる項目なし（⑥に並べています）</span>';
+      var where=auditWhereParts(it?auditWhere(it):auditWhere({key:'p_'}));
+      return '<tr><td data-nolang>'+esc(x.name)+(x.period?'<div class="row-sub">'+esc(x.period)+'</div>':'')+'</td><td>'+name+'</td><td>'+where+'</td></tr>';
     }).join('')
     +'</tbody></table></div></details>';
 }
@@ -6055,7 +6060,7 @@ function auditPlanCardHTML(){
   var fd=auditFindDone(),F=(p.findings||[]).filter(function(f){return f&&f.text&&f.id;});
   var left=F.filter(function(f){return !fd[f.id];}).length;
   return '<div class="card" style="margin-bottom:14px;border-color:#B5D4F4;"><h3>'+ic('clipboard')+'この園の監査の項目</h3>'
-    +'<div class="muted" style="font-size:12.5px;line-height:1.8;">'+esc(p.title||'前年度の監査資料')+(p.fy?'（'+esc(p.fy)+'年度）':'')+'をもとに、運営が整えました'+(p.appliedAt?'（'+esc(fmt(String(p.appliedAt).slice(0,10)))+'）':'')+'。'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;"><span>もとにした資料：</span><span data-nolang>'+esc(p.title||'前年度の監査資料')+(p.fy?'（'+esc(p.fy)+'年度）':'')+'</span><br><span>運営が整えて反映しました。</span>'+(p.appliedAt?'<span>'+esc(fmt(String(p.appliedAt).slice(0,10)))+'</span>':'')+'<br>'
     +'下の一覧には、この資料にあった項目を出しています。資料に無く、国の基準で作ることが決まっているものは「求められたら出す」に分けています。</div>'
     +auditMapTableHTML(p)
     +(F.length?'<div style="margin-top:12px;"><div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">前回の指摘事項'+(left?'　<span style="color:#A32D2D;">直していないもの '+left+'件</span>':'　<span style="color:#27500A;">すべて直しました</span>')+'</div>'
@@ -6108,7 +6113,7 @@ function auditOutCardHTML(){
   var boss=!(typeof isBoss==='function'&&!isBoss());
   return '<details class="card" style="margin-bottom:14px;"><summary style="cursor:pointer;font-weight:600;">この園の一覧に出していない項目（'+(L3.length+L0.length)+'件）</summary>'
     +(L3.length?'<div class="muted" style="font-size:12.5px;margin:8px 0;">'+(auditPlan()?'もとにした資料に無く、国の基準でも決まっていない項目です。':'その市の一覧にあるときだけ出す項目です。')+'必要なものは「足す」で一覧に入れられます。</div>'
-      +L3.map(function(it){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);"><span style="flex:1;font-size:13px;">'+esc(it.name)+'<span class="row-sub" style="display:block;">'+esc(auditWhere(it))+'</span></span>'
+      +L3.map(function(it){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);"><span style="flex:1;font-size:13px;">'+esc(it.name)+'<span class="row-sub" style="display:block;">'+auditWhereParts(auditWhere(it))+'</span></span>'
         +(boss?'<button class="btn btn-sm" data-auadd="'+esc(it.key)+'">'+ic('plus')+'足す</button>':'')+'</div>';}).join(''):'')
     +(L0.length?'<div class="muted" style="font-size:12.5px;margin:12px 0 8px;">園の条件に当てはまらないので外している項目です。条件は上の「園の条件」で変えられます。</div>'
       +L0.map(function(it){var c=auditCondOf(it);return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);"><span style="flex:1;font-size:13px;">'+esc(it.name)+'</span><span class="row-sub">'+esc(c?c.lab:'')+'</span></div>';}).join(''):'')
@@ -13107,7 +13112,23 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','労働基準法':'Labour Standards Act','資料では：':'In the document: ',
+'入れる場所：':'Where to enter: ','生徒情報 →':'Student info →','園児ごとの書類（健康診断票）':'Per-child documents (health check record)','園児ごとの書類（登園許可証・登園届）':'Per-child documents (return-to-school certificate / notice)','園児ごとの書類（同意書）':'Per-child documents (consent form)','園児ごとの書類（利用契約書）':'Per-child documents (service agreement)',
+'職員会議の議事録':'Staff meeting minutes','職員ごとの書類（研修の修了証）':'Per-staff documents (training certificate)','Miralink の外（園で用意して、ここで「済」を付けます）':'Outside Miralink (prepare it yourselves and mark it done here)',
+'もとにした資料：':'Source document: ','運営が整えて反映しました。':'Set up and applied by the Miralink team.','下の一覧には、この資料にあった項目を出しています。':'The list below shows the items in this document.',
+'資料に無く、国の基準で作ることが決まっているものは「求められたら出す」に分けています。':'Records not in the document but required by national standards are under “Show if asked”.',
+'資料の書類と、Miralink の入れる場所（{0}件）':'Documents in the list and where to enter them in Miralink ({0})',
+'答えると、当てはまらない項目が監査対応の一覧から外れます。':'Answering removes items that do not apply from the inspection list.','バス・プール・散歩は、保育記録のタブも合わせて出し入れします。':'Bus, pool and walks also show or hide the matching care-record tab.','答えるまでは外さず、「条件つき」の印を付けて出します。':'Until answered, items stay and are marked as conditional.',
+'まだ答えていない条件が {0}つあります。':'{0} conditions not answered yet.','{0}年度の一覧':'FY{0} list','条件つき：':'Conditional: ','（未回答）':' (not answered)',
+'送迎の車を使う園だけ':'Only schools that transport children by car','プール・水遊びをする園だけ':'Only schools with pool / water play','散歩・園外活動をする園だけ':'Only schools that go on walks / outings','給食を出す園だけ':'Only schools that serve meals','給食を園で作っている園だけ':'Only schools that cook meals on site',
+'：当てはまらないので外しています':': does not apply, so removed',
+'乗った人数・降りた人数と、車内に子どもが残っていないかを確かめた人・時刻を毎回残します。設定 › 園の条件 で「運んでいる」と答えると、保育記録にこの記録が出ます。':'Record the number of children getting on and off, and who checked that no child was left in the vehicle and when, every trip. Answer “Yes” under Settings › School conditions to show this record in Care Records.',
+'システム内データ：使っていません（車を使う園は 設定 › 園の条件 で「運んでいる」と答えてください）':'System data: not in use (schools using a vehicle should answer “Yes” under Settings › School conditions)',
+'この記録は外しています（設定 › 園の条件）':'This record is turned off (Settings › School conditions)','この記録は外しています（設定 › 記録で使う項目）':'This record is turned off (Settings › Record items)',
+'Miralink の外で用意してください。':'Prepare this outside Miralink.','求められたら出すもの（{0}件）':'Show if asked ({0})',
+'根拠：指導監督基準 第8（事故の状況と、とった処置を記録する）':'Basis: Supervision standards, Section 8 (record accidents and the action taken)','根拠：労働基準法（賃金台帳）':'Basis: Labour Standards Act (wage ledger)','根拠：労働基準法（労働条件を書面で示す）':'Basis: Labour Standards Act (written working conditions)','根拠：労働基準法（労働時間の記録）':'Basis: Labour Standards Act (working-time records)',
+'この園の一覧に出していない項目（{0}件）':'Items not on this school\'s list ({0})','もとにした資料に無く、国の基準でも決まっていない項目です。':'Items not in the source document and not required by national standards.','必要なものは「足す」で一覧に入れられます。':'Use “Add” to put any you need on the list.',
+'システム内データ：{0}名中 {1}名の健康診断票あり（現在）':'System data: health check records for {1} of {0} children (current)',
+'労働基準法':'Labour Standards Act','資料では：':'In the document: ',
 'この園の資料の一覧にはありませんが、国の基準や労働基準法で作ることが決まっている記録です。当日に求められることがあるので、記録はふだんどおりためておきます。上の準備状況の数には入れていません。':'Not on this school\'s list, but required by national standards or the Labour Standards Act. You may be asked for them on the day, so keep recording as usual. They are not counted in the progress above.',
 '園の条件に当てはまらないので外している項目です。条件は上の「園の条件」で変えられます。':'Removed because they do not apply to this school. Change this under “School conditions”.',
 '資料に書かれていた書類が、Miralink のどの項目・どこに入るかの一覧です。当て方は、運営が資料を読んで確かめました。違っていたら運営にお知らせください。':'How each document in the source list maps to a Miralink item and where to enter it. The operator checked the mapping; please tell us if anything is wrong.',
