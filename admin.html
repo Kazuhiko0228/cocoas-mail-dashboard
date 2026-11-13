@@ -547,7 +547,7 @@ var tTab='overview';
 var ROUTES={home:'home',inq:'inquiries',apply:'apply',tenants:'schools',docs:'documents',bill:'billing',pay:'store-payments',
   tuition:'tuition',pipe:'onboarding',wiz:'onboard',members:'settings/members',incidents:'incidents',offboard:'offboarding',ads:'ads',forms:'forms',aifb:'si-feedback',oplog:'oplog',fees:'settings/fees',sys:'settings/system',me:'settings/account'};
 /* 提出書類ナビ（2026-11-08 安田さん「運営側でもできるようにしたい」） */
-var T_TABS=[['overview','概要'],['contract','契約・請求'],['subsidy','補助金'],['accounts','アカウント'],['docs','書類'],['reqnav','提出書類ナビ・監査書類'],['recf','記録の項目'],['log','変更ログ'],['support','サポート閲覧']];
+var T_TABS=[['overview','概要'],['contract','契約・請求'],['subsidy','補助金'],['accounts','アカウント'],['docs','書類'],['reqnav','提出書類ナビ・監査書類'],['abase','監査の項目'],['recf','記録の項目'],['log','変更ログ'],['support','サポート閲覧']];
 function viewHash(){
   if(view==='one')return '#/schools/'+openId+(tTab&&tTab!=='overview'?'/'+tTab:'');
   if(view==='wiz'&&openId)return '#/onboard/'+openId;
@@ -1430,6 +1430,7 @@ function tenantHTML(){
   P.support=supTabHTML();
   P.reqnav=rnTabHTML();
   P.recf=rfPanelHTML(false);
+  P.abase=abTabHTML();
   P.subsidy=subTabHTML();
   return head+'<div class="tabs" role="tablist">'+T_TABS.map(function(t){
       return '<button role="tab" data-tt="'+t[0]+'" class="'+(tTab===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
@@ -2024,6 +2025,107 @@ function rnTabHTML(){
    反映すると園の記録の画面に項目が出る（state の recFields・recOff）。園の変更ログには「Miralink（運営）」で残る */
 var RFA={sel:null,msg:'',busy:false,rec:'検食簿'};
 var RF_TY={text:'文字',yesno:'有・無',choice:'選ぶ',time:'時刻',number:'数',date:'日付'};
+/* ══ 監査の項目：前年度の監査資料から、園の監査の項目を整える（cocoas-api src/auditbase.js・2026-11-13 安田さんのご判断）══
+   園から前年度の監査資料（通知・当日に用意する書類の一覧・指摘事項）をもらい、ここで上げる → SI が書類の一覧と指摘を読み、
+   園の監査チェックリストの項目に当てる → 運営が確かめて直す → 「園に反映する」。
+   園の監査対応の画面には、この一覧にある項目と国の基準にある項目だけが出る（要らない項目まで園にやらせない）。
+   ★資料の中身（PDF・写真）はサーバに残らない。読んだ結果だけが残るので、資料そのものは園でも保管してもらう */
+var ABA={busy:false,msg:'',edit:null};
+function abLoad(){
+  return API.call('GET','/admin/tenants/'+openId+'/audit-base').then(function(j){DATA.ab=j;DATA.abId=openId;ABA.edit=null;})
+    .catch(function(e){DATA.ab={err:e.message};DATA.abId=openId;});
+}
+function abTabHTML(){
+  var d=(DATA.abId===openId)?DATA.ab:null;
+  if(!d)return '<div class="empty">読み込んでいます…</div>';
+  if(d.err)return '<div class="note bad">'+esc(d.err)+'</div>';
+  var b=d.base,cat=d.catalog||[],draft=b&&b.status==='draft';
+  if(draft&&!ABA.edit)ABA.edit={title:b.title,fy:b.fy,items:JSON.parse(JSON.stringify(b.items||[])),findings:JSON.parse(JSON.stringify(b.findings||[]))};
+  var e=ABA.edit;
+  var h='<div class="card"><h3>前年度の監査資料を読む</h3>'
+    +'<div class="hint" style="margin:0 0 8px;">園からもらった前年度の監査資料（通知・当日に用意する書類の一覧・指摘事項・改善状況報告）を上げると、SI が書類の一覧と指摘を読み、この園の監査チェックリストの項目に当てます。確かめて「園に反映する」を押すと、園の監査対応の画面には、この一覧にある項目と国の基準にある項目だけが出ます。'
+    +'<br>PDF か写真で6つまで（1つ12MBまで）。資料そのものはサーバに残らないので、園でも保管してもらってください。</div>'
+    +'<div class="row"><input type="file" id="abFile" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><button class="btn sm" id="abRead"'+(ABA.busy?' disabled':'')+'>'+(ABA.busy?'SI が資料を読んでいます…（1分ほど）':'SI に読んでもらう')+'</button><span class="msg" id="abMsg">'+esc(ABA.msg)+'</span></div>'
+    +(d.muni?'<div class="hint" style="margin:8px 0 0;">この園の市区町村：'+esc(d.muni)+'（提出書類ナビの設定から）。反映すると、この市の台帳にも残ります。</div>':'<div class="hint" style="margin:8px 0 0;color:#A8701A;">提出書類ナビで市区町村を決めていないので、反映しても市の台帳には残りません。</div>')
+    +'</div>';
+  if(b&&!draft){
+    h+='<div class="card"><h3>いま園に出している一覧 <span class="pill" style="background:#EAF3DE;color:#27500A;">反映済み</span></h3>'
+      +'<div class="hint" style="margin:0 0 8px;">'+esc(b.title||'')+(b.fy?'（'+esc(b.fy)+'年度）':'')+'・'+esc(String(b.appliedAt||'').slice(0,10))+' '+esc(b.appliedBy||'')+'が反映。直すときは、資料をもう一度読んでください。</div>'
+      +abItemsView(b.items,cat)+abFindView(b.findings)+'</div>';
+  }
+  if(draft){
+    var opts=function(k){return '<option value="">Miralink の外で用意する</option>'+cat.map(function(c){return '<option value="'+esc(c.key)+'"'+(c.key===k?' selected':'')+'>'+esc(c.name)+'</option>';}).join('');};
+    var nk=e.items.filter(function(x){return x.key;}).length;
+    h+='<div class="card"><h3>読み取った一覧（下書き）</h3>'
+      +'<div class="hint" style="margin:0 0 8px;">'+(b.files||[]).map(function(f){return esc(f.name);}).join('・')+' を読みました。'+e.items.length+'項目のうち '+nk+'項目が Miralink の記録・書類の置き場に当たりました。当て方が違うものは右の欄で直してください。</div>'
+      +'<div class="grid2" style="display:grid;grid-template-columns:1fr 140px;gap:8px;margin-bottom:8px;"><div class="f"><label>資料の表題</label><input id="abTitle" value="'+esc(e.title||'')+'"></div><div class="f"><label>年度（西暦）</label><input id="abFy" value="'+esc(e.fy||'')+'" placeholder="2026"></div></div>'
+      +'<div class="tw"><table><thead><tr><th>資料にある書類</th><th style="width:150px;">期間・条件</th><th style="width:260px;">Miralink の項目</th><th style="width:40px;"></th></tr></thead><tbody>'
+      +e.items.map(function(x,i){return '<tr><td><input data-abi="'+i+'|name" value="'+esc(x.name)+'"></td>'
+        +'<td><input data-abi="'+i+'|period" value="'+esc([x.period,x.note].filter(Boolean).join('・'))+'" placeholder="直近12ヶ月分など"></td>'
+        +'<td><select data-abi="'+i+'|key"'+(x.key?'':' style="color:#A8701A;"')+'>'+opts(x.key)+'</select></td>'
+        +'<td><button class="btn sm ghost" data-abdel="'+i+'" title="消す">×</button></td></tr>';}).join('')
+      +'</tbody></table></div><div class="row" style="margin-top:6px;"><button class="btn sm ghost" id="abAdd">＋ 行を足す</button></div>'
+      +'<h3 style="margin-top:14px;">前回の指摘事項</h3>'
+      +(e.findings.length?e.findings.map(function(f,i){return '<div class="row" style="align-items:flex-start;gap:6px;margin-bottom:6px;"><select data-abf="'+i+'|kind" style="width:110px;">'+['文書指摘','口頭指摘','助言','指摘'].map(function(k){return '<option'+(k===f.kind?' selected':'')+'>'+k+'</option>';}).join('')+'</select>'
+        +'<textarea data-abf="'+i+'|text" rows="2" style="flex:1;">'+esc(f.text)+'</textarea><button class="btn sm ghost" data-abfdel="'+i+'">×</button></div>';}).join(''):'<div class="hint" style="margin:0 0 6px;">資料に指摘事項はありませんでした。</div>')
+      +'<div class="row"><button class="btn sm ghost" id="abFAdd">＋ 指摘を足す</button></div>'
+      +'<div class="row" style="margin-top:14px;"><button class="btn sm sec" id="abSave">下書きを保存</button><button class="btn sm" id="abApply">園に反映する</button><span class="msg" id="abEm"></span></div>'
+      +'</div>';
+  }
+  if((d.muniLists||[]).length){
+    h+='<details class="card"><summary style="cursor:pointer;font-weight:700;">'+esc(d.muni)+' の台帳（ほかの園で反映した一覧・'+d.muniLists.length+'件）</summary>'
+      +d.muniLists.map(function(m){return '<div style="margin-top:10px;"><b>'+esc(m.title||'')+'</b>'+(m.fy?'（'+esc(m.fy)+'年度）':'')+'・'+esc(String(m.created_at||'').slice(0,10))
+        +'<div class="hint" style="margin:2px 0 0;">'+(m.items||[]).map(function(x){return esc(x.name)+(x.key?'':'（外）');}).join('／')+'</div></div>';}).join('')
+      +'</details>';
+  }
+  return h;
+}
+function abItemsView(items,cat){
+  var nm={};(cat||[]).forEach(function(c){nm[c.key]=c.name;});
+  return '<div class="tw"><table><thead><tr><th>資料にある書類</th><th style="width:150px;">期間・条件</th><th style="width:260px;">Miralink の項目</th></tr></thead><tbody>'
+    +(items||[]).map(function(x){return '<tr><td>'+esc(x.name)+'</td><td>'+esc([x.period,x.note].filter(Boolean).join('・'))+'</td><td>'+(x.key?esc(nm[x.key]||x.key):'<span style="color:#A8701A;">Miralink の外で用意する</span>')+'</td></tr>';}).join('')
+    +'</tbody></table></div>';
+}
+function abFindView(F){
+  if(!(F||[]).length)return '';
+  return '<h3 style="margin-top:14px;">前回の指摘事項</h3>'+F.map(function(f){return '<div style="padding:5px 0;border-top:1px solid var(--line);"><span class="pill">'+esc(f.kind||'')+'</span> '+esc(f.text)+'</div>';}).join('');
+}
+function abCollect(){
+  var e=ABA.edit;if(!e)return;
+  document.querySelectorAll('[data-abi]').forEach(function(x){var p=x.getAttribute('data-abi').split('|'),it=e.items[+p[0]];if(!it)return;
+    if(p[1]==='period'){it.period=x.value;it.note='';}else it[p[1]]=x.value;});
+  document.querySelectorAll('[data-abf]').forEach(function(x){var p=x.getAttribute('data-abf').split('|'),f=e.findings[+p[0]];if(f)f[p[1]]=x.value;});
+  if($('abTitle'))e.title=$('abTitle').value;
+  if($('abFy'))e.fy=$('abFy').value;
+}
+function abWire(){
+  if(!$('abRead'))return;
+  $('abRead').onclick=function(){
+    var fs=$('abFile').files;
+    if(!fs||!fs.length){say('abMsg','資料のファイルを選んでください');return;}
+    if(fs.length>6){say('abMsg','6つまでにしてください');return;}
+    var L=[],n=0;
+    Array.prototype.forEach.call(fs,function(f,i){var r=new FileReader();r.onload=function(){L[i]={name:f.name,data:String(r.result)};n++;
+      if(n<fs.length)return;
+      ABA.busy=true;ABA.msg='';render();
+      API.call('POST','/admin/tenants/'+openId+'/audit-base/read',{files:L}).then(function(){ABA.busy=false;return abLoad();})
+        .then(function(){render();}).catch(function(e2){ABA.busy=false;ABA.msg=e2.message;render();});};
+      r.onerror=function(){say('abMsg','ファイルを読めませんでした');};r.readAsDataURL(f);});
+  };
+  var bid=DATA.ab&&DATA.ab.base&&DATA.ab.base.id;
+  document.querySelectorAll('[data-abdel]').forEach(function(b){b.onclick=function(){abCollect();ABA.edit.items.splice(+b.getAttribute('data-abdel'),1);render();};});
+  document.querySelectorAll('[data-abfdel]').forEach(function(b){b.onclick=function(){abCollect();ABA.edit.findings.splice(+b.getAttribute('data-abfdel'),1);render();};});
+  if($('abAdd'))$('abAdd').onclick=function(){abCollect();ABA.edit.items.push({name:'',period:'',note:'',key:''});render();};
+  if($('abFAdd'))$('abFAdd').onclick=function(){abCollect();ABA.edit.findings.push({text:'',kind:'口頭指摘'});render();};
+  var save=function(){abCollect();var e=ABA.edit;
+    return API.call('PUT','/admin/tenants/'+openId+'/audit-base/'+bid,{title:e.title,fy:e.fy,items:e.items.filter(function(x){return String(x.name||'').trim();}),findings:e.findings.filter(function(f){return String(f.text||'').trim();})});};
+  if($('abSave'))$('abSave').onclick=function(){save().then(function(){return abLoad();}).then(function(){render();say('abEm','保存しました');}).catch(function(e){say('abEm',e.message);});};
+  if($('abApply'))$('abApply').onclick=function(){
+    if(!confirm('この一覧を園に反映します。園の監査対応の画面は、この一覧にある項目と国の基準にある項目だけになります。よろしいですか？'))return;
+    save().then(function(){return API.call('POST','/admin/tenants/'+openId+'/audit-base/'+bid+'/apply',{});})
+      .then(function(){return abLoad();}).then(function(){render();}).catch(function(e){say('abEm',e.message);});
+  };
+}
 function rfLoad(){
   return API.call('GET','/admin/tenants/'+openId+'/rec-fields').then(function(j){DATA.rf=j;DATA.rfId=openId;RFA.sel=null;})
     .catch(function(e){DATA.rf={err:e.message};DATA.rfId=openId;});
@@ -3722,6 +3824,7 @@ function load(){
       tTab==='support'?supLoad():null,
       tTab==='reqnav'?rnLoad():null,
       tTab==='recf'?rfLoad():null,
+      tTab==='abase'?abLoad():null,
       tTab==='subsidy'?API.call('GET','/admin/tenants/'+openId+'/subsidies').then(function(j){DATA.sub=j;DATA.subId=openId;}).catch(function(e){DATA.sub={err:e.message};DATA.subId=openId;}):null,
       tTab==='docs'?API.call('GET','/admin/tenants/'+openId+'/contracts').then(function(j){DATA.agree=j;DATA.agreeId=openId;}).catch(function(e){DATA.agree={err:e.message};DATA.agreeId=openId;}):null,
       tTab==='overview'?API.call('GET','/admin/tenants/'+openId+'/onboarding').then(function(j){DATA.ob=j;DATA.obId=openId;}).catch(function(){DATA.ob=null;}):null
@@ -4230,6 +4333,7 @@ function wire(){
   };
   rnWire();
   rfWire();
+  abWire();
   if($('supEnd'))$('supEnd').onclick=function(){API.call('POST','/admin/support/'+SUP.mine.session.id+'/end',{}).then(function(){SUP.view='';SUP.data=null;render();}).catch(function(e){alert(e.message);});};
   /* 導入 */
   document.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){pipeMode=b.getAttribute('data-pm');render();};});
