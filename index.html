@@ -4462,6 +4462,7 @@ var AUDIT_CATS=[
     {key:'kaigi',name:'職員会議・クラス議事録',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
     {key:'kenshu',opt:1,name:'職員の研修の記録（救命処置の講習・訓練を含む）',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
     {key:'shuryo',name:'研修の修了証',place:'システム内（職員管理）',when:'運営中',sys:'staff',note:'外部の研修（救命講習など）の修了証を、職員ごとの書類に「研修の修了証」の種類で入れてください。研修の記録は 研修・訓練 にあります。'},
+    {key:'haichi',name:'時間帯ごとの職員配置の確認',place:'',when:'運営中',sys:'records',note:'登園・降園の時刻と職員の打刻から、30分ごとに足りているかを出します。入力は増えません。登園（出席）の画面の「時間帯ごとの職員配置」から、月ごとに印刷できます。'},
     {key:'dbs',cond:'dbs',name:'こども性暴力防止法の措置（犯罪事実確認・研修・相談窓口）',place:'',when:'運営中',sys:'dbs',note:'2026年12月25日から。確認の結果は Miralink に置かず、手続きの進み方と日付だけを残します。'},
     {key:'shugyo',name:'就業規則・職員の誓約書（個人情報の取扱い）',place:'',when:'年度前',sys:'docs',note:'就業規則は書類格納に、職員が書いた誓約書は職員ごとの書類に「誓約書（個人情報の取扱い）」の種類で入れてください。'}
   ]}
@@ -5055,7 +5056,8 @@ var AUDIT_REC={
   bus:['carerec','バス等運行簿'],
   sanpo_rec:['carerec','散歩・園外活動'],
   pool:['carerec','プール・水遊び'],
-  teikyo:['records','登園（出席）']
+  teikyo:['records','登園（出席）'],
+  haichi:['records','登園（出席）']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5486,6 +5488,13 @@ function auditDataInfo(key,fy){
         });
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'haichi': {
+      /* 直近30日（きょうを除く）。足りない時間帯があった日・打刻のない日を数える */
+      var hb=0,hn=0,hd=0,hi2;
+      for(hi2=1;hi2<=30;hi2++){var hdt=iso(addDays(-hi2)),hbb=haichiBands(hdt);if(!hbb.kids)continue;hd++;if(!hbb.staff){hn++;continue;}if(hbb.slots.some(function(x){return !x.ok;}))hb++;}
+      if(!hd)return '直近30日の登園の記録はありません';
+      return '直近30日：記録のある日 '+hd+'日のうち、足りない時間帯があった日 '+hb+'日・打刻のない日 '+hn+'日';
     }
     case 'dbs': {
       var dbm=dbsSummary();
@@ -5948,7 +5957,7 @@ function wireSentMail(root){
    ・Miralink に置き場の無い項目は「⑥ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける */
 var AUDIT_NAT={jido_meibo:1,shusseki:1,shintai:1,kid_kenshin:1,keiyaku:1,kunren:1,roudou_meibo:1,shikaku:1,kenshin:1,kenben:1};
 /* ②に出すときの根拠（2026-11-13 認可外保育施設指導監督基準・労働基準法で確かめたもの。確かめていないものは足さない） */
-var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）',dbs:'こども性暴力防止法（2026年12月25日 施行）'};
+var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）',dbs:'こども性暴力防止法（2026年12月25日 施行）',haichi:'認可外は指導監督基準 第1、認可は設備運営基準 第33条（保育に従事する者の数と資格）'};
 /* ══ 園の条件（2026-11-13 安田さんのご依頼「条件付きの項目は、条件付きと分かる形で、園の設定で分かりやすく自動で外せる仕組み」）══
    答えるまでは外さない（「条件つき」の印だけ付けて出す）。答えると、当てはまらない項目が監査の一覧から外れ、
    tab のある条件は保育記録のタブも合わせて出し入れする（同じことを2か所で答えさせない）。
@@ -6027,7 +6036,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -6043,7 +6052,7 @@ function auditPlanTag(it){
   if(!p)return h;
   var x=auditPlanKeys()[it.key],t='',bg='#E6F1FB',fg='#123E6B';
   if(x||/^p_/.test(it.key))t=[(p.fy?p.fy+'年度':'前年度')+'の一覧'].concat(x&&x.period?[['（'+x.period+'）']]:[]);
-  else if(AUDIT_NAT[it.key]||it.key==='kega')t='国の基準';
+  else if(AUDIT_NAT[it.key]||it.key==='kega'||it.key==='haichi')t='国の基準';
   else if(it.key==='dbs')t='こども性暴力防止法';
   else if(AUDIT_LAW[it.key])t='労働基準法';
   else if(auditAddOn()[it.key]){t='園で足した項目';bg='#F1EFE8';fg='#5F5E5A';}
@@ -13140,7 +13149,11 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','早く気づくための取り組み（面談・アンケート）':'Early detection (interviews and surveys)','日ごろの観察に加えて、年齢に合わせた面談かアンケートを、決まった時期におこなうことが求められています。':'In addition to daily observation, age-appropriate interviews or surveys must be held at set times.',
+'入れる場所：':'Where to enter: ','時間帯ごとの職員配置の確認':'Staffing by time slot','時間帯ごとの職員配置':'Staffing by time slot','登園・降園の時刻と職員の打刻から、30分ごとに足りているかを出します。入力は増えません。登園（出席）の画面の「時間帯ごとの職員配置」から、月ごとに印刷できます。':'Checks every 30 minutes whether staffing is enough, from children\'s arrival/departure times and staff clock-ins. No extra input. Print monthly from “Staffing by time slot” on the attendance screen.',
+'足りない時間帯 {0}':'{0} short slots','すべての時間帯で足りています':'Enough in every slot','打刻がありません':'No clock-ins','（きょうは、いまの時刻まで）':' (today, up to now)',
+'登園・降園の時刻と、職員の打刻から30分ごとに数えています。園児はその30分に少しでもいれば数え、職員はその30分ずっといたときだけ数えます。':'Counted every 30 minutes from arrival/departure times and staff clock-ins. A child counts if present at any point in the slot; staff count only if present for the whole slot.',
+'園児（歳児別）':'Children (by age)','足りる':'OK','足りない':'Short','この月の時間帯ごとの配置を印刷':'Print this month\'s staffing by time slot','日常記録 › 登園（出席） › 時間帯ごとの職員配置':'Daily records › Attendance › Staffing by time slot',
+'早く気づくための取り組み（面談・アンケート）':'Early detection (interviews and surveys)','日ごろの観察に加えて、年齢に合わせた面談かアンケートを、決まった時期におこなうことが求められています。':'In addition to daily observation, age-appropriate interviews or surveys must be held at set times.',
 'おこなったら、ここに残します。':'Record them here when done.','中身で気になることがあれば、下の「事案の対応記録」に移します（管理者）。':'If anything is concerning, move it to the case record below (administrator).',
 'おこなった記録':'Records','日常観察のふり返り':'Review of daily observation','面談':'Interview','アンケート':'Survey','未来WA で配信したもの':'Sent via Miraiwa','記録を足す':'Add record','保護者へのアンケート（未来WA で配信）':'Parent survey (sent via Miraiwa)',
 '回答受付中':'Accepting answers','回答 {0}件':'{0} answers','「ある」と答えたご家庭 {0}件':'{0} families answered “Yes”','回答は園長・マネージャーだけが見られます。':'Only the principal or a manager can see the answers.','受付を締め切る':'Close survey','回答を見る（{0}件）':'View answers ({0})',
@@ -30395,7 +30408,7 @@ function edTouen(){
     stampWho(_hd);_hdata[recDate]=_hd;stSet(HK,_hdata);try{periodRefresh();}catch(e){}}
   /* 37.5℃以上の子。体温は登園の記録から読む。 */
   var _hlFever=kids.filter(function(c){return +(((d.rows||{})[c.id]||{}).temp||0)>=37.5;});
-  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+haichiBarHtml(recDate)+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
+  $('#recBody').innerHTML='<div class="card">'+lockBarHtml(d)+haichiBarHtml(recDate)+haichiBandsHTML(recDate)+recHead('登園（出席）・午睡チェック（'+wd+'曜日・'+d.klass+'）','<input type="date" id="tsDate" class="lk-skip" value="'+esc(recDate)+'" style="width:160px;"><select id="tsKlass" class="lk-skip" style="width:110px;">'+CLASSES.map(function(k){return '<option'+(k===d.klass?' selected':'')+'>'+k+'</option>';}).join('')+'</select><button class="btn btn-sm" id="tsPrint">'+ic('printer')+'名簿シートを出力</button>')+
     '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;max-width:470px;margin-bottom:10px;"><div class="field" style="margin:0;"><label>天気</label><select id="tsWeather">'+wOptHtml+'</select>'
       +'<div class="muted" style="font-size:11px;margin-top:3px;">朝の時点の天気を入れてください</div></div><div class="field" style="margin:0;"><label>室温</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsTemp" value="'+esc((d.temp||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">℃</span></div></div><div class="field" style="margin:0;"><label>湿度</label><div style="display:flex;align-items:center;gap:6px;"><input id="tsHum" value="'+esc((d.hum||''))+'" style="flex:1;min-width:0;"><span class="muted" style="font-size:12.5px;flex-shrink:0;">％</span></div></div></div>'+
     thermoBarHTML()+
@@ -33103,9 +33116,10 @@ function tcNow(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes(
    ★この画面の数は目安です。実際の扱いは、必ず園の自治体にご確認ください。 */
 var HAICHI_DEFAULT={'0':3,'1':6,'2':6,'3':15,'4':25,'5':25};
 function haichiRatio(){
-  var r=stGet('haichiRatio',null),k;
+  /* ★既定は認可の数（3歳15人・4歳以上25人）だけで、認可外の園でも基準よりきびしく数えていた。施設の種別で既定を変える（2026-11-13） */
+  var r=stGet('haichiRatio',null),k,df=haichiDefault();
   if(!r||typeof r!=='object')r={};
-  for(k in HAICHI_DEFAULT){if(r[k]==null)r[k]=HAICHI_DEFAULT[k];}
+  for(k in df){if(r[k]==null)r[k]=df[k];}
   return r;
 }
 function haichiMin(){var n=+stGet('haichiMin',2);return (n>0)?n:2;}
@@ -33213,7 +33227,7 @@ function haichiNeed(by){
          いる歳児の中で、一番きびしい（小さい）数を使う。 */
       if(!by[a])continue;
       sum+=by[a];
-      var p=+r[a]||+HAICHI_DEFAULT[a]||25;
+      var p=+r[a]||+haichiDefault()[a]||25;
       if(per===null||p<per)per=p;
     }
     if(sum>0&&per>0)n+=Math.ceil(sum/per);
@@ -33327,6 +33341,107 @@ function haichiBarHtml(date){
     +'出勤の記録の人数です。保育士の資格までは見ていません。数は目安なので自治体にご確認ください'
     +haichiUnknownNote(h)
     +'</span></div>';
+}
+/* ══ 時間帯ごとの職員配置（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #6）══
+   1日の合計ではなく、30分ごとに「その時間にいた園児（歳児別）」と「その時間に出勤していた職員（資格の有無）」を突き合わせる。
+   入力は増やさない。材料は登園シートの登園・降園の時刻（come/leave）と、打刻の出勤・退勤（tc の in/out）と、職員名簿の資格（qual）。
+   基準は施設の種別で変える（認可外保育施設指導監督基準 第1／設備運営基準 第33条。2026-11-13 国の資料で確かめた）：
+   ・数：歳児ごとの比率（haichiRatio。認可外の既定は3歳20人・4歳以上30人、認可は15人・25人）。園児が2人以上いる時間は2人以上
+   ・資格：認可外は保育に従事する者の「おおむね三分の一」以上（2人の時間帯は1人）が保育士か看護師。認可は全員が保育士として数える
+   ★数え方はきびしい側にそろえる：園児はその30分に少しでもいれば数え、職員はその30分ずっといたときだけ数える。
+     降園の時刻が無い園児・退勤の時刻が無い職員は、別に数えて知らせる（足りているように見せない） */
+var HAICHI_NINKAGAI={'0':3,'1':6,'2':6,'3':20,'4':30,'5':30};
+function haichiDefault(){var t='';try{t=reqProfile().type;}catch(e){}return t==='ninkagai'?HAICHI_NINKAGAI:HAICHI_DEFAULT;}
+function haichiHm(s){var m=/^(\d{1,2}):(\d{2})/.exec(String(s||''));return m?(+m[1]*60+(+m[2])):null;}
+function haichiHmS(n){return pad(Math.floor(n/60))+':'+pad(n%60);}
+function haichiQualified(st){return /保育士|看護師/.test(String((st&&st.qual)||''));}
+function haichiBands(date,step){
+  step=step||30;
+  var d=touenDayView(date,stGet('rec_登園シート',{})[date]),kids=[],noCome=0,noLeave=0;
+  var isToday=(date===todayISO()),now=new Date(),nowM=now.getHours()*60+now.getMinutes();
+  if(d&&d.rows){
+    touenRowKids(d).forEach(function(c){
+      var r=d.rows[c.id];
+      if(!r||['●','早','遅'].indexOf(r.att)<0)return;
+      var a0=haichiHm(r.come),a1=haichiHm(r.leave);
+      if(a0==null){noCome++;return;}
+      if(a1==null&&!isToday)noLeave++;
+      var dob=kidDob(c),a=dob?String(ageClassOf({dob:dob},date)).replace(/[^0-9]/g,''):'';
+      kids.push({a:a===''?'0':a,s:a0,e:a1});
+    });
+  }
+  var mk=date.slice(0,7),day=+date.slice(8,10),tc=tcMonth(mk),staff=[],staffNoOut=0,k;
+  for(k in tc){
+    if(!Object.prototype.hasOwnProperty.call(tc,k))continue;
+    var v=(tc[k]||{})[day];if(!v)continue;
+    var s0=haichiHm(v.in),s1=haichiHm(v.out);
+    if(s0==null)continue;
+    if(s1==null&&!isToday)staffNoOut++;
+    var sr=(DB.staff||[]).filter(function(x){return String(x.id)===String(k);})[0];
+    staff.push({s:s0,e:s1,q:haichiQualified(sr)});
+  }
+  if(!kids.length)return {slots:[],kids:0,staff:staff.length,noCome:noCome,noLeave:noLeave,staffNoOut:staffNoOut};
+  var lo=Math.min.apply(null,kids.map(function(x){return x.s;}));
+  var hi=Math.max.apply(null,kids.map(function(x){return x.e==null?(isToday?nowM:x.s+step):x.e;}));
+  if(isToday)hi=Math.min(hi,nowM);
+  lo=Math.floor(lo/step)*step;
+  var type='';try{type=reqProfile().type;}catch(e){}
+  var slots=[],t;
+  for(t=lo;t<hi;t+=step){
+    var by={},n=0,sn=0,qn=0;
+    kids.forEach(function(x){var e=(x.e==null)?(isToday?nowM:1440):x.e;if(x.s<t+step&&e>t){by[x.a]=(by[x.a]||0)+1;n++;}});
+    if(!n)continue;
+    staff.forEach(function(x){var e=(x.e==null)?(isToday?nowM:0):x.e;if(x.s<=t&&e>=t+step){sn++;if(x.q)qn++;}});
+    var need=(n===1)?1:haichiNeed(by);
+    var qneed=null;
+    if(type==='ninkagai')qneed=(need<=2)?1:Math.ceil(need/3);
+    else if(type==='ninka')qneed=need;
+    slots.push({t:t,e:t+step,by:by,kids:n,need:need,staff:sn,qual:qn,qneed:qneed,ok:sn>=need&&(qneed==null||qn>=qneed)});
+  }
+  return {slots:slots,kids:kids.length,staff:staff.length,noCome:noCome,noLeave:noLeave,staffNoOut:staffNoOut,type:type,partial:isToday};
+}
+/* 登園の画面の帯の下に出す、時間帯ごとの表（園長・マネージャーだけ。先生にはその日書くものだけを見せる） */
+function haichiBandsHTML(date){
+  if(typeof isBoss==='function'&&!isBoss())return '';
+  var b=haichiBands(date);
+  if(!b.kids)return '';
+  var bad=b.slots.filter(function(x){return !x.ok;});
+  var notes=[];
+  if(!b.staff)notes.push('この日の打刻がありません。打刻が入ると、時間帯ごとに確かめられます。');
+  if(b.noCome)notes.push('登園の時刻が無い園児が '+b.noCome+'名います（時間帯には入れていません）。');
+  if(b.noLeave)notes.push('降園の時刻が無い園児が '+b.noLeave+'名います（閉園まで園にいたものとして数えています）。');
+  if(b.staffNoOut)notes.push('退勤の打刻が無い職員が '+b.staffNoOut+'人います（その日は数えていません）。');
+  var qlab=b.type==='ninkagai'?'保育士・看護師（3分の1以上）':(b.type==='ninka'?'保育士':'保育士・看護師');
+  return '<details class="card" style="margin-bottom:12px;"><summary style="cursor:pointer;font-weight:600;font-size:13.5px;"><span>時間帯ごとの職員配置</span>　'
+    +(!b.staff?'<span class="row-sub">打刻がありません</span>':(bad.length?'<span style="color:#A32D2D;">足りない時間帯 '+bad.length+'</span>':'<span style="color:#27500A;">すべての時間帯で足りています</span>'))
+    +(b.partial?'<span class="row-sub">（きょうは、いまの時刻まで）</span>':'')+'</summary>'
+    +'<div class="muted" style="font-size:12px;line-height:1.8;margin:8px 0;"><div>登園・降園の時刻と、職員の打刻から30分ごとに数えています。園児はその30分に少しでもいれば数え、職員はその30分ずっといたときだけ数えます。</div>'
+    +'<div>基準：'+(b.type==='ninkagai'?'認可外保育施設指導監督基準（3歳児20人・4歳以上30人に1人。おおむね3分の1以上が保育士か看護師）':'設定 › 配置の数（園が直した数）')+'。数は目安です。自治体にご確認ください。</div>'
+    +notes.map(function(x){return '<div style="color:#854F0B;">'+esc(x)+'</div>';}).join('')+'</div>'
+    +(b.staff?'<div class="scrollx"><table class="wraptbl" style="font-size:12px;"><thead><tr><th style="width:120px;">時間</th><th>園児（歳児別）</th><th style="width:70px;">必要</th><th style="width:70px;">出勤</th><th style="width:150px;">'+esc(qlab)+'</th><th style="width:70px;"></th></tr></thead><tbody>'
+      +b.slots.map(function(x){var ag=Object.keys(x.by).sort().map(function(a){return a+'歳 '+x.by[a];}).join('・');
+        return '<tr'+(x.ok?'':' style="background:#FCEBEB;"')+'><td style="white-space:nowrap;">'+haichiHmS(x.t)+'〜'+haichiHmS(x.e)+'</td><td>'+x.kids+'名（'+esc(ag)+'）</td><td>'+x.need+'人</td><td>'+x.staff+'人</td><td>'+x.qual+'人'+(x.qneed!=null?'／'+x.qneed+'人':'')+'</td><td style="white-space:nowrap;color:'+(x.ok?'#27500A':'#A32D2D')+';font-weight:600;">'+(x.ok?'足りる':'足りない')+'</td></tr>';}).join('')
+      +'</tbody></table></div>':'')
+    +'<div style="margin-top:8px;"><button class="btn btn-sm" data-haichiprint="'+esc(date.slice(0,7))+'">'+ic('printer')+'この月の時間帯ごとの配置を印刷</button></div></details>';
+}
+/* 印刷のボタンは、登園の画面を描き直すたびに作り直されるので、押されたものを文書全体で受ける */
+document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('[data-haichiprint]'):null;if(b)haichiBandsPrint(b.getAttribute('data-haichiprint'));});
+/* 監査で見せる紙：月の1日ずつ、足りない時間帯があった日と、その時間帯を並べる */
+function haichiBandsPrint(mk){
+  var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),rows='',nOk=0,nBad=0,nNo=0,d,today=todayISO();
+  for(d=1;d<=dim;d++){
+    var date=mk+'-'+pad(d);if(date>=today)break;
+    var b=haichiBands(date);if(!b.kids)continue;
+    if(!b.staff){nNo++;rows+='<tr><td>'+esc(fmt(date))+'</td><td>'+b.kids+'名</td><td colspan="2">打刻なし（確かめられません）</td></tr>';continue;}
+    var bad=b.slots.filter(function(x){return !x.ok;});
+    if(bad.length)nBad++;else nOk++;
+    rows+='<tr><td>'+esc(fmt(date))+'</td><td>'+b.kids+'名</td><td>'+(bad.length?'足りない時間帯 '+bad.length:'すべて足りる')+'</td><td>'
+      +bad.map(function(x){return haichiHmS(x.t)+'〜'+haichiHmS(x.e)+'（必要'+x.need+'・出勤'+x.staff+(x.qneed!=null?'・有資格'+x.qual+'/'+x.qneed:'')+'）';}).join('<br>')+'</td></tr>';
+  }
+  printDoc('時間帯ごとの職員配置（'+mk+'）','<p style="text-align:center;font-size:18px;font-weight:700;">時間帯ごとの職員配置の確認</p>'
+    +'<p>'+esc(schoolNameFixed()||'')+'　'+esc(mk.replace('-','年'))+'月</p>'
+    +'<p style="font-size:11px;">登園・降園の時刻と職員の打刻から30分ごとに数えたもの。園児はその30分に少しでもいれば数え、職員はその30分ずっといたときだけ数える。すべて足りた日 '+nOk+'・足りない時間帯があった日 '+nBad+'・打刻のない日 '+nNo+'</p>'
+    +'<table><thead><tr><th style="width:90px;">日</th><th style="width:60px;">登園</th><th style="width:140px;">結果</th><th>足りなかった時間帯</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">この月の記録はありません</td></tr>')+'</tbody></table>');
 }
 /* 月ぶんの足りない日 */
 /* 足りていない日。
