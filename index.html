@@ -4417,7 +4417,8 @@ var AUDIT_CATS=[
     {key:'yoyaku',opt:1,name:'与薬の記録（与薬依頼書・与薬簿）',place:'',when:'運営中',sys:'records',note:'登園（出席）の画面の「与薬の記録」に、飲ませた時刻・お薬・飲ませた職員と確かめた職員を入れます。依頼書は園児ごとの書類に「与薬依頼書」で。設定 › 記録で使う項目 で入れると出ます。'},
     {key:'nyuen',opt:1,name:'入園申込書・児童票（基本情報）',place:'システム内（生徒台帳）',when:'年度前',sys:'roster'},
     {key:'doui',opt:1,name:'個人情報の提供についての同意書',place:'システム内（生徒台帳）',when:'年度前',sys:'roster',note:'保護者が署名した同意書を、園児ごとの書類に「個人情報の取り扱いの同意書」の種類で入れてください。'},
-    {key:'teikyo',opt:1,name:'保育の提供日・時間帯・内容の記録',place:'システム内（登園と保育日誌）',when:'運営中',sys:'records',note:'登園（出席）の登園・降園の時刻と、保育日誌の活動の内容で出せます。'},
+    {key:'teikyo',opt:1,name:'保育の提供日・時間帯・内容の記録',place:'システム内（登園と保育日誌）',when:'運営中',sys:'records',note:'登園（出席）の画面の「時間帯ごとの職員配置」から、「この月の提供の記録を印刷」で1か月分を出せます（登園・降園の時刻と保育日誌の活動から作ります）。'},
+    {key:'encho',opt:1,name:'延長保育の利用記録',place:'',when:'運営中',sys:'records',note:'登園シートで「延長保育」に印を付けた子と降園の時刻を、登園（出席）の画面から「この月の延長保育の利用記録を印刷」で出せます。'},
     {key:'ryoshu',opt:1,name:'領収証・提供証明書の控え',place:'システム内（請求書発行）',when:'運営中',sys:'billing'},
     {key:'keiyaku',name:'利用契約書（原本）',place:'規約・料金表・利用にあたって（掲示）',when:'年度前',sys:'docs'},
     {key:'keiyaku_sign',name:'利用契約書（保護者がサインしたもの）',place:'システム内（生徒台帳）',when:'年度前',sys:'roster',note:'園児ひとりずつ、生徒台帳の「サインをいただいた書類」に入れてください。紙の原本は園で保管し、この画面にはその写真かPDF、または置き場所のURLを入れます。誰の分が足りていないかは、生徒台帳の一覧の「契約書」でわかります。'}
@@ -5073,7 +5074,8 @@ var AUDIT_REC={
   yoyaku:['records','登園（出席）'],
   kobetsu:['carerec','児童票（成長の記録）'],
   shien:['carerec','児童票（成長の記録）'],
-  mendan:['carerec','保護者対応の記録']
+  mendan:['carerec','保護者対応の記録'],
+  encho:['records','登園（出席）']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5504,6 +5506,10 @@ function auditDataInfo(key,fy){
         });
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'encho': {
+      var em=teikyoMonth(todayISO().slice(0,7)),en=0;em.forEach(function(d){en+=d.kids.filter(function(x){return x.ext;}).length;});
+      return '今月の延長保育 '+en+'回（登園シートの印から）';
     }
     case 'mendan': {
       var md=stGet('rec_kujo',[]);md=Array.isArray(md)?md:[];
@@ -6090,7 +6096,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',mendan:'保育記録 › 保護者対応の記録（種類：面談・育児相談）',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',mendan:'保育記録 › 保護者対応の記録（種類：面談・育児相談）',encho:'日常記録 › 登園（出席）（延長保育の印）',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -13203,7 +13209,7 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','苦情・ご要望':'Complaint / request','面談・育児相談':'Meeting / parenting consultation','保護者との面談・育児相談の記録':'Records of parent meetings and parenting consultations','保護者から苦情やご要望を受けた時と、面談・育児相談をした時に、1件ずつ記録します。':'Record each complaint or request from parents, and each meeting or parenting consultation.',
+'入れる場所：':'Where to enter: ','延長保育の利用記録':'Extended care usage records','この月の提供の記録を印刷':'Print this month\'s care provision record','この月の延長保育の利用記録を印刷':'Print this month\'s extended care usage','苦情・ご要望':'Complaint / request','面談・育児相談':'Meeting / parenting consultation','保護者との面談・育児相談の記録':'Records of parent meetings and parenting consultations','保護者から苦情やご要望を受けた時と、面談・育児相談をした時に、1件ずつ記録します。':'Record each complaint or request from parents, and each meeting or parenting consultation.',
 '保育記録の「保護者対応の記録」で、種類を「面談・育児相談」にして残します。':'Record it in Care Records › Parent contact records with the type “Meeting / parenting consultation”.',
 '障害・要支援の子の個別の支援計画と記録':'Individual support plans for children with additional needs','虐待・不適切な保育の記録':'Records of suspected abuse or inappropriate care','個別の支援計画':'Individual support plan','この子の支援計画を印刷':'Print this child\'s support plans','この子は個別の支援が要る（障害・発達・加配など）':'This child needs individual support (disability, development, extra staffing, etc.)',
 '月ごとに、支援の目標と内容、関係機関や保護者と共有したことを残します。診断名などの書き方は、保護者の了解の範囲にとどめてください。':'Each month, record support goals and content, and what was shared with agencies and parents. Keep diagnostic details within what parents have agreed to.',
@@ -33725,10 +33731,46 @@ function haichiBandsHTML(date){
       +b.slots.map(function(x){var ag=Object.keys(x.by).sort().map(function(a){return a+'歳 '+x.by[a];}).join('・');
         return '<tr'+(x.ok?'':' style="background:#FCEBEB;"')+'><td style="white-space:nowrap;">'+haichiHmS(x.t)+'〜'+haichiHmS(x.e)+'</td><td>'+x.kids+'名（'+esc(ag)+'）</td><td>'+x.need+'人</td><td>'+x.staff+'人</td><td>'+x.qual+'人'+(x.qneed!=null?'／'+x.qneed+'人':'')+'</td><td style="white-space:nowrap;color:'+(x.ok?'#27500A':'#A32D2D')+';font-weight:600;">'+(x.ok?'足りる':'足りない')+'</td></tr>';}).join('')
       +'</tbody></table></div>':'')
-    +'<div style="margin-top:8px;"><button class="btn btn-sm" data-haichiprint="'+esc(date.slice(0,7))+'">'+ic('printer')+'この月の時間帯ごとの配置を印刷</button></div></details>';
+    +'<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-sm" data-haichiprint="'+esc(date.slice(0,7))+'">'+ic('printer')+'この月の時間帯ごとの配置を印刷</button>'
+    +'<button class="btn btn-sm" data-teikyoprint="'+esc(date.slice(0,7))+'">'+ic('printer')+'この月の提供の記録を印刷</button>'
+    +'<button class="btn btn-sm" data-teikyoprint="'+esc(date.slice(0,7))+'" data-ext="1">'+ic('printer')+'この月の延長保育の利用記録を印刷</button></div></details>';
+}
+/* ══ 提供の記録・延長保育の利用記録（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #7・#8）══
+   入力は増やさず、登園シート（登園・降園の時刻と、延長保育などの印）と保育日誌（その日の活動）から1か月分を印刷する。
+   ・提供の記録：日ごとに、来た子と提供した時間帯、その日の保育の内容（確認監査・無償化の「提供日・時間帯・内容」）
+   ・延長保育の利用記録：登園シートで「延長保育」に印が付いた子と、降園の時刻 */
+function teikyoMonth(mo){
+  var ts=stGet('rec_登園シート',{}),np=stGet('rec_日報',{}),nm={},out=[];
+  (DB.contacts||[]).forEach(function(c){nm[c.id]={n:childFullName(c),k:c.klass||''};});
+  Object.keys(ts).filter(function(k){return k.slice(0,7)===mo;}).sort().forEach(function(dt){
+    var d=ts[dt]||{},rows=d.rows||{},kids=[];
+    Object.keys(rows).forEach(function(id){var r=rows[id]||{};if(['●','早','遅'].indexOf(r.att)<0)return;
+      var ext=false,o=r.opts||{},k;for(k in o){if(Object.prototype.hasOwnProperty.call(o,k)&&o[k]&&/延長|ロング/.test(k))ext=true;}
+      kids.push({id:id,n:(nm[id]||{}).n||'',k:(nm[id]||{}).k||'',come:r.come||'',leave:r.leave||'',ext:ext});});
+    if(!kids.length)return;
+    var nd=np[dt]||{};
+    out.push({date:dt,kids:kids,content:String(nd.actual||nd.diary||'').slice(0,400)});
+  });
+  return out;
+}
+function teikyoPrint(mo,onlyExt){
+  var M=teikyoMonth(mo),rows='';
+  M.forEach(function(day){
+    var ks=onlyExt?day.kids.filter(function(x){return x.ext;}):day.kids;
+    if(!ks.length)return;
+    if(onlyExt){ks.forEach(function(x){rows+='<tr><td>'+esc(fmt(day.date))+'</td><td>'+esc(x.n)+'</td><td>'+esc(x.k)+'</td><td>'+esc(x.come)+'</td><td>'+esc(x.leave||'（降園の時刻なし）')+'</td></tr>';});return;}
+    rows+='<tr><td>'+esc(fmt(day.date))+'</td><td>'+ks.map(function(x){return esc(x.n)+'　'+esc(x.come||'?')+'〜'+esc(x.leave||'?')+(x.ext?'（延長）':'');}).join('<br>')+'</td><td style="white-space:pre-wrap;">'+esc(day.content||'（保育日誌の記録なし）')+'</td></tr>';
+  });
+  var t=onlyExt?'延長保育の利用記録':'保育の提供の記録';
+  printDoc(t+'（'+(+mo.split('-')[1])+'月）','<p>'+esc(schoolNameFixed()||'')+'　'+esc(mo.replace('-','年'))+'月</p>'
+    +'<p style="font-size:11px;">登園シートの登園・降園の時刻'+(onlyExt?'と「延長保育」の印':'と、保育日誌のその日の活動')+'から作っています。</p>'
+    +(onlyExt?'<table><thead><tr><th style="width:90px;">日</th><th>お子さま</th><th style="width:70px;">クラス</th><th style="width:60px;">登園</th><th style="width:110px;">降園</th></tr></thead>'
+             :'<table><thead><tr><th style="width:90px;">日</th><th style="width:40%;">お子さまと提供した時間帯</th><th>保育の内容</th></tr></thead>')
+    +'<tbody>'+(rows||'<tr><td colspan="5">この月の記録はありません</td></tr>')+'</tbody></table>');
 }
 /* 印刷のボタンは、登園の画面を描き直すたびに作り直されるので、押されたものを文書全体で受ける */
-document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('[data-haichiprint]'):null;if(b)haichiBandsPrint(b.getAttribute('data-haichiprint'));});
+document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('[data-haichiprint]'):null;if(b)haichiBandsPrint(b.getAttribute('data-haichiprint'));
+  var tp=e.target&&e.target.closest?e.target.closest('[data-teikyoprint]'):null;if(tp)teikyoPrint(tp.getAttribute('data-teikyoprint'),tp.getAttribute('data-ext')==='1');});
 /* 監査で見せる紙：月の1日ずつ、足りない時間帯があった日と、その時間帯を並べる */
 function haichiBandsPrint(mk){
   var dim=new Date(+mk.slice(0,4),+mk.slice(5,7),0).getDate(),rows='',nOk=0,nBad=0,nNo=0,d,today=todayISO();
