@@ -4425,6 +4425,7 @@ var AUDIT_CATS=[
   {cat:'② 保育内容',items:[
     {key:'daily',name:'日々の活動内容記録',place:'カリキュラム（日別スケジュール・日案）',when:'運営中',sys:'curriculum',note:'1日ごとに書いて出す必要はありません。園のパンフレットや説明書に活動の内容が書いてあれば、それで足ります。指導計画（月案・週案・日案）もこの記録でまとめて出せます。'},
     {key:'kobetsu',name:'3歳未満児の個別の指導計画',place:'',when:'運営中',sys:'carerec',note:'保育記録の「児童票（成長の記録）」で、0〜2歳児の月に「個別の指導計画」の欄が出ます。'},
+    {key:'shien',opt:1,name:'障害・要支援の子の個別の支援計画と記録',place:'',when:'運営中',sys:'carerec',note:'保育記録の「児童票（成長の記録）」で、園長・マネージャーが「個別の支援が要る」に印を付けた子にだけ「個別の支援計画」の欄が出ます。'},
     {key:'keikaku',opt:1,name:'保育計画（全体的な計画・年間・月間の指導計画・デイリープログラム）',place:'システム内（カリキュラム）',when:'年度前',sys:'curriculum'},
     {key:'nisshi',name:'保育日誌・業務日報',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
     {key:'renraku',opt:1,name:'家庭との連絡帳',place:'システム内（保護者連絡・連絡帳）',when:'運営中',sys:'feed'},
@@ -4434,6 +4435,7 @@ var AUDIT_CATS=[
     {key:'gosui',name:'午睡チェック',place:'システム内・日常記録',when:'運営中',sys:'records'},
     {key:'kega',name:'事故・ヒヤリハットの記録',place:'事故・ヒヤリハット記録ファイル',when:'運営中',sys:'carerec'},
     {key:'kujo',name:'苦情受付・処理の記録',place:'システム内（保育記録）',when:'運営中',sys:'carerec'},
+    {key:'futekisetsu',name:'虐待・不適切な保育の記録',place:'',when:'運営中',sys:'bouka',note:'研修・訓練の「虐待防止チェックシート」の下にある記録（管理者だけ）。気づいたことから対応までを、起きた順に残します。'},
     {key:'gyakutai',name:'虐待防止チェックシート（職員の意識チェック）',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
     {key:'sanpo_map',cond:'sanpo',name:'散歩マップ（園外保育の経路・危ない場所）',place:'',when:'年度前',sys:'docs',note:'散歩で行く場所と道順、危ない場所を書いた地図です。散歩の記録とは別に、書類格納に1つ置いてください。'},
     {key:'bus',opt:1,cond:'bus',name:'バス等運行簿',place:'システム内（保育記録）',when:'運営中',sys:'carerec',note:'乗った人数・降りた人数と、車内に子どもが残っていないかを確かめた人・時刻を毎回残します。設定 › 園の条件 で「運んでいる」と答えると、保育記録にこの記録が出ます。'}
@@ -5068,7 +5070,8 @@ var AUDIT_REC={
   allergy_shoku:['records','検食簿'],
   chori:['records','検食簿'],
   yoyaku:['records','登園（出席）'],
-  kobetsu:['carerec','児童票（成長の記録）']
+  kobetsu:['carerec','児童票（成長の記録）'],
+  shien:['carerec','児童票（成長の記録）']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5499,6 +5502,17 @@ function auditDataInfo(key,fy){
         });
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'shien': {
+      var sn=Object.keys(kidSupport()).length;
+      if(!sn)return '個別の支援が要る子の印はありません';
+      var sdv=stGet('rec_発達',{}),sm=0;Object.keys(sdv).forEach(function(cid){var m=auditPickFY(sdv[cid]||{},fy);Object.keys(m).forEach(function(mk){if((m[mk]||{}).splan)sm++;});});
+      return '支援が要る子 '+sn+'名・計画 '+sm+'人月分（'+fy+'年度）';
+    }
+    case 'futekisetsu': {
+      if(typeof currentRole==='function'&&currentRole()!=='管理者')return '管理者だけが見られる記録です';
+      var al=abuseArr(),ao=al.filter(function(c){return c.status!=='終了';}).length;
+      return al.length?('記録 '+al.length+'件（対応中 '+ao+'件）'):'記録はありません';
     }
     case 'kobetsu': {
       var kdv=stGet('rec_発達',{}),kbn=0,kbt=0;
@@ -5986,7 +6000,7 @@ function wireSentMail(root){
    ・auditPlan が無い園は今までどおり（AUDIT_NAT も①に入れる。opt の項目は出さない）
    ・園の条件（schoolCond：バス・プール・散歩・給食）に当てはまらない項目は、どの段にも出さない（畳んだカードに理由つきで並べる）
    ・Miralink に置き場の無い項目は「⑥ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける */
-var AUDIT_NAT={jido_meibo:1,shusseki:1,shintai:1,kid_kenshin:1,keiyaku:1,kunren:1,roudou_meibo:1,shikaku:1,kenshin:1,kenben:1};
+var AUDIT_NAT={futekisetsu:1,jido_meibo:1,shusseki:1,shintai:1,kid_kenshin:1,keiyaku:1,kunren:1,roudou_meibo:1,shikaku:1,kenshin:1,kenben:1};
 /* ②に出すときの根拠（2026-11-13 認可外保育施設指導監督基準・労働基準法で確かめたもの。確かめていないものは足さない） */
 var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）',dbs:'こども性暴力防止法（2026年12月25日 施行）',haichi:'認可外は指導監督基準 第1、認可は設備運営基準 第33条（保育に従事する者の数と資格）'};
 /* ══ 園の条件（2026-11-13 安田さんのご依頼「条件付きの項目は、条件付きと分かる形で、園の設定で分かりやすく自動で外せる仕組み」）══
@@ -6067,7 +6081,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -13180,7 +13194,13 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','3歳未満児の個別の指導計画':'Individual plans for under-3s','個別の指導計画（3歳未満児）':'Individual plan (under 3)','この子の計画を印刷':'Print this child\'s plans',
+'入れる場所：':'Where to enter: ','障害・要支援の子の個別の支援計画と記録':'Individual support plans for children with additional needs','虐待・不適切な保育の記録':'Records of suspected abuse or inappropriate care','個別の支援計画':'Individual support plan','この子の支援計画を印刷':'Print this child\'s support plans','この子は個別の支援が要る（障害・発達・加配など）':'This child needs individual support (disability, development, extra staffing, etc.)',
+'月ごとに、支援の目標と内容、関係機関や保護者と共有したことを残します。診断名などの書き方は、保護者の了解の範囲にとどめてください。':'Each month, record support goals and content, and what was shared with agencies and parents. Keep diagnostic details within what parents have agreed to.',
+'支援の目標（長期・短期）':'Support goals (long and short term)','具体的な支援の内容・配慮':'Specific support and adjustments','関係機関との連携（療育・医療・巡回相談など）':'Work with agencies (therapy, medical, visiting consultations)','保護者と共有したこと':'Shared with parents','評価・次の月に向けて':'Review and next month',
+'虐待・不適切な保育の記録（管理者だけ）':'Suspected abuse / inappropriate care records (administrator only)','家庭での虐待の疑い':'Suspected abuse at home','職員による不適切な保育':'Inappropriate care by staff','記録を始める':'Start record','気づいたこと・受けた相談':'Noticed / report received','こどもの安全の確保':'Child safety','保護者への対応':'Response to parents','事実の確認':'Fact-finding','職員への指導・措置':'Guidance / measures for staff','関係機関への連絡（児童相談所・市区町村など）':'Contact with agencies (child guidance centre, municipality, etc.)',
+'家庭での虐待の疑いや、職員による不適切な保育に気づいたときに、気づいたこと・こどもの安全の確保・保護者への対応・事実の確認・職員への措置・関係機関への連絡を、起きた順に残します。':'When you notice suspected abuse at home or inappropriate care by staff, record what was noticed, child safety, response to parents, fact-finding, staff measures and contact with agencies, in order.',
+'開けるのは管理者だけです。':'Only the administrator can open this.',
+'3歳未満児の個別の指導計画':'Individual plans for under-3s','個別の指導計画（3歳未満児）':'Individual plan (under 3)','この子の計画を印刷':'Print this child\'s plans',
 '3歳未満の子は、一人ひとりの月の計画を立てます。月のはじめに「子どもの姿」から「家庭との連携」まで、月の終わりに「評価・反省」を書きます。':'For children under 3, make a monthly plan for each child. Fill in from “The child now” to “Working with the family” at the start of the month, and “Review” at the end.',
 '子どもの姿（前の月の様子）':'The child now (last month)','内容（養護・教育）':'Content (care and education)','保育士の配慮・環境':'Caregiver support and environment','家庭との連携':'Working with the family','評価・反省（月の終わりに）':'Review (end of month)',
 '保育記録の「児童票（成長の記録）」で、0〜2歳児の月に「個別の指導計画」の欄が出ます。':'In Care Records › Child Record, the “Individual plan” section appears for months when the child is 0–2.',
@@ -32168,6 +32188,63 @@ function devPlanPrint(c,mine){
       +DEV_PLAN_F.map(function(f){return '<tr><th style="width:30%;">'+esc(f[1])+'</th><td style="white-space:pre-wrap;">'+esc(p[f[0]]||'')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')
       :'<p>まだ書いた月はありません。</p>'));
 }
+/* ══ 障害・要支援の子の個別の支援計画（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #21）══
+   支援が要る子（kidSupport に印。園長・マネージャーが児童票の画面で付ける）だけ、児童票の同じ月に rec.splan で書く。印の無い子には出さない */
+var DEV_SPLAN_F=[['mokuhyo','支援の目標（長期・短期）'],['naiyo','具体的な支援の内容・配慮'],['renkei','関係機関との連携（療育・医療・巡回相談など）'],['hogosha','保護者と共有したこと'],['hyoka','評価・次の月に向けて']];
+function kidSupport(){var v=stGet('kidSupport',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+function kidSupportOn(id){return !!kidSupport()[id];}
+function devSplanHTML(cur,rec){
+  var boss=!(typeof isBoss==='function'&&!isBoss()),on=kidSupportOn(cur.id),p=rec.splan||{};
+  var h='<div style="margin-top:14px;padding-top:12px;border-top:2px solid var(--line);">';
+  if(boss)h+='<label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;"><input type="checkbox" id="dvSupport"'+(on?' checked':'')+' style="width:16px;height:16px;margin:0;">この子は個別の支援が要る（障害・発達・加配など）</label>';
+  if(!on)return boss?h+'</div>':'';
+  return h+'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 6px;"><b>個別の支援計画</b><span style="flex:1;"></span><button class="btn btn-sm" id="dvSplanPrint">'+ic('printer')+'この子の支援計画を印刷</button></div>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:8px;">月ごとに、支援の目標と内容、関係機関や保護者と共有したことを残します。診断名などの書き方は、保護者の了解の範囲にとどめてください。</div>'
+    +DEV_SPLAN_F.map(function(f){return '<div class="field"><label>'+esc(f[1])+'</label><textarea class="autogrow" rows="2" data-dvsplan="'+f[0]+'">\n'+esc(p[f[0]]||'')+'</textarea></div>';}).join('')
+    +'</div>';
+}
+function devSplanPrint(c,mine){
+  var ks=Object.keys(mine||{}).filter(function(k){return /^\d{4}-\d{2}$/.test(k)&&mine[k]&&mine[k].splan;}).sort();
+  printDoc('個別の支援計画（'+childFullName(c)+'）','<p>'+esc(schoolNameFixed()||'')+'　'+esc(childFullName(c))+'</p>'
+    +(ks.length?ks.map(function(k){var p=mine[k].splan;return '<h3 style="margin:12px 0 4px;">'+esc(devPeriodLabel(k))+'</h3><table><tbody>'
+      +DEV_SPLAN_F.map(function(f){return '<tr><th style="width:30%;">'+esc(f[1])+'</th><td style="white-space:pre-wrap;">'+esc(p[f[0]]||'')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')
+      :'<p>まだ書いた月はありません。</p>'));
+}
+/* ══ 虐待・不適切な保育の記録（2026-11-13・監査の和集合 #20）══
+   研修・訓練の虐待防止チェックシートの下に置く。家庭での虐待の疑いと、職員による不適切な保育の、どちらも書く。
+   ★管理者だけ（server.js KEY_RULES の abuseCase）。書き足すだけで消せない・直せない（こども性暴力防止の事案の記録と同じ形）。名前は記号で */
+var ABUSE_KIND=['家庭での虐待の疑い','職員による不適切な保育'];
+var ABUSE_STEP=['気づいたこと・受けた相談','こどもの安全の確保','保護者への対応','事実の確認','職員への指導・措置','関係機関への連絡（児童相談所・市区町村など）','その他'];
+function abuseArr(){var v=stGet('abuseCase',[]);return Array.isArray(v)?v:[];}
+function abuseCardHTML(){
+  if(typeof currentRole==='function'&&currentRole()!=='管理者')return '';
+  var L=abuseArr();
+  return '<div class="card" id="abuseCard" style="margin-top:14px;border-color:#E8B4B4;"><h3>'+ic('shield')+'虐待・不適切な保育の記録（管理者だけ）</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;"><div>家庭での虐待の疑いや、職員による不適切な保育に気づいたときに、気づいたこと・こどもの安全の確保・保護者への対応・事実の確認・職員への措置・関係機関への連絡を、起きた順に残します。</div>'
+    +'<div>開けるのは管理者だけです。書いたものは消せず、直せません。直すときは、新しく書き足してください。</div><div><b>お子さま・職員の名前は書かず、記号（A児・B職員 など）で書いてください。</b></div></div>'
+    +L.map(function(c,i){var E=Array.isArray(c.entries)?c.entries:[];
+      return '<details style="border-top:1px solid var(--line);padding:8px 0;"'+(c.status!=='終了'?' open':'')+'><summary style="cursor:pointer;font-weight:600;"><span data-nolang>'+esc(c.title||'')+'</span> <span class="pill" style="font-size:11px;">'+esc(c.kind||'')+'</span>'
+        +' <span class="pill" style="font-size:11px;background:'+(c.status==='終了'?'#EAF3DE;color:#27500A':'#FCEBEB;color:#A32D2D')+';">'+esc(c.status||'対応中')+'</span></summary>'
+        +E.map(function(e){return '<div style="padding:6px 0 6px 10px;border-left:3px solid #E8B4B4;margin:6px 0;"><div class="row-sub"><span>'+esc(String(e.at||'').replace('T',' ').slice(0,16))+'</span>　<span data-nolang>'+esc(e.by||'')+'</span>　<b>'+esc(e.kind||'')+'</b></div><div data-nolang style="white-space:pre-wrap;font-size:13px;">'+esc(e.text||'')+'</div></div>';}).join('')
+        +(c.status==='終了'?'':'<select data-abk="'+i+'" style="width:260px;margin-top:6px;">'+ABUSE_STEP.map(function(k){return '<option>'+esc(k)+'</option>';}).join('')+'</select>'
+          +'<textarea class="autogrow" rows="3" data-abt="'+i+'" placeholder="したこと・分かったことを、事実のまま書きます" style="margin-top:6px;"></textarea>'
+          +'<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-sm btn-primary" data-abadd="'+i+'">書き足す</button><span style="flex:1;"></span><button class="btn btn-sm" data-abend="'+i+'">対応を終える</button></div>')
+        +'<div style="margin-top:6px;"><button class="btn btn-sm" data-abpr="'+i+'">'+ic('printer')+'印刷</button></div></details>';}).join('')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"><select id="abKind" style="width:200px;">'+ABUSE_KIND.map(function(k){return '<option>'+esc(k)+'</option>';}).join('')+'</select>'
+    +'<input id="abTitle" placeholder="呼び名（例：2026年12月 A児の家庭）" style="flex:1;min-width:200px;"><button class="btn btn-sm" id="abNew">'+ic('plus')+'記録を始める</button></div></div>';
+}
+function abuseWire(root,rer){
+  function who(){try{var c=currentStaff();return c?c.name:'';}catch(e){return '';}}
+  var nb=root.querySelector('#abNew');if(nb)nb.onclick=function(){var t=root.querySelector('#abTitle').value.trim();if(!t){alert('呼び名を入れてください（名前は書かず、記号で）。');return;}
+    var L=abuseArr();L.push({id:'a'+Date.now().toString(36),kind:root.querySelector('#abKind').value,title:t,opened:todayISO(),status:'対応中',entries:[{at:new Date().toISOString(),by:who(),kind:'記録を始めた',text:''}]});stSet('abuseCase',L);rer();};
+  root.querySelectorAll('[data-abadd]').forEach(function(b){b.onclick=function(){var i=+b.getAttribute('data-abadd'),tx=root.querySelector('[data-abt="'+i+'"]').value.trim();if(!tx){alert('書くことを入れてください。');return;}
+    var L=abuseArr();if(!L[i])return;L[i].entries=L[i].entries||[];L[i].entries.push({at:new Date().toISOString(),by:who(),kind:root.querySelector('[data-abk="'+i+'"]').value,text:tx});stSet('abuseCase',L);rer();};});
+  root.querySelectorAll('[data-abend]').forEach(function(b){b.onclick=function(){if(!confirm('この記録の対応を終えます。終えたあとは書き足せません。'))return;var i=+b.getAttribute('data-abend'),L=abuseArr();if(!L[i])return;
+    L[i].status='終了';L[i].closed=todayISO();L[i].entries.push({at:new Date().toISOString(),by:who(),kind:'対応を終えた',text:''});stSet('abuseCase',L);rer();};});
+  root.querySelectorAll('[data-abpr]').forEach(function(b){b.onclick=function(){var c=abuseArr()[+b.getAttribute('data-abpr')];if(!c)return;
+    printDoc('虐待・不適切な保育の記録','<p>'+esc(schoolNameFixed()||'')+'　'+esc(c.title)+'（'+esc(c.kind)+'・'+esc(c.status)+'）</p><table><thead><tr><th style="width:120px;">日時</th><th style="width:90px;">書いた人</th><th style="width:150px;">種類</th><th>中身</th></tr></thead><tbody>'
+      +(c.entries||[]).map(function(e){return '<tr><td>'+esc(String(e.at||'').replace('T',' ').slice(0,16))+'</td><td>'+esc(e.by||'')+'</td><td>'+esc(e.kind||'')+'</td><td style="white-space:pre-wrap;">'+esc(e.text||'')+'</td></tr>';}).join('')+'</tbody></table>');};});
+}
 function devTplKeyFor(c,ym){
   var dob=String((c&&c.dob)||''),y=+ym.slice(0,4),m=+ym.slice(5,7);
   if(/^\d{4}-\d{2}-\d{2}/.test(dob)){
@@ -32246,7 +32323,7 @@ function edDev(){
   var prevKey=cur?devPrevKey(mine,recDevMonth):'';
   var boss=(typeof isBoss!=='function'||isBoss());
   var DV_F=[{k:'lv',l:'各項目の段階',deep:true,keyer:'devLv'},{k:'notes',l:'特記事項',deep:true,keyer:'devCat'},{k:'memo',l:'メモ'},{k:'by',l:'記録者'},{k:'tpl',l:'様式'},
-            {k:'ext',l:'この園で足した項目',deep:true},{k:'plan',l:'個別の指導計画',deep:true}];
+            {k:'ext',l:'この園で足した項目',deep:true},{k:'plan',l:'個別の指導計画',deep:true},{k:'splan',l:'個別の支援計画',deep:true}];
   var _snap=lockSnap(rec,DV_F);
   function save(){lockDiff(rec,_snap,DV_F);_snap=lockSnap(rec,DV_F);rec.tpl=rec.tpl||tk;stampWho(rec);
     data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
@@ -32286,12 +32363,16 @@ function edDev(){
   }
   /* 3歳未満児の個別の指導計画（2026-11-13・監査の和集合 #26）。0〜2歳児の月だけ、児童票の同じ月に書く（新しい画面は作らない） */
   if(devUnder3(tk))h+=devPlanHTML(rec);
+  h+=devSplanHTML(cur,rec);
   h+='<div data-rfbox="1"></div>';
   h+='</div>';
   $('#recBody').innerHTML=h;
   wireHead();
   document.querySelectorAll('[data-dvplan]').forEach(function(t){t.onchange=function(){rec.plan=rec.plan||{};rec.plan[t.getAttribute('data-dvplan')]=t.value;save();};});
   if($('#dvPlanPrint'))$('#dvPlanPrint').onclick=function(){if(cur)devPlanPrint(cur,mine);};
+  document.querySelectorAll('[data-dvsplan]').forEach(function(t){t.onchange=function(){rec.splan=rec.splan||{};rec.splan[t.getAttribute('data-dvsplan')]=t.value;save();};});
+  if($('#dvSplanPrint'))$('#dvSplanPrint').onclick=function(){if(cur)devSplanPrint(cur,mine);};
+  if($('#dvSupport'))$('#dvSupport').onchange=function(){var v=kidSupport();if(this.checked)v[cur.id]=1;else delete v[cur.id];stSet('kidSupport',v);edDev();};
   if($('#dvTpl'))$('#dvTpl').onchange=function(){
     if(Object.keys(rec.lv).length&&!confirm('様式を変えると、いまの様式で付けた段階は表に出なくなります（記録は消えません。戻せば出ます）。変えますか？')){this.value=tk;return;}
     rec.tpl=this.value;save();edDev();};
@@ -33029,6 +33110,9 @@ function renderGyakutai(box){
   $('#gyBy').onchange=function(e){d.by=e.target.value;save();};
   $('#gyNote').onchange=function(e){d.note=e.target.value;save();};
   box.querySelectorAll('[data-gi]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-gi'),v=b.getAttribute('data-v');d.items[i]=(d.items[i]===v?null:v);save();renderGyakutai(box);};});
+  /* 虐待・不適切な保育の記録（管理者だけ・2026-11-13） */
+  box.insertAdjacentHTML('beforeend',abuseCardHTML());
+  abuseWire(box,function(){renderGyakutai(box);});
   $('#gyPrint').onclick=function(){
     var body='<table><thead><tr><th>チェック項目</th><th style="width:90px;">結果</th></tr></thead><tbody>'+GYAKUTAI_ITEMS.map(function(it,i){return '<tr><td>'+it+'</td><td>'+(d.items[i]==='ok'?'問題なし':d.items[i]==='issue'?'課題あり':'—')+'</td></tr>';}).join('')+'</tbody></table><p>実施日：'+(d.date?fmt(d.date):'　　　　')+'　実施者：'+(d.by||'　　　　')+'<br>特記事項：'+(d.note||'—')+'</p>';
     printDoc('虐待防止チェックシート（'+recQuarter+'）',body);
