@@ -4414,6 +4414,7 @@ var AUDIT_CATS=[
     /* 2026-11-13 さいたま市 別紙3 から足した2つ（園児ごとの書類に、種類を足して入れる） */
     {key:'kid_kenshin',name:'児童の健康診断票（入園時と年2回）',place:'システム内（生徒台帳）',when:'運営中',sys:'roster',note:'園医の健診の結果を、園児ごとの書類に「健康診断票（園医の健診）」の種類で入れてください。'},
     {key:'kid_kyoka',name:'感染症の登園許可証・登園届（控え）',place:'システム内（生徒台帳）',when:'運営中',sys:'roster',note:'感染症のあとに受け取った登園許可証（医師の意見書）・登園届を、その園児の書類に入れてください。白紙は保護者が未来WAから印刷できます。'},
+    {key:'yoyaku',opt:1,name:'与薬の記録（与薬依頼書・与薬簿）',place:'',when:'運営中',sys:'records',note:'登園（出席）の画面の「与薬の記録」に、飲ませた時刻・お薬・飲ませた職員と確かめた職員を入れます。依頼書は園児ごとの書類に「与薬依頼書」で。設定 › 記録で使う項目 で入れると出ます。'},
     {key:'nyuen',opt:1,name:'入園申込書・児童票（基本情報）',place:'システム内（生徒台帳）',when:'年度前',sys:'roster'},
     {key:'doui',opt:1,name:'個人情報の提供についての同意書',place:'システム内（生徒台帳）',when:'年度前',sys:'roster',note:'保護者が署名した同意書を、園児ごとの書類に「個人情報の取り扱いの同意書」の種類で入れてください。'},
     {key:'teikyo',opt:1,name:'保育の提供日・時間帯・内容の記録',place:'システム内（登園と保育日誌）',when:'運営中',sys:'records',note:'登園（出席）の登園・降園の時刻と、保育日誌の活動の内容で出せます。'},
@@ -4507,15 +4508,15 @@ function safetyShown(it){return safetyHidden().indexOf(it)<0;}
    安全点検の1項目ずつの出し入れ（safetyHide）も、ここにまとめた */
 var REC_OPT=[
   {g:'保育記録のタブ',items:[{k:'tab:散歩・園外活動',l:'散歩・園外活動'},{k:'tab:プール・水遊び',l:'プール・水遊び'},{k:'tab:バス等運行簿',l:'バス等運行簿（送迎バス・園の車を使う園だけ）'}]},
-  {g:'登園（出席）・健康チェック',items:[{k:'hobs',l:'登園時の様子（機嫌・顔色・食事・睡眠・排便など）'},{k:'hextra',l:'体調が悪い子の 処置した人・感染症の疑い・家庭連絡・お迎え'}]},
+  {g:'登園（出席）・健康チェック',items:[{k:'hobs',l:'登園時の様子（機嫌・顔色・食事・睡眠・排便など）'},{k:'hextra',l:'体調が悪い子の 処置した人・感染症の疑い・家庭連絡・お迎え'},{k:'sec:与薬',l:'与薬の記録（お薬を預かる園だけ）'}]},
   {g:'保育日誌・業務日報',items:[{k:'npo:aim',l:'本日のねらい'},{k:'npo:review',l:'評価・反省'},{k:'npo:eh',l:'行事・保健'},{k:'npo:ext',l:'延長保育（登園シートから自動）'},{k:'npo:staff',l:'出勤した職員（出勤簿から自動）'}]}
 ];
 /* ★はじめは外しておく項目（2026-11-13 バス等運行簿）。車を使わない園のほうが多いので、使う園が設定で入れる。
    入れたことは recOn の { 鍵:1 } に持つ（recOff は「外した」しか持てないため。サーバの提案は recOff の npo: だけを見るので混ぜない） */
-var REC_DEF_OFF={'tab:バス等運行簿':1};
+var REC_DEF_OFF={'tab:バス等運行簿':1,'sec:与薬':1};
 /* はじめは外しておく記録のうち、この園の監査の項目（auditPlan）に入っていれば出すもの。記録のタブ → 監査の項目の鍵
    （2026-11-13 安田さん「システムは対応できるように作っておき、導入のときに、どの監査が来るかで要る画面を決める」） */
-var REC_AUDIT_KEY={'tab:バス等運行簿':'bus'};
+var REC_AUDIT_KEY={'tab:バス等運行簿':'bus','sec:与薬':'yoyaku'};
 /* 園の条件（schoolCond）で出し入れする記録のタブ。条件 → タブ。条件に答えてあれば、タブはその答えに従う（スイッチと条件の2か所で食い違わせない） */
 function recCondOf(k){
   if(typeof SCHOOL_COND==='undefined')return null;
@@ -5064,7 +5065,8 @@ var AUDIT_REC={
   haichi:['records','登園（出席）'],
   kyushoku:['records','検食簿'],
   allergy_shoku:['records','検食簿'],
-  chori:['records','検食簿']
+  chori:['records','検食簿'],
+  yoyaku:['records','登園（出席）']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5495,6 +5497,12 @@ function auditDataInfo(key,fy){
         });
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'yoyaku': {
+      if(!yoyakuOn())return '使っていません（お薬を預かる園は 設定 › 記録で使う項目 で「与薬の記録」を入れてください）';
+      var yy=auditPickFY(stGet('rec_与薬',{}),fy),yn=0,yk;
+      for(yk in yy){if(Object.prototype.hasOwnProperty.call(yy,yk))yn+=((yy[yk]||{}).rows||[]).filter(function(r){return r&&r.kid;}).length;}
+      return yn?(yn+'回分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
     case 'kyushoku': case 'allergy_shoku': case 'chori': {
       /* 検食簿の同じ日の記録から、その年度に書いた日を数える */
@@ -6052,7 +6060,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -13165,7 +13173,12 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','給食日誌（食数・食べ具合）':'Meal log (servings, how much eaten)','アレルギー対応食の提供の記録':'Allergy-adapted meal records','調理室の衛生点検（温度・調理員の体調）':'Kitchen hygiene checks (temperatures, cook health)',
+'入れる場所：':'Where to enter: ','与薬の記録':'Medication records','与薬の記録（お薬を預かる園だけ）':'Medication records (schools that give medicine only)','与薬の記録（与薬依頼書・与薬簿）':'Medication records (request forms and log)',
+'保護者から預かったお薬を飲ませたときに残します。飲ませた職員と、確かめた職員の2人を入れます。':'Record each time you give medicine entrusted by parents, with the staff who gave it and the staff who checked.',
+'保護者が書いた与薬依頼書は、生徒情報の園児ごとの書類に「与薬依頼書」の種類で入れてください。':'Store the parent\'s medication request form under the child\'s documents as “Medication request”.',
+'お薬の名前':'Medicine','量（例：1包）':'Dose (e.g. 1 sachet)','飲ませた職員':'Given by','確かめた職員':'Checked by','依頼書あり':'Request form received','与薬を足す':'Add medication',
+'飲ませた職員と、確かめた職員（別の人）を入れてください。':'Enter who gave it and a different staff member who checked.','与薬依頼書を受け取ってから飲ませます。':'Give medicine only after receiving the request form.','この日の記録はありません。':'No records for this day.','与薬依頼書（保護者の記入）':'Medication request (from parent)',
+'給食日誌（食数・食べ具合）':'Meal log (servings, how much eaten)','アレルギー対応食の提供の記録':'Allergy-adapted meal records','調理室の衛生点検（温度・調理員の体調）':'Kitchen hygiene checks (temperatures, cook health)',
 'アレルギー対応食の提供':'Allergy-adapted meals','除去・代替した食事を出すときに、誰に・何を・誰と誰で確かめたかを残します。':'When serving a meal with an ingredient removed or substituted, record for whom, what, and the two staff who checked.','対応食を足す':'Add adapted meal','確かめた職員を2人入れてください。':'Enter the two staff who checked.',
 '調理室の衛生点検':'Kitchen hygiene check','目安：冷蔵10℃以下・冷凍-15℃以下・加熱は中心温度75℃で1分以上（大量調理施設衛生管理マニュアル）。':'Guide: fridge 10°C or below, freezer -15°C or below, cook to 75°C at the core for 1 minute (Large-scale cooking hygiene manual).',
 '冷蔵庫（℃）':'Fridge (°C)','冷凍庫（℃）':'Freezer (°C)','加熱の中心温度（℃）':'Core cooking temperature (°C)','10℃を超えています':'Above 10°C','-15℃より高くなっています':'Warmer than -15°C','75℃に届いていません（75℃で1分以上が目安）':'Below 75°C (guide: 75°C for 1 minute)',
@@ -30645,9 +30658,61 @@ function edTouen(){
 
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
   attachRecPaperCard(d);
+  /* 与薬の記録（2026-11-13）。使う園だけ */
+  if(yoyakuOn()){$('#recBody').insertAdjacentHTML('beforeend',yoyakuCardHTML(recDate));yoyakuWire(recDate);}
   try{tidyNotes(document.querySelector('#recBody'));}catch(e){}
   /* 保護者があとから押した登園・降園を取りに行く（1分に1回まで） */
   try{touenCheckinRefresh();}catch(e){}
+}
+/* ══ 与薬の記録（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #16）══
+   登園（出席）の画面の下に、その日にお薬を飲ませた記録を足す（新しいメニューは作らない）。
+   はじめは出さない（REC_DEF_OFF 'sec:与薬'）。お薬を預かる園が 設定 › 記録で使う項目 で入れるか、
+   この園の監査の項目（市の一覧）に「与薬の記録」があれば出る（REC_AUDIT_KEY）。
+   置き場は rec_与薬 { 'YYYY-MM-DD': { rows:[{kid,med,dose,time,by,chk,irai}] } }。
+   保護者の与薬依頼書（署名したもの）は、生徒情報の園児ごとの書類に「与薬依頼書」の種類で入れる */
+function yoyakuOn(){return recOn('sec:与薬');}
+function yoyakuDay(date){var a=stGet('rec_与薬',{}),d=a[date]||{};if(!Array.isArray(d.rows))d.rows=[];return d;}
+function yoyakuSave(date,d){var a=stGet('rec_与薬',{});a[date]=d;stSet('rec_与薬',a);}
+function yoyakuCardHTML(date){
+  if(!yoyakuOn())return '';
+  var d=yoyakuDay(date),kids=(DB.contacts||[]).filter(function(c){return c&&c.kind==='enrolled';}),staff=(DB.staff||[]).filter(function(x){return x&&x.name;});
+  function opt(list,cur,lab){return '<option value="">'+lab+'</option>'+list.map(function(x){var v=String(x.v);return '<option value="'+esc(v)+'"'+(v===String(cur||'')?' selected':'')+'>'+esc(x.l)+'</option>';}).join('');}
+  var KO=kids.map(function(c){return {v:c.id,l:childFullName(c)+'（'+(c.klass||'')+'）'};}),SO=staff.map(function(s){return {v:s.name,l:s.name};});
+  return '<div class="card" id="yoyakuCard" style="margin-top:14px;">'+recHead('与薬の記録','<button class="btn btn-sm" id="yoyakuPrint">'+ic('printer')+'1か月分を印刷</button>')
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;"><div>保護者から預かったお薬を飲ませたときに残します。飲ませた職員と、確かめた職員の2人を入れます。</div><div>保護者が書いた与薬依頼書は、生徒情報の園児ごとの書類に「与薬依頼書」の種類で入れてください。</div></div>'
+    +(d.rows.length?d.rows.map(function(r,i){return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 0;border-top:1px solid var(--line);">'
+      +'<select data-yy="'+i+'|kid" style="width:190px;">'+opt(KO,r.kid,'お子さま')+'</select>'
+      +'<input data-yy="'+i+'|med" value="'+esc(r.med||'')+'" placeholder="お薬の名前" style="flex:1;min-width:140px;">'
+      +'<input data-yy="'+i+'|dose" value="'+esc(r.dose||'')+'" placeholder="量（例：1包）" style="width:110px;">'
+      +'<input type="time" data-yy="'+i+'|time" value="'+esc(r.time||'')+'" style="width:110px;">'
+      +'<select data-yy="'+i+'|by" style="width:130px;">'+opt(SO,r.by,'飲ませた職員')+'</select>'
+      +'<select data-yy="'+i+'|chk" style="width:130px;">'+opt(SO,r.chk,'確かめた職員')+'</select>'
+      +'<label style="font-size:12px;display:flex;gap:4px;align-items:center;"><input type="checkbox" data-yyc="'+i+'"'+(r.irai?' checked':'')+' style="width:16px;height:16px;margin:0;">依頼書あり</label>'
+      +'<button type="button" class="btn btn-sm btn-ghost" data-yydel="'+i+'" aria-label="この行を消す">'+ic('trash')+'</button>'
+      +((r.kid&&(!r.by||!r.chk||r.by===r.chk))?'<div class="ks-warn" style="width:100%;">飲ませた職員と、確かめた職員（別の人）を入れてください。</div>':'')
+      +((r.kid&&!r.irai)?'<div class="ks-warn" style="width:100%;">与薬依頼書を受け取ってから飲ませます。</div>':'')+'</div>';}).join('')
+      :'<div class="row-sub" style="padding:4px 0;">この日の記録はありません。</div>')
+    +'<button type="button" class="btn btn-sm" id="yoyakuAdd" style="margin-top:6px;">'+ic('plus')+'与薬を足す</button></div>';
+}
+function yoyakuWire(date){
+  var c=$('#yoyakuCard');if(!c)return;
+  var d=yoyakuDay(date);
+  function rer(){var o=$('#yoyakuCard');if(o){o.outerHTML=yoyakuCardHTML(date);yoyakuWire(date);}}
+  c.querySelectorAll('[data-yy]').forEach(function(x){x.onchange=function(){var p=x.getAttribute('data-yy').split('|');if(!d.rows[+p[0]])return;d.rows[+p[0]][p[1]]=x.value;stampWho(d);yoyakuSave(date,d);if(p[1]==='kid'||p[1]==='by'||p[1]==='chk')rer();};});
+  c.querySelectorAll('[data-yyc]').forEach(function(x){x.onchange=function(){var r=d.rows[+x.getAttribute('data-yyc')];if(!r)return;r.irai=x.checked;yoyakuSave(date,d);rer();};});
+  c.querySelectorAll('[data-yydel]').forEach(function(b){b.onclick=function(){if(!confirm('この与薬の記録を消しますか？'))return;d.rows.splice(+b.getAttribute('data-yydel'),1);yoyakuSave(date,d);rer();};});
+  var ad=$('#yoyakuAdd');if(ad)ad.onclick=function(){var n=new Date();d.rows.push({kid:'',med:'',dose:'',time:pad(n.getHours())+':'+pad(n.getMinutes()),by:(currentStaff()||{}).name||'',chk:'',irai:false});yoyakuSave(date,d);rer();};
+  var pr=$('#yoyakuPrint');if(pr)pr.onclick=function(){yoyakuPrint(date.slice(0,7));};
+}
+function yoyakuPrint(mo){
+  var a=stGet('rec_与薬',{}),nm={},rows='',k;
+  (DB.contacts||[]).forEach(function(c){nm[c.id]=childFullName(c);});
+  Object.keys(a).filter(function(x){return x.slice(0,7)===mo;}).sort().forEach(function(dt){
+    (a[dt].rows||[]).filter(function(r){return r&&r.kid;}).forEach(function(r){
+      rows+='<tr><td>'+esc(fmt(dt))+'</td><td>'+esc(r.time||'')+'</td><td>'+esc(nm[r.kid]||'')+'</td><td>'+esc(r.med||'')+'</td><td>'+esc(r.dose||'')+'</td><td>'+esc(r.by||'')+'</td><td>'+esc(r.chk||'')+'</td><td>'+(r.irai?'あり':'なし')+'</td></tr>';});
+  });
+  printDoc('与薬の記録（'+(+mo.split('-')[1])+'月）','<p>'+esc(schoolNameFixed()||'')+'　'+esc(mo.replace('-','年'))+'月</p><table><thead><tr><th style="width:80px;">日</th><th style="width:50px;">時刻</th><th>お子さま</th><th>お薬</th><th style="width:60px;">量</th><th style="width:80px;">飲ませた職員</th><th style="width:80px;">確かめた職員</th><th style="width:50px;">依頼書</th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="8">この月の記録はありません</td></tr>')+'</tbody></table>');
 }
 /* ══ 検食簿（2026-09-25 安田さんのご依頼）══════════════════
    ★監査の一覧で、検食簿だけ置き場が無く「園で紙に残す」になっていた（8/23 に一覧へ足したとき、画面を作らなかった）。
@@ -37969,7 +38034,7 @@ function kidDocs(){return stGet('kidDocs',{});}
 function kidDocsOf(id){return kidDocs()[id]||[];}
 function kidDocsSet(id,list){var a=kidDocs();if(list&&list.length)a[id]=list;else delete a[id];stSet('kidDocs',a);}
 /* ★園医の健診の結果と、感染症のあとの登園許可証・登園届を置く種類が無かった（2026-11-13 さいたま市 別紙3「児童の健康診断票」「登園許可証、登園届等」） */
-var KID_DOC_KINDS=['利用契約書（サイン済み）','重要事項説明書（サイン済み）','個人情報の取り扱いの同意書','アレルギー児の生活管理指導表','健康診断票（園医の健診）','登園許可証（医師の意見書）','登園届（保護者の記入）','その他'];
+var KID_DOC_KINDS=['利用契約書（サイン済み）','重要事項説明書（サイン済み）','個人情報の取り扱いの同意書','アレルギー児の生活管理指導表','健康診断票（園医の健診）','登園許可証（医師の意見書）','登園届（保護者の記入）','与薬依頼書（保護者の記入）','その他'];
 /* その園児に、その種類の書類が「たどれる形で」入っているか。
    URLでもファイルでもない空の行やメモだけの行は数えない
    （中身が無いのに「揃っている」と言わないため）。 */
