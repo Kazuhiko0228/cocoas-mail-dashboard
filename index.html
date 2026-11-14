@@ -4440,6 +4440,10 @@ var AUDIT_CATS=[
     {key:'kondate',cond:'meal',name:'献立表',place:'月次献立表ファイル',when:'運営中',sys:'docs'},
     {key:'seikatsu',name:'アレルギー児の生活管理指導表',place:'',when:'年度前',sys:'docs',note:'食物アレルギーのある園児について、お医者さんに書いてもらう用紙です。園児ごとにそろえて保管します。'},
     {key:'kenshoku',cond:'meal',name:'検食簿',place:'',when:'運営中',sys:'records',note:'給食を出す前に職員が食べて確かめ、日づけ・献立・時こく・確かめた人・気づいたことを書き残します。'},
+    /* 2026-11-13 監査の和集合 #36・#19・#40。検食簿の同じ日に書く（新しい画面は作らない）。市の一覧にあるときだけ出す（opt） */
+    {key:'kyushoku',opt:1,cond:'meal',name:'給食日誌（食数・食べ具合）',place:'',when:'運営中',sys:'records',note:'検食簿の食事ごとに、提供した数と食べ具合を入れます。「給食の記録を印刷」で1か月分を出せます。'},
+    {key:'allergy_shoku',opt:1,cond:'meal',name:'アレルギー対応食の提供の記録',place:'',when:'運営中',sys:'records',note:'検食簿の「アレルギー対応食の提供」に、誰に・何を除去・代替したか・確かめた職員2人を入れます。'},
+    {key:'chori',opt:1,cond:'cook',name:'調理室の衛生点検（温度・調理員の体調）',place:'',when:'運営中',sys:'records',note:'給食を園で作っている園だけ。検食簿の「調理室の衛生点検」に、冷蔵・冷凍・中心温度と点検の結果を入れます。'},
     {key:'kenben',cond:'cook',name:'調理職員の検便（腸内細菌検査）',place:'',when:'運営中',sys:'staff',note:'月に1回。職員管理の下にある「調理職員の検便」に書きます。外から給食を運んでいる園は要りません。'}
   ]},
   {cat:'④ 非常災害対策',items:[
@@ -5057,7 +5061,10 @@ var AUDIT_REC={
   sanpo_rec:['carerec','散歩・園外活動'],
   pool:['carerec','プール・水遊び'],
   teikyo:['records','登園（出席）'],
-  haichi:['records','登園（出席）']
+  haichi:['records','登園（出席）'],
+  kyushoku:['records','検食簿'],
+  allergy_shoku:['records','検食簿'],
+  chori:['records','検食簿']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5488,6 +5495,15 @@ function auditDataInfo(key,fy){
         });
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'kyushoku': case 'allergy_shoku': case 'chori': {
+      /* 検食簿の同じ日の記録から、その年度に書いた日を数える */
+      var kyd=auditPickFY(stGet('rec_検食簿',{}),fy),kyn=0,kyk;
+      for(kyk in kyd){if(!Object.prototype.hasOwnProperty.call(kyd,kyk))continue;var kv=kyd[kyk]||{};
+        if(key==='kyushoku'&&(kv.meals||[]).some(function(m){return m&&(m.count||m.eat);}))kyn++;
+        if(key==='allergy_shoku'&&(kv.allergy||[]).some(function(r){return r&&r.kid;}))kyn++;
+        if(key==='chori'&&kv.chori&&(kv.chori.fridge||kv.chori.core||Object.keys(kv.chori.checks||{}).length))kyn++;}
+      return kyn?(kyn+'日分の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
     case 'haichi': {
       /* 直近30日（きょうを除く）。足りない時間帯があった日・打刻のない日を数える */
@@ -13149,7 +13165,13 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','時間帯ごとの職員配置の確認':'Staffing by time slot','時間帯ごとの職員配置':'Staffing by time slot','登園・降園の時刻と職員の打刻から、30分ごとに足りているかを出します。入力は増えません。登園（出席）の画面の「時間帯ごとの職員配置」から、月ごとに印刷できます。':'Checks every 30 minutes whether staffing is enough, from children\'s arrival/departure times and staff clock-ins. No extra input. Print monthly from “Staffing by time slot” on the attendance screen.',
+'入れる場所：':'Where to enter: ','給食日誌（食数・食べ具合）':'Meal log (servings, how much eaten)','アレルギー対応食の提供の記録':'Allergy-adapted meal records','調理室の衛生点検（温度・調理員の体調）':'Kitchen hygiene checks (temperatures, cook health)',
+'アレルギー対応食の提供':'Allergy-adapted meals','除去・代替した食事を出すときに、誰に・何を・誰と誰で確かめたかを残します。':'When serving a meal with an ingredient removed or substituted, record for whom, what, and the two staff who checked.','対応食を足す':'Add adapted meal','確かめた職員を2人入れてください。':'Enter the two staff who checked.',
+'調理室の衛生点検':'Kitchen hygiene check','目安：冷蔵10℃以下・冷凍-15℃以下・加熱は中心温度75℃で1分以上（大量調理施設衛生管理マニュアル）。':'Guide: fridge 10°C or below, freezer -15°C or below, cook to 75°C at the core for 1 minute (Large-scale cooking hygiene manual).',
+'冷蔵庫（℃）':'Fridge (°C)','冷凍庫（℃）':'Freezer (°C)','加熱の中心温度（℃）':'Core cooking temperature (°C)','10℃を超えています':'Above 10°C','-15℃より高くなっています':'Warmer than -15°C','75℃に届いていません（75℃で1分以上が目安）':'Below 75°C (guide: 75°C for 1 minute)',
+'手洗い・爪・身なり':'Handwashing, nails, attire','調理員の体調（下痢・おう吐・発熱・手指の傷がない）':'Cook health (no diarrhoea, vomiting, fever or hand cuts)','調理器具・ふきんの洗浄と消毒':'Washing and disinfecting utensils and cloths','食材の受け取り（温度・品質・数量）':'Receiving ingredients (temperature, quality, quantity)','ごみ・排水の片づけ':'Waste and drainage','否':'NG',
+'点検した調理員':'Cook who checked','「否」のときの対応':'Action taken for NG','提供した数':'Servings','食べ具合':'How much eaten','よく食べた':'Ate well','残しが多い':'Left a lot','給食の記録を印刷':'Print meal records',
+'時間帯ごとの職員配置の確認':'Staffing by time slot','時間帯ごとの職員配置':'Staffing by time slot','登園・降園の時刻と職員の打刻から、30分ごとに足りているかを出します。入力は増えません。登園（出席）の画面の「時間帯ごとの職員配置」から、月ごとに印刷できます。':'Checks every 30 minutes whether staffing is enough, from children\'s arrival/departure times and staff clock-ins. No extra input. Print monthly from “Staffing by time slot” on the attendance screen.',
 '足りない時間帯 {0}':'{0} short slots','すべての時間帯で足りています':'Enough in every slot','打刻がありません':'No clock-ins','（きょうは、いまの時刻まで）':' (today, up to now)',
 '登園・降園の時刻と、職員の打刻から30分ごとに数えています。園児はその30分に少しでもいれば数え、職員はその30分ずっといたときだけ数えます。':'Counted every 30 minutes from arrival/departure times and staff clock-ins. A child counts if present at any point in the slot; staff count only if present for the whole slot.',
 '園児（歳児別）':'Children (by age)','足りる':'OK','足りない':'Short','この月の時間帯ごとの配置を印刷':'Print this month\'s staffing by time slot','日常記録 › 登園（出席） › 時間帯ごとの職員配置':'Daily records › Attendance › Staffing by time slot',
@@ -30672,7 +30694,7 @@ function ksStaffList(){
 function ksStaffLabel(st){return (st.role?st.role+'　':'')+st.name;}
 function edKenshoku(){
   var K='rec_検食簿',data=stGet(K,{}),d=ksDay(recDate);
-  var KS_F=[{k:'meals',l:'検食の内容',deep:true},{k:'none',l:'検食なしの理由'},{k:'by',l:'検食者'},{k:'hozon',l:'保存食'}];
+  var KS_F=[{k:'meals',l:'検食の内容',deep:true},{k:'none',l:'検食なしの理由'},{k:'by',l:'検食者'},{k:'hozon',l:'保存食'},{k:'allergy',l:'アレルギー対応食',deep:true},{k:'chori',l:'調理室の衛生点検',deep:true}];
   var _snap=lockSnap(d,KS_F);
   var boss=(typeof isBoss==='function')?isBoss():true;
   var last7='';for(var i=6;i>=0;i--){var dt=iso(addDays(-i)),hd=data[dt];var has=hd&&(hd.none||(hd.meals||[]).some(function(m){return m&&m.time;}));
@@ -30693,6 +30715,9 @@ function edKenshoku(){
         +'<div class="field" style="margin:0;"><label>検食した時刻</label><div style="display:flex;gap:6px;"><input type="time" data-kstime="'+mi+'" value="'+esc(m.time||'')+'"><button type="button" class="btn btn-sm" data-ksnow="'+mi+'" style="white-space:nowrap;flex:none;">いま</button></div></div>'
         +'<div class="field" style="margin:0;"><label>喫食（配膳）の時刻</label><input type="time" data-ksserve="'+mi+'" value="'+esc(m.serve||'')+'"></div>'
       +'</div>'
+      /* 食数と食べ具合（給食の記録・2026-11-13） */
+      +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;"><label style="font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:6px;">提供した数<input type="number" min="0" data-kscount="'+mi+'" value="'+esc(m.count||'')+'" style="width:80px;"></label>'
+        +'<span style="font-size:12px;color:var(--tx2);">食べ具合</span><div class="kschips">'+KS_EAT.map(function(o){return '<button type="button" class="btn btn-sm'+(m.eat===o?(o==='残しが多い'?' ks-bad':' ks-on'):'')+'" data-kseat="'+mi+'|'+esc(o)+'">'+esc(o)+'</button>';}).join('')+'</div></div>'
       +(late?'<div class="ks-warn">喫食の30分前より後の検食です。手直し・作り直しが間に合うよう、30分前までの検食が目安です。</div>':'')
       +'<table class="kstbl"><tbody>'
       +KS_RATE.map(function(x){return '<tr><th>'+x[1]+'</th><td>'+chips(mi,'r',x[0],x[2],(m.r||{})[x[0]],x[2][0])+'</td></tr>';}).join('')
@@ -30704,12 +30729,12 @@ function edKenshoku(){
       +'</div>';
   }).join('');
   $('#recBody').innerHTML=lockBarHtml(d)+'<div class="card">'+recHead('検食簿',
-      '<input type="date" id="ksDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="ksPrint">'+ic('printer')+'1か月分を印刷</button>')
+      '<input type="date" id="ksDate" value="'+esc(recDate)+'" style="width:160px;"><button class="btn btn-sm" id="ksPrint">'+ic('printer')+'1か月分を印刷</button><button class="btn btn-sm" id="ksPrint2">'+ic('printer')+'給食の記録を印刷</button>')
     +'<div class="muted" style="margin:-6px 0 12px;font-size:12.5px;line-height:1.8;">子どもが食べる前に、園長（不在のときは園長が指名した職員）が食べて確かめ、結果を残します。喫食の30分前までが目安です。</div>'
     +'<div class="chips" style="margin:0 0 12px;"><span class="chip'+(d.none?'':' on')+'" data-ksnone="">検食した</span>'
       +KS_NONE.map(function(x){return '<span class="chip'+(d.none===x?' on':'')+'" data-ksnone="'+esc(x)+'">'+esc(x)+'</span>';}).join('')+'</div>'
     +(d.none?'<div class="muted" style="font-size:12.5px;">この日は「'+esc(d.none)+'」として残します。</div>':mealsHTML
-      +'<button type="button" class="btn btn-sm" id="ksAdd" style="margin-top:10px;">'+ic('plus')+'食事を足す（おやつ・離乳食・アレルギー対応食など）</button>')
+      +'<button type="button" class="btn btn-sm" id="ksAdd" style="margin-top:10px;">'+ic('plus')+'食事を足す（おやつ・離乳食・アレルギー対応食など）</button>'+ksExtraHTML(d))
     +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">'
       +'<div class="field" style="margin:0;"><label>検食者（職・氏名）</label><select id="ksBy"><option value="">選択</option>'
         +(DB.staff||[]).map(function(st){var lab=(st.role?st.role+'　':'')+st.name;return '<option value="'+esc(lab)+'"'+(lab===d.by?' selected':'')+'>'+esc(lab)+'</option>';}).join('')+'</select></div>'
@@ -30748,11 +30773,91 @@ function edKenshoku(){
   $('#ksBy').onchange=function(){d.by=this.value;save();};
   var hz=$('#ksHozon');if(hz)hz.onchange=function(){d.hozon=hz.checked;save();};
   rfWire(body,d,save,edKenshoku);
+  ksExtraWire(body,d,save,edKenshoku);
+  var kp=$('#ksPrint2');if(kp)kp.onclick=function(){var mo=recDate.slice(0,7);printDoc('給食の記録（'+(+mo.split('-')[1])+'月）',kyushokuMonthBody(mo));};
   var bs=$('#ksBoss');if(bs)bs.onclick=function(){var me=(currentStaff()||{}).name||'施設長';d.boss=me;d.bossAt=todayISO()+' '+tcNow();save();edKenshoku();};
   var bo=$('#ksBossOff');if(bo)bo.onclick=function(){d.boss='';d.bossAt='';save();edKenshoku();};
   $('#ksPrint').onclick=function(){var mo=recDate.slice(0,7);printDoc('検食簿（'+(+mo.split('-')[1])+'月）',kenshokuMonthBody(mo));};
   lockBarWire(body,d,save,edKenshoku);
   lockDisable(body,d);
+}
+/* ══ 給食の記録（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #36・#19・#40）══
+   新しい画面は作らず、検食簿の同じ日の記録に足す（rec_検食簿 の d）。
+   ・食数と食べ具合：食事ごとに m.count（提供した数）・m.eat（食べ具合）
+   ・アレルギー対応食：d.allergy=[{kid,food,c1,c2}]。アレルギーが登録された在園児がいる園にだけ出す（要る園でだけ出す）
+   ・調理室の衛生点検：d.chori={fridge,freezer,core,checks:{},cook,note}。園の条件で「給食を園で作っている」園にだけ出す
+   温度の目安は「大量調理施設衛生管理マニュアル」（冷蔵10℃以下・冷凍-15℃以下・中心温度75℃で1分以上）。外れたら色で知らせるだけで、保存は止めない */
+var KS_EAT=['よく食べた','ふつう','残しが多い'];
+var KS_CHORI=[['te','手洗い・爪・身なり'],['kenko','調理員の体調（下痢・おう吐・発熱・手指の傷がない）'],['kigu','調理器具・ふきんの洗浄と消毒'],['kenshu','食材の受け取り（温度・品質・数量）'],['gomi','ごみ・排水の片づけ']];
+function ksAllergyKids(){
+  var out=[];
+  try{(DB.contacts||[]).forEach(function(c){if(!c||c.kind!=='enrolled')return;var a=kidsAllergyText(spGet(c.id)||{});if(a)out.push({id:c.id,name:childFullName(c),a:a});});}catch(e){}
+  return out;
+}
+function ksCookOn(){return typeof schoolCond==='function'&&schoolCond().meal==='self';}
+function ksTempWarn(k,v){
+  if(v===''||v==null||isNaN(+v))return '';
+  v=+v;
+  if(k==='fridge'&&v>10)return '10℃を超えています';
+  if(k==='freezer'&&v>-15)return '-15℃より高くなっています';
+  if(k==='core'&&v<75)return '75℃に届いていません（75℃で1分以上が目安）';
+  return '';
+}
+function ksExtraHTML(d){
+  var h='',kids=ksAllergyKids(),staff=(DB.staff||[]).filter(function(x){return x&&x.name;});
+  function stOpt(cur){return '<option value="">選択</option>'+staff.map(function(st){return '<option'+(st.name===cur?' selected':'')+'>'+esc(st.name)+'</option>';}).join('');}
+  if(kids.length||(d.allergy||[]).length){
+    var A=Array.isArray(d.allergy)?d.allergy:[];
+    h+='<div class="ksmeal" style="margin-top:12px;"><div style="font-weight:700;margin-bottom:4px;">アレルギー対応食の提供</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:6px;">除去・代替した食事を出すときに、誰に・何を・誰と誰で確かめたかを残します。</div>'
+      +A.map(function(r,i){return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">'
+        +'<select data-ksal="'+i+'|kid" style="width:180px;"><option value="">お子さま</option>'+kids.map(function(k){return '<option value="'+esc(k.id)+'"'+(String(k.id)===String(r.kid)?' selected':'')+'>'+esc(k.name)+'（'+esc(k.a)+'）</option>';}).join('')+'</select>'
+        +'<input data-ksal="'+i+'|food" value="'+esc(r.food||'')+'" placeholder="除去・代替の内容（例：卵を除去・豆腐に代替）" style="flex:1;min-width:200px;">'
+        +'<select data-ksal="'+i+'|c1" style="width:130px;">'+stOpt(r.c1)+'</select><select data-ksal="'+i+'|c2" style="width:130px;">'+stOpt(r.c2)+'</select>'
+        +'<button type="button" class="btn btn-sm btn-ghost" data-ksaldel="'+i+'" aria-label="この行を消す">'+ic('trash')+'</button>'
+        +((r.kid&&(!r.c1||!r.c2||r.c1===r.c2))?'<div class="ks-warn" style="width:100%;">確かめた職員を2人入れてください。</div>':'')+'</div>';}).join('')
+      +'<button type="button" class="btn btn-sm" id="ksAlAdd">'+ic('plus')+'対応食を足す</button></div>';
+  }
+  if(ksCookOn()){
+    var c=d.chori||{},ck=c.checks||{};
+    h+='<div class="ksmeal" style="margin-top:12px;"><div style="font-weight:700;margin-bottom:4px;">調理室の衛生点検</div>'
+      +'<div class="muted" style="font-size:12px;margin-bottom:6px;">目安：冷蔵10℃以下・冷凍-15℃以下・加熱は中心温度75℃で1分以上（大量調理施設衛生管理マニュアル）。</div>'
+      +'<div class="ksgrid">'+[['fridge','冷蔵庫（℃）'],['freezer','冷凍庫（℃）'],['core','加熱の中心温度（℃）']].map(function(f){var w=ksTempWarn(f[0],c[f[0]]);
+        return '<div class="field" style="margin:0;"><label>'+f[1]+'</label><input type="number" step="0.1" data-kschn="'+f[0]+'" value="'+esc(c[f[0]]==null?'':c[f[0]])+'">'+(w?'<div class="ks-warn">'+esc(w)+'</div>':'')+'</div>';}).join('')+'</div>'
+      +'<table class="kstbl"><tbody>'+KS_CHORI.map(function(x){var v=ck[x[0]]||'';
+        return '<tr><th>'+esc(x[1])+'</th><td><div class="kschips">'+['良','否'].map(function(o){return '<button type="button" class="btn btn-sm'+(v===o?(o==='否'?' ks-bad':' ks-on'):'')+'" data-ksch="'+x[0]+'|'+o+'">'+o+'</button>';}).join('')+'</div></td></tr>';}).join('')+'</tbody></table>'
+      +'<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;"><div class="field" style="margin:0;"><label>点検した調理員</label><select data-kschs="cook">'+stOpt(c.cook)+'</select></div>'
+      +'<div class="field" style="margin:0;"><label>「否」のときの対応</label><input data-kschs="note" value="'+esc(c.note||'')+'" placeholder="例：冷蔵庫の温度が高かったので設定を直し、30分後に8℃を確かめた"></div></div></div>';
+  }
+  return h;
+}
+function ksExtraWire(body,d,save,rer){
+  body.querySelectorAll('[data-ksal]').forEach(function(x){x.onchange=function(){var p=x.getAttribute('data-ksal').split('|'),A=d.allergy||[];if(A[+p[0]]){A[+p[0]][p[1]]=x.value;d.allergy=A;save();if(p[1]!=='food')rer();}};});
+  body.querySelectorAll('[data-ksaldel]').forEach(function(b){b.onclick=function(){(d.allergy||[]).splice(+b.getAttribute('data-ksaldel'),1);save();rer();};});
+  var aa=body.querySelector('#ksAlAdd');if(aa)aa.onclick=function(){d.allergy=Array.isArray(d.allergy)?d.allergy:[];d.allergy.push({kid:'',food:'',c1:'',c2:''});save();rer();};
+  body.querySelectorAll('[data-kschn]').forEach(function(x){x.onchange=function(){d.chori=d.chori||{};d.chori[x.getAttribute('data-kschn')]=x.value;save();rer();};});
+  body.querySelectorAll('[data-ksch]').forEach(function(b){b.onclick=function(){var p=b.getAttribute('data-ksch').split('|');d.chori=d.chori||{};d.chori.checks=d.chori.checks||{};d.chori.checks[p[0]]=(d.chori.checks[p[0]]===p[1])?'':p[1];save();rer();};});
+  body.querySelectorAll('[data-kschs]').forEach(function(x){x.onchange=function(){d.chori=d.chori||{};d.chori[x.getAttribute('data-kschs')]=x.value;save();};});
+  body.querySelectorAll('[data-kscount]').forEach(function(x){x.onchange=function(){var m=d.meals[+x.getAttribute('data-kscount')];if(m){m.count=x.value;save();}};});
+  body.querySelectorAll('[data-kseat]').forEach(function(b){b.onclick=function(){var p=b.getAttribute('data-kseat').split('|'),m=d.meals[+p[0]];if(!m)return;m.eat=(m.eat===p[1])?'':p[1];save();rer();};});
+}
+/* 給食の記録（1か月分）の紙：日ごとの食数・食べ具合・アレルギー対応食・調理室の点検 */
+function kyushokuMonthBody(mo){
+  var data=stGet('rec_検食簿',{}),p=String(mo).split('-'),dim=new Date(+p[0],+p[1],0).getDate(),rows='',dd;
+  var nm={};(DB.contacts||[]).forEach(function(c){nm[c.id]=childFullName(c);});
+  for(dd=1;dd<=dim;dd++){
+    var dk=mo+'-'+pad(dd),d=data[dk];if(!d)continue;
+    if(d.none){rows+='<tr><td>'+esc(fmt(dk))+'</td><td colspan="3">'+esc(d.none)+'</td></tr>';continue;}
+    var meals=(d.meals||[]).map(function(m){return esc(m.kind||'')+(m.count?' '+esc(m.count)+'食':'')+(m.eat?'（'+esc(m.eat)+'）':'');}).join('<br>');
+    var al=(d.allergy||[]).filter(function(r){return r&&r.kid;}).map(function(r){return esc(nm[r.kid]||'')+'：'+esc(r.food||'')+'（確認 '+esc(r.c1||'')+'・'+esc(r.c2||'')+'）';}).join('<br>');
+    var c=d.chori,ch='';
+    if(c){ch=[c.fridge!==''&&c.fridge!=null?'冷蔵'+esc(c.fridge)+'℃':'',c.freezer!==''&&c.freezer!=null?'冷凍'+esc(c.freezer)+'℃':'',c.core!==''&&c.core!=null?'中心'+esc(c.core)+'℃':''].filter(Boolean).join('・');
+      var ng=KS_CHORI.filter(function(x){return (c.checks||{})[x[0]]==='否';}).map(function(x){return x[1];});
+      ch+=(ng.length?'<br>否：'+esc(ng.join('・'))+(c.note?'（'+esc(c.note)+'）':''):'')+(c.cook?'<br>点検 '+esc(c.cook):'');}
+    rows+='<tr><td>'+esc(fmt(dk))+'</td><td>'+meals+'</td><td>'+(al||'')+'</td><td>'+ch+'</td></tr>';
+  }
+  return '<p>'+esc(schoolNameFixed()||'')+'　'+esc(mo.replace('-','年'))+'月</p><table><thead><tr><th style="width:90px;">日</th><th style="width:170px;">食事・食数・食べ具合</th><th>アレルギー対応食</th><th style="width:200px;">調理室の衛生点検</th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="4">この月の記録はありません</td></tr>')+'</tbody></table>';
 }
 /* 紙の検食簿（1か月分）。1日1行ではなく、食事ごとに1行 */
 function kenshokuMonthBody(mo){
