@@ -4424,6 +4424,7 @@ var AUDIT_CATS=[
   ]},
   {cat:'② 保育内容',items:[
     {key:'daily',name:'日々の活動内容記録',place:'カリキュラム（日別スケジュール・日案）',when:'運営中',sys:'curriculum',note:'1日ごとに書いて出す必要はありません。園のパンフレットや説明書に活動の内容が書いてあれば、それで足ります。指導計画（月案・週案・日案）もこの記録でまとめて出せます。'},
+    {key:'kobetsu',name:'3歳未満児の個別の指導計画',place:'',when:'運営中',sys:'carerec',note:'保育記録の「児童票（成長の記録）」で、0〜2歳児の月に「個別の指導計画」の欄が出ます。'},
     {key:'keikaku',opt:1,name:'保育計画（全体的な計画・年間・月間の指導計画・デイリープログラム）',place:'システム内（カリキュラム）',when:'年度前',sys:'curriculum'},
     {key:'nisshi',name:'保育日誌・業務日報',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
     {key:'renraku',opt:1,name:'家庭との連絡帳',place:'システム内（保護者連絡・連絡帳）',when:'運営中',sys:'feed'},
@@ -5066,7 +5067,8 @@ var AUDIT_REC={
   kyushoku:['records','検食簿'],
   allergy_shoku:['records','検食簿'],
   chori:['records','検食簿'],
-  yoyaku:['records','登園（出席）']
+  yoyaku:['records','登園（出席）'],
+  kobetsu:['carerec','児童票（成長の記録）']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5497,6 +5499,11 @@ function auditDataInfo(key,fy){
         });
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
+    case 'kobetsu': {
+      var kdv=stGet('rec_発達',{}),kbn=0,kbt=0;
+      Object.keys(kdv).forEach(function(cid){var m=auditPickFY(kdv[cid]||{},fy);Object.keys(m).forEach(function(mk){var r=m[mk]||{};if(r.plan&&(r.plan.nerai||r.plan.naiyo))kbn++;});});
+      return kbn?(kbn+'人月分の計画あり（'+fy+'年度）'):(fy+'年度の計画はありません');
     }
     case 'yoyaku': {
       if(!yoyakuOn())return '使っていません（お薬を預かる園は 設定 › 記録で使う項目 で「与薬の記録」を入れてください）';
@@ -6060,7 +6067,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -13173,7 +13180,11 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','与薬の記録':'Medication records','与薬の記録（お薬を預かる園だけ）':'Medication records (schools that give medicine only)','与薬の記録（与薬依頼書・与薬簿）':'Medication records (request forms and log)',
+'入れる場所：':'Where to enter: ','3歳未満児の個別の指導計画':'Individual plans for under-3s','個別の指導計画（3歳未満児）':'Individual plan (under 3)','この子の計画を印刷':'Print this child\'s plans',
+'3歳未満の子は、一人ひとりの月の計画を立てます。月のはじめに「子どもの姿」から「家庭との連携」まで、月の終わりに「評価・反省」を書きます。':'For children under 3, make a monthly plan for each child. Fill in from “The child now” to “Working with the family” at the start of the month, and “Review” at the end.',
+'子どもの姿（前の月の様子）':'The child now (last month)','内容（養護・教育）':'Content (care and education)','保育士の配慮・環境':'Caregiver support and environment','家庭との連携':'Working with the family','評価・反省（月の終わりに）':'Review (end of month)',
+'保育記録の「児童票（成長の記録）」で、0〜2歳児の月に「個別の指導計画」の欄が出ます。':'In Care Records › Child Record, the “Individual plan” section appears for months when the child is 0–2.',
+'与薬の記録':'Medication records','与薬の記録（お薬を預かる園だけ）':'Medication records (schools that give medicine only)','与薬の記録（与薬依頼書・与薬簿）':'Medication records (request forms and log)',
 '保護者から預かったお薬を飲ませたときに残します。飲ませた職員と、確かめた職員の2人を入れます。':'Record each time you give medicine entrusted by parents, with the staff who gave it and the staff who checked.',
 '保護者が書いた与薬依頼書は、生徒情報の園児ごとの書類に「与薬依頼書」の種類で入れてください。':'Store the parent\'s medication request form under the child\'s documents as “Medication request”.',
 'お薬の名前':'Medicine','量（例：1包）':'Dose (e.g. 1 sachet)','飲ませた職員':'Given by','確かめた職員':'Checked by','依頼書あり':'Request form received','与薬を足す':'Add medication',
@@ -32137,6 +32148,26 @@ function devTpl(k){
   return {k:k,l:d.l,per:d.per,cats:(o&&Array.isArray(o.cats))?o.cats:d.cats};
 }
 /* その子・その月に使う様式。0〜1歳児は月齢、2歳児からは年度の年齢（4月1日） */
+/* ══ 3歳未満児の個別の指導計画（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #26）══
+   国の監査調書・多くの自治体で「3歳未満児は一人ひとりの指導計画」を見る。児童票（毎月・子ども1人ずつ）の同じ月に rec.plan で持つ。
+   様式が 0〜2歳児（devTplKeyFor が '0a' '0b' '0c' '2'）の月だけ出す。項目は保育所保育指針の書き方にそろえた（子どもの姿・ねらい・内容・保育士の配慮・家庭との連携・評価） */
+var DEV_PLAN_F=[['sugata','子どもの姿（前の月の様子）'],['nerai','ねらい'],['naiyo','内容（養護・教育）'],['hairyo','保育士の配慮・環境'],['katei','家庭との連携'],['hyoka','評価・反省（月の終わりに）']];
+function devUnder3(tk){return /^0/.test(String(tk))||String(tk)==='2';}
+function devPlanHTML(rec){
+  var p=rec.plan||{};
+  return '<div style="margin-top:14px;padding-top:12px;border-top:2px solid var(--line);">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;"><b>個別の指導計画（3歳未満児）</b><span style="flex:1;"></span><button class="btn btn-sm" id="dvPlanPrint">'+ic('printer')+'この子の計画を印刷</button></div>'
+    +'<div class="muted" style="font-size:12px;margin-bottom:8px;">3歳未満の子は、一人ひとりの月の計画を立てます。月のはじめに「子どもの姿」から「家庭との連携」まで、月の終わりに「評価・反省」を書きます。</div>'
+    +DEV_PLAN_F.map(function(f){return '<div class="field"><label>'+esc(f[1])+'</label><textarea class="autogrow" rows="2" data-dvplan="'+f[0]+'">\n'+esc(p[f[0]]||'')+'</textarea></div>';}).join('')
+    +'</div>';
+}
+function devPlanPrint(c,mine){
+  var ks=Object.keys(mine||{}).filter(function(k){return /^\d{4}-\d{2}$/.test(k)&&mine[k]&&mine[k].plan;}).sort();
+  printDoc('個別の指導計画（'+childFullName(c)+'）','<p>'+esc(schoolNameFixed()||'')+'　'+esc(childFullName(c))+'</p>'
+    +(ks.length?ks.map(function(k){var p=mine[k].plan;return '<h3 style="margin:12px 0 4px;">'+esc(devPeriodLabel(k))+'</h3><table><tbody>'
+      +DEV_PLAN_F.map(function(f){return '<tr><th style="width:30%;">'+esc(f[1])+'</th><td style="white-space:pre-wrap;">'+esc(p[f[0]]||'')+'</td></tr>';}).join('')+'</tbody></table>';}).join('')
+      :'<p>まだ書いた月はありません。</p>'));
+}
 function devTplKeyFor(c,ym){
   var dob=String((c&&c.dob)||''),y=+ym.slice(0,4),m=+ym.slice(5,7);
   if(/^\d{4}-\d{2}-\d{2}/.test(dob)){
@@ -32215,7 +32246,7 @@ function edDev(){
   var prevKey=cur?devPrevKey(mine,recDevMonth):'';
   var boss=(typeof isBoss!=='function'||isBoss());
   var DV_F=[{k:'lv',l:'各項目の段階',deep:true,keyer:'devLv'},{k:'notes',l:'特記事項',deep:true,keyer:'devCat'},{k:'memo',l:'メモ'},{k:'by',l:'記録者'},{k:'tpl',l:'様式'},
-            {k:'ext',l:'この園で足した項目',deep:true}];
+            {k:'ext',l:'この園で足した項目',deep:true},{k:'plan',l:'個別の指導計画',deep:true}];
   var _snap=lockSnap(rec,DV_F);
   function save(){lockDiff(rec,_snap,DV_F);_snap=lockSnap(rec,DV_F);rec.tpl=rec.tpl||tk;stampWho(rec);
     data[devChild]=data[devChild]||{};data[devChild][recDevMonth]=rec;stSet(K,data);}
@@ -32253,10 +32284,14 @@ function edDev(){
     +'<div class="grid" style="grid-template-columns:2fr 1fr;margin-top:10px;"><div class="field" style="margin:0;"><label>メモ</label><input id="dvMemo" value="'+esc(rec.memo||'')+'"></div>'
     +'<div class="field" style="margin:0;"><label>記録者</label><select id="dvBy"><option value="">選択</option>'+(DB.staff||[]).map(function(st){return '<option'+(st.name===rec.by?' selected':'')+'>'+esc(st.name)+'</option>';}).join('')+'</select></div></div>';
   }
+  /* 3歳未満児の個別の指導計画（2026-11-13・監査の和集合 #26）。0〜2歳児の月だけ、児童票の同じ月に書く（新しい画面は作らない） */
+  if(devUnder3(tk))h+=devPlanHTML(rec);
   h+='<div data-rfbox="1"></div>';
   h+='</div>';
   $('#recBody').innerHTML=h;
   wireHead();
+  document.querySelectorAll('[data-dvplan]').forEach(function(t){t.onchange=function(){rec.plan=rec.plan||{};rec.plan[t.getAttribute('data-dvplan')]=t.value;save();};});
+  if($('#dvPlanPrint'))$('#dvPlanPrint').onclick=function(){if(cur)devPlanPrint(cur,mine);};
   if($('#dvTpl'))$('#dvTpl').onchange=function(){
     if(Object.keys(rec.lv).length&&!confirm('様式を変えると、いまの様式で付けた段階は表に出なくなります（記録は消えません。戻せば出ます）。変えますか？')){this.value=tk;return;}
     rec.tpl=this.value;save();edDev();};
