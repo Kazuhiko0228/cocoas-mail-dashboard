@@ -1528,7 +1528,7 @@ var WZ_STEPS=[
      以前は園を作った直後にログイン情報を出していたため、契約書が届く前に園長がログインでき、
      園の「はじめの準備」に契約書の手順が出なかった。ログイン情報は、条件を決めて契約書を送ってから渡す */
   ['hand','ログイン情報を渡す'],
-  ['bill','課金を始める'],['audit','監査の様式と記録の項目'],['school','園の準備'],['live','使いはじめを確かめる']];
+  ['bill','課金を始める'],['audit','監査の項目・園の条件・記録の項目'],['school','園の準備'],['live','使いはじめを確かめる']];
 function wizLoad(){
   if(!openId){
     WZ.tid=null;
@@ -1559,7 +1559,8 @@ function wizDone(i){
   if(k==='school')return ['kids','parents'].every(wizFin);
   if(k==='live')return ['first_login','parent_login'].every(wizFin);
   if(k==='bill')return wizFin('billing');
-  if(k==='audit')return wizFin('audit_fields');
+  /* ★2026-11-14 ドライランで、前年度の監査資料と園の条件を飛ばしても済になっていた。3つそろって済 */
+  if(k==='audit')return wizFin('audit_fields')&&wizFin('audit_base')&&wizFin('school_cond');
   if(k==='hand'){var ua=wizAdminUser();return wizFin('first_login')||!!(ua&&!ua.has_initial_pw);}
   return false;
 }
@@ -1637,6 +1638,23 @@ function wizPickHTML(){
         +'<button class="btn sec sm" data-wz="'+x.id+'">続ける →</button></div>';}).join('')
       :'<div class="empty">導入中の園はありません</div>')+'</div>';
 }
+/* 導入の手順「監査の項目・園の条件・記録の項目」の前半（2026-11-14 安田さん）。
+   ★これまでこのステップは記録の項目の見直しだけで、前年度の監査資料を読むことと園の条件を決めることが
+     手順の中に出ていなかった（運営マニュアルにだけ書いてあった）。中身は 園の詳細 › 監査の項目 で入れる */
+function wizAuditHTML(){
+  var mk=function(k,t,sub,act){var x=wizStepOf(k),ok=wizFin(k),sk=x&&x.status==='skipped';
+    return '<div class="obItem'+(ok?' fin':'')+'"><span class="obMark'+(ok?' on':'')+'">'+(sk?'–':ok?'✓':'')+'</span><span style="flex:1;"><span class="obLbl">'+esc(t)+'</span>'
+      +(sk?' <span class="hint" style="display:inline;">飛ばした</span>':'')+'<div class="hint" style="margin:0;">'+sub+'</div>'+(!ok&&act?'<div class="row" style="margin-top:6px;">'+act+'</div>':'')+'</span></div>';};
+  return '<div class="lead">監査で見られる項目を、この園に合わせます。前年度の監査資料を読んで項目を整え（①）、園の条件を決め（②）、日々の記録の項目を市の様式に合わせます（下の「導入の手順」）。ぜんぶそろうと、このステップが済になります。</div>'
+    +'<div class="card"><h3>監査の項目と園の条件</h3>'
+    +mk('audit_base','① 前年度の監査資料を読んで、園の監査の項目に反映した',
+      '園から前年度の資料（当日に用意する書類の一覧・指摘事項）をもらい、<a href="#" data-gotab3="abase">監査の項目</a>で SI に読ませて「園に反映する」。初めて監査を受ける園は飛ばします',
+      '<button class="btn sm" data-gotab3="abase">監査の項目をひらく</button><button class="btn sec sm" data-obs="audit_base" data-to="skipped">初めて監査を受ける園なので飛ばす</button>')
+    +mk('school_cond','② 園の条件を5つとも決めた',
+      'バス・プール・散歩・給食・こども性暴力防止法をヒアリングで聞き、<a href="#" data-gotab3="abase">監査の項目</a>の「園の条件」に入れる。当てはまらない項目が、園の監査対応と記録のタブから外れます',
+      '<button class="btn sm" data-gotab3="abase">園の条件を入れる</button>')
+    +'</div>';
+}
 function wizBody(k){
   var d=openId?DATA.one:null;
   if(k==='app'){
@@ -1700,7 +1718,7 @@ function wizBody(k){
         +'<button class="btn" data-wzs="'+wizStepIndex('hand')+'">ログイン情報を渡す →</button></div>':'';
     return handGo+'<div class="hint" style="margin:-4px 0 8px;">同意を待つあいだも、先のステップへ進めます。書類の「中身を見る」で、送る前に文面を確かめられます。</div>'+agreeAdminHTML()+payBox;
   }
-  if(k==='audit')return rfPanelHTML(true);
+  if(k==='audit')return wizAuditHTML()+rfPanelHTML(true);
   if(k==='school'){
     /* ログインの確かめは次の「使いはじめを確かめる」で見る。お支払いは「契約とお支払いの登録」で見る */
     var S=((DATA.ob&&DATA.ob.steps)||[]).filter(function(x){return x.side==='school'&&['first_login','parent_login','school_pay'].indexOf(x.key)<0;});

@@ -6193,6 +6193,18 @@ function schoolCondHTML(compact,only){
     +(boss?'':'<div class="muted" style="font-size:12px;margin-top:6px;">変えられるのは園長・マネージャーです。</div>')
     +'</div>';
 }
+/* 園の条件に全部答えたあと、監査対応に出す1行（2026-11-14 安田さん・ドライランで見つけた）。
+   ★全部答えると監査対応から条件の欄が消え、あとで直すときの入口（設定）がどこにも書かれていなかった */
+var SCHOOL_COND_SHORT={bus:['送迎の車',{yes:'あり',no:'なし'}],pool:['プール・水遊び',{yes:'する',no:'しない'}],sanpo:['散歩・園外活動',{yes:'する',no:'しない'}],
+  meal:['給食',{self:'園で作る',out:'外から運ぶ',none:'出していない'}],dbs:['こども性暴力防止法',{yes:'対象',no:'対象でない'}]};
+function schoolCondLineHTML(){
+  var v=schoolCond(),boss=!(typeof isBoss==='function'&&!isBoss());
+  return '<div class="card" data-scline="1" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+    +'<span style="flex:1;min-width:220px;font-size:13px;line-height:1.8;"><b style="margin-right:10px;">園の条件</b>'
+    +SCHOOL_COND.map(function(c){var m=SCHOOL_COND_SHORT[c.k];return '<span style="white-space:nowrap;margin-right:12px;"><span>'+esc(m[0])+'</span>：<span>'+esc(m[1][v[c.k]]||'')+'</span></span>';}).join('')+'</span>'
+    +(boss?'<button class="btn btn-sm" id="auCondGo">設定で直す</button>':'<span class="muted" style="font-size:12px;">変えられるのは園長・マネージャーです（設定 › 園の条件）。</span>')
+    +'</div>';
+}
 function schoolCondWire(root,after){
   root.querySelectorAll('[data-scset]').forEach(function(b){b.onclick=function(){
     var p=b.getAttribute('data-scset').split('|'),cur=schoolCond()[p[0]];
@@ -19933,6 +19945,9 @@ var EN_DICT={
 '児童福祉施設の設備及び運営に関する基準 第6条の3（安全計画：設備の安全点検）、事故防止ガイドライン':'Standards for child welfare facilities, Art. 6-3 (safety plan: facility inspections); accident prevention guidelines',
 '家庭的保育事業等の設備及び運営に関する基準 第6条の3（安全計画：設備の安全点検）、事故防止ガイドライン':'Standards for home-based childcare, Art. 6-3 (safety plan: facility inspections); accident prevention guidelines',
 '安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。':'Include facility inspections in the safety plan. Set the items, dates and inspectors, check regularly, keep written records and fix problems (Dec 2022 notice, Nursery Care Guidelines commentary, accident prevention guidelines). Walking routes and parks used regularly are also covered. If your municipality has an inspection form, Audit Documents can fill it in from the daily checks.',
+  /* 監査対応：園の条件の1行（2026-11-14） */
+  '送迎の車':'School vehicle','園で作る':'Cooked on site','外から運ぶ':'Delivered from outside','出していない':'Not served',
+  '設定で直す':'Change in Settings','変えられるのは園長・マネージャーです（設定 › 園の条件）。':'Only the director or a manager can change these (Settings › School conditions).'
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -29033,7 +29048,7 @@ function renderAudit(){
     +'</div>'+
     auditPlanCardHTML()+
     /* 園の条件にまだ答えていないものがあるときだけ、ここにも出す（答えると消える。ふだんは設定にある） */
-    (SCHOOL_COND.some(function(c){return !schoolCond()[c.k];})?schoolCondHTML(true):'')+
+    (SCHOOL_COND.some(function(c){return !schoolCond()[c.k];})?schoolCondHTML(true):schoolCondLineHTML())+
     /* ★「監査シーズン（5〜11月）現場監査は無通告…」の帯は外した（2026-09-25 安田さんのご指示「記載削除」） */
     '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">'+
       '<div class="card"><h3>'+ic('cal')+'書類監査</h3><div class="muted" style="margin-bottom:10px;">年1回。実施期間の目安は 5〜11月。<b>日程は自治体から連絡が入り次第確定</b>します。</div><label>'+fy+'年度の監査日（決まったら入力）</label><input type="date" id="auDate" value="'+esc(auditDateOf(fy))+'"><div id="auCount" class="muted" style="margin-top:8px;"></div></div>'+
@@ -29098,6 +29113,10 @@ function renderAudit(){
   /* 年度を変えると、状態・監査日・準備状況・出力のすべてがその年度のものになる */
   $('#auFY').onchange=function(e){auditYear=+e.target.value;renderAudit();};
   if($('#auNow'))$('#auNow').onclick=function(){auditYear=curFY();renderAudit();};
+  /* 設定の「園の条件」まで連れていく（2026-11-14） */
+  if($('#auCondGo'))$('#auCondGo').onclick=function(){go('settings');
+    /* ★画面を移ったあとに上へ戻す処理があるので、少し待ってからもう一度合わせる */
+    var toC=function(){var c=document.querySelector('section[data-page="settings"] [data-scond]');if(c)c.scrollIntoView({block:'start'});};setTimeout(toC,300);setTimeout(toC,900);};
   s.querySelectorAll('[data-aukind]').forEach(function(b){b.onclick=function(){auditKindF=b.getAttribute('data-aukind');renderAudit();};});
   s.querySelectorAll('[data-auwhen]').forEach(function(b){b.onclick=function(){auditWhenF=b.getAttribute('data-auwhen');renderAudit();};});
   s.querySelectorAll('[data-st]').forEach(function(sl){
