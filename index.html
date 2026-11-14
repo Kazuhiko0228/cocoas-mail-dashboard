@@ -4426,6 +4426,7 @@ var AUDIT_CATS=[
     {key:'daily',name:'日々の活動内容記録',place:'カリキュラム（日別スケジュール・日案）',when:'運営中',sys:'curriculum',note:'1日ごとに書いて出す必要はありません。園のパンフレットや説明書に活動の内容が書いてあれば、それで足ります。指導計画（月案・週案・日案）もこの記録でまとめて出せます。'},
     {key:'kobetsu',name:'3歳未満児の個別の指導計画',place:'',when:'運営中',sys:'carerec',note:'保育記録の「児童票（成長の記録）」で、0〜2歳児の月に「個別の指導計画」の欄が出ます。'},
     {key:'shien',opt:1,name:'障害・要支援の子の個別の支援計画と記録',place:'',when:'運営中',sys:'carerec',note:'保育記録の「児童票（成長の記録）」で、園長・マネージャーが「個別の支援が要る」に印を付けた子にだけ「個別の支援計画」の欄が出ます。'},
+    {key:'mendan',opt:1,name:'保護者との面談・育児相談の記録',place:'',when:'運営中',sys:'carerec',note:'保育記録の「保護者対応の記録」で、種類を「面談・育児相談」にして残します。'},
     {key:'keikaku',opt:1,name:'保育計画（全体的な計画・年間・月間の指導計画・デイリープログラム）',place:'システム内（カリキュラム）',when:'年度前',sys:'curriculum'},
     {key:'nisshi',name:'保育日誌・業務日報',place:'業務・保育日誌ファイル',when:'運営中',sys:'records'},
     {key:'renraku',opt:1,name:'家庭との連絡帳',place:'システム内（保護者連絡・連絡帳）',when:'運営中',sys:'feed'},
@@ -5071,7 +5072,8 @@ var AUDIT_REC={
   chori:['records','検食簿'],
   yoyaku:['records','登園（出席）'],
   kobetsu:['carerec','児童票（成長の記録）'],
-  shien:['carerec','児童票（成長の記録）']
+  shien:['carerec','児童票（成長の記録）'],
+  mendan:['carerec','保護者対応の記録']
 };
 /* 日づけを鍵にしている記録から、その年度ぶんだけ取り出す。
    ★年度を切り替えても件数が今年度のままで、その数字が「◯◯年度」の紙に載っていた。 */
@@ -5503,6 +5505,11 @@ function auditDataInfo(key,fy){
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
+    case 'mendan': {
+      var md=stGet('rec_kujo',[]);md=Array.isArray(md)?md:[];
+      var mn=md.filter(function(r){return r&&r.kind==='面談・育児相談'&&r.date&&fyOf(String(r.date))===fy;}).length;
+      return mn?(mn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
+    }
     case 'shien': {
       var sn=Object.keys(kidSupport()).length;
       if(!sn)return '個別の支援が要る子の印はありません';
@@ -5558,6 +5565,8 @@ function auditDataInfo(key,fy){
       /* 1文字も書いていない行は数えない（足しただけの空の行があるため） */
       var kj=stGet('rec_kujo',[]).filter(function(r){
         if(!r||!(r.date||r.content||r.person))return false;
+        /* 面談・育児相談（2026-11-13）は苦情の数に入れない（監査の「面談・育児相談の記録」で数える） */
+        if(r.kind==='面談・育児相談')return false;
         /* ★紙は「受付日が空の行は当年度だけ」に絞っているのに、
            一覧は全年度で数えていた。記録が1件も無い年度の紙にも1件と載っていた。 */
         if(!r.date)return fy===curFY();
@@ -6081,7 +6090,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',mendan:'保育記録 › 保護者対応の記録（種類：面談・育児相談）',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -13194,7 +13203,9 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','障害・要支援の子の個別の支援計画と記録':'Individual support plans for children with additional needs','虐待・不適切な保育の記録':'Records of suspected abuse or inappropriate care','個別の支援計画':'Individual support plan','この子の支援計画を印刷':'Print this child\'s support plans','この子は個別の支援が要る（障害・発達・加配など）':'This child needs individual support (disability, development, extra staffing, etc.)',
+'入れる場所：':'Where to enter: ','苦情・ご要望':'Complaint / request','面談・育児相談':'Meeting / parenting consultation','保護者との面談・育児相談の記録':'Records of parent meetings and parenting consultations','保護者から苦情やご要望を受けた時と、面談・育児相談をした時に、1件ずつ記録します。':'Record each complaint or request from parents, and each meeting or parenting consultation.',
+'保育記録の「保護者対応の記録」で、種類を「面談・育児相談」にして残します。':'Record it in Care Records › Parent contact records with the type “Meeting / parenting consultation”.',
+'障害・要支援の子の個別の支援計画と記録':'Individual support plans for children with additional needs','虐待・不適切な保育の記録':'Records of suspected abuse or inappropriate care','個別の支援計画':'Individual support plan','この子の支援計画を印刷':'Print this child\'s support plans','この子は個別の支援が要る（障害・発達・加配など）':'This child needs individual support (disability, development, extra staffing, etc.)',
 '月ごとに、支援の目標と内容、関係機関や保護者と共有したことを残します。診断名などの書き方は、保護者の了解の範囲にとどめてください。':'Each month, record support goals and content, and what was shared with agencies and parents. Keep diagnostic details within what parents have agreed to.',
 '支援の目標（長期・短期）':'Support goals (long and short term)','具体的な支援の内容・配慮':'Specific support and adjustments','関係機関との連携（療育・医療・巡回相談など）':'Work with agencies (therapy, medical, visiting consultations)','保護者と共有したこと':'Shared with parents','評価・次の月に向けて':'Review and next month',
 '虐待・不適切な保育の記録（管理者だけ）':'Suspected abuse / inappropriate care records (administrator only)','家庭での虐待の疑い':'Suspected abuse at home','職員による不適切な保育':'Inappropriate care by staff','記録を始める':'Start record','気づいたこと・受けた相談':'Noticed / report received','こどもの安全の確保':'Child safety','保護者への対応':'Response to parents','事実の確認':'Fact-finding','職員への指導・措置':'Guidance / measures for staff','関係機関への連絡（児童相談所・市区町村など）':'Contact with agencies (child guidance centre, municipality, etc.)',
@@ -31710,7 +31721,7 @@ function kujoModal(idx,log,K){
   var m=el('div',{class:'modal-bg'});$('#modalRoot').appendChild(m);
   m.addEventListener('click',function(e){if(e.target===m)m.remove();});
   /* 確定したあとに直したところを、赤文字で残すための見比べ用 */
-  var KJ_F=[{k:'date',l:'受付日'},{k:'way',l:'受けた方法'},{k:'person',l:'申し出た方'},
+  var KJ_F=[{k:'kind',l:'種類'},{k:'date',l:'受付日'},{k:'way',l:'受けた方法'},{k:'person',l:'申し出た方'},
             {k:'content',l:'言われたこと'},{k:'shori',l:'対応したこと'},
             {k:'by',l:'対応した職員'},{k:'doneDate',l:'完了した日'},{k:'third',l:'第三者委員へ報告'},
             {k:'ext',l:'この園で足した項目',deep:true}];
@@ -31718,7 +31729,7 @@ function kujoModal(idx,log,K){
   /* 窓の中で入力した値を、いったん記録に写す（確定のボタンを押すときにも使う） */
   function kjCollect(){
     if(!$('#kj_date'))return;
-    r.date=$('#kj_date').value;r.way=$('#kj_way').value;r.person=$('#kj_person').value.trim();
+    r.kind=$('#kj_kind').value;r.date=$('#kj_date').value;r.way=$('#kj_way').value;r.person=$('#kj_person').value.trim();
     r.content=$('#kj_content').value;r.shori=$('#kj_shori').value;r.by=$('#kj_by').value.trim();
     r.doneDate=$('#kj_done').value;r.third=$('#kj_third').value;
   }
@@ -31731,6 +31742,8 @@ function kujoModal(idx,log,K){
   m.innerHTML='<div class="modal" style="width:680px;"><h2>保護者対応の記録</h2>'
     +lockBarHtml(r)
     +'<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);">'
+      /* 種類（2026-11-13・監査の和集合 #22）。面談・育児相談も同じ記録に残す（新しい画面は作らない） */
+      +'<div class="field"><label>種類</label><select id="kj_kind">'+KUJO_KINDS.map(function(w){return '<option'+(w===(r.kind||KUJO_KINDS[0])?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div>'
       +'<div class="field"><label>受付日</label><input type="date" id="kj_date" value="'+esc(r.date||'')+'"></div>'
       +'<div class="field"><label>受けた方法</label><select id="kj_way">'+KUJO_WAYS.map(function(w){return '<option'+(w===(r.way||'')?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select></div>'
       +'<div class="field"><label>申し出た方</label><input id="kj_person" value="'+v(r.person)+'" placeholder="例：〇〇さんの保護者"></div></div>'
@@ -31952,6 +31965,7 @@ function nippoStaffOn(dk){
     if(p&&p!=='休')out.push(haichiStaffName(k)+'（'+p+'）');}
   return out;
 }
+var KUJO_KINDS=['苦情・ご要望','面談・育児相談'];
 function edKujo(){
   var K='rec_kujo',log=stGet(K,[]);
   if(Object.prototype.toString.call(log)!=='[object Array]')log=[];
@@ -31962,7 +31976,7 @@ function edKujo(){
       +'</select>'
       +'<button class="btn btn-sm" id="kjAdd">'+ic('plus')+'記録を追加</button>'
       +'<button class="btn btn-sm btn-primary" id="kjPrint">'+ic('printer')+'記録を印刷</button>')
-    +'<div class="muted" style="margin-bottom:10px;">保護者から苦情やご要望を受けた時に、1件ずつ記録します。</div>'
+    +'<div class="muted" style="margin-bottom:10px;">保護者から苦情やご要望を受けた時と、面談・育児相談をした時に、1件ずつ記録します。</div>'
     /* ★見出しと値が1文字ずつ縦に割れていた。nwtbl で折り返しを止め、
        長い「内容」「対応したこと」だけ wrapcell で折り返す。hint は横に送れる合図。 */
     +'<div class="tablewrap scrollx hint"><table class="nwtbl"><thead><tr>'
@@ -31977,7 +31991,7 @@ function edKujo(){
       return view.length?view.map(function(x){
       var r=x.r,i=x.i;
       return '<tr>'
-        +'<td>'+esc(r.date?fmt(r.date):'—')+'</td>'
+        +'<td>'+esc(r.date?fmt(r.date):'—')+(r.kind==='面談・育児相談'?'<div><span class="pill" style="font-size:10.5px;background:#E6F1FB;color:#123E6B;">面談・育児相談</span></div>':'')+'</td>'
         +'<td class="row-sub">'+esc(r.way||'')+'</td>'
         +'<td class="row-sub">'+esc(r.person||'')+'</td>'
         +'<td class="row-sub wrapcell">'+esc(kujoCut(r.content))+'</td>'
