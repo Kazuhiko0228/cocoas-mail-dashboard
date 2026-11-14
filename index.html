@@ -4450,6 +4450,8 @@ var AUDIT_CATS=[
     {key:'kyushoku',opt:1,cond:'meal',name:'給食日誌（食数・食べ具合）',place:'',when:'運営中',sys:'records',note:'検食簿の食事ごとに、提供した数と食べ具合を入れます。「給食の記録を印刷」で1か月分を出せます。'},
     {key:'allergy_shoku',opt:1,cond:'meal',name:'アレルギー対応食の提供の記録',place:'',when:'運営中',sys:'records',note:'検食簿の「アレルギー対応食の提供」に、誰に・何を除去・代替したか・確かめた職員2人を入れます。'},
     {key:'chori',opt:1,cond:'cook',name:'調理室の衛生点検（温度・調理員の体調）',place:'',when:'運営中',sys:'records',note:'給食を園で作っている園だけ。検食簿の「調理室の衛生点検」に、冷蔵・冷凍・中心温度と点検の結果を入れます。'},
+    {key:'eiyo',opt:1,cond:'cook',name:'栄養の計算（給与栄養量・栄養出納）',place:'',when:'運営中',sys:'docs',note:'給食を園で作っている園だけ。毎月の計算表を書類格納に入れます。'},
+    {key:'hacchu',opt:1,cond:'cook',name:'給食材料の発注・納品・検収の記録',place:'',when:'運営中',sys:'docs',note:'給食を園で作っている園だけ。発注書・納品書と、受け取ったときの確認（温度・品質）を書類格納に入れます。毎日の受け取りの確認は、検食簿の「調理室の衛生点検」にも残せます。'},
     {key:'kenben',cond:'cook',name:'調理職員の検便（腸内細菌検査）',place:'',when:'運営中',sys:'staff',note:'月に1回。職員管理の下にある「調理職員の検便」に書きます。外から給食を運んでいる園は要りません。'}
   ]},
   {cat:'④ 非常災害対策',items:[
@@ -4471,6 +4473,7 @@ var AUDIT_CATS=[
     {key:'kenshin',name:'職員健康診断記録',place:'従業員名簿ファイル',when:'年度前',sys:'staff:kenshin'},
     {key:'kaigi',name:'職員会議・クラス議事録',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
     {key:'kenshu',opt:1,name:'職員の研修の記録（救命処置の講習・訓練を含む）',place:'システム内（研修・訓練）',when:'運営中',sys:'bouka'},
+    {key:'nenkyu',opt:1,name:'年次有給休暇の管理簿',place:'',when:'運営中',sys:'timecard',note:'出勤簿の画面の下で、職員ごとに基準日・日数・取った日を残します（園長・マネージャー）。'},
     {key:'shuryo',name:'研修の修了証',place:'システム内（職員管理）',when:'運営中',sys:'staff',note:'外部の研修（救命講習など）の修了証を、職員ごとの書類に「研修の修了証」の種類で入れてください。研修の記録は 研修・訓練 にあります。'},
     {key:'haichi',name:'時間帯ごとの職員配置の確認',place:'',when:'運営中',sys:'records',note:'登園・降園の時刻と職員の打刻から、30分ごとに足りているかを出します。入力は増えません。登園（出席）の画面の「時間帯ごとの職員配置」から、月ごとに印刷できます。'},
     {key:'dbs',cond:'dbs',name:'こども性暴力防止法の措置（犯罪事実確認・研修・相談窓口）',place:'',when:'運営中',sys:'dbs',note:'2026年12月25日から。確認の結果は Miralink に置かず、手続きの進み方と日付だけを残します。'},
@@ -4687,7 +4690,7 @@ var HOSP_DEFAULT=[
   {id:3,name:'救急電話相談',type:'救急相談',tel:'#7119'},
   {id:4,name:'消防署',type:'消防・救急',tel:'119'}
 ];
-var DOC_SLOTS=['利用契約書','利用契約書（保護者サイン済み）','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','損害賠償保険証書','献立表','アレルギー児の生活管理指導表','防火管理台帳（自治体様式）','消火訓練 実施記録（自治体様式）','就業規則','散歩マップ（園外保育）','保育安全計画・マニュアル'];
+var DOC_SLOTS=['利用契約書','利用契約書（保護者サイン済み）','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','損害賠償保険証書','献立表','アレルギー児の生活管理指導表','防火管理台帳（自治体様式）','消火訓練 実施記録（自治体様式）','就業規則','散歩マップ（園外保育）','保育安全計画・マニュアル','栄養の計算（給与栄養量・栄養出納）','給食材料の発注・納品・検収'];
 /* 標準の枠に加えて、園ごとに書類を追加できる（docSlotsCustom） */
 function docSlotsCustom(){return stGet('docSlotsCustom',[]);}
 /* 標準の書類名も園ごとに変更できる（docSlotRename: 元の名前 -> 表示名） */
@@ -4697,8 +4700,15 @@ function docRenames(){return stGet('docSlotRename',{});}
 var DOC_SLOT_LABEL={'利用契約書':'利用契約書（原本）'};
 function docLabel(name){var r=docRenames();return r[name]||DOC_SLOT_LABEL[name]||name;}
 function docRename(name,label){var r=docRenames();if(label&&label!==name)r[name]=label;else delete r[name];stSet('docSlotRename',r);}
-function docSlotsAll(){return DOC_SLOTS.concat(docSlotsCustom());}
-var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（保護者サイン済み）',seikatsu:'アレルギー児の生活管理指導表',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表',shobo:'防火管理台帳（自治体様式）',shugyo:'就業規則',sanpo_map:'散歩マップ（園外保育）',manual:'保育安全計画・マニュアル'};
+/* 条件つきの置き場（2026-11-13・監査の和集合 #35・#39）。給食を園で作っている園にだけ出す。すでに書類を入れた置き場は条件に関わらず出す（入れたものを隠さない） */
+var DOC_SLOT_COND={'栄養の計算（給与栄養量・栄養出納）':'cook','給食材料の発注・納品・検収':'cook'};
+function docSlotOn(n){
+  if(!DOC_SLOT_COND[n])return true;
+  try{var dv=stGet('docs',{})[n];if(dv&&(dv.url||(dv.file&&dv.file.key)))return true;}catch(e){}
+  return typeof schoolCond==='function'&&schoolCond().meal==='self';
+}
+function docSlotsAll(){return DOC_SLOTS.filter(docSlotOn).concat(docSlotsCustom());}
+var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（保護者サイン済み）',seikatsu:'アレルギー児の生活管理指導表',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表',shobo:'防火管理台帳（自治体様式）',shugyo:'就業規則',sanpo_map:'散歩マップ（園外保育）',eiyo:'栄養の計算（給与栄養量・栄養出納）',hacchu:'給食材料の発注・納品・検収',manual:'保育安全計画・マニュアル'};
 /* 登園と午睡は1つの画面にまとめた（2026-08-17）。出す中身が同じで、紙も1枚。
    保存先の鍵は分けたまま（これまでの記録・書き出し・監査の提出をずらさないため）。 */
 /* 健康チェックは登園（出席）の中に入れた（2026-08-24）。体温のとなりに列がある。
@@ -5507,6 +5517,10 @@ function auditDataInfo(key,fy){
       });
       return dn?(dn+'件の記録あり（'+fy+'年度）'):(fy+'年度の記録はありません');
     }
+    case 'nenkyu': {
+      var nA=nenkyuAll(),nS=(DB.staff||[]).filter(function(x){return x&&x.name&&!x.leaveDate;}),nB=nS.filter(function(st){return (nA[st.id]||{}).base;}).length;
+      return '在籍の職員 '+nS.length+'名のうち '+nB+'名の基準日を登録（現在）';
+    }
     case 'encho': {
       var em=teikyoMonth(todayISO().slice(0,7)),en=0;em.forEach(function(d){en+=d.kids.filter(function(x){return x.ext;}).length;});
       return '今月の延長保育 '+en+'回（登園シートの印から）';
@@ -6096,7 +6110,7 @@ function auditWhere(it){
   var K={kid_kenshin:'生徒情報 › 園児ごとの書類（健康診断票）',kid_kyoka:'生徒情報 › 園児ごとの書類（登園許可証・登園届）',doui:'生徒情報 › 園児ごとの書類（同意書）',keiyaku_sign:'生徒情報 › 園児ごとの書類（利用契約書）',
     shuryo:'職員管理 › 職員ごとの書類（研修の修了証）',kenben:'職員管理 › 調理職員の検便',kyukyu:'施設管理 › 救急箱の医薬品・衛生用品',kinkyu_b:'施設管理 › 提携医療機関',
     gyakutai:'研修・訓練 › 虐待防止チェックシート',kaigi:'研修・訓練 › 職員会議の議事録',kenshu:'保育研修',daily:'カリキュラム › 日案',keikaku:'カリキュラム',renraku:'保護者連絡・連絡帳',ryoshu:'請求書発行',
-    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',mendan:'保育記録 › 保護者対応の記録（種類：面談・育児相談）',encho:'日常記録 › 登園（出席）（延長保育の印）',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
+    jido_meibo:'生徒情報',nyuen:'生徒情報',kinkyu_h:'生徒情報 › 緊急連絡先',roudou_meibo:'職員管理',shift:'シフト表',teikyo:'日常記録 › 登園（出席）・保育日誌',yoyaku:'日常記録 › 登園（出席） › 与薬の記録',kobetsu:'保育記録 › 児童票（成長の記録） › 個別の指導計画',shien:'保育記録 › 児童票（成長の記録） › 個別の支援計画',mendan:'保育記録 › 保護者対応の記録（種類：面談・育児相談）',encho:'日常記録 › 登園（出席）（延長保育の印）',nenkyu:'シフト表 › 出勤簿 › 年次有給休暇の管理簿',futekisetsu:'研修・訓練 › 虐待防止 › 虐待・不適切な保育の記録',haichi:'日常記録 › 登園（出席） › 時間帯ごとの職員配置'};
   if(K[it.key])return K[it.key];
   return it.sys?(SYS_PAGE[it.sys]||''):'';
 }
@@ -13209,7 +13223,10 @@ var EN_DICT={
 '給食はどうしていますか':'How are meals provided?','園で作っている':'Cooked on site','外から運んでいる':'Delivered from outside','出していない（お弁当など）':'Not provided (packed lunch etc.)',
 '答えると、当てはまらない項目が監査対応の一覧から外れます。バス・プール・散歩は、保育記録のタブも合わせて出し入れします。答えるまでは外さず、「条件つき」の印を付けて出します。':'Answering removes items that do not apply from the inspection list. Bus, pool and walks also show or hide the matching care-record tab. Until answered, items stay and are marked as conditional.',
 '変えられるのは園長・マネージャーです。':'Only the principal or a manager can change this.',
-'入れる場所：':'Where to enter: ','延長保育の利用記録':'Extended care usage records','この月の提供の記録を印刷':'Print this month\'s care provision record','この月の延長保育の利用記録を印刷':'Print this month\'s extended care usage','苦情・ご要望':'Complaint / request','面談・育児相談':'Meeting / parenting consultation','保護者との面談・育児相談の記録':'Records of parent meetings and parenting consultations','保護者から苦情やご要望を受けた時と、面談・育児相談をした時に、1件ずつ記録します。':'Record each complaint or request from parents, and each meeting or parenting consultation.',
+'入れる場所：':'Where to enter: ','年次有給休暇の管理簿':'Annual paid leave register','基準日':'Base date','もらった日数':'Days granted','取った日を足す':'Add day taken',
+'職員ごとに、年休の基準日・もらった日数・取った日を残します（労働基準法）。':'Record each staff member\'s base date, days granted and days taken (Labour Standards Act).',
+'年10日以上もらう職員は、基準日から1年のうちに5日を取ってもらう必要があります。足りない人は黄色で知らせます。':'Staff granted 10 or more days must take 5 days within a year of the base date. Anyone short is shown in yellow.',
+'栄養の計算（給与栄養量・栄養出納）':'Nutrition calculations (nutrient supply, food balance)','給食材料の発注・納品・検収':'Ingredient orders, deliveries and inspection','給食材料の発注・納品・検収の記録':'Records of ingredient orders, deliveries and inspection','延長保育の利用記録':'Extended care usage records','この月の提供の記録を印刷':'Print this month\'s care provision record','この月の延長保育の利用記録を印刷':'Print this month\'s extended care usage','苦情・ご要望':'Complaint / request','面談・育児相談':'Meeting / parenting consultation','保護者との面談・育児相談の記録':'Records of parent meetings and parenting consultations','保護者から苦情やご要望を受けた時と、面談・育児相談をした時に、1件ずつ記録します。':'Record each complaint or request from parents, and each meeting or parenting consultation.',
 '保育記録の「保護者対応の記録」で、種類を「面談・育児相談」にして残します。':'Record it in Care Records › Parent contact records with the type “Meeting / parenting consultation”.',
 '障害・要支援の子の個別の支援計画と記録':'Individual support plans for children with additional needs','虐待・不適切な保育の記録':'Records of suspected abuse or inappropriate care','個別の支援計画':'Individual support plan','この子の支援計画を印刷':'Print this child\'s support plans','この子は個別の支援が要る（障害・発達・加配など）':'This child needs individual support (disability, development, extra staffing, etc.)',
 '月ごとに、支援の目標と内容、関係機関や保護者と共有したことを残します。診断名などの書き方は、保護者の了解の範囲にとどめてください。':'Each month, record support goals and content, and what was shared with agencies and parents. Keep diagnostic details within what parents have agreed to.',
@@ -34108,6 +34125,39 @@ function tcStaffOf(mk,all){
   try{ add(shiftCells(mk)||{}); }catch(e){}
   return out;
 }
+/* ══ 年次有給休暇の管理簿（2026-11-13 安田さん「その順番で進めて」・監査の和集合 #52）══
+   労働基準法で、年休の基準日・日数・取った日（時季）を職員ごとに残すことが求められている。年10日以上もらう職員には、基準日から1年のうちに5日を取らせる。
+   出勤簿の画面の下に、園長・マネージャーだけ。置き場は state の nenkyu { 職員の番号: { base:'YYYY-MM-DD', days:数, taken:['YYYY-MM-DD',…] } } */
+function nenkyuAll(){var v=stGet('nenkyu',{});return (v&&typeof v==='object'&&!Array.isArray(v))?v:{};}
+function nenkyuYearEnd(base){var p=String(base||'').split('-');if(p.length<3)return '';var d=new Date(+p[0]+1,+p[1]-1,+p[2]);d.setDate(d.getDate()-1);return iso(d);}
+function nenkyuCardHTML(){
+  if(typeof isBoss==='function'&&!isBoss())return '';
+  var A=nenkyuAll(),staff=(DB.staff||[]).filter(function(x){return x&&x.name&&!x.leaveDate;}),t=todayISO();
+  return '<div class="card" id="nenkyuCard" style="margin-top:14px;">'+recHead('年次有給休暇の管理簿','<button class="btn btn-sm" id="nkPrint">'+ic('printer')+'印刷</button>')
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:8px;"><div>職員ごとに、年休の基準日・もらった日数・取った日を残します（労働基準法）。</div><div>年10日以上もらう職員は、基準日から1年のうちに5日を取ってもらう必要があります。足りない人は黄色で知らせます。</div></div>'
+    +staff.map(function(st){var r=A[st.id]||{},tk=(r.taken||[]).slice().sort(),end=nenkyuYearEnd(r.base);
+      var inYear=r.base?tk.filter(function(d){return d>=r.base&&d<=end;}).length:0;
+      var warn=(r.base&&+r.days>=10&&inYear<5)?('基準日から1年（'+fmt(end)+'まで）で '+inYear+'日。5日まで あと '+(5-inYear)+'日'):'';
+      return '<div style="padding:8px 0;border-top:1px solid var(--line);"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
+        +'<span class="row-name" data-nolang style="min-width:120px;">'+esc(st.name)+'</span>'
+        +'<label class="row-sub" style="display:flex;gap:4px;align-items:center;">基準日<input type="date" data-nkb="'+esc(st.id)+'" value="'+esc(r.base||'')+'" style="width:150px;"></label>'
+        +'<label class="row-sub" style="display:flex;gap:4px;align-items:center;">もらった日数<input type="number" min="0" data-nkd="'+esc(st.id)+'" value="'+esc(r.days==null?'':r.days)+'" style="width:70px;"></label>'
+        +'<label class="row-sub" style="display:flex;gap:4px;align-items:center;">取った日を足す<input type="date" data-nkt="'+esc(st.id)+'" style="width:150px;"></label>'
+        +'<span class="row-sub">取った日 '+tk.length+'日</span></div>'
+        +(tk.length?'<div class="row-sub" style="margin-top:4px;">'+tk.map(function(d){return '<span class="tag" style="margin-right:4px;">'+esc(fmt(d))+' <a href="#" data-nkx="'+esc(st.id)+'|'+esc(d)+'" style="color:#A32D2D;text-decoration:none;">×</a></span>';}).join('')+'</div>':'')
+        +(warn?'<div class="ks-warn">'+esc(warn)+'</div>':'')+'</div>';}).join('')
+    +'</div>';
+}
+function nenkyuWire(root,rer){
+  function save(A){stSet('nenkyu',A);rer();}
+  root.querySelectorAll('[data-nkb]').forEach(function(x){x.onchange=function(){var A=nenkyuAll(),k=x.getAttribute('data-nkb');A[k]=A[k]||{};A[k].base=x.value;save(A);};});
+  root.querySelectorAll('[data-nkd]').forEach(function(x){x.onchange=function(){var A=nenkyuAll(),k=x.getAttribute('data-nkd');A[k]=A[k]||{};A[k].days=x.value===''?null:+x.value;save(A);};});
+  root.querySelectorAll('[data-nkt]').forEach(function(x){x.onchange=function(){if(!x.value)return;var A=nenkyuAll(),k=x.getAttribute('data-nkt');A[k]=A[k]||{};A[k].taken=A[k].taken||[];if(A[k].taken.indexOf(x.value)<0)A[k].taken.push(x.value);save(A);};});
+  root.querySelectorAll('[data-nkx]').forEach(function(a){a.onclick=function(e){e.preventDefault();var p=a.getAttribute('data-nkx').split('|'),A=nenkyuAll();if(!A[p[0]])return;A[p[0]].taken=(A[p[0]].taken||[]).filter(function(d){return d!==p[1];});save(A);};});
+  var pr=root.querySelector('#nkPrint');if(pr)pr.onclick=function(){var A=nenkyuAll();
+    printDoc('年次有給休暇の管理簿','<p>'+esc(schoolNameFixed()||'')+'</p><table><thead><tr><th style="width:110px;">職員</th><th style="width:90px;">基準日</th><th style="width:60px;">日数</th><th>取った日（時季）</th><th style="width:60px;">取った数</th></tr></thead><tbody>'
+      +(DB.staff||[]).filter(function(x){return x&&x.name;}).map(function(st){var r=A[st.id]||{},tk=(r.taken||[]).slice().sort();return '<tr><td>'+esc(st.name)+'</td><td>'+esc(r.base||'')+'</td><td>'+esc(r.days==null?'':r.days)+'</td><td>'+tk.map(function(d){return esc(d);}).join('、')+'</td><td>'+tk.length+'</td></tr>';}).join('')+'</tbody></table>');};
+}
 function renderTimecard(){
   if(!tcStaffSel&&DB.staff.length)tcStaffSel=DB.staff[0].id;
   /* 選んだ職員が名簿から消えていても、記録が残っていれば出せるようにする */
@@ -34212,6 +34262,11 @@ function renderTimecard(){
       +'</table></body></html>';
     dlFile('出勤簿_'+mk+'.xls',html,'application/vnd.ms-excel');
   };
+  /* 年次有給休暇の管理簿（2026-11-13） */
+  var nkOld=s.querySelector('#nenkyuCard');if(nkOld)nkOld.remove();
+  s.insertAdjacentHTML('beforeend',nenkyuCardHTML());
+  function nkRer(){var o=s.querySelector('#nenkyuCard');if(o){o.outerHTML=nenkyuCardHTML();nenkyuWire(s,nkRer);}}
+  nenkyuWire(s,nkRer);
 }
 var tcStaffSel=null;
 function renderShift(){
