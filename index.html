@@ -4478,9 +4478,18 @@ var AUDIT_CATS=[
     {key:'haichi',name:'時間帯ごとの職員配置の確認',place:'',when:'運営中',sys:'records',note:'登園・降園の時刻と職員の打刻から、30分ごとに足りているかを出します。入力は増えません。登園（出席）の画面の「時間帯ごとの職員配置」から、月ごとに印刷できます。'},
     {key:'dbs',cond:'dbs',name:'こども性暴力防止法の措置（犯罪事実確認・研修・相談窓口）',place:'',when:'運営中',sys:'dbs',note:'2026年12月25日から。確認の結果は Miralink に置かず、手続きの進み方と日付だけを残します。'},
     {key:'shugyo',name:'就業規則・職員の誓約書（個人情報の取扱い）',place:'',when:'年度前',sys:'docs',note:'就業規則は書類格納に、職員が書いた誓約書は職員ごとの書類に「誓約書（個人情報の取扱い）」の種類で入れてください。'}
+  ]},
+  /* ⑥ 自治体に出す報告（2026-11-15 安田さん「A 年次の報告・B 事前提出・C 当日で分ける」）。
+     運営状況報告は児童福祉法 第59条の2の5 で認可外の園すべてが毎年出す（さいたま市は要綱 第5条で立入調査の前に出させる）。
+     添付（平面図・料金表）と事前調書は、その園の一覧にあるときだけ出す（opt） */
+  {cat:'⑥ 自治体に出す報告',items:[
+    {key:'unei_houkoku',name:'運営状況報告（毎年の報告）',place:'',when:'運営中',sys:'reqnav',note:'市区町村から届く通知の期日までに出します。提出書類ナビの「様式を入れ込む」で、自治体の様式に Miralink の記録（児童数・職員・研修・避難訓練など）から書き込めます。出した控えはここで「済」にしてください。'},
+    {key:'heimenzu',opt:1,name:'施設の平面図',place:'',when:'年度前',sys:'docs'},
+    {key:'ryokin',opt:1,name:'料金表・施設案内（パンフレット）',place:'',when:'年度前',sys:'docs'},
+    {key:'jizen',opt:1,name:'立入調査の事前調書（自治体の質問票）',place:'',when:'運営中',sys:'docs',note:'立入調査の前に自治体から届く質問票です。書いたものを書類格納に置きます。'}
   ]}
 ];
-var SYS_PAGE={dbs:'こども性暴力防止',feed:'保護者連絡・連絡帳',billing:'請求書発行',contacts:'生徒情報',roster:'生徒情報',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
+var SYS_PAGE={reqnav:'提出書類ナビ',dbs:'こども性暴力防止',feed:'保護者連絡・連絡帳',billing:'請求書発行',contacts:'生徒情報',roster:'生徒情報',facility:'施設管理',bouka:'研修・訓練',staff:'職員管理',curriculum:'カリキュラム',settings:'設定',records:'日常記録',carerec:'保育記録',drill:'避難訓練',shift:'シフト表',docs:'書類格納'};
 
 /* generic store helpers */
 function stGet(key,def){try{var v=JSON.parse(localStorage.getItem('cocoas_'+key));return v==null?def:v;}catch(e){return def;}}
@@ -4690,7 +4699,7 @@ var HOSP_DEFAULT=[
   {id:3,name:'救急電話相談',type:'救急相談',tel:'#7119'},
   {id:4,name:'消防署',type:'消防・救急',tel:'119'}
 ];
-var DOC_SLOTS=['利用契約書','利用契約書（保護者サイン済み）','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','損害賠償保険証書','献立表','アレルギー児の生活管理指導表','防火管理台帳（自治体様式）','消火訓練 実施記録（自治体様式）','就業規則','散歩マップ（園外保育）','保育安全計画・マニュアル','栄養の計算（給与栄養量・栄養出納）','給食材料の発注・納品・検収'];
+var DOC_SLOTS=['利用契約書','利用契約書（保護者サイン済み）','労働者名簿','雇用契約書（労働関係書類）','賃金台帳','資格証明書（控え）','職員健康診断記録','損害賠償保険証書','献立表','アレルギー児の生活管理指導表','防火管理台帳（自治体様式）','消火訓練 実施記録（自治体様式）','就業規則','散歩マップ（園外保育）','保育安全計画・マニュアル','栄養の計算（給与栄養量・栄養出納）','給食材料の発注・納品・検収','施設の平面図','料金表・施設案内（パンフレット）','事前調書（自治体様式）'];
 /* 標準の枠に加えて、園ごとに書類を追加できる（docSlotsCustom） */
 function docSlotsCustom(){return stGet('docSlotsCustom',[]);}
 /* 標準の書類名も園ごとに変更できる（docSlotRename: 元の名前 -> 表示名） */
@@ -4702,13 +4711,19 @@ function docLabel(name){var r=docRenames();return r[name]||DOC_SLOT_LABEL[name]|
 function docRename(name,label){var r=docRenames();if(label&&label!==name)r[name]=label;else delete r[name];stSet('docSlotRename',r);}
 /* 条件つきの置き場（2026-11-13・監査の和集合 #35・#39）。給食を園で作っている園にだけ出す。すでに書類を入れた置き場は条件に関わらず出す（入れたものを隠さない） */
 var DOC_SLOT_COND={'栄養の計算（給与栄養量・栄養出納）':'cook','給食材料の発注・納品・検収':'cook'};
+/* その園の監査の一覧にあるときだけ出す置き場（2026-11-15。どの園にも出すと、要らない枠が増える） */
+var DOC_SLOT_PLAN={'施設の平面図':'heimenzu','料金表・施設案内（パンフレット）':'ryokin','事前調書（自治体様式）':'jizen'};
 function docSlotOn(n){
+  if(DOC_SLOT_PLAN[n]){
+    try{var dv0=stGet('docs',{})[n];if(dv0&&(dv0.url||(dv0.file&&dv0.file.key)))return true;}catch(e){}
+    return typeof auditPlanKeys==='function'&&!!(auditPlanKeys()[DOC_SLOT_PLAN[n]]||auditAddOn()[DOC_SLOT_PLAN[n]]);
+  }
   if(!DOC_SLOT_COND[n])return true;
   try{var dv=stGet('docs',{})[n];if(dv&&(dv.url||(dv.file&&dv.file.key)))return true;}catch(e){}
   return typeof schoolCond==='function'&&schoolCond().meal==='self';
 }
 function docSlotsAll(){return DOC_SLOTS.filter(docSlotOn).concat(docSlotsCustom());}
-var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（保護者サイン済み）',seikatsu:'アレルギー児の生活管理指導表',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表',shobo:'防火管理台帳（自治体様式）',shugyo:'就業規則',sanpo_map:'散歩マップ（園外保育）',eiyo:'栄養の計算（給与栄養量・栄養出納）',hacchu:'給食材料の発注・納品・検収',manual:'保育安全計画・マニュアル'};
+var AUDIT_DOC_SLOT={keiyaku:'利用契約書',keiyaku_sign:'利用契約書（保護者サイン済み）',seikatsu:'アレルギー児の生活管理指導表',roudou_meibo:'労働者名簿',roudou_shorui:'雇用契約書（労働関係書類）',chingin:'賃金台帳',shikaku:'資格証明書（控え）',kenshin:'職員健康診断記録',baisho:'損害賠償保険証書',kondate:'献立表',shobo:'防火管理台帳（自治体様式）',shugyo:'就業規則',sanpo_map:'散歩マップ（園外保育）',eiyo:'栄養の計算（給与栄養量・栄養出納）',hacchu:'給食材料の発注・納品・検収',manual:'保育安全計画・マニュアル',heimenzu:'施設の平面図',ryokin:'料金表・施設案内（パンフレット）',jizen:'事前調書（自治体様式）'};
 /* 登園と午睡は1つの画面にまとめた（2026-08-17）。出す中身が同じで、紙も1枚。
    保存先の鍵は分けたまま（これまでの記録・書き出し・監査の提出をずらさないため）。 */
 /* 健康チェックは登園（出席）の中に入れた（2026-08-24）。体温のとなりに列がある。
@@ -6028,7 +6043,7 @@ function wireSentMail(root){
    ③ どちらにも無いもの…一番下に畳む。押せば①に足せる
    ・auditPlan が無い園は今までどおり（AUDIT_NAT も①に入れる。opt の項目は出さない）
    ・園の条件（schoolCond：バス・プール・散歩・給食）に当てはまらない項目は、どの段にも出さない（畳んだカードに理由つきで並べる）
-   ・Miralink に置き場の無い項目は「⑥ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける */
+   ・Miralink に置き場の無い項目は「⑦ この園の一覧にある、ほかの書類」に並べ、未・対応中・済だけを付ける */
 var AUDIT_NAT={futekisetsu:1,jido_meibo:1,shusseki:1,shintai:1,kid_kenshin:1,keiyaku:1,kunren:1,roudou_meibo:1,shikaku:1,kenshin:1,kenben:1};
 /* ②に出すときの根拠（2026-11-13 認可外保育施設指導監督基準・労働基準法で確かめたもの。確かめていないものは足さない） */
 var AUDIT_LAW={kega:'指導監督基準 第8（事故の状況と、とった処置を記録する）',shukkin:'労働基準法（労働時間の記録）',chingin:'労働基準法（賃金台帳）',roudou_shorui:'労働基準法（労働条件を書面で示す）',dbs:'こども性暴力防止法（2026年12月25日 施行）',haichi:'認可外は指導監督基準 第1、認可は設備運営基準 第33条（保育に従事する者の数と資格）'};
@@ -6076,6 +6091,8 @@ function auditTier(it){
   if(auditAddOn()[it.key])return 1;
   if(it.key==='bus'&&schoolCond().bus==='yes')return 1;
   if(it.key==='bus'&&!schoolCond().bus&&recTabOn('バス等運行簿'))return 1;
+  /* 運営状況報告は、認可外（企業主導型を含む）なら資料に無くても毎年出す（児童福祉法 第59条の2の5・2026-11-15） */
+  if(it.key==='unei_houkoku'){if(auditNinkagai()||auditPlanKeys()[it.key])return 1;return 3;}
   var p=auditPlan();
   if(!p)return (it.opt?3:1);
   if(auditPlanKeys()[it.key])return 1;
@@ -6083,6 +6100,67 @@ function auditTier(it){
   return 3;
 }
 function auditInScope(it){return auditTier(it)===1;}
+/* ══ 出す時期（2026-11-15 安田さん「A 年次の報告・B 事前提出・C 当日で分ける」）══
+   A＝毎年の運営状況報告とその添付（市区町村の通知の期日まで）／B＝立入調査の前に出す（調査日の◯日前）／C＝立入調査の当日に見せる。
+   運営が前年度の資料から読んで、項目ごとに auditPlan.items[].ph に入れる。分からないもの・資料に無いもの（国の基準など）は当日（C）。
+   1つの項目が2つの時期にまたがることがある（名簿を事前にも出し、当日も見せるなど） */
+var AUDIT_PH={A:{lab:'毎年の報告',bg:'#EEEDFE',fg:'#3C3489'},B:{lab:'事前に出す',bg:'#E1F5EE',fg:'#085041'},C:{lab:'当日に見せる',bg:'#F1EFE8',fg:'#5F5E5A'}};
+function auditNinkagai(){var t=(reqProfile()||{}).type||'ninkagai';return t==='ninkagai'||t==='kigyou';}
+function auditPhaseOf(it){
+  if(!it)return 'C';
+  if(it.key==='unei_houkoku')return 'A';
+  var p=auditPlan(),o={};
+  if(p)p.items.forEach(function(x){
+    if(!x)return;
+    var hit=/^p_/.test(it.key)?('p_'+x.id===it.key):(x.key===it.key);
+    if(hit)String(x.ph||'C').split('').forEach(function(c){if(AUDIT_PH[c])o[c]=1;});
+  });
+  var r=['A','B','C'].filter(function(c){return o[c];}).join('');
+  return r||'C';
+}
+function auditPlanPhases(){var p=auditPlan(),v=(p&&p.phases)||{};return {aDue:String(v.aDue||''),bDays:+v.bDays||0};}
+/* この園で使っている時期（一覧にある項目から）。B は資料に事前提出があったときだけ */
+function auditPhasesUsed(){
+  var o={};auditItemsFlat().forEach(function(it){auditPhaseOf(it).split('').forEach(function(c){o[c]=1;});});
+  if(auditPlanPhases().bDays)o.B=1;
+  return ['A','B','C'].filter(function(c){return o[c];});
+}
+function auditDueAOf(fy){var d=stGet('auditDueA',{});return (d&&d[String(fy)])||'';}
+function auditDueASet(fy,v){var d=stGet('auditDueA',{});if(!d||typeof d!=='object')d={};d[String(fy)]=v||'';stSet('auditDueA',d);}
+/* 事前提出の期限＝立入調査の日の◯日前 */
+function auditDueBOf(fy){var c=auditDateOf(fy),n=auditPlanPhases().bDays;if(!c||!n)return '';var d=new Date(c+'T00:00:00');d.setDate(d.getDate()-n);return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function auditPhasePills(it){
+  /* 当日だけ（C）の項目には付けない。ほとんどが当日なので、全部に付くと目印にならない */
+  var ph=auditPhaseOf(it);
+  if(auditPhasesUsed().length<2||ph==='C')return '';
+  return ph.split('').map(function(c){var m=AUDIT_PH[c];return auditPill([c+' ',m.lab],m.bg,m.fg);}).join('');
+}
+/* 出す時期のカード。A・B・C のうち、この園にあるものだけ */
+function auditPhaseCardHTML(fy,stt){
+  var used=auditPhasesUsed(),flat=auditItemsFlat(),P=auditPlanPhases(),boss=!(typeof isBoss==='function'&&!isBoss());
+  var cnt=function(c){var L=flat.filter(function(it){return auditPhaseOf(it).indexOf(c)>-1;});return '<span class="muted" style="font-size:12px;"><span data-nolang>'+L.filter(function(it){return stt[it.key]==='済';}).length+' / '+L.length+'</span> <span>済</span></span>';};
+  var left=function(d){if(!d)return '';var n=daysUntil(new Date(d));return '<span class="muted" style="font-size:12px;">'+(n>=0?'あと '+n+'日':'過ぎています')+'</span>';};
+  var row=function(c,body){var m=AUDIT_PH[c];return '<div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line);">'
+    +'<span class="pill" style="background:'+m.bg+';color:'+m.fg+';font-weight:600;flex:none;">'+c+'</span><div style="flex:1;min-width:220px;">'+body+'</div></div>';};
+  var h='<div class="card" style="margin-bottom:16px;"><h3>'+ic('cal')+'出す時期</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:4px;">監査の書類は、出す時期が分かれています。期日は市区町村から届く通知に書いてあるので、届いたら入れてください。</div>';
+  if(used.indexOf('A')>-1){
+    h+=row('A','<div style="font-weight:600;">毎年の報告（運営状況報告と添付）</div>'
+      +'<div class="muted" style="font-size:12px;">市区町村から届く通知の期日までに出します。立入調査は、この報告をもとに行われます。</div>'
+      +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;"><label style="margin:0;">'+fy+'年度の期日</label><input type="date" id="auDueA" value="'+esc(auditDueAOf(fy))+'"'+(boss?'':' disabled')+' style="width:170px;">'+left(auditDueAOf(fy))+cnt('A')+'</div>'
+      +(P.aDue?'<div class="muted" style="font-size:12px;margin-top:4px;"><span>前年度の期日：</span><span>'+esc(fmt(P.aDue))+'</span><span>（今年の目安）</span></div>':''));
+  }
+  if(used.indexOf('B')>-1){
+    var db=auditDueBOf(fy);
+    h+=row('B','<div style="font-weight:600;">立入調査の前に出す</div>'
+      +'<div class="muted" style="font-size:12px;">'+(P.bDays?'<span>立入調査の日の'+P.bDays+'日前までに出します。</span>':'<span>立入調査の前に出します。期限は、調査の連絡に書いてあります。</span>')+'</div>'
+      +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;">'+(db?'<span><span>期限：</span><b>'+esc(fmt(db))+'</b></span>'+left(db):'<span class="muted" style="font-size:12px;">立入調査の日を入れると、期限が出ます。</span>')+cnt('B')+'</div>');
+  }
+  h+=row('C','<div style="font-weight:600;">立入調査の当日に見せる</div>'
+    +'<div class="muted" style="font-size:12px;">日程は市区町村から連絡が来ます。</div>'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;"><label style="margin:0;">'+fy+'年度の立入調査の日</label><input type="date" id="auDate" value="'+esc(auditDateOf(fy))+'" style="width:170px;"><span id="auCount" class="muted" style="font-size:12px;"></span>'+cnt('C')+'</div>');
+  return h+'</div>';
+}
 /* 前年度の一覧にあって、Miralink に置き場の無い項目 */
 function auditPlanExtra(){
   var p=auditPlan();if(!p)return [];
@@ -6091,7 +6169,7 @@ function auditPlanExtra(){
 }
 function auditCats(){
   var out=AUDIT_CATS.map(function(c){return {cat:c.cat,items:c.items.filter(auditInScope)};}).filter(function(c){return c.items.length;});
-  var ex=auditPlanExtra();if(ex.length)out.push({cat:'⑥ この園の一覧にある、ほかの書類',items:ex});
+  var ex=auditPlanExtra();if(ex.length)out.push({cat:'⑦ この園の一覧にある、ほかの書類',items:ex});
   return out;
 }
 function auditTierItems(t){return AUDIT_CATS.reduce(function(a,c){return a.concat(c.items.filter(function(it){return auditTier(it)===t;}));},[]);}
@@ -6123,14 +6201,15 @@ function auditPlanTag(it){
   var p=auditPlan(),h='';
   var c=auditCondOf(it);
   if(c)h+=auditPill(['条件つき：',c.lab].concat(c.ans?[]:['（未回答）']),'#FAEEDA','#854F0B');
-  if(!p)return h;
+  if(!p)return h+auditPhasePills(it);
   var x=auditPlanKeys()[it.key],t='',bg='#E6F1FB',fg='#123E6B';
   if(x||/^p_/.test(it.key))t=[(p.fy?p.fy+'年度':'前年度')+'の一覧'].concat(x&&x.period?[['（'+x.period+'）']]:[]);
   else if(AUDIT_NAT[it.key]||it.key==='kega'||it.key==='haichi')t='国の基準';
   else if(it.key==='dbs')t='こども性暴力防止法';
+  else if(it.key==='unei_houkoku')t='児童福祉法';
   else if(AUDIT_LAW[it.key])t='労働基準法';
   else if(auditAddOn()[it.key]){t='園で足した項目';bg='#F1EFE8';fg='#5F5E5A';}
-  return (t?auditPill(t,bg,fg):'')+h;
+  return (t?auditPill(t,bg,fg):'')+h+auditPhasePills(it);
 }
 /* 資料ではどの名前だったか（①の行に出す） */
 function auditFromHTML(it){
@@ -6154,7 +6233,7 @@ function auditMapTableHTML(p){
     +'<div class="scrollx"><table class="wraptbl" style="font-size:12.5px;"><thead><tr><th>資料の書類</th><th style="width:26%;">Miralink の項目</th><th style="width:34%;">入れる場所</th></tr></thead><tbody>'
     +L.map(function(x){
       var it=x.key?byKey[x.key]:null,c=it?auditCondOf(it):null;
-      var name=it?esc(it.name)+(c&&!c.ok?'<div class="row-sub" style="color:#854F0B;"><span>'+esc(c.lab)+'</span><span>：当てはまらないので外しています</span></div>':''):'<span class="muted">当たる項目なし（⑥に並べています）</span>';
+      var name=it?esc(it.name)+(c&&!c.ok?'<div class="row-sub" style="color:#854F0B;"><span>'+esc(c.lab)+'</span><span>：当てはまらないので外しています</span></div>':''):'<span class="muted">当たる項目なし（⑦に並べています）</span>';
       var where=auditWhereParts(it?auditWhere(it):auditWhere({key:'p_'}));
       return '<tr><td data-nolang>'+esc(x.name)+(x.period?'<div class="row-sub">'+esc(x.period)+'</div>':'')+'</td><td>'+name+'</td><td>'+where+'</td></tr>';
     }).join('')
@@ -6288,7 +6367,7 @@ function auditFYList(){
 var auditYear=null;   /* 画面で選んでいる年度。ダッシュボードの数字は今年度のまま */
 /* 監査対応の絞り込み。書類格納に登録するものと、システム内で記録するものが混ざっていて
    探しにくいため。上の「準備状況」の数字は全体のままにしておく（分母が動くと進み具合が読めない）。 */
-var auditKindF='all',auditWhenF='all';
+var auditKindF='all',auditWhenF='all',auditPhF='all';
 function auditKindOf(it){
   if(!it)return 'paper';
   if(it.sys==='docs')return 'docs';
@@ -6298,6 +6377,7 @@ function auditKindOf(it){
 function auditItemShow(it){
   if(auditKindF!=='all'&&auditKindOf(it)!==auditKindF)return false;
   if(auditWhenF!=='all'&&it.when!==auditWhenF)return false;
+  if(auditPhF!=='all'&&auditPhaseOf(it).indexOf(auditPhF)<0)return false;
   return true;
 }
 var AUDIT_KIND_TABS=[['all','すべて'],['docs','書類格納に登録するもの'],['sys','システム内で記録するもの'],['paper','園で紙に残すもの']];
@@ -6345,6 +6425,9 @@ function auditSummary(){
   var notYet=flat.filter(function(it){return st[it.key]==='未';}).map(function(it){return it.name||it.key;});
   var m=addDays(0).getMonth()+1,inSeason=(m>=5&&m<=11);
   var docDate=auditDateOf(curFY()),docLeft=docDate?daysUntil(new Date(docDate)):null;
+  /* 出す時期ごとの期日（2026-11-15） */
+  var phUsed=[];try{phUsed=auditPhasesUsed();}catch(e){}
+  var aDue=auditDueAOf(curFY()),aLeft=aDue?daysUntil(new Date(aDue)):null,bDue=auditDueBOf(curFY()),bLeft=bDue?daysUntil(new Date(bDue)):null,aPrev=auditPlanPhases().aDue;
   /* 現場監査に備えて「日々の記録」が今日そろっているか */
   var todayRec=[['登園シート','rec_登園シート'],['安全点検','rec_安全点検'],['午睡チェック','rec_午睡チェック'],['健康チェック','rec_健康チェック'],['業務日報','rec_日報']];
   /* ★日付の鍵があるだけで「済」にしていた。画面を開いただけの日、
@@ -6361,7 +6444,8 @@ function auditSummary(){
   if(!monthly.length&&!stGet('rec_身体測定',{})[mk])monthly.push('今月の身体測定');
   try{var D=drillData();var thisMonthDrill=(D.rows||[]).filter(function(r){return r.record&&r.record.date&&r.record.date.slice(0,7)===mk;});if(!thisMonthDrill.length)monthly.push('今月の避難訓練');}catch(e){}
   return {done:done,total:flat.length,preDone:preDone,preTotal:pre.length,opeDone:opeDone,opeTotal:ope.length,
-    notYet:notYet,inSeason:inSeason,docDate:docDate,docLeft:docLeft,recMissing:recMissing,monthly:monthly};
+    notYet:notYet,inSeason:inSeason,docDate:docDate,docLeft:docLeft,recMissing:recMissing,monthly:monthly,
+    phUsed:phUsed,aDue:aDue,aLeft:aLeft,aPrev:aPrev,bDue:bDue,bLeft:bLeft};
 }
 
 function fillTokens(text,c,ctx){
@@ -13228,7 +13312,7 @@ var EN_DICT={
 '品名・数・使用期限を入れておくと、期限まで30日を切ったものは黄、過ぎたものは赤になります。':'Enter item, quantity and expiry date. Items with less than 30 days left turn yellow; expired items turn red.',
 '救急箱の医薬品・衛生用品 一覧':'First aid kit: medicines and supplies list',
 '研修の修了証':'Training certificate','誓約書（個人情報の取扱い）':'Confidentiality pledge (personal information)','健康診断票（園医の健診）':'Health check record (school doctor)','登園許可証（医師の意見書）':'Return-to-school certificate (doctor)','登園届（保護者の記入）':'Return-to-school notice (parent)',
-'就業規則':'Work rules','この園の監査の項目':'This school\'s inspection items','前回の指摘事項':'Findings from the last inspection','⑥ この園の一覧にある、ほかの書類':'⑥ Other documents on this school\'s list',
+'就業規則':'Work rules','この園の監査の項目':'This school\'s inspection items','前回の指摘事項':'Findings from the last inspection','⑦ この園の一覧にある、ほかの書類':'⑦ Other documents on this school\'s list',
 '国の基準':'National standard','園で足した項目':'Added by the school',
 '園の条件':'School conditions','送迎バス・園の車で、子どもを運んでいますか':'Do you transport children by school bus or car?','運んでいる':'Yes','運んでいない':'No',
 'プール・水遊びをしますか':'Do you have pool / water play?','散歩・園外活動をしますか':'Do you go on walks / outings?','する':'Yes','しない':'No',
@@ -13326,7 +13410,7 @@ var EN_DICT={
 'この園の資料の一覧にはありませんが、国の基準や労働基準法で作ることが決まっている記録です。当日に求められることがあるので、記録はふだんどおりためておきます。上の準備状況の数には入れていません。':'Not on this school\'s list, but required by national standards or the Labour Standards Act. You may be asked for them on the day, so keep recording as usual. They are not counted in the progress above.',
 '園の条件に当てはまらないので外している項目です。条件は上の「園の条件」で変えられます。':'Removed because they do not apply to this school. Change this under “School conditions”.',
 '資料に書かれていた書類が、Miralink のどの項目・どこに入るかの一覧です。当て方は、運営が資料を読んで確かめました。違っていたら運営にお知らせください。':'How each document in the source list maps to a Miralink item and where to enter it. The operator checked the mapping; please tell us if anything is wrong.',
-'資料の書類':'Document in the list','Miralink の項目':'Miralink item','入れる場所':'Where to enter','当たる項目なし（⑥に並べています）':'No matching item (listed under ⑥)',
+'資料の書類':'Document in the list','Miralink の項目':'Miralink item','入れる場所':'Where to enter','当たる項目なし（⑦に並べています）':'No matching item (listed under ⑦)',
 '入園申込書・児童票（基本情報）':'Application forms / child records (basic info)','個人情報の提供についての同意書':'Consent forms for sharing personal information',
 '保育の提供日・時間帯・内容の記録':'Records of care dates, hours and content','領収証・提供証明書の控え':'Copies of receipts / service certificates',
 '保育計画（全体的な計画・年間・月間の指導計画・デイリープログラム）':'Care plans (overall, annual, monthly, daily programme)','家庭との連絡帳':'Home–school contact book',
@@ -19947,7 +20031,9 @@ var EN_DICT={
 '安全計画に設備の安全点検を入れ、点検項目・点検日・点検者を決めて定期的に点検し、文書で記録して改善する（令和4年12月 事務連絡・保育所保育指針解説・事故防止ガイドライン）。散歩コースや公園など定期的に使う場所も点検の対象。自治体の点検簿の様式があれば、監査書類で毎日の点検をその様式に書き込めます。':'Include facility inspections in the safety plan. Set the items, dates and inspectors, check regularly, keep written records and fix problems (Dec 2022 notice, Nursery Care Guidelines commentary, accident prevention guidelines). Walking routes and parks used regularly are also covered. If your municipality has an inspection form, Audit Documents can fill it in from the daily checks.',
   /* 監査対応：園の条件の1行（2026-11-14） */
   '送迎の車':'School vehicle','園で作る':'Cooked on site','外から運ぶ':'Delivered from outside','出していない':'Not served',
-  '設定で直す':'Change in Settings','変えられるのは園長・マネージャーです（設定 › 園の条件）。':'Only the director or a manager can change these (Settings › School conditions).'
+  '設定で直す':'Change in Settings','変えられるのは園長・マネージャーです（設定 › 園の条件）。':'Only the director or a manager can change these (Settings › School conditions).',
+  /* 監査の出す時期 A・B・C（2026-11-15） */
+  '⑥ 自治体に出す報告':'⑥ Reports to the municipality','運営状況報告（毎年の報告）':'Annual operating status report','施設の平面図':'Facility floor plan','料金表・施設案内（パンフレット）':'Fee table and facility brochure','立入調査の事前調書（自治体の質問票）':'Pre-inspection questionnaire (municipal form)','事前調書（自治体様式）':'Pre-inspection questionnaire (municipal form)','市区町村から届く通知の期日までに出します。提出書類ナビの「様式を入れ込む」で、自治体の様式に Miralink の記録（児童数・職員・研修・避難訓練など）から書き込めます。出した控えはここで「済」にしてください。':'Submit it by the deadline in the notice from your municipality. In the Submission Navigator, use "Fill in the municipal form" to fill the municipality\'s form from Miralink records (children, staff, training, drills, etc.). After submitting, mark it Done here.','立入調査の前に自治体から届く質問票です。書いたものを書類格納に置きます。':'A questionnaire the municipality sends before the inspection. Store the completed form in Document storage.','毎年の報告':'Annual report','事前に出す':'Submit beforehand','当日に見せる':'Show on the day','出す時期':'When to submit','A 毎年の報告':'A Annual report','B 事前に出す':'B Submit beforehand','C 当日に見せる':'C Show on the day','監査の書類は、出す時期が分かれています。期日は市区町村から届く通知に書いてあるので、届いたら入れてください。':'Inspection documents are due at different times. The dates are in the notices from your municipality, so enter them when they arrive.','毎年の報告（運営状況報告と添付）':'Annual report (operating status report and attachments)','市区町村から届く通知の期日までに出します。立入調査は、この報告をもとに行われます。':'Submit by the deadline in the municipal notice. The on-site inspection is based on this report.','{0}年度の期日':'FY{0} deadline','あと {0}日':'{0} days left','過ぎています':'Past due','前年度の期日：':'Last year\'s deadline: ','（今年の目安）':' (guide for this year)','立入調査の前に出す':'Submit before the inspection','立入調査の日の{0}日前までに出します。':'Submit {0} days before the inspection date.','立入調査の前に出します。期限は、調査の連絡に書いてあります。':'Submit before the inspection. The deadline is in the inspection notice.','期限：':'Deadline: ','立入調査の日を入れると、期限が出ます。':'Enter the inspection date to see the deadline.','立入調査の当日に見せる':'Show on the inspection day','日程は市区町村から連絡が来ます。':'The municipality will contact you with the date.','{0}年度の立入調査の日':'FY{0} inspection date','立入調査まで あと {0}日':'{0} days until the inspection','入力した立入調査の日は過ぎています':'The inspection date you entered has passed'
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -23351,7 +23437,11 @@ function renderDash(){
       line2.push(chip('年度前 '+A.preDone+'/'+A.preTotal,'#E6F1FB','#123E6B'));
       line2.push(chip('運営中 '+A.opeDone+'/'+A.opeTotal,'#FAEEDA','#854F0B'));
       if(A.notYet.length)line2.push(chip('未着手 '+A.notYet.length+'件','#FCEBEB','#A32D2D'));
-      var docTxt=A.docDate?('書類監査：'+fmt(A.docDate)+(A.docLeft>=0?'（あと'+A.docLeft+'日）':'（実施済み）')):'書類監査：日程未定（自治体からの連絡待ち・実施期間の目安 5〜11月）';
+      var docTxt=A.docDate?('立入調査：'+fmt(A.docDate)+(A.docLeft>=0?'（あと'+A.docLeft+'日）':'（実施済み）')):'立入調査：日程未定（自治体からの連絡待ち）';
+      /* 出す時期（2026-11-15）：A 毎年の報告の期日・B 事前提出の期限 */
+      var phTxt=[];
+      if(A.phUsed.indexOf('A')>-1)phTxt.push(A.aDue?('毎年の報告（運営状況報告）：'+fmt(A.aDue)+'まで'+(A.aLeft>=0?'（あと'+A.aLeft+'日）':'（期日を過ぎています）')):('毎年の報告（運営状況報告）：通知待ち'+(A.aPrev?'（前年度は'+fmt(A.aPrev)+'）':'')));
+      if(A.phUsed.indexOf('B')>-1&&A.bDue)phTxt.push('立入調査の前に出す書類：'+fmt(A.bDue)+'まで'+(A.bLeft>=0?'（あと'+A.bLeft+'日）':'（期限を過ぎています）'));
       var siteTxt='現場監査：'+(A.inSeason?'実施期間中（5〜11月・無通告／年1〜2回）':'期間外（5〜11月に実施）');
       var todayTxt=A.recMissing.length?('本日の記録が未入力：'+A.recMissing.join('・')):'本日の記録はすべて入力済み';
       var monTxt=A.monthly.length?('今月の未実施：'+A.monthly.join('・')):'';
@@ -23362,6 +23452,7 @@ function renderDash(){
           +'<div class="muted" style="margin-bottom:6px;">'+aph.desc+'</div>'
           +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'+line2.join('')+'</div>'
           +'<div style="font-size:12.5px;line-height:1.9;">'
+            +phTxt.map(function(t){return '<div>'+ic('send').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#3C3489;"')+' '+esc(t)+'</div>';}).join('')
             +'<div>'+ic('cal').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#185FA5;"')+' '+esc(docTxt)+'</div>'
             +'<div>'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' '+esc(siteTxt)+'</div>'
             +'<div style="color:'+(A.recMissing.length?'#A32D2D':'#27500A')+';">'+ic('activity').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;"')+' '+esc(todayTxt)+'</div>'
@@ -29050,10 +29141,10 @@ function renderAudit(){
     /* 園の条件にまだ答えていないものがあるときだけ、ここにも出す（答えると消える。ふだんは設定にある） */
     (SCHOOL_COND.some(function(c){return !schoolCond()[c.k];})?schoolCondHTML(true):schoolCondLineHTML())+
     /* ★「監査シーズン（5〜11月）現場監査は無通告…」の帯は外した（2026-09-25 安田さんのご指示「記載削除」） */
-    '<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">'+
-      '<div class="card"><h3>'+ic('cal')+'書類監査</h3><div class="muted" style="margin-bottom:10px;">年1回。実施期間の目安は 5〜11月。<b>日程は自治体から連絡が入り次第確定</b>します。</div><label>'+fy+'年度の監査日（決まったら入力）</label><input type="date" id="auDate" value="'+esc(auditDateOf(fy))+'"><div id="auCount" class="muted" style="margin-top:8px;"></div></div>'+
-      '<div class="card"><h3>'+ic('alert')+'現場監査</h3><div class="muted">指定期間（5〜11月）に<b>無通告</b>で実施。年1〜2回。いつ来てもいいよう、運営中に揃える記録を常に整えておく。</div></div>'+
-    '</div>'+
+    /* ★2026-11-15「書類監査」の日の欄を、出す時期（A 毎年の報告・B 事前提出・C 立入調査の当日）のカードに置きかえた。
+       立入調査の日（C）は、これまでの監査日（auditDates）をそのまま使う */
+    auditPhaseCardHTML(fy,stt)+
+    '<div class="card" style="margin-bottom:16px;"><h3>'+ic('alert')+'現場監査</h3><div class="muted">指定期間（5〜11月）に<b>無通告</b>で実施。年1〜2回。いつ来てもいいよう、運営中に揃える記録を常に整えておく。</div></div>'+
     '<div class="card" style="margin-bottom:16px;"><h3>'+ic('clipboard')+fy+'年度の準備状況</h3>'+
       '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;"><div><div style="font-size:24px;font-weight:600;">'+done+' / '+tot+'</div><div class="muted">全体 済</div></div><div><div style="font-size:24px;font-weight:600;color:#185FA5;">'+preDone+' / '+pre.length+'</div><div class="muted">年度前に準備</div></div><div><div style="font-size:24px;font-weight:600;color:#854F0B;">'+opeDone+' / '+ope.length+'</div><div class="muted">運営中に揃える</div></div></div>'+
       '<div class="pbar"><div style="width:'+Math.round(done/tot*100)+'%"></div></div>'+
@@ -29074,7 +29165,10 @@ function renderAudit(){
           +'<span style="font-size:12.5px;color:var(--tx2);width:92px;flex:none;">保管の種類</span>'+chips(AUDIT_KIND_TABS,auditKindF,'data-aukind')+'</div>'
         +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
           +'<span style="font-size:12.5px;color:var(--tx2);width:92px;flex:none;">そろえる時期</span>'+chips(AUDIT_WHEN_TABS,auditWhenF,'data-auwhen')+'</div>'
-        +((auditKindF!=='all'||auditWhenF!=='all')
+        /* 出す時期（2026-11-15）。この園に2つ以上あるときだけ */
+        +(auditPhasesUsed().length>1?'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">'
+          +'<span style="font-size:12.5px;color:var(--tx2);width:92px;flex:none;">出す時期</span>'+chips([['all','すべて']].concat(auditPhasesUsed().map(function(c){return [c,c+' '+AUDIT_PH[c].lab];})),auditPhF,'data-auph')+'</div>':'')
+        +((auditKindF!=='all'||auditWhenF!=='all'||auditPhF!=='all')
           ?'<div class="muted" style="font-size:12px;margin-top:8px;">'+shown+' / '+n+' 件を出しています。上の「準備状況」と「監査パッケージ」は、絞り込みに関わらず全件のままです。</div>'
           :'')
         +'</div>';
@@ -29107,9 +29201,11 @@ function renderAudit(){
     +((function(){var sn=0;auditCats().forEach(function(c){c.items.forEach(function(it){if(auditItemShow(it))sn++;});});return sn;})()?'':'<div class="card"><div class="empty">この絞り込みに当てはまる書類はありません。上の「すべて」に戻してください。</div></div>');
   s.insertAdjacentHTML('beforeend',auditAskCardHTML(fy)+auditOutCardHTML());
   auditPlanWire(s);
-  function upd(){var d=$('#auDate').value;if(d){var du=daysUntil(new Date(d));$('#auCount').textContent=du>=0?('書類監査まで あと '+du+'日'):'入力された監査日は過ぎています';}else{$('#auCount').textContent='';}}
+  function upd(){var d=$('#auDate').value;if(d){var du=daysUntil(new Date(d));$('#auCount').textContent=du>=0?('立入調査まで あと '+du+'日'):'入力した立入調査の日は過ぎています';}else{$('#auCount').textContent='';}}
   upd();
-  $('#auDate').onchange=function(e){auditDateSet(fy,e.target.value);upd();};
+  /* 立入調査の日が変わると、事前提出（B）の期限も変わるので描き直す */
+  $('#auDate').onchange=function(e){auditDateSet(fy,e.target.value);if(auditPhasesUsed().indexOf('B')>-1)renderAudit();else upd();};
+  if($('#auDueA'))$('#auDueA').onchange=function(e){auditDueASet(fy,e.target.value);renderAudit();};
   /* 年度を変えると、状態・監査日・準備状況・出力のすべてがその年度のものになる */
   $('#auFY').onchange=function(e){auditYear=+e.target.value;renderAudit();};
   if($('#auNow'))$('#auNow').onclick=function(){auditYear=curFY();renderAudit();};
@@ -29119,6 +29215,7 @@ function renderAudit(){
     var toC=function(){var c=document.querySelector('section[data-page="settings"] [data-scond]');if(c)c.scrollIntoView({block:'start'});};setTimeout(toC,300);setTimeout(toC,900);};
   s.querySelectorAll('[data-aukind]').forEach(function(b){b.onclick=function(){auditKindF=b.getAttribute('data-aukind');renderAudit();};});
   s.querySelectorAll('[data-auwhen]').forEach(function(b){b.onclick=function(){auditWhenF=b.getAttribute('data-auwhen');renderAudit();};});
+  s.querySelectorAll('[data-auph]').forEach(function(b){b.onclick=function(){auditPhF=b.getAttribute('data-auph');renderAudit();};});
   s.querySelectorAll('[data-st]').forEach(function(sl){
     /* 戻せるように、変える前の値を覚えておく */
     sl.setAttribute('data-was',sl.value);
@@ -29180,9 +29277,10 @@ function renderAudit(){
   };});
   $('#auPrint').onclick=function(){
     var stt2=auditState(fy),ad=auditDateOf(fy);
-    var body='<p>'+fy+'年度　監査日：'+(ad?esc(ad):'未定')+'</p>'+auditCats().map(function(c){
-      return '<h2>'+c.cat+'</h2><table><thead><tr><th style="width:60px;">状態</th><th>書類名</th><th>保管場所</th><th style="width:70px;">区分</th><th>記録の状況</th></tr></thead><tbody>'+
-        c.items.map(function(it){return '<tr><td>'+stt2[it.key]+'</td><td>'+it.name+(it.note?'<div style="font-size:10px;">'+esc(it.note)+'</div>':'')+'</td><td>'+esc(auditPlaceOf(it)||'')+'</td><td>'+it.when+'</td><td>'+(auditDataInfo(it.key,fy)||'—')+'</td></tr>';}).join('')+'</tbody></table>';
+    var pu=auditPhasesUsed(),da=auditDueAOf(fy),dbb=auditDueBOf(fy);
+    var body='<p>'+fy+'年度　立入調査の日：'+(ad?esc(ad):'未定')+(pu.indexOf('A')>-1?'　毎年の報告の期日：'+(da?esc(da):'未定'):'')+(pu.indexOf('B')>-1?'　事前提出の期限：'+(dbb?esc(dbb):'未定'):'')+'</p>'+auditCats().map(function(c){
+      return '<h2>'+c.cat+'</h2><table><thead><tr><th style="width:60px;">状態</th><th>書類名</th><th>保管場所</th><th style="width:70px;">区分</th>'+(pu.length>1?'<th style="width:80px;">出す時期</th>':'')+'<th>記録の状況</th></tr></thead><tbody>'+
+        c.items.map(function(it){return '<tr><td>'+stt2[it.key]+'</td><td>'+it.name+(it.note?'<div style="font-size:10px;">'+esc(it.note)+'</div>':'')+'</td><td>'+esc(auditPlaceOf(it)||'')+'</td><td>'+it.when+'</td>'+(pu.length>1?'<td>'+auditPhaseOf(it).split('').map(function(x){return x+' '+AUDIT_PH[x].lab;}).join('<br>')+'</td>':'')+'<td>'+(auditDataInfo(it.key,fy)||'—')+'</td></tr>';}).join('')+'</tbody></table>';
     }).join('');
     printDoc('監査書類 最終チェックリスト（'+fy+'年度）',body);
   };
