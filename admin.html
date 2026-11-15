@@ -1585,7 +1585,7 @@ function wizCredHTML(u){
     +'<div class="apCR"><span>初期パスワード</span>'+(u.has_initial_pw?'<b class="big num" id="ipw'+esc(u.id)+'">●●●●●●●●●●●●</b><button class="btn sec sm" data-ipw="'+esc(u.id)+'">表示</button>'
       :'<b style="font-size:13px;font-weight:600;">管理者が変えました（運営からは見えません）</b><span></span>')+'</div></div>'
     +(u.has_initial_pw?'<div class="row" style="margin-top:12px;"><button class="btn" data-ipc="'+esc(u.id)+'" data-ipl="'+esc(u.login_id)+'">3つまとめてコピー</button>'
-      +'<span class="hint">URL・ID・パスワードの3行がコピーされます。管理者が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'');
+      +'<span class="hint">URL・ID・パスワードと、ログインしたあとの進め方（契約書・手順書）がコピーされます。管理者が最初のログインで変えるまで、ここでいつでも見られます</span></div>':'');
 }
 function wizHTML(){
   if(!openId&&!WZ.app)return wizPickHTML();
@@ -1748,7 +1748,8 @@ function wizBody(k){
     if(!g.ok)return '<div class="lead">必須のステップがそろうと押せるようになります。</div><div class="note"><b>残っていること</b><ul style="margin:6px 0 0;padding-left:1.2em;">'
       +(g.missing||[]).map(function(m){return '<li>'+esc(String(m).replace(/^[^：]*：/,''))+'</li>';}).join('')+'</ul></div>';
     return '<div class="lead">必須のステップがそろいました。状態と開始日を選んで押すと、次の請求からこの園が対象になります。</div>'
-      +'<div class="row"><select id="obBillSt"><option>契約中</option><option>モニター</option></select><input id="obBillOn" type="date" title="開始日（空なら今日）">'
+      /* ★開始日が空のままで、申込・契約のご利用開始日を見直して打ち直していた（2026-11-15 ドライラン）。契約の開始日を入れておく */
+      +'<div class="row"><select id="obBillSt"><option>契約中</option><option>モニター</option></select><input id="obBillOn" type="date" title="開始日（空なら今日）" value="'+esc(String(((DATA.one&&DATA.one.contract)||{}).started_on||'').slice(0,10))+'">'
       +'<button class="btn" id="obBill">課金を始める</button><span class="msg" id="obM"></span></div>';
   }
   return '';
@@ -3138,8 +3139,15 @@ function apFormHTML(px,name,who,btn,goId){
 /* 園長にお伝えする内容（改善案2）。まとめてコピーは、URL・ログインID・初期パスワードの3行だけにする
    （2026-11-12 安田さん「文章である必要はないから、リンクとID、PWが一括でコピペできるボタン」） */
 function apLoginUrl(){return location.origin+location.pathname.replace(/[^/]*$/,'');}
+/* ★契約書のお知らせメールが、ログイン情報より先に「リンクを開いてログイン」と届いていた（2026-11-15 ドライラン）。
+     管理者がまだログインしていない園には、サーバ（agree.js）がお知らせのメールを送らない。
+     代わりに、ここでお渡しする文に、ログインしたら何をするかを入れる（2026-11-16 安田さんのご指示） */
 function apCredText(code,login,pw){
-  return 'URL：'+apLoginUrl()+'\nID：'+login+'\nPW：'+pw;
+  var docs=((DATA.agreeId===openId&&DATA.agree&&DATA.agree.docs)||[]).filter(function(d){return d.status==='sent'||d.status==='viewed';}).length;
+  return 'URL：'+apLoginUrl()+'\nID：'+login+'\nPW：'+pw
+    +'\n\n最初にログインすると、パスワードの変更と「はじめの準備」の案内が出ます。'
+    +(docs?'案内の1つめで、お送りした契約書（'+docs+'通）をお読みのうえ、ご同意ください。確認コードのメールは1通で、すべての契約書に使えます。':'')
+    +'\n写真つきの手順書：'+apLoginUrl().replace(/\/?$/,'/')+'guide-start.html';
 }
 /* ★2026-11-12：作った直後にログイン情報を出すのをやめた。契約書を送ってから「ログイン情報を渡す」で渡す */
 function apMadeHTML(tid,login,title){

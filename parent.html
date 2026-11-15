@@ -1209,17 +1209,10 @@ function parentCredSweep(){
     });
   });
 }
-/* 再設定の確認コード。実際の運用ではメールやSMSでお送りするものです。
-   ここではデモのため画面に出しますが、入力は必ず求めます。
-   （メールアドレスを知っているだけでは、他のご家庭に入れないようにするためです） */
-var resetCode='';
-function makeResetCode(em){
-  var acc=stGet('parentAccounts',{});
-  if(!acc[em])return '';   /* ご登録がなければ、コードは作りません */
-  var n='',i;
-  for(i=0;i<6;i++)n+=String(Math.floor(Math.random()*10));
-  return n;
-}
+/* ★パスワードの再設定は、ここで6桁のコードを作って画面にそのまま出す見本だった（メールは1通も送っていなかった）。
+   園とつながった本番でも同じ見本が動き、「デモ版のため、実際のメールは送信されません」と出ていた。
+   いまはサーバ（POST /parent/password/forgot）が、メールで再設定のリンク（?reset=札）を送る。
+   リンクで開いたときの画面は、下の「再設定のメールのリンクで来たとき」（2026-11-16 安田さんのご指示） */
 
 
 function seedAll(){
@@ -1388,6 +1381,7 @@ function logout(asked){
   /* 共用のタブレットで次の方が入ったとき、その方にもご案内のお知らせが出るように戻す */
   noticeShown=false;
   sessionStorage.removeItem('cocoas_wa_guest');sessionStorage.removeItem('cocoas_psession');
+  try{sessionStorage.removeItem(WA_MUSTCHG_KEY);}catch(e){}
   /* 共用のタブレットで、次のご家庭に前の内容が見えないようにします。
 
      園とつながっているときは、ログインのときと同じように、
@@ -1424,7 +1418,7 @@ function resetDemo(){
 /* =========================================================================
    RENDER
    ========================================================================= */
-var tab='school', authView='login', resetEmail='';
+var tab='school', authView='login', resetSent=false;
 
 /* 園とつながっていなくても使える。未来WAは一般の保護者向けにも開いている */
 function isGuest(){return sessionStorage.getItem('cocoas_wa_guest')==='1';}
@@ -1444,6 +1438,13 @@ function render(){
        ログイン画面ではなく「読み込み中」／「読み込めませんでした」を出す（waFirstHTML の説明を参照） */
     if(waFirstNeed()){document.getElementById('root').innerHTML=waFirstHTML();waFirstWire();return;}
     document.getElementById('root').innerHTML=loginHTML();wireAuth();return;
+  }
+  /* はじめのパスワードのままのときは、変えていただくまでほかの画面に入れない（waPwMustHTML の説明を参照） */
+  if(c&&waPwMustNeed()){
+    document.getElementById('root').innerHTML=waPwMustHTML();waPwMustWire();
+    var fb0=document.getElementById('waHelpFab'); if(fb0)fb0.style.display='none';
+    try{window.scrollTo(0,0);}catch(e){}
+    return;
   }
   /* まだご同意をいただいていない、または規約の版が上がったときは、
      先に同意画面をお出しする。 */
@@ -2012,7 +2013,6 @@ function waFaceHTML(c,size){
 /* ---------- LOGIN / PW flow ---------- */
 function loginHTML(){
   if(authView==='reset') return resetHTML();
-  if(authView==='newpw') return newpwHTML();
   var demo=isDemoContacts();
   var en=demo?enrolled():[];
   return '<div class="login-wrap">'
@@ -2041,25 +2041,20 @@ function loginHTML(){
     +'</div>';
 }
 function resetHTML(){
+  /* 送ったあとは、登録の有無にかかわらず同じ1文を出す（どのアドレスが登録されているかを、ここから探されないように） */
+  if(resetSent)return '<div class="login-wrap">'
+    +'<div class="brand"><div style="font-size:34px;">📩</div><h1>パスワードの再設定</h1></div>'
+    +'<div class="info" style="margin-top:6px;line-height:1.8;">再設定のメールを送りました（届かないときは園にお問い合わせください）</div>'
+    +'<div class="muted" style="margin-top:12px;font-size:12.5px;line-height:1.8;">メールのリンクを開いて、新しいパスワードを決めてください。リンクは1時間だけ、1回だけ使えます。</div>'
+    +'<div style="text-align:center;margin-top:16px;"><button class="link" id="rs_back">← ログインに戻る</button></div>'
+    +'</div>';
   return '<div class="login-wrap">'
     +'<div class="brand"><div style="font-size:34px;">🔑</div><h1>パスワードの再設定</h1><div class="sub">ご登録のメールアドレスを入力してください</div></div>'
-    +'<div class="field"><label>メールアドレス</label><input id="rs_email" type="email" placeholder="you@example.com"></div>'
-    +'<button class="btn" id="rs_go">再設定リンクを送る</button>'
+    +'<div class="err" id="rsErr"></div>'
+    +'<div class="field"><label>メールアドレス</label><input id="rs_email" type="email" placeholder="you@example.com" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
+    +'<button class="btn" id="rs_go">再設定のメールを送る</button>'
     +'<div style="text-align:center;margin-top:14px;"><button class="link" id="rs_back">← ログインに戻る</button></div>'
-    +'<div class="info" style="margin-top:18px;">デモ版のため、実際のメールは送信されません。「送る」を押すと、その場で新しいパスワードの設定画面に進みます。</div>'
-    +'</div>';
-}
-function newpwHTML(){
-  return '<div class="login-wrap">'
-    +'<div class="brand"><div style="font-size:34px;">🔒</div><h1>新しいパスワード</h1><div class="sub">'+esc(resetEmail)+'</div></div>'
-    +'<div class="err" id="npErr"></div>'
-    +'<div class="info" style="margin-bottom:16px;">お送りした6桁の確認コードを入れてください。'
-    +(resetCode?'<br><b>デモのため、この画面に表示しています：'+esc(resetCode)+'</b>':'')+'</div>'
-    +'<div class="field"><label>確認コード（6桁）</label><input id="np_code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000"></div>'
-    +'<div class="field"><label>新しいパスワード</label><input id="np_pw" type="password" placeholder="8文字以上" autocomplete="new-password"></div>'
-    +'<div class="field"><label>もう一度入力</label><input id="np_pw2" type="password" placeholder="確認のためもう一度" autocomplete="new-password"></div>'
-    +'<button class="btn" id="np_go">パスワードを変更する</button>'
-    +'<div style="text-align:center;margin-top:14px;"><button class="link" id="np_back">← ログインに戻る</button></div>'
+    +'<div class="muted" style="margin-top:18px;font-size:12.5px;line-height:1.8;">ご登録のメールアドレスに、新しいパスワードを決めるためのリンクをお送りします。</div>'
     +'</div>';
 }
 function wireAuth(){
@@ -2089,37 +2084,73 @@ function wireAuth(){
     };});
     if($('li_reset'))$('li_reset').onclick=function(){resetDemo();render();toast('テスト用アカウントを作り直しました');};
   } else if(authView==='reset'){
+    $('rs_back').onclick=function(){resetSent=false;authView='login';render();};
+    if(resetSent)return;
     $('rs_go').onclick=function(){
-      var em=($('rs_email').value||'').trim().toLowerCase();
+      var em=($('rs_email').value||'').trim().toLowerCase(),e=$('rsErr'),b=$('rs_go');
+      e.style.display='none';
       if(!em){toast('メールアドレスを入力してください');return;}
-      /* どのメールアドレスにご登録があるかを、この画面から分からないようにしています
-         （順番に試して、登録済みのアドレスを探されないようにするためです）。 */
-      resetEmail=em;resetCode=makeResetCode(em);authView='newpw';render();
-      toast('ご登録があれば、再設定のご案内をお送りします');
-    };
-    $('rs_back').onclick=function(){authView='login';render();};
-  } else if(authView==='newpw'){
-    $('np_go').onclick=function(){
-      var code=($('np_code').value||'').trim(),p=$('np_pw').value,p2=$('np_pw2').value,e=$('npErr');
-      /* 確認コードが合わないかぎり、先へ進めません
-         （メールアドレスを入れただけで、他のご家庭のページに入れてしまわないようにするためです）。 */
-      if(!resetCode||code!==resetCode){e.textContent='確認コードが違います。';e.style.display='block';return;}
-      if(p.length<8){e.textContent='パスワードは8文字以上にしてください。';e.style.display='block';return;}
-      if(p!==p2){e.textContent='パスワードが一致しません。';e.style.display='block';return;}
-      var acc=stGet('parentAccounts',{});
-      if(!acc[resetEmail]){resetCode='';authView='login';render();return;}
-      CRED.hash(p,function(rec){
-        if(rec){acc[resetEmail].pwh=rec;delete acc[resetEmail].pw;}
-        else{acc[resetEmail].pw=p;delete acc[resetEmail].pwh;}
-        delete acc[resetEmail].seed;
-        stSet('parentAccounts',acc);
-        /* ここではログインしません。新しいパスワードで、あらためてログインしていただきます。 */
-        resetCode='';authView='login';render();
-        toast('パスワードを変更しました。新しいパスワードでログインしてください');
+      /* 園とつながっていない端末からは送れない（送ったふりをしない） */
+      if(typeof WAPI==='undefined'||!WAPI.enabled()){e.textContent=langMsg('園とつながっていないため、再設定のメールを送れません。園にお問い合わせください。');e.style.display='block';return;}
+      b.disabled=true;b.textContent=langMsg('送っています…');
+      /* 園コードが分かっていれば添える（2つ以上の園にご登録があるとき、その園のアカウントだけに送る。合わなければサーバが全部に送る） */
+      WAPI.call('POST','/parent/password/forgot',{email:em,tenant:WAPI.tenant()||''}).then(function(){
+        resetSent=true;render();
+      }).catch(function(x){
+        b.disabled=false;b.textContent=langMsg('再設定のメールを送る');
+        e.textContent=langMsg(x.message||'送れませんでした。しばらくしてからもう一度お試しください。');e.style.display='block';
       });
     };
-    $('np_back').onclick=function(){authView='login';render();};
+    $('rs_email').addEventListener('keydown',function(ev){if(ev.key==='Enter')$('rs_go').click();});
   }
+}
+
+/* ══ はじめのパスワードを変えていただく（2026-11-16 安田さんのご指示）══════════
+   ★紙で発行したアカウント（園が決めたはじめのパスワード）も、園がパスワードを作り直したアカウントも、
+     サーバは「変えてください（mustChange）」と返していたのに、この画面はそれを読んでいなかった。
+     変更の画面もどこにも無く、園の案内（紙）には「はじめてログインしたときに変えます」と書いてあるのに、
+     園が決めたパスワードのまま使い続けることになっていた。
+   ログインのときに mustChange が来たら、このタブに印（wa_mustchg）を置き、変えるまでほかの画面に入れない。
+   変えると、サーバが新しいトークンを返す（ほかの端末のログインはサーバが切る） */
+var WA_MUSTCHG_KEY='wa_mustchg';
+function waPwMustNeed(){try{return WAPI.online()&&sessionStorage.getItem(WA_MUSTCHG_KEY)==='1';}catch(e){return false;}}
+function waPwMustHTML(){
+  return '<div class="login-wrap">'
+    +'<div style="text-align:right;margin-bottom:6px;">'+langToggleHTML()+'</div>'
+    +'<div class="brand"><div style="font-size:34px;">🔒</div><h1>パスワードを変えてください</h1>'
+    +'<div class="sub">はじめのパスワード（園からお伝えしたもの）のままです。ご自身で決めたパスワードに変えてから、お使いください。</div></div>'
+    +'<div class="err" id="pmErr"></div>'
+    +'<div class="field"><label>いまのパスワード</label><input id="pm_cur" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
+    +'<div class="field"><label>新しいパスワード</label><input id="pm_pw" type="password" placeholder="8文字以上" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
+    +'<div class="field"><label>もう一度入力</label><input id="pm_pw2" type="password" placeholder="確認のためもう一度" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false"></div>'
+    +'<button class="btn" id="pm_go">パスワードを変更する</button>'
+    +'<div style="text-align:center;margin-top:14px;"><button class="link" id="pm_out">ログアウト</button></div>'
+    +'</div>';
+}
+function waPwMustWire(){
+  var $=function(id){return document.getElementById(id);};
+  $('pm_out').onclick=function(){logout(true);};
+  $('pm_go').onclick=function(){
+    var c=$('pm_cur').value,p=$('pm_pw').value,p2=$('pm_pw2').value,e=$('pmErr'),b=$('pm_go');
+    var bad=function(m){e.textContent=langMsg(m);e.style.display='block';};
+    e.style.display='none';
+    if(!c){bad('いまのパスワードを入力してください。');return;}
+    if(p.length<8){bad('パスワードは8文字以上にしてください。');return;}
+    if(p!==p2){bad('パスワードが一致しません。');return;}
+    if(p===c){bad('いまと違うパスワードにしてください');return;}
+    b.disabled=true;b.textContent=langMsg('変更しています…');
+    WAPI.call('POST','/parent/password',{current:c,next:p}).then(function(j){
+      if(j&&j.token)WAPI.setToken(j.token);
+      try{sessionStorage.removeItem(WA_MUSTCHG_KEY);}catch(x){}
+      render();
+      toast('パスワードを変更しました');
+    }).catch(function(x){
+      b.disabled=false;b.textContent=langMsg('パスワードを変更する');
+      /* ログインが切れていたら、ログインの画面に戻す */
+      if(x.status===401){try{sessionStorage.removeItem(WA_MUSTCHG_KEY);}catch(y){}logout(true);toast(x.message);return;}
+      bad(x.message||'変更できませんでした。もう一度お試しください。');
+    });
+  };
 }
 
 /* ---------- 教材ストア（EC） ----------
@@ -4226,6 +4257,42 @@ var EN_DICT={
 '感想を送りました。ありがとうございます。':'Feedback sent. Thank you!',
 'データの接続先を、次のサーバに変更します。':'The data server will be changed to:',
 'ご登録があれば、再設定のご案内をお送りします':'If you’re registered, we’ll send you instructions to reset it',
+/* パスワードの再設定（メールのリンク）・はじめのパスワードの変更（2026-11-16） */
+'再設定のメールを送りました（届かないときは園にお問い合わせください）':'We’ve sent you a password reset email (if it doesn’t arrive, please contact your school)',
+'メールのリンクを開いて、新しいパスワードを決めてください。リンクは1時間だけ、1回だけ使えます。':'Open the link in the email and choose a new password. The link works only once, for 1 hour.',
+'再設定のメールを送る':'Send reset email',
+'ご登録のメールアドレスに、新しいパスワードを決めるためのリンクをお送りします。':'We’ll email a link to your registered address so you can choose a new password.',
+'園とつながっていないため、再設定のメールを送れません。園にお問い合わせください。':'This device isn’t connected to a school, so we can’t send a reset email. Please contact your school.',
+'送っています…':'Sending…',
+'送れませんでした。しばらくしてからもう一度お試しください。':'Couldn’t send. Please try again in a little while.',
+'パスワードを変えてください':'Please change your password',
+'はじめのパスワード（園からお伝えしたもの）のままです。ご自身で決めたパスワードに変えてから、お使いください。':'You’re still using the initial password from your school. Please change it to one you choose before continuing.',
+'いまのパスワード':'Current password',
+'8文字以上':'At least 8 characters',
+'確認のためもう一度':'Enter again to confirm',
+'いまのパスワードを入力してください。':'Please enter your current password.',
+'いまと違うパスワードにしてください':'Please choose a password different from your current one',
+'変更しています…':'Changing…',
+'パスワードを変更しました':'Your password has been changed',
+'変更できませんでした。もう一度お試しください。':'Couldn’t change it. Please try again.',
+'新しいパスワードを決める':'Choose a new password',
+'確認しています…':'Checking…',
+'ログインID（メールアドレス）':'Login ID (email address)',
+'新しいパスワード（8文字以上）':'New password (at least 8 characters)',
+'もう一度（確認）':'Again (to confirm)',
+'このパスワードにする':'Use this password',
+'やめる（ログインの画面へ）':'Cancel (go to login)',
+'2つのパスワードが一致しません':'The two passwords don’t match',
+'登録しています…':'Saving…',
+'ログインの画面へ':'Go to login',
+'このリンクは使えません（期限切れか、使用済みです）。ログインの画面の「パスワードをお忘れですか？」から、もう一度お申し込みください。':'This link can’t be used (it has expired or was already used). Please request a new one from “Forgot your password?” on the login screen.',
+'いまメールを送れないため、再設定のメールを出せません。園にお問い合わせください。':'We can’t send email right now, so we can’t send a reset email. Please contact your school.',
+'メールアドレスの形が違います':'That email address doesn’t look right',
+'続けて送られています。しばらく時間をおいてからお試しください。':'Too many requests in a row. Please wait a while and try again.',
+'パスワードが変わったため、もう一度ログインしてください':'Your password was changed, so please log in again',
+'いまのパスワードが違います':'Your current password is incorrect',
+'パスワードは8文字以上にしてください':'Password must be at least 8 characters',
+'パスワードが長すぎます':'That password is too long',
 'コメントを送りました。ありがとうございます。':'Comment sent. Thank you!',
 '」にお申し込みしました。控えはマイページで見られます。':'”: you’re signed up. You can find your confirmation on My Page.',
 'この端末に保存しました。つながったときに園へ送ります。':'Saved on this device. It will be sent to the school once you’re connected.',
@@ -4937,7 +5004,6 @@ var EN_DICT={
 '受け取りをやめたいときは、LINEで園のアカウントをブロックしてください。すぐに送り先から外れます。':'To stop receiving, block the school’s account on LINE. You’ll be removed right away.',
 '当サイトはAmazonアソシエイト・プログラムに参加しており、適格販売により収入を得ることがあります。':'This site participates in the Amazon Associates Program and may earn from qualifying purchases.',
 'ただし園はいま、LINEでのお知らせを送っていません。園が送りはじめると、このまま届くようになります。':'However, the school isn’t sending LINE notifications yet. Once it starts, you’ll receive them automatically.',
-'デモ版のため、実際のメールは送信されません。「送る」を押すと、その場で新しいパスワードの設定画面に進みます。':'This is a demo, so no email is actually sent. Tap “Send” to go straight to setting a new password.',
 'この商品は園が取り扱っています。お問い合わせは園、または info@bimjapan.jp へお願いします。':'This product is sold by the school. For questions, contact the school or info@bimjapan.jp.',
 '送信すると、園のホームにすぐ届きます。登園シートには園の先生が書き写します。前日までのご連絡にご協力ください。':'Your message goes straight to the school’s home screen. Teachers copy it to the attendance sheet. Please let us know by the day before when possible.',
 '国産の木で、子どもの手の大きさに合わせた道具をつくっています。工作キットは園での使用実績があるものだけを出しています。':'We make tools from Japanese wood, sized for children’s hands. We only offer craft kits proven in schools.',
@@ -9118,6 +9184,8 @@ function waServerLogin(email,pw,cb,pickTenantId){
     .then(function(j){
       WAPI.setToken(j.token);
       try{if(j.tenant&&j.tenant.code)WAPI.setTenant(j.tenant.code);}catch(e){}
+      /* ★サーバの mustChange を読んでいなかった（waPwMustHTML の説明を参照） */
+      try{if(j.parent&&j.parent.mustChange)sessionStorage.setItem(WA_MUSTCHG_KEY,'1');else sessionStorage.removeItem(WA_MUSTCHG_KEY);}catch(e){}
       /* 同じご家庭がもう一度ログインしたとき（画面ロックの解除など）は、
          登園・降園の控えだけを取っておき、読み込んだあとで足し合わせる。
          ★以前は下の一掃で一緒に消していた。電波の無いところで押してしまい、
@@ -9272,6 +9340,71 @@ var WA_API_OFFICIAL='https://cocoas-api-production.up.railway.app';
       try{sessionStorage.removeItem('wa_invite');}catch(x){}
       body.innerHTML='<div style="margin-bottom:14px;">'+esc(e.message)+'</div><button id="wiClose" style="width:100%;font-size:15px;font-weight:700;border:1px solid #DDD6EE;background:#fff;border-radius:14px;padding:12px;">ログインの画面へ</button>';
       document.getElementById('wiClose').onclick=function(){ov.remove();};
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(draw,50);});else setTimeout(draw,50);
+})();
+
+/* ══ 再設定のメールのリンクで来たとき（?reset=札&tenant=園コード・2026-11-16 安田さんのご指示）══
+   ★以前の「パスワードをお忘れですか？」は画面の中だけの見本で、メールも、このリンクの画面も無かった。
+   新しいパスワードを決めたら、そのままログインする（入れなかったときは、ログインの画面に案内を出す）。
+   札は招待のときと同じく URL からすぐ消し、タブの中にだけ持つ（履歴や共有で札が残らないように）。1時間・1回だけ */
+(function(){
+  var tok='';
+  try{
+    var q=new URLSearchParams(location.search),t=q.get('reset');
+    if(t!==null){
+      tok=String(t).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);
+      sessionStorage.setItem('wa_pwreset',tok);
+      q.delete('reset');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():''));
+    }else tok=sessionStorage.getItem('wa_pwreset')||'';
+  }catch(e){}
+  if(!tok)return;
+  function done(){try{sessionStorage.removeItem('wa_pwreset');}catch(x){}}
+  function draw(){
+    if(!WAPI.enabled()){return;}
+    var ov=document.createElement('div');ov.id='waPwReset';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:#F6F3FC;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;';
+    ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:440px;width:100%;padding:26px 22px;box-shadow:0 10px 40px rgba(60,40,120,.15);font-size:15px;line-height:1.8;">'
+      +'<div style="font-weight:800;font-size:20px;margin-bottom:6px;">新しいパスワードを決める</div><div id="wrBody">確認しています…</div></div>';
+    document.body.appendChild(ov);
+    var body=document.getElementById('wrBody');
+    var tr=function(){try{langApply(ov);}catch(x){}};
+    tr();
+    WAPI.call('POST','/parent/password/reset/info',{token:tok}).then(function(j){
+      body.innerHTML='<div style="margin-bottom:14px;"><b>'+esc(j.tenantName)+'</b></div>'
+        +'<div style="font-size:13px;color:#6C6880;">ログインID（メールアドレス）</div><div style="font-weight:700;margin-bottom:12px;word-break:break-all;">'+esc(j.email)+'</div>'
+        +'<label style="display:block;font-size:13px;color:#6C6880;">新しいパスワード（8文字以上）</label><input id="wrPw" type="password" autocomplete="new-password" style="width:100%;font-size:16px;padding:12px;border:1px solid #DDD6EE;border-radius:12px;margin:4px 0 10px;box-sizing:border-box;">'
+        +'<label style="display:block;font-size:13px;color:#6C6880;">もう一度（確認）</label><input id="wrPw2" type="password" autocomplete="new-password" style="width:100%;font-size:16px;padding:12px;border:1px solid #DDD6EE;border-radius:12px;margin:4px 0 6px;box-sizing:border-box;">'
+        +'<div id="wrMsg" style="color:#A32D2D;font-size:13px;min-height:20px;"></div>'
+        +'<button id="wrGo" style="width:100%;font-size:16px;font-weight:700;color:#fff;background:#5128C8;border:0;border-radius:14px;padding:14px;margin-top:6px;">このパスワードにする</button>'
+        +'<button id="wrCancel" style="width:100%;font-size:14px;border:1px solid #DDD6EE;background:#fff;border-radius:14px;padding:11px;margin-top:10px;">やめる（ログインの画面へ）</button>';
+      tr();
+      document.getElementById('wrCancel').onclick=function(){done();ov.remove();};
+      document.getElementById('wrGo').onclick=function(){
+        var a=document.getElementById('wrPw').value,b=document.getElementById('wrPw2').value,m=document.getElementById('wrMsg'),bt=this;
+        if(a.length<8){m.textContent=langMsg('8文字以上にしてください');return;}
+        if(a!==b){m.textContent=langMsg('2つのパスワードが一致しません');return;}
+        bt.disabled=true;bt.textContent=langMsg('登録しています…');
+        WAPI.call('POST','/parent/password/reset',{token:tok,password:a}).then(function(r){
+          done();
+          if(r.tenantCode)WAPI.setTenant(r.tenantCode);
+          login(r.email,a,function(ok){
+            ov.remove();
+            try{render();}catch(e){location.reload();return;}
+            toast(ok?'パスワードを変更しました':'パスワードを変更しました。新しいパスワードでログインしてください',4000);
+          });
+        }).catch(function(e){
+          /* 使えないリンク（期限切れ・使用済み）は、もう一度申し込んでもらう */
+          if(e.status===410){done();body.innerHTML='<div style="margin-bottom:14px;">'+esc(langMsg(e.message))+'</div><button id="wrClose" style="width:100%;font-size:15px;font-weight:700;border:1px solid #DDD6EE;background:#fff;border-radius:14px;padding:12px;">ログインの画面へ</button>';tr();document.getElementById('wrClose').onclick=function(){ov.remove();};return;}
+          m.textContent=langMsg(e.message);bt.disabled=false;bt.textContent=langMsg('このパスワードにする');
+        });
+      };
+    }).catch(function(e){
+      done();
+      body.innerHTML='<div style="margin-bottom:14px;">'+esc(langMsg(e.message))+'</div><button id="wrClose" style="width:100%;font-size:15px;font-weight:700;border:1px solid #DDD6EE;background:#fff;border-radius:14px;padding:12px;">ログインの画面へ</button>';
+      tr();
+      document.getElementById('wrClose').onclick=function(){ov.remove();};
     });
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(draw,50);});else setTimeout(draw,50);

@@ -6241,7 +6241,12 @@ function auditMapTableHTML(p){
 }
 /* 前回の指摘事項と、もとにした資料。指摘は次の監査で確かめられるので、いちばん上に出す */
 function auditPlanCardHTML(){
-  var p=auditPlan();if(!p)return '';
+  var p=auditPlan();
+  /* ★運営が前年度の資料から項目を整える前でも、全国でよくある項目がそのまま並び、準備中だと分からなかった（2026-11-15 ドライラン） */
+  if(!p)return '<div class="card" style="margin-bottom:14px;border-color:#B5D4F4;"><h3>'+ic('clipboard')+'この園の監査の項目</h3>'
+    +'<div class="muted" style="font-size:12.5px;line-height:1.8;">この園の監査の項目は、お送りいただいた前年度の監査の資料をもとに、私たち（Miralink の運営）が整えています。'
+    +'整うまでは、国の基準でよく求められる項目を並べています。整ったら、ここに「もとにした資料」が出て、一覧がこの園のものに変わります。'
+    +'初めて監査を受ける園は、このままお使いください。</div></div>';
   var fd=auditFindDone(),F=(p.findings||[]).filter(function(f){return f&&f.text&&f.id;});
   var left=F.filter(function(f){return !fd[f.id];}).length;
   return '<div class="card" style="margin-bottom:14px;border-color:#B5D4F4;"><h3>'+ic('clipboard')+'この園の監査の項目</h3>'
@@ -6411,10 +6416,14 @@ function auditFYMigrate(){
     return true;
   }catch(e){return false;}
 }
-function auditPhase(){var m=addDays(0).getMonth()+1;
-  if(m>=3&&m<=4)return{label:'年度前準備期（3〜4月）',desc:'来年度監査に向け、年度前に整える書類の準備ベスト時期',color:'#185FA5',bg:'#E6F1FB'};
-  if(m>=5&&m<=11)return{label:'監査シーズン（5〜11月）',desc:'現場監査は無通告。運営中に揃える記録を常に整えておく',color:'#854F0B',bg:'#FAEEDA'};
-  return{label:'通常期',desc:'次の年度前準備（3月〜）に向けて随時整備',color:'#5F5E5A',bg:'#F1EFE8'};
+/* ★「監査シーズン（5〜11月）・現場監査は無通告」と、どの園にも同じ時期を出していた。監査の時期と、事前に連絡が来るかは
+     市区町村で違う（さいたま市は事前に連絡して立入調査・年1回以上）。園が入れた期日と立入調査の日から決める（2026-11-16 安田さんのご指示） */
+function auditPhase(){var m=addDays(0).getMonth()+1,fy=curFY();
+  var a=auditDueAOf(fy),c=auditDateOf(fy),al=a?daysUntil(new Date(a)):null,cl=c?daysUntil(new Date(c)):null;
+  if(al!=null&&al>=0&&al<=60)return{label:'毎年の報告（運営状況報告）の準備',desc:'期日は '+fmt(a)+'（あと'+al+'日）。監査対応の「出す時期」の A をそろえます',color:'#3C3489',bg:'#EEEDFE'};
+  if(cl!=null&&cl>=0)return{label:'立入調査の準備',desc:'立入調査は '+fmt(c)+'（あと'+cl+'日）。当日に見せる書類と記録をそろえます',color:'#854F0B',bg:'#FAEEDA'};
+  if(m>=3&&m<=4)return{label:'年度前準備期（3〜4月）',desc:'新しい年度の前に整える書類（計画・名簿・契約など）の準備',color:'#185FA5',bg:'#E6F1FB'};
+  return{label:'ふだんの記録',desc:'市区町村から通知が届いたら、監査対応に期日と立入調査の日を入れてください',color:'#5F5E5A',bg:'#F1EFE8'};
 }
 /* ダッシュボード用の監査サマリー（現場監査・書類監査の状況をまとめて表示） */
 function auditSummary(){
@@ -7346,7 +7355,7 @@ function buildNav(){
         /* 中の機能にも navHide を使えるようにした。
            ホームのマスの中にだけ出したいもの（避難訓練など）に使う。 */
         if(y.navHide)return;
-        if(y.rec&&!recTabOn(y.rec))return;
+        if(y.rec&&!navRecOK(y))return;
         var key=y.p+'|'+(y.rec||'')+'|'+(y.l||'');
         if(!y.p||seen[key])return;seen[key]=1;
         /* ★連絡先の行を生徒情報一覧・連絡先のタブに畳んだため、「生徒台帳」の権限を外して「連絡先」を残した役職は、
@@ -8440,11 +8449,18 @@ function renderNoAccess(){
 }
 /* ホームのマスの中に出す機能。
    homeHide が付いているものはサイドバー用なので、ホームのマスの中には出さない。 */
+/* メニューに出してよい記録か。★記録のタブが出ているかだけを見ていたので、先生には開けない「保護者対応記録」
+   （recCareList が先生の一覧から外している）がメニューに出て、押すと別の記録が開いていた（2026-11-16 マニュアルの確かめで発見） */
+function navRecOK(y){
+  if(!recTabOn(y.rec))return false;
+  try{if(y.p==='carerec'&&typeof recCareList==='function'&&recCareList().indexOf(y.rec)<0)return false;}catch(e){}
+  return true;
+}
 function egSubHome(x){
   if(!x||!x.sub)return [];
   return x.sub.filter(function(y){
     if(y.homeHide)return false;
-    if(y.rec&&!recTabOn(y.rec))return false;
+    if(y.rec&&!navRecOK(y))return false;
     if(typeof canView==='function'&&!canView(y.p))return false;
     return true;
   });
@@ -20033,7 +20049,9 @@ var EN_DICT={
   '送迎の車':'School vehicle','園で作る':'Cooked on site','外から運ぶ':'Delivered from outside','出していない':'Not served',
   '設定で直す':'Change in Settings','変えられるのは園長・マネージャーです（設定 › 園の条件）。':'Only the director or a manager can change these (Settings › School conditions).',
   /* 監査の出す時期 A・B・C（2026-11-15） */
-  '⑥ 自治体に出す報告':'⑥ Reports to the municipality','運営状況報告（毎年の報告）':'Annual operating status report','施設の平面図':'Facility floor plan','料金表・施設案内（パンフレット）':'Fee table and facility brochure','立入調査の事前調書（自治体の質問票）':'Pre-inspection questionnaire (municipal form)','事前調書（自治体様式）':'Pre-inspection questionnaire (municipal form)','市区町村から届く通知の期日までに出します。提出書類ナビの「様式を入れ込む」で、自治体の様式に Miralink の記録（児童数・職員・研修・避難訓練など）から書き込めます。出した控えはここで「済」にしてください。':'Submit it by the deadline in the notice from your municipality. In the Submission Navigator, use "Fill in the municipal form" to fill the municipality\'s form from Miralink records (children, staff, training, drills, etc.). After submitting, mark it Done here.','立入調査の前に自治体から届く質問票です。書いたものを書類格納に置きます。':'A questionnaire the municipality sends before the inspection. Store the completed form in Document storage.','毎年の報告':'Annual report','事前に出す':'Submit beforehand','当日に見せる':'Show on the day','出す時期':'When to submit','A 毎年の報告':'A Annual report','B 事前に出す':'B Submit beforehand','C 当日に見せる':'C Show on the day','監査の書類は、出す時期が分かれています。期日は市区町村から届く通知に書いてあるので、届いたら入れてください。':'Inspection documents are due at different times. The dates are in the notices from your municipality, so enter them when they arrive.','毎年の報告（運営状況報告と添付）':'Annual report (operating status report and attachments)','市区町村から届く通知の期日までに出します。立入調査は、この報告をもとに行われます。':'Submit by the deadline in the municipal notice. The on-site inspection is based on this report.','{0}年度の期日':'FY{0} deadline','あと {0}日':'{0} days left','過ぎています':'Past due','前年度の期日：':'Last year\'s deadline: ','（今年の目安）':' (guide for this year)','立入調査の前に出す':'Submit before the inspection','立入調査の日の{0}日前までに出します。':'Submit {0} days before the inspection date.','立入調査の前に出します。期限は、調査の連絡に書いてあります。':'Submit before the inspection. The deadline is in the inspection notice.','期限：':'Deadline: ','立入調査の日を入れると、期限が出ます。':'Enter the inspection date to see the deadline.','立入調査の当日に見せる':'Show on the inspection day','日程は市区町村から連絡が来ます。':'The municipality will contact you with the date.','{0}年度の立入調査の日':'FY{0} inspection date','立入調査まで あと {0}日':'{0} days until the inspection','入力した立入調査の日は過ぎています':'The inspection date you entered has passed'
+  '⑥ 自治体に出す報告':'⑥ Reports to the municipality','運営状況報告（毎年の報告）':'Annual operating status report','施設の平面図':'Facility floor plan','料金表・施設案内（パンフレット）':'Fee table and facility brochure','立入調査の事前調書（自治体の質問票）':'Pre-inspection questionnaire (municipal form)','事前調書（自治体様式）':'Pre-inspection questionnaire (municipal form)','市区町村から届く通知の期日までに出します。提出書類ナビの「様式を入れ込む」で、自治体の様式に Miralink の記録（児童数・職員・研修・避難訓練など）から書き込めます。出した控えはここで「済」にしてください。':'Submit it by the deadline in the notice from your municipality. In the Submission Navigator, use "Fill in the municipal form" to fill the municipality\'s form from Miralink records (children, staff, training, drills, etc.). After submitting, mark it Done here.','立入調査の前に自治体から届く質問票です。書いたものを書類格納に置きます。':'A questionnaire the municipality sends before the inspection. Store the completed form in Document storage.','毎年の報告':'Annual report','事前に出す':'Submit beforehand','当日に見せる':'Show on the day','出す時期':'When to submit','A 毎年の報告':'A Annual report','B 事前に出す':'B Submit beforehand','C 当日に見せる':'C Show on the day','監査の書類は、出す時期が分かれています。期日は市区町村から届く通知に書いてあるので、届いたら入れてください。':'Inspection documents are due at different times. The dates are in the notices from your municipality, so enter them when they arrive.','毎年の報告（運営状況報告と添付）':'Annual report (operating status report and attachments)','市区町村から届く通知の期日までに出します。立入調査は、この報告をもとに行われます。':'Submit by the deadline in the municipal notice. The on-site inspection is based on this report.','{0}年度の期日':'FY{0} deadline','あと {0}日':'{0} days left','過ぎています':'Past due','前年度の期日：':'Last year\'s deadline: ','（今年の目安）':' (guide for this year)','立入調査の前に出す':'Submit before the inspection','立入調査の日の{0}日前までに出します。':'Submit {0} days before the inspection date.','立入調査の前に出します。期限は、調査の連絡に書いてあります。':'Submit before the inspection. The deadline is in the inspection notice.','期限：':'Deadline: ','立入調査の日を入れると、期限が出ます。':'Enter the inspection date to see the deadline.','立入調査の当日に見せる':'Show on the inspection day','日程は市区町村から連絡が来ます。':'The municipality will contact you with the date.','{0}年度の立入調査の日':'FY{0} inspection date','立入調査まで あと {0}日':'{0} days until the inspection','入力した立入調査の日は過ぎています':'The inspection date you entered has passed',
+  /* 2026-11-16 ドライランの直し */
+  '役職（例：園長・理事長）':'Title (e.g. Director, Chair)','さきほどの確認コードを入れてあります（30分のあいだ、届いている書類すべてに使えます）。':'We filled in the code you just used (it works for all documents you received for 30 minutes).','（届いている書類すべてに使えます）':' (works for all documents you received)','契約書を読む':'Read the contract','運営からの契約書を読んで、同意します。同意できるのは管理者だけです。':'Read the contract from Miralink and agree. Only the administrator can agree.','毎年の報告（運営状況報告）の準備':'Preparing the annual report','立入調査の準備':'Preparing for the inspection','ふだんの記録':'Everyday records','新しい年度の前に整える書類（計画・名簿・契約など）の準備':'Prepare documents before the new year (plans, rosters, contracts, etc.)','市区町村から通知が届いたら、監査対応に期日と立入調査の日を入れてください':'When a notice arrives from your municipality, enter the deadline and inspection date in Inspection Support','この園の監査の項目は、お送りいただいた前年度の監査の資料をもとに、私たち（Miralink の運営）が整えています。整うまでは、国の基準でよく求められる項目を並べています。整ったら、ここに「もとにした資料」が出て、一覧がこの園のものに変わります。初めて監査を受ける園は、このままお使いください。':'We (Miralink) are preparing this school\'s inspection items from the previous year\'s inspection documents you sent. Until then, the list shows items commonly required by national standards. When ready, the source document appears here and the list switches to this school\'s items. Schools facing their first inspection can use the list as is.'
 };
 
 /* ══ ことばの切り替え（日本語 ⇄ English）════════
@@ -22188,8 +22206,10 @@ function waGuideHTML(o,qr){
       +'<div class="wag-step"><div class="wag-no">2</div><div class="wag-b"><div class="wag-h">ログインする</div>'
         +'<p class="wag-t">次のメールアドレスとパスワードを入れてください。</p>'
         +'<div class="wag-id"><div><span>メールアドレス</span><b>'+esc(o.email||'')+'</b></div>'
-        +'<div><span>はじめのパスワード</span>'+(o.pw?'<b>'+esc(o.pw)+'</b>':'<i>園からお伝えしたもの</i>')+'</div></div>'
-        +'<p class="wag-s">※ はじめてログインしたときに、ご自身のパスワードに変えていただきます。</p></div></div>'
+        /* ★招待メールで入った（ご自身でパスワードを決めた）ご家庭にも「はじめのパスワード：園からお伝えしたもの」と出ていた。
+           o.own（もう変えてある＝must_change が下りている）のときは、ご自身で決めたものと書く（2026-11-16 安田さんのご指示） */
+        +'<div><span>'+(o.own?'パスワード':'はじめのパスワード')+'</span>'+(o.pw?'<b>'+esc(o.pw)+'</b>':'<i>'+(o.own?'ご自身で決めたもの':'園からお伝えしたもの')+'</i>')+'</div></div>'
+        +'<p class="wag-s">'+(o.own?'※ お忘れのときは、ログインの画面の「パスワードをお忘れですか？」から、メールで再設定できます。':'※ はじめてログインしたときに、ご自身のパスワードに変えていただきます。')+'</p></div></div>'
       +'<div class="wag-step"><div class="wag-no">3</div><div class="wag-b"><div class="wag-h">ホーム画面に置く</div>'
         +'<p class="wag-t">iPhone：Safari の共有ボタン →「ホーム画面に追加」<br>Android：Chrome のメニュー →「ホーム画面に追加」</p>'
         +'<p class="wag-s">次からは、アイコンを押すだけで開けます。</p></div></div>'
@@ -22445,7 +22465,7 @@ function waParentDraw(list){
   };});
   c.querySelectorAll('[data-paguide]').forEach(function(b){b.onclick=function(){
     var a=byId(b.getAttribute('data-paguide'));if(!a)return;
-    waGuideModal({cid:a.child_ref,email:a.email,pw:''});
+    waGuideModal({cid:a.child_ref,email:a.email,pw:'',own:a.must_change===false});
   };});
   c.querySelectorAll('[data-paoff]').forEach(function(b){b.onclick=function(){
     if(!confirm('この保護者アカウントを止めます。\n\n保護者は未来WAに入れなくなります。'
@@ -23334,6 +23354,7 @@ function leadInPeriod(c){
   return fyOf(dt)===dashFY;
 }
 function renderDash(){
+  setFillFromFacility();
   if(typeof spSeed==='function')spSeed();   /* ダッシュボードでも作る（起動時にも作っている） */
   var cs=DB.contacts,hist=DB.history,en=enrolled();
   var thanksDue=cs.filter(function(c){return c.kind==='lead'&&c.date===todayISO();});
@@ -23442,7 +23463,6 @@ function renderDash(){
       var phTxt=[];
       if(A.phUsed.indexOf('A')>-1)phTxt.push(A.aDue?('毎年の報告（運営状況報告）：'+fmt(A.aDue)+'まで'+(A.aLeft>=0?'（あと'+A.aLeft+'日）':'（期日を過ぎています）')):('毎年の報告（運営状況報告）：通知待ち'+(A.aPrev?'（前年度は'+fmt(A.aPrev)+'）':'')));
       if(A.phUsed.indexOf('B')>-1&&A.bDue)phTxt.push('立入調査の前に出す書類：'+fmt(A.bDue)+'まで'+(A.bLeft>=0?'（あと'+A.bLeft+'日）':'（期限を過ぎています）'));
-      var siteTxt='現場監査：'+(A.inSeason?'実施期間中（5〜11月・無通告／年1〜2回）':'期間外（5〜11月に実施）');
       var todayTxt=A.recMissing.length?('本日の記録が未入力：'+A.recMissing.join('・')):'本日の記録はすべて入力済み';
       var monTxt=A.monthly.length?('今月の未実施：'+A.monthly.join('・')):'';
       return '<div class="card" style="margin-bottom:16px;border-left:4px solid '+aph.color+';">'
@@ -23454,7 +23474,6 @@ function renderDash(){
           +'<div style="font-size:12.5px;line-height:1.9;">'
             +phTxt.map(function(t){return '<div>'+ic('send').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#3C3489;"')+' '+esc(t)+'</div>';}).join('')
             +'<div>'+ic('cal').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#185FA5;"')+' '+esc(docTxt)+'</div>'
-            +'<div>'+ic('alert').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;color:#854F0B;"')+' '+esc(siteTxt)+'</div>'
             +'<div style="color:'+(A.recMissing.length?'#A32D2D':'#27500A')+';">'+ic('activity').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;"')+' '+esc(todayTxt)+'</div>'
             +(monTxt?'<div style="color:#A32D2D;">'+ic('clock').replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;"')+' '+esc(monTxt)+'</div>':'')
             +(A.notYet.length?'<div class="muted">未着手：'+esc(A.notYet.slice(0,4).join('・'))+(A.notYet.length>4?' ほか'+(A.notYet.length-4)+'件':'')+'</div>':'')
@@ -23848,10 +23867,19 @@ function rosterNormDate(v){
 }
 
 function rosterNormDays(v){
-  var t=String(v||'').replace(/[\s,、]/g,'');
+  var t=String(v||'').replace(/[\s,、]/g,'').replace(/曜日?/g,'');
   if(!t)return '';
+  /* ★「月〜金」を、書いてある字だけ拾って「月・金」の2日にしていた。何も言わずに通園曜日が減っていた
+       （2026-11-15 ドライラン）。「〜」「~」「-」「ー」「から」で挟んだところは、あいだの曜日もすべて入れる。
+       「平日」は月〜金（2026-11-16 安田さんのご指示） */
+  if(/平日/.test(t))return WEEK5.join('・');
+  t=t.replace(/([月火水木金土日])(?:〜|～|~|-|－|ー|―|から)([月火水木金土日])/g,function(m,a,b){
+    var i=WEEK5.indexOf(a),j=WEEK5.indexOf(b);
+    if(i<0||j<0||j<i)return a+b;
+    return WEEK5.slice(i,j+1).join('');
+  });
   var out=WEEK5.filter(function(d){return t.indexOf(d)>-1;});
-  if(!out.length&&/毎日|全部|週5/.test(t))return WEEK5.join('・');
+  if(!out.length&&/毎日|全部|週5|週５/.test(t))return WEEK5.join('・');
   return out.join('・');
 }
 
@@ -23943,7 +23971,7 @@ function rosterShape(vals){
   if(all(function(x){return /^[0-9０-９\-‐ー()（）+ ]{9,}$/.test(x);}))return 'phone';
   if(all(function(x){var r=rosterNormSex(x);return r!==null&&r!=='';}))return 'sex';
   if(all(function(x){return CLASSES.indexOf(x)>-1||/(組|クラス)$/.test(x);}))return 'klass';
-  if(all(function(x){return x.length<=20&&/[月火水木金]/.test(x)&&!!rosterNormDays(x)&&!/[^月火水木金土日・、,\s曜毎全部週5５]/.test(x);}))return 'days';
+  if(all(function(x){return x.length<=20&&/[月火水木金]/.test(x)&&!!rosterNormDays(x)&&!/[^月火水木金土日・、,\s曜毎全部週5５〜～~\-－ーから平]/.test(x);}))return 'days';
   if(all(function(x){return /^[ぁ-んァ-ヶー\s　]+$/.test(x);}))return 'kana';
   if(all(function(x){return /^[0-9０-９]+$/.test(x);}))return 'number';
   if(all(function(x){return x.length<=20&&/[一-龠々]/.test(x);}))return 'name';
@@ -24142,7 +24170,9 @@ function rosterImportModal(){
        既定のまま・在園児もいない園は、既定を置き換える（使われていない Pre・Kinder を残さない） */
     var riNew=[];parsed.ng.forEach(function(x){var k=x.row&&x.row.klass;if(k&&CLASSES.indexOf(k)<0&&riNew.indexOf(k)<0)riNew.push(k);});
     if(riNew.length){
-      var riFresh=!((DB.settings||{}).classes||[]).length&&!enrolled().length;
+      /* 2026-11-16 新しい園には年齢のクラス（0歳児〜5歳児）が初めから入る（サーバ onboard.js）。それも使われていなければ置き換える */
+      var riCls0=((DB.settings||{}).classes||[]).join('|');
+      var riFresh=(!riCls0||riCls0==='0歳児|1歳児|2歳児|3歳児|4歳児|5歳児'||riCls0==='Pre|Kinder')&&!enrolled().length;
       r.insertAdjacentHTML('afterbegin','<div style="background:#F3EEFC;border-radius:10px;padding:10px 13px;margin-bottom:10px;font-size:12.5px;line-height:1.8;">'
         +'名簿に、まだ無いクラスがあります：<b>'+riNew.map(esc).join('・')+'</b>'
         +(riFresh?'<br><span class="muted">はじめから入っているクラス（'+CLASSES.map(esc).join('・')+'）は使われていないので、置き換えます。</span>':'')
@@ -28476,7 +28506,22 @@ function setupWarnHTML(){
     +'このまま配信や請求書を出すと、園名や連絡先が空欄のまま保護者に届きます。'
     +'下の「学校情報」に入れてから「保存」を押してください。</div></div>';
 }
+/* 申込で入れた園名・電話・所在地・担当者のメールを、設定の空いた欄に入れる（2026-11-16 安田さんのご指示）。
+   ★申込のときに書いてもらい、運営が施設管理（facility.info）にも入れているのに、設定の「学校情報」は空のままで、
+     ログインすると「園の基本情報が未設定です」と出て、同じことを打ち直させていた（2026-11-15 ドライラン）。
+   空いている欄だけ。園が入れた値・消した値は上書きしない（1回入れたら印を付けて、二度と入れない） */
+function setFillFromFacility(){
+  try{
+    if(stGet('setFilledFromFac',false))return;
+    var fi=(stGet('facility',{})||{}).info||{};
+    if(!fi.name)return;
+    var put=function(k,v){if(v&&!String(SET[k]||'').trim())SET[k]=v;};
+    put('school',fi.name);put('tel',fi.tel);put('address',fi.address);put('sender',fi.mail);
+    DB.settings=SET;stSet('setFilledFromFac',true);
+  }catch(e){}
+}
 function renderSettings(){
+  setFillFromFacility();
   var s=$('section[data-page="settings"]');
   /* ph は、まだ何も入っていないときに薄く出す案内。何を書けばよいかが分かるようにする */
   function f(id,lab,val,ph){
@@ -29144,7 +29189,7 @@ function renderAudit(){
     /* ★2026-11-15「書類監査」の日の欄を、出す時期（A 毎年の報告・B 事前提出・C 立入調査の当日）のカードに置きかえた。
        立入調査の日（C）は、これまでの監査日（auditDates）をそのまま使う */
     auditPhaseCardHTML(fy,stt)+
-    '<div class="card" style="margin-bottom:16px;"><h3>'+ic('alert')+'現場監査</h3><div class="muted">指定期間（5〜11月）に<b>無通告</b>で実施。年1〜2回。いつ来てもいいよう、運営中に揃える記録を常に整えておく。</div></div>'+
+
     '<div class="card" style="margin-bottom:16px;"><h3>'+ic('clipboard')+fy+'年度の準備状況</h3>'+
       '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;"><div><div style="font-size:24px;font-weight:600;">'+done+' / '+tot+'</div><div class="muted">全体 済</div></div><div><div style="font-size:24px;font-weight:600;color:#185FA5;">'+preDone+' / '+pre.length+'</div><div class="muted">年度前に準備</div></div><div><div style="font-size:24px;font-weight:600;color:#854F0B;">'+opeDone+' / '+ope.length+'</div><div class="muted">運営中に揃える</div></div></div>'+
       '<div class="pbar"><div style="width:'+Math.round(done/tot*100)+'%"></div></div>'+
@@ -30841,7 +30886,9 @@ function edTouen(){
   /* クラスや出欠をタップすると画面を描き直すので、そのクラスの記入用紙を印刷できるようカードを付け直す */
   attachRecPaperCard(d);
   /* 与薬の記録（2026-11-13）。使う園だけ */
-  if(yoyakuOn()){$('#recBody').insertAdjacentHTML('beforeend',yoyakuCardHTML(recDate));yoyakuWire(recDate);}
+  /* ★与薬のカードは、保存の鍵（lockDisable）をかけたあとに付けていたので、登園を保存したあとでも与薬だけ書き換えられた
+       （2026-11-16 マニュアルの確かめで発見）。登園の記録と同じ鍵をかける */
+  if(yoyakuOn()){$('#recBody').insertAdjacentHTML('beforeend',yoyakuCardHTML(recDate));yoyakuWire(recDate,d);}
   try{tidyNotes(document.querySelector('#recBody'));}catch(e){}
   /* 保護者があとから押した登園・降園を取りに行く（1分に1回まで） */
   try{touenCheckinRefresh();}catch(e){}
@@ -30876,10 +30923,11 @@ function yoyakuCardHTML(date){
       :'<div class="row-sub" style="padding:4px 0;">この日の記録はありません。</div>')
     +'<button type="button" class="btn btn-sm" id="yoyakuAdd" style="margin-top:6px;">'+ic('plus')+'与薬を足す</button></div>';
 }
-function yoyakuWire(date){
+function yoyakuWire(date,lockD){
   var c=$('#yoyakuCard');if(!c)return;
   var d=yoyakuDay(date);
-  function rer(){var o=$('#yoyakuCard');if(o){o.outerHTML=yoyakuCardHTML(date);yoyakuWire(date);}}
+  function rer(){var o=$('#yoyakuCard');if(o){o.outerHTML=yoyakuCardHTML(date);yoyakuWire(date,lockD);}}
+  if(lockD&&typeof lockDisable==='function')lockDisable(c,lockD);
   c.querySelectorAll('[data-yy]').forEach(function(x){x.onchange=function(){var p=x.getAttribute('data-yy').split('|');if(!d.rows[+p[0]])return;d.rows[+p[0]][p[1]]=x.value;stampWho(d);yoyakuSave(date,d);if(p[1]==='kid'||p[1]==='by'||p[1]==='chk')rer();};});
   c.querySelectorAll('[data-yyc]').forEach(function(x){x.onchange=function(){var r=d.rows[+x.getAttribute('data-yyc')];if(!r)return;r.irai=x.checked;yoyakuSave(date,d);rer();};});
   c.querySelectorAll('[data-yydel]').forEach(function(b){b.onclick=function(){if(!confirm('この与薬の記録を消しますか？'))return;d.rows.splice(+b.getAttribute('data-yydel'),1);yoyakuSave(date,d);rer();};});
@@ -44250,25 +44298,32 @@ function obHomeHTML(){
     API.call('GET','/onboarding').then(function(j){var was=JSON.stringify(OB_ME);OB_ME=j;
       if(JSON.stringify(OB_ME)!==was&&document.querySelector('section[data-page="home"]:not([hidden])'))renderHome();}).catch(function(){});}
   if(!OB_ME||!OB_ME.tracked)return '';
-  var L=OB_ME.steps||[];
-  var fin=function(x){return x.status==='done'||x.status==='skipped';};
-  var left=L.filter(function(x){return !fin(x);});
+  /* ★ホームの一覧はサーバの手順（7つ・契約書なし・「職員が初めてログインする」など運営が見守るものも入る）を、
+       案内の窓は契約書を入れた6つを並べていて、数も順番も違っていた。ホームでは契約の前に「つぎは これ：支払い方法」と出ていた
+       （2026-11-15 ドライラン）。ホームも案内の窓と同じ手順（obwSteps）・同じ済の決め方（obwDone）で並べる（2026-11-16 安田さんのご指示） */
+  var L=obwSteps().filter(function(x){return x.k!=='welcome'&&x.k!=='done';});
+  var left=L.filter(function(x){return !obwDone(x);});
   if(!left.length)return '';
   var n=L.length-left.length, pct=Math.round(n/L.length*100);
-  /* つぎは これ：必須でまだのもののうち、園がボタンで進められる最初のもの */
-  var nx=left.filter(function(x){return x.required&&OB_GO[x.key]&&OB_GO[x.key][0];})[0]||left.filter(function(x){return x.required;})[0]||left[0];
-  var g0=OB_GO[nx.key]||[];
+  var goOf=function(x){
+    if(x.k==='agree')return ['agree','契約書を読む','運営からの契約書を読んで、同意します。同意できるのは管理者だけです。'];
+    var g=OB_GO[x.k]||[];return [g[0]||x.go||'',g[1]||x.btn||'',g[2]||x.d||''];
+  };
+  /* つぎは これ：まだの手順のうち、任意でない最初のもの（案内の窓と同じ順） */
+  var nx=left.filter(function(x){return !x.opt;})[0]||left[0], g0=goOf(nx);
+  var btn=function(g,big){if(!g[0])return '';
+    return g[0]==='agree'?'<button class="btn '+(big?'btn-primary':'btn-sm')+'" data-obwopen="1"><span>'+esc(g[1])+'</span> →</button>'
+      :'<button class="btn '+(big?'btn-primary':'btn-sm')+'" data-obgo="'+g[0]+'"><span>'+esc(g[1])+'</span> →</button>';};
   return '<div class="card obh" style="margin-bottom:12px;padding:16px 18px;">'
     +'<div class="obhHead"><b style="font-size:15px;">はじめの準備</b><button class="btn btn-sm" data-obwopen="1" style="order:9;margin-left:auto;">案内に沿って進める →</button><span class="obhN">'+n+' / '+L.length+' 終わりました</span>'
     +'<span class="obhBar"><i style="width:'+pct+'%;"></i></span></div>'
-    +'<div class="obhNext"><div style="flex:1;min-width:200px;"><div class="obhNextL">つぎは これ</div><div class="obhNextT">'+esc(obLabel(nx))+'</div>'
-    +'<div class="muted" style="font-size:12px;">'+esc(g0[2]||nx.help||'')+'</div></div>'
-    +(g0[0]?'<button class="btn btn-primary" data-obgo="'+g0[0]+'"><span>'+esc(g0[1])+'</span> →</button>':'')+'</div>'
-    +L.map(function(x){var ok=fin(x), g=OB_GO[x.key]||[];
+    +'<div class="obhNext"><div style="flex:1;min-width:200px;"><div class="obhNextL">つぎは これ</div><div class="obhNextT">'+esc(nx.t)+'</div>'
+    +'<div class="muted" style="font-size:12px;">'+esc(g0[2])+'</div></div>'+btn(g0,true)+'</div>'
+    +L.map(function(x){var ok=obwDone(x), g=goOf(x);
       return '<div class="obhRow'+(ok?' fin':'')+'"><span class="obhMark'+(ok?' on':'')+'">'+(ok?'✓':'')+'</span>'
-        +'<span style="flex:1;min-width:160px;"><span class="obhLbl">'+esc(obLabel(x))+'</span>'+(x.required?'':' <span class="muted" style="font-size:11px;">任意</span>')
-        +(ok?'':'<div class="muted" style="font-size:11.5px;">'+esc(g[2]||x.help||'')+'</div>')+'</span>'
-        +(!ok&&g[0]?'<button class="btn btn-sm" data-obgo="'+g[0]+'"><span>'+esc(g[1])+'</span> →</button>':'')+'</div>';
+        +'<span style="flex:1;min-width:160px;"><span class="obhLbl">'+esc(x.t)+'</span>'+(x.opt?' <span class="muted" style="font-size:11px;">任意</span>':'')
+        +(ok?'':'<div class="muted" style="font-size:11.5px;">'+esc(g[2])+'</div>')+'</span>'
+        +(!ok?btn(g,false):'')+'</div>';
     }).join('')
     +'<div class="muted" style="font-size:11.5px;margin-top:8px;">終わると自動でチェックが付きます。Miralink の担当にも進み具合が届いています。</div></div>';
 }
@@ -44427,6 +44482,10 @@ function obwMaybe(){
   if(!agreeOnline()||(typeof currentRole==='function'&&currentRole()!=='管理者'))return;
   if(!obwLeft().length){var p=document.getElementById('obwPill');if(p)p.remove();return;}
   if(OBW.el)return;
+  /* 契約書の窓が開いているあいだは、案内の窓を重ねない（閉じたあと、ホームを描き直すときに出る） */
+  if(document.querySelector('.modal-bg[data-agid]'))return;
+  /* メールのリンクから来て、これから契約書を開くところなら、案内の窓は出さない（契約書が先） */
+  if(!AGR_DEEP_DONE&&/[?&]agree=\d+/.test(deepQuery()))return;
   if(!document.querySelector('section[data-page="home"]:not([hidden])'))return;
   if(sessGet('obw_later')){if(!document.getElementById('obwPill'))obwPill();return;}
   obwOpen();
@@ -44448,6 +44507,9 @@ var AGR_DEEP_DONE=false;
 function agreeDeepOpen(){
   if(AGR_DEEP_DONE)return;
   var m=deepQuery().match(/[?&]agree=(\d+)/);if(!m)return;
+  /* ★はじめてのログインでは、パスワードの変更の窓の上に契約書が重なって開いていた（2026-11-16 確かめ直し）。
+       パスワードを変えてから開く */
+  if(typeof mustChangeOn==='function'&&mustChangeOn()){setTimeout(agreeDeepOpen,1500);return;}
   AGR_DEEP_DONE=true;
   try{var u=new URL(location.href);u.searchParams.delete('agree');
     u.hash=String(u.hash||'').replace(/([?&])agree=\d+&?/,'$1').replace(/[?&]$/,'');
@@ -44507,10 +44569,20 @@ function agreeBodyHTML(b,form){
   (b.tail||[]).forEach(function(a){h+='<h4 style="margin:12px 0 6px;">'+esc(a.h)+'</h4>';(a.b||[]).forEach(function(x){P(x);});});
   return h;
 }
+/* ★メールのリンク（?agree=）から入ると、ログインのあとの自動で開く分と、「はじめの準備」から押した分で、
+     同じ書類の窓が2枚重なって開いていた。下の窓に書いても上の窓の「同意する」が「氏名と役職を入れてください」と断る
+     （2026-11-15 ドライラン）。同じ書類の窓が開いている・開きかけのあいだは、もう開かない（2026-11-16 安田さんのご指示） */
+var AGR_OPENING={};
+/* 確認コードは、同じ宛先に届いた書類すべてに30分使える（サーバ agree.js）。最後に使えたコードを覚えておき、次の書類に入れておく */
+var AGR_CODE={code:'',at:0};
 function agreeOpen(id){
+  if(AGR_OPENING[id]||document.querySelector('.modal-bg[data-agid="'+id+'"]'))return;
+  AGR_OPENING[id]=1;
   API.call('GET','/contracts/'+id).then(function(j){
+    delete AGR_OPENING[id];
+    if(document.querySelector('.modal-bg[data-agid="'+id+'"]'))return;
     var d=j.doc,b=d.body||{},read=false;
-    var m=document.createElement('div');m.className='modal-bg';
+    var m=document.createElement('div');m.className='modal-bg';m.setAttribute('data-agid',String(id));
     m.innerHTML='<div class="modal" style="max-width:760px;width:96vw;"><h3 style="margin-top:0;">'+esc(d.title)+'（第'+esc(d.version)+'版）</h3>'
       +'<div class="muted" style="font-size:12px;margin:-4px 0 10px;">下の枠を最後までお読みください。最後まで表示すると、同意の欄が使えるようになります。</div>'
       +'<div id="agBody" style="border:1px solid var(--line);border-radius:10px;padding:14px 16px;max-height:38vh;overflow-y:auto;font-size:13px;line-height:1.85;">'+agreeBodyHTML(b,d.form)
@@ -44518,8 +44590,9 @@ function agreeOpen(id){
       +'<div id="agForm" style="margin-top:12px;opacity:.45;pointer-events:none;">'
       +(d.checks.length?'<div style="font-weight:700;font-size:13px;margin-bottom:6px;">重要な条件の確認</div>'+d.checks.map(function(c){return '<label style="display:block;font-size:12.5px;margin:0 0 6px;"><input type="checkbox" data-agchk="'+esc(c.key)+'"> '+esc(c.label)+'</label>';}).join(''):'')
       +'<label style="display:block;font-size:12.5px;margin:8px 0;"><input type="checkbox" id="agAuth"> '+esc(j.consentText)+'</label>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;"><div class="field" style="flex:1;min-width:160px;"><label>氏名</label><input id="agName" maxlength="60"></div><div class="field" style="flex:1;min-width:140px;"><label>役職</label><input id="agTitle" maxlength="60" placeholder="園長"></div></div>'
-      +(j.otp?'<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field" style="flex:1;min-width:160px;"><label>メールの確認コード（6けた）</label><input id="agCode" inputmode="numeric" maxlength="6"></div><button class="btn btn-sm" id="agOtp">確認コードを送る</button></div>':'')
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;"><div class="field" style="flex:1;min-width:160px;"><label>氏名</label><input id="agName" maxlength="60" value="'+esc(agreeSignerName())+'"></div><div class="field" style="flex:1;min-width:140px;"><label>役職（例：園長・理事長）</label><input id="agTitle" maxlength="60" value="'+esc(AGR_SIGNER.title||'')+'"></div></div>'
+      +(j.otp?'<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field" style="flex:1;min-width:160px;"><label>メールの確認コード（6けた）</label><input id="agCode" inputmode="numeric" maxlength="6" value="'+esc(agreeCodeNow())+'"></div><button class="btn btn-sm" id="agOtp">確認コードを送る</button></div>'
+        +(agreeCodeNow()?'<div class="muted" style="font-size:12px;">さきほどの確認コードを入れてあります（30分のあいだ、届いている書類すべてに使えます）。</div>':''):'')
       +'<div id="agMsg" class="muted" style="font-size:12px;min-height:16px;margin-top:6px;"></div></div>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;"><button class="btn" id="agNo">あとで</button><button class="btn btn-primary" id="agGo" disabled>同意する</button></div>'
       +'<div class="muted" style="font-size:11px;margin-top:8px;">この同意は「同意と証跡」による締結です（電子署名ではありません）。誰が・いつ・どの版に同意したかと文書の指紋を記録し、PDFでお渡しします。</div></div>';
@@ -44530,19 +44603,25 @@ function agreeOpen(id){
     var unlock=function(){if(read)return;if(box.scrollTop+box.clientHeight>=box.scrollHeight-8){read=true;form.style.opacity='1';form.style.pointerEvents='auto';go.disabled=false;}};
     box.addEventListener('scroll',unlock);setTimeout(unlock,300);
     var otp=m.querySelector('#agOtp');
-    if(otp)otp.onclick=function(){otp.disabled=true;API.call('POST','/contracts/'+id+'/otp',{}).then(function(r){msg.textContent=langMsg?langMsg('確認コードを送りました：')+r.sentTo:'確認コードを送りました：'+r.sentTo;}).catch(function(e){msg.textContent=e.message;otp.disabled=false;});};
+    if(otp)otp.onclick=function(){otp.disabled=true;API.call('POST','/contracts/'+id+'/otp',{}).then(function(r){msg.textContent=(langMsg?langMsg('確認コードを送りました：'):'確認コードを送りました：')+r.sentTo+((r.docs||0)>1?(langMsg?langMsg('（届いている書類すべてに使えます）'):'（届いている書類すべてに使えます）'):'');}).catch(function(e){msg.textContent=e.message;otp.disabled=false;});};
     go.onclick=function(){
       var checks=[].map.call(m.querySelectorAll('[data-agchk]:checked'),function(x){return x.getAttribute('data-agchk');});
       var picks={};[].forEach.call(m.querySelectorAll('[data-agpick]'),function(x){picks[x.getAttribute('data-agpick')]=!!x.checked;});
       var body={hash:d.hash,readToEnd:read,checks:checks,authority:m.querySelector('#agAuth').checked,name:m.querySelector('#agName').value.trim(),title:m.querySelector('#agTitle').value.trim(),picks:d.form?picks:null};
       if(m.querySelector('#agCode'))body.code=m.querySelector('#agCode').value.trim();
       go.disabled=true;msg.textContent='記録しています…';
-      API.call('POST','/contracts/'+id+'/accept',body).then(function(){close();AGR_AT=0;alert('同意を記録しました。同意の記録つきのPDFは「設定 › 契約」から取り出せます。');
+      API.call('POST','/contracts/'+id+'/accept',body).then(function(){close();AGR_AT=0;
+        AGR_SIGNER={name:body.name,title:body.title};if(body.code)AGR_CODE={code:body.code,at:Date.now()};alert('同意を記録しました。同意の記録つきのPDFは「設定 › 契約」から取り出せます。');
         agreeLoad(function(){if(typeof renderHome==='function'&&document.querySelector('section[data-page="home"]:not([hidden])'))renderHome();});})
         .catch(function(e){msg.textContent=e.message;go.disabled=false;});
     };
-  }).catch(function(e){alert(e.message);});
+  }).catch(function(e){delete AGR_OPENING[id];alert(e.message);});
 }
+/* 同意した人の氏名と役職は、次の書類にも入れておく。はじめは、ログインしている人の名前
+   ★役職の欄に薄い字で「園長」が出ていたので、入っているように見えて空のまま押し、「氏名と役職を入れてください」と返されていた（2026-11-15 ドライラン） */
+var AGR_SIGNER={name:'',title:''};
+function agreeSignerName(){if(AGR_SIGNER.name)return AGR_SIGNER.name;var s=(typeof currentStaff==='function')?currentStaff():null;return (s&&s.name&&s.name!=='管理者')?s.name:'';}
+function agreeCodeNow(){return (AGR_CODE.code&&Date.now()-AGR_CODE.at<29*60*1000)?AGR_CODE.code:'';}
 function renderSupportAccess(s){
   if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token()))return;
   var box=document.createElement('div');box.className='card';box.style.marginBottom='16px';
