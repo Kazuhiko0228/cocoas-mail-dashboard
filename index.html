@@ -233,6 +233,15 @@ html.px-on [data-agopen],html.px-on #spayCard1,html.px-on #tuiStart,html.px-on [
   .app{display:flex;min-height:100vh;}
   .sidebar{width:248px;background:linear-gradient(180deg,#04283A 0%,#063E5F 46%,#0A5478 100%);color:#DCEAF4;flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
   .brand{padding:16px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08);}
+  /* ロゴを押すとホーム（2026-11-26 Remi さん） */
+  .brand .eglogo-home{cursor:pointer;border-radius:10px;}
+  .brand .eglogo-home:focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
+  .nav .navmk{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  .nav .navmk svg{width:20px;height:20px;}
+  .nav .navfile{position:relative;width:20px;height:20px;display:inline-flex;flex:none;}
+  .nav .navfile svg{width:20px;height:20px;}
+  .nav .navfile i{position:absolute;right:-7px;top:-8px;font-style:normal;font-size:11px;line-height:1;}
+  .nav .navnew{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.04em;color:#fff;background:#CA3589;border-radius:99px;padding:2px 7px;line-height:1.4;}
   .brand .sub{font-size:13px;color:#fff;font-weight:600;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   /* メニューの開け閉め。
@@ -2492,9 +2501,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
       <div class="sub" id="brandSchool"></div>
     </div>
     <nav class="nav" id="nav">
-      <a data-go="home" class="active">{ic:home}ホーム</a>
+      <!-- ★「ホーム」の行は外し、上の Miralink のロゴを押すとホームに戻る形にした（2026-11-26 Remi さん）。
+           並びは上から Miralinkメニュー（Miralink のしるし）・Miralink SI・Miralink File（NEW） -->
+      <a data-go="menu"><span class="navmk" aria-hidden="true"></span>Miralinkメニュー</a>
       <a data-go="aiplan">{ic:spark}Miralink SI</a>
-      <a data-go="menu">{ic:grid}メニュー</a>
+      <a data-go="guide"><span class="navfile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z"/><path d="M13.5 3v5.5H19"/><path d="M8.5 13h7M8.5 16.5h5"/></svg><i>✨</i></span>Miralink File<span class="navnew">NEW</span></a>
     </nav>
     <div class="side-foot" id="sideFoot"></div>
   </aside>
@@ -7034,7 +7045,7 @@ expandIcons(document.querySelector('.topbar'));
   shade.onclick=function(){ setOff(true); };
   /* 狭い画面では、行き先を選んだら閉じる（かぶさったままだと先が読めない） */
   document.addEventListener('click',function(e){
-    var a=e.target&&e.target.closest?e.target.closest('.nav a[data-go]'):null;
+    var a=e.target&&e.target.closest?e.target.closest('.nav a[data-go],.eglogo-home'):null;
     if(a&&narrow())setOff(true);
   });
 })();
@@ -7386,7 +7397,7 @@ function buildNav(){
      2026-09-12 に「メニュー」を足したので、こちらも残す。
      残さないと、組み直したとたんにメニューへの道が消える。 */
   /* ★Miralink AI はメインで使うので、カリキュラムの組からホームのすぐ下へ移した（2026-09-27 安田さんのご指示） */
-  var keep=[].slice.call(nav.querySelectorAll('a[data-go="home"],a[data-go="aiplan"],a[data-go="menu"]'));
+  var keep=[].slice.call(nav.querySelectorAll('a[data-go="menu"],a[data-go="aiplan"],a[data-go="guide"]'));
   nav.innerHTML='';
   keep.forEach(function(a){nav.appendChild(a);});
   /* 中の機能をひらいたままにしておくマスの控え。控えが無いときは全部ひらく */
@@ -8265,11 +8276,13 @@ var EG_NAV=[
       画面そのもの（TITLES・描き分け・権限の名前）は、古い道筋が迷子にならないように残してある。 */
    /* ★QR登降園を「登園・退園」の名前で、毎日記録の中から1段上に出した（2026-09-30 安田さんのご指示）。
       玄関の端末で全画面にして使う。絵は Miralink のアイコンの ic:10（ドアと矢印） */
-   {k:'touen',  l:'登園・退園', i:'ic:10',si:'door', c:'#0B5F8F', bg:'#E3F1F9', p:'qrtouen'},
+   /* ★サイドバー・メニューからは外し、ホームの紫の帯のボタンにした（2026-11-26 Remi さん「日常チェック内の枠ではなく、ホームの紫タブ内に」）。
+      権限と画面はそのまま。ここに残すのは、画面の名前と権限の判定のため */
+   {k:'touen',  l:'登園・退園', i:'ic:10',si:'door', c:'#0B5F8F', bg:'#E3F1F9', p:'qrtouen', navHide:true, homeHide:true},
    /* ★打刻（タイムカード）は職員情報の組（管理者・園長だけ）に入っていたので、先生のサイドバーにもメニューにも出ず、
       自分で出勤・退勤を押せなかった（2026-10-08 網羅チェックで発見）。権限（一般・主任の timecard）はもともとあった。
       画面は暗証番号の入力だけで、ほかの職員の記録（打刻のずれ・暗証番号の配り方）は園長・管理者にしか出さない */
-   {k:'tc',     l:'打刻（タイムカード）', i:'ic:70',si:'clock', c:'#5B6875', bg:'#F1EFE8', p:'timecard'},
+   {k:'tc',     l:'打刻（タイムカード）', i:'ic:70',si:'clock', c:'#5B6875', bg:'#F1EFE8', p:'timecard', navHide:true, homeHide:true},
    {k:'kiroku', l:'毎日記録', i:'ic:65',si:'clipboard', c:'#0B5F8F', bg:'#E3F1F9', sub:[
      /* ★中に「日常チェック」の1行しか出していなかったので（image10・image12）、
         毎日つける3つの記録（登園（出席）・安全点検・保育日誌・業務日報）へ行く道が、
@@ -8365,7 +8378,8 @@ var EG_NAV=[
  ]},
  {cat:'スクール情報',items:[
    {k:'facility', l:'スクール情報（園の基本情報）', i:'ic:42',si:'home', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
-   {k:'guide',    l:'ガイダンス資料', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide'},
+   /* 「ガイダンス資料」→「Miralink File」（2026-11-26 Remi さん）。サイドバーでは上の3つの行に出すので navHide */
+   {k:'guide',    l:'Miralink File', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide', navHide:true},
    /* ガイダンス資料は先生も見る。書類格納の中身は監査書類なので園長・管理者の行にし、監査書類の一覧を直接開く（2026-09-14 統合） */
    {k:'docs',     l:'監査書類の格納', i:'ic:43',si:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs', boss:true, tab:'audit'},
    {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true}
@@ -12911,7 +12925,7 @@ var HOME_GROUPS=[
     {p:'wastore',i:'cast',l:'未来WA',c:'#C43478',bg:'#FDECF4'}
   ]},
   {t:'記録・書類',items:[
-    {p:'guide',i:'book',l:'スクールガイド',c:'#123E6B',bg:'#E6F1FB'},
+    {p:'guide',i:'book',l:'Miralink File',c:'#123E6B',bg:'#E6F1FB'},
     {p:'curriculum',i:'book',l:'カリキュラム',c:'#27500A',bg:'#EAF3DE'},
     {p:'drill',i:'shield',l:'避難訓練',c:'#123E6B',bg:'#E6F1FB'},
     {p:'bouka',i:'alert',l:'研修・訓練',c:'#854F0B',bg:'#FAEEDA'},
@@ -13062,7 +13076,9 @@ function renderHome(){
     +'<div class="hh"><h2>'+esc(schoolNameFixed()||'')+'</h2></div>'
     +'<div class="hcd" data-nolang="1">'+homeDateHTML(pT,wd)+'</div>'
     +'<div class="hct" id="hmClock">--:--<small>AM</small></div>'
-    +'<div class="hstat"><button class="btn btn-sm" id="hmFeed">'+ic('edit')+'個人連絡を書く</button></div>'
+    /* ★「個人連絡を書く」は外し（連絡・配信のマスがあるため）、登園・退園と打刻をここに置いた（2026-11-26 Remi さん）。
+       見られない役職には出さない */
+    +homeHeroBtns()
     +'</div>'
     +'<div class="htoday"><div class="ht">本日のタスク</div>'
     +(tdRows||'<div class="row"><span class="tx">きょうのタスクはありません</span></div>')
@@ -13148,7 +13164,7 @@ function renderHome(){
     +homeBoardHTML()+homeDailyHTML()+homeAdsHTML()+homeParentHTML()
     +'</div>';
   s.innerHTML=html;
-  var hfd=$('#hmFeed'); if(hfd)hfd.onclick=function(){go('feed');};
+  s.querySelectorAll('[data-hgo]').forEach(function(b){b.onclick=function(){go(b.getAttribute('data-hgo'));};});
   absCopyWire();
   homeBoardWire();
   homeParentWire();
@@ -13501,6 +13517,7 @@ var EN_DICT={
 'きょうのボード':'Today’s Board','連絡ボード':'Message Board',
 'ここを押して、今日の申し送りを書けます':'Tap here to write today’s handover',
 '共有':'Shared',
+'Miralinkメニュー':'Miralink Menu',
 '個人宛':'Direct',
 '連絡ボードに書く':'Post to the board',
 '園の中だけで見えます。保護者には届きません。':'Visible to staff only. Not sent to parents.',
@@ -21524,6 +21541,15 @@ function homeClockHTML(){
 /* ── 連絡ボード（園の中の申し送り）──────────
    保護者には届かない。園の職員どうしの覚え書き。
    保育記録の確定とは別物なので、あとから自由に直せる。 */
+/* 紫の帯のボタン（登園・退園／打刻）。見られない役職・プランでは出さない */
+function homeHeroBtns(){
+  var L=[['qrtouen','door','登園・退園'],['timecard','clock','打刻']].filter(function(x){
+    try{if(typeof canView==='function'&&!canView(x[0]))return false;}catch(e){}
+    try{if(typeof egHasPage==='function'&&!egHasPage(x[0]))return false;}catch(e){}
+    return true;});
+  if(!L.length)return '';
+  return '<div class="hstat">'+L.map(function(x){return '<button class="btn btn-sm" data-hgo="'+x[0]+'">'+ic(x[1])+x[2]+'</button>';}).join('')+'</div>';
+}
 function homeBoardAll(){var a=stGet('homeBoard',[]);return (a&&a.length)?a:[];}
 /* ── 日本時間 ─────────────────────────────
    ★申し送りの時刻を new Date().toISOString() で作っていた。これは世界標準時なので、
@@ -47279,6 +47305,13 @@ function egBrandPaint(){
     bd.insertBefore(box,bd.firstChild);
     box.innerHTML=egLogo(EG_LOGO_PLAN,'light',44);
     egLogoFix(box);
+    /* ★サイドバーの「ホーム」の行を外したので、ロゴを押すとホームへ戻る（2026-11-26 Remi さん） */
+    box.className='eglogo-home';box.setAttribute('role','link');box.setAttribute('tabindex','0');box.title='ホーム';
+    box.onclick=function(){go('home');};
+    box.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();box.onclick();}};
+    /* メニューの行の左に、Miralink のしるしだけを小さく置く */
+    var mk=document.querySelector('.nav .navmk');
+    if(mk&&!mk.firstChild){mk.innerHTML=egLogoMark(EG_LOGO_PLAN,'light',20);egLogoFix(mk);}
   }catch(e){}
 }
 /* ホームの帯の右はしに、小さな絵を1組だけ置く */
