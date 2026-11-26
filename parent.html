@@ -392,7 +392,7 @@
     border:1px solid var(--line);background:var(--card);color:var(--tx2);cursor:pointer;}
   .pact:hover{background:var(--line2);}
   .pact.on{border-color:var(--o);color:var(--o);background:#FFF6EE;}
-  /* スクールガイド */
+  /* Miralink File（旧スクールガイド） */
   .guide-row{display:flex;gap:12px;align-items:flex-start;cursor:pointer;}
   .guide-row:hover{border-color:var(--b);}
   .guide-row .pgo{align-self:center;}
@@ -401,6 +401,32 @@
   .gicon.f{background:#FDF1E3;}
   .gpoints{margin:13px 0 0;padding-left:19px;font-size:13.5px;line-height:1.9;}
   .gpoints li{margin-bottom:5px;}
+  /* Miralink File の一覧・詳細・原本の表示（2026-11-26） */
+  .mfsnip{margin-top:4px;font-size:12.5px;line-height:1.6;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
+  .mfh{margin-top:15px;font-size:12px;font-weight:800;color:var(--tx2);letter-spacing:.04em;}
+  .mftx{margin-top:5px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-break:break-word;}
+  .mfsub-r{display:flex;gap:10px;margin-top:6px;font-size:13.5px;line-height:1.65;word-break:break-word;}
+  .mfsub-k{flex:0 0 4.5em;color:var(--tx2);font-weight:700;font-size:12.5px;padding-top:1px;}
+  .mfbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0 10px;}
+  .mfseg{flex:1 1 160px;margin-bottom:0;}
+  .mfprint{flex:0 0 auto;width:auto;min-height:44px;padding:0 16px;}
+  .mfview{display:flex;flex-direction:column;gap:12px;margin-bottom:16px;}
+  .mfpg{position:relative;width:100%;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden;line-height:0;}
+  .mfpg canvas,.mfpg img{display:block;width:100%;height:auto;}
+  .mfmk{position:absolute;display:none;color:#D7191C;line-height:1.35;white-space:pre-wrap;word-break:break-word;pointer-events:none;
+    font-family:"Hiragino Sans","Yu Gothic",sans-serif;}
+  .mfview.ex .mfmk{display:block;}
+  .mfsi-row{display:flex;gap:8px;margin-top:10px;}
+  .mfsi-row input{flex:1;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;}
+  .mfsi-row .btn{flex:0 0 auto;width:auto;padding:0 14px;min-height:44px;white-space:nowrap;}
+  .scroll .mfsi-row .btn,.scroll .mfprint{min-width:0;}
+  .mfsi-ans{margin-top:11px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-break:break-word;}
+  .mfsi-urg{margin-top:11px;background:#FDECEC;color:#9B1C1C;border:1.5px solid #E7A3A3;border-radius:12px;padding:12px 13px;
+    font-size:15px;font-weight:700;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
+  .mfsi-docs{display:flex;flex-direction:column;gap:7px;margin-top:10px;}
+  .mfsi-doc{display:flex;align-items:center;gap:8px;text-align:left;font:inherit;font-size:13.5px;font-weight:700;min-height:44px;
+    padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:inherit;cursor:pointer;}
+  .mfsi-doc span:first-child{flex:1;min-width:0;}
   /* スマホのブラウザは画面の中にPDFを出せないので、そこでは埋め込みを隠す。
      ★767px までで区切っていたので、iPad の縦（768〜1024px）では
        埋め込みの枠だけが白いまま残り、開けない四角が出ていた。
@@ -902,9 +928,10 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
    接続先があるときのログインは必ず園に確かめるので、この端末の中だけで入る見本の道は通らない。
    history・studentProfiles・bmShared は園から届かない鍵（職員の画面だけのもの）。つながっているときは読まない。
    園から届く鍵を増やしたら（園の記録の側の parent.js の PARENT_READ）、ここにも足す。
+   mfile（Miralink File）は 2026-11-26 に足した。足さないと、園から届いても共用の名前を読みに行き、一覧が空のままになる。
    保護者ご自身が書く鍵（WA_SEND）は、もともと未来WA だけの名前なので、ここには入れない。 */
 var WA_SRV_PFX='cocoas_wa_srv_';
-var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|contactPhotos|renrakuForm|pcal|dbsSoudan|dbsSurvey|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
+var WA_SRV_KEY=/^(settings|contacts|invoices|dmThreads|posts|campaign|sns|guide_extra|guide_files|mfile|contactPhotos|renrakuForm|pcal|dbsSoudan|dbsSurvey|rec_.+|wa_products|wa_sellers|wa_events|wa_settings|wa_order_recv|wa_posts|wa_events_user|wa_comms_user|history|studentProfiles|bmShared)$/;
 function waSrvOn(){
   /* WAPI.enabled（接続先が入っているか）と同じ見方を、保存の中身から直に読む。
      WAPI はこのずっと後ろで作るので、起動の途中（同意の鍵の写し替えなど）で WAPI に頼ると、
@@ -1676,7 +1703,7 @@ function consentHTML(){
       +'<div style="font-size:13.5px;line-height:1.9;">'
       +'未来WAは、園から保護者の方へお届けするための保育コミュニティサービスです。<br><br>'
       +'提携園にご通園のご家庭には、園からのおたより、園からの個人メッセージ、'
-      +'出欠・連絡、成長の記録、スクールガイド、イベントのお知らせが、提携園から共有されます。'
+      +'出欠・連絡、成長の記録、Miralink File（園からの書類・資料）、イベントのお知らせが、提携園から共有されます。'
       +'出欠・連絡は、この画面から園へお送りいただけます。<br><br>'
       +'あわせて、お子さまに合わせた教育・育児コンテンツ、ショップ（ご購入・レンタル）、'
       +'イベント、コミュニティをご利用いただけます。'
@@ -3277,7 +3304,7 @@ function linkHTML(){
        園の画面と同じ「デイリーレポート」にそろえた（2026-09-16 安田さんのご依頼・image7）。 */
     +[['📮','園からのおたより・デイリーレポートが届く'],['💬','先生と直接やりとりできる'],
       ['📅','欠席・遅刻・送迎時間の変更をアプリから連絡できる'],['🌱','身長・体重の記録が見られる'],
-      ['📚','スクールガイド（入園のときの一式）がいつでも見られる'],['🎪','園のイベントのお知らせが届く'],
+      ['📁','Miralink File（園からの書類と記入例）がいつでも見られる'],['🎪','園のイベントのお知らせが届く'],
       ['🛍️','先生が選んだ教材と、園指定の用品が買える']]
       .map(function(x){return '<div style="display:flex;gap:10px;align-items:center;font-size:13.5px;">'
         +'<span style="font-size:19px;">'+x[0]+'</span>'+esc(x[1])+'</div>';}).join('')
@@ -3742,7 +3769,7 @@ var EN_DICT={
 /* 日時や版のあとに残る閉じかっこ。英語の本文に全角のかっこが1つだけ残るのを防ぐ */
 '）':')',
 'に同意（版':'agreed (version',
-/* スクールガイドの分類。右に件数が付くので、数の入る形も持つ */
+/* Miralink File の分類。右に件数が付くので、数の入る形も持つ */
 'はじめに':'Getting started','毎日のこと':'Everyday life','健康・お薬':'Health & medicine',
 '安全・災害':'Safety & disasters','手続き':'Forms & procedures','園の情報':'About the school',
 'はじめに {0}':'Getting started {0}','毎日のこと {0}':'Everyday life {0}','健康・お薬 {0}':'Health & medicine {0}',
@@ -4113,7 +4140,7 @@ var EN_DICT={
 '役を決めて読み合う。読む力より、楽しむことが先です。':'Assign roles and read together. Having fun comes before reading skill.',
 '洗濯物から同じ柄を2枚さがす。数の一致に気づけます。':'Find two items with the same pattern in the laundry. They\'ll start to notice matching pairs.',
 'へ、お届け先の情報を共有していただくことがあります。':' for shipping.',
-'スクールガイド（入園のときの一式）がいつでも見られる':'View the School Guide (enrollment packet) anytime',
+'Miralink File（園からの書類と記入例）がいつでも見られる':'View Miralink File (school documents and filled-in samples) anytime',
 'リズムをまねっこ。だんだん速くすると盛り上がります。':'Copy the rhythm. Speeding up little by little makes it exciting.',
 'お名前・メールアドレス・電話番号は記録していません。':'We do not record your name, email address, or phone number.',
 'まだ入っていません。上のことをすると、ここに出ます。':'Nothing here yet. Do the things above and they will appear here.',
@@ -4174,7 +4201,7 @@ var EN_DICT={
 '私は、登録する児童について、親権者・未成年後見人その他、その情報を登録し、提供するために必要な権限を有しています。必要な場合は、他の親権者の了解を得ています。':'I have the necessary authority—as a parent with parental authority, a legal guardian of a minor, or otherwise—to register and provide information about the child being registered. Where necessary, I have obtained the consent of the other parent.',
 'あわせて、お子さまに合わせた教育・育児コンテンツ、ショップ（ご購入・レンタル）、イベント、コミュニティをご利用いただけます。園とつながっていない方も、この部分はお使いいただけます。':'You can also use educational and parenting content tailored to your child, the shop (purchases and rentals), events, and the community. These parts are available even if you are not connected to a school.',
 '身長・体重・カウプ指数を、アプリのマイページに出します。アレルギー・既往症などは法律上とくに配慮が必要な情報のため、規約とは分けてうかがっています。同意されなくても、ほかの機能はすべてお使いいただけます。':'Height, weight, and Kaup index are shown on My Page in the app. Because allergies, medical history, and similar data require special care under the law, we ask for this consent separately from the Terms. Even if you do not consent, all other features remain available.',
-'提携園にご通園のご家庭には、園からのおたより、園からの個人メッセージ、出欠・連絡、成長の記録、スクールガイド、イベントのお知らせが、提携園から共有されます。出欠・連絡は、この画面から園へお送りいただけます。':'Families whose child attends a partner school receive newsletters, personal messages from the school, attendance notices, growth records, the School Guide, and event notices, shared by the partner school. Attendance notices can be sent to the school from this screen.',
+'提携園にご通園のご家庭には、園からのおたより、園からの個人メッセージ、出欠・連絡、成長の記録、Miralink File（園からの書類・資料）、イベントのお知らせが、提携園から共有されます。出欠・連絡は、この画面から園へお送りいただけます。':'Families whose child attends a partner school receive newsletters, personal messages from the school, attendance notices, growth records, Miralink File (documents from the school), and event notices, shared by the partner school. Attendance notices can be sent to the school from this screen.',
 /* カード払い（Stripe Checkout）。保存する値（台帳の状態）は日本語のまま、画面の文字だけ差し替える */
 'お試し：実際の請求はありません':'Trial: you will not be charged',
 'テスト決済：実際の請求はありません（テスト用カードのみ使えます）':'Test payment: you will not be charged (test cards only)',
@@ -4738,6 +4765,7 @@ var EN_DICT={
 '内容は上のとおりです。':'See the details above.',
 'とつながっています 🌸':'is connected 🌸',
 'スクールガイドをひらく':'Open School Guide',
+'📁 Miralink File':'📁 Miralink File',
 '立てているコミュニティ':'Communities Started',
 'オンライン（Zoom）':'Online (Zoom)',
 'はじめての水あそび教室':'Beginner Water Play Class',
@@ -4777,6 +4805,29 @@ var EN_DICT={
 '警報発表時の休園の取り扱い':'School Closures During Weather Warnings',
 '印刷して園にご提出ください':'Print and hand it in to the school',
 '‹ スクールガイドにもどる':'‹ Back to School Guide',
+/* Miralink File（2026-11-26）。資料の題・用途・SIの答えは園やSIが書いたものなので data-nolang で訳さない */
+'Miralink File を開く（はじめの1回）':'Open Miralink File (first time only)',
+'Miralink File をひらく':'Open Miralink File','‹ Miralink File にもどる':'‹ Back to Miralink File',
+'園から届いた書類・資料が、ここにまとまっています':'Documents and materials from the school are all here',
+'{0}件。記入して出す書類は {1} 種類で、記入例と出し方の案内も見られます。':'{0} items. {1} are forms to submit, with a filled-in sample and how to submit.',
+'園から資料が届くと、ここに出ます':'Documents from the school will appear here',
+'から届いた書類・資料です。記入して出す書類は、記入例と出し方の案内も見られます。':' has shared these documents. Forms to submit come with a filled-in sample and how to submit.',
+'読むだけ':'Read only','{0}件（読むだけ {1}・出す {2}）':'{0} items ({1} read only, {2} to submit)',
+'さがす（例：お薬、休園、持ち物）':'Search (e.g., medicine, leave, belongings)',
+'その他 {0}':'Other {0}',
+'用途':'Purpose','提出のご案内':'How to submit','書き方の案内':'How to fill it in','提出先':'Submit to','時期':'When','注意点':'Notes',
+'提出不要（読むだけの資料です）':'No need to submit (for reading only)','園にご確認ください。':'Please check with the school.',
+'原本':'Original','記入例':'Sample','記入例はありません':'No sample available','原本を印刷':'Print original','記入例を印刷':'Print sample',
+'原本を読み込んでいます…':'Loading the original…','原本は、園とつながっているときに開けます':'The original can be opened when connected to the school',
+'原本を開けませんでした。時間をおいてもう一度お試しください。':'Could not open the original. Please try again later.','原本を開けませんでした':'Could not open the original',
+'印刷の準備をしています…':'Preparing to print…',
+'どの書類を出せばいい？':'Which form do I need?',
+'困っていることを書くと、SI（スーパーインテリジェンス）が園の資料から当てはまるものを探します。':'Describe your situation and SI (Super Intelligence) will look for the matching documents from the school.',
+'例：薬を園で飲ませてほしい':'e.g., I want the school to give my child medicine','SIに聞く':'Ask SI','調べています…':'Looking…',
+'当てはまる資料が見つかりませんでした。園にご確認ください。':'No matching document was found. Please check with the school.',
+'園にメッセージを送る':'Message the school',
+'きょうは質問の上限に達しました。園にご確認ください。':'You have reached today’s question limit. Please check with the school.',
+'いまSIに聞けません。園にご確認ください。':'SI is not available right now. Please check with the school.',
 'お知らせの受け取りをやめる':'Stop receiving notifications',
 'まだメッセージはありません':'No messages yet',
 'いま：受け取らない設定です':'Currently: not receiving',
@@ -4972,7 +5023,9 @@ var EN_DICT={
 'この端末に保存しました。インターネットにつながったときに園へ送ります。':'Saved on this device. It will be sent to the school when you’re online.',
 '「募集中」「開催済み」を切り替えられます。ふだんは募集中だけが出ます。':'Switch between “Open” and “Past”. Only open events are shown by default.',
 '③ 大火災などでさらに避難が必要なときは、第一〜第三避難場所へ移動します':'③ If further evacuation is needed, such as in a major fire, we move to evacuation sites 1–3',
-'「📚 スクールガイド」を押すと、入園のときにお渡しした一式が見られます。':'Tap “📚 School Guide” to see everything we gave you at enrollment.',
+'「📁 Miralink File」を押すと、園から届いた書類・資料が見られます。':'Tap “📁 Miralink File” to see the documents the school has shared.',
+'分類と検索から探せます。上の欄で「どの書類を出せばいい？」とSIに聞くこともできます。':'Find them by category or search. You can also ask SI “Which form do I need?” in the box at the top.',
+'記入して出す書類は、赤字の記入例を見ながら書けます。原本も記入例も、その場で印刷できます。':'For forms to submit, you can follow the sample filled in red. Both the original and the sample can be printed right away.',
 '上のタブで「すべて／閲覧履歴／お気に入り／保存済み」を切り替えられます。':'Use the tabs at the top to switch between “All / History / Favorites / Saved”.',
 '園でお薬をお預かりする際の条件です。1つでも満たないとお預かりできません。':'Conditions for leaving medicine at school. We can’t accept it unless all are met.',
 '園でお預かり：スモック／お着替え1セット／ブランケット2枚／指定のカラー帽子':'Kept at school: smock / 1 change of clothes / 2 blankets / designated color hat',
@@ -5582,224 +5635,389 @@ function orderState(o){
   if(bought&&t>bought)return 'shipping';
   return o.status||'paid';
 }
-/* ── スクールガイド ────────────────────────────────
-   入園のときに紙で渡している一式を、そのまま置いておける場所。
-   紙はなくなるが、ここにあれば必要なときに誰でも見にこられる。
-   中身は園ごとにちがうので、園がこの端末で差し替えられるようにしてある。
-   （既定はひな型だけ。実物のPDFは園が登録したものを表示する） */
-var WA_GUIDE_CATS=['はじめに','毎日のこと','健康・お薬','安全・災害','手続き','園の情報'];
-var WA_GUIDE=[
-  {id:'g_cover',cat:'はじめに',t:'入園のご案内（お手引き）',kind:'read',
-   d:'入園のときにお渡しする冊子です。スクールの考え方と、一年の流れがまとまっています。'},
-  {id:'g_school',cat:'はじめに',t:'園の概要',kind:'read',
-   d:'保育時間・クラス編成・年間行事など、スクールの基本の情報です。'},
-  {id:'g_items',cat:'毎日のこと',t:'持ち物と服装のきまり',kind:'read',
-   d:'毎日持ってくる物、園でお預かりする物の一覧です。持ち物にはすべて記名をお願いします。',
-   points:['毎日：おむつ・お尻拭き／歯ブラシセット／ドリンクボトル／手拭タオル／フルーツ／連絡帳／ランチセット',
-           '園でお預かり：スモック／お着替え1セット／ブランケット2枚／指定のカラー帽子',
-           '15:00以降の延長保育をご利用の方は、おやつとおむつ2枚を追加でお持ちください']},
-  {id:'g_kansen',cat:'健康・お薬',t:'感染症にかかったとき（出席停止の基準）',kind:'read',
-   d:'インフルエンザ・新型コロナなど、登園を控えていただく期間の目安です。',
-   points:['インフルエンザ：解熱後3日、かつ発症後5日が経過するまで',
-           '新型コロナ：発症後5日を経過し、かつ症状が軽快して1日を経過するまで',
-           'おたふくかぜ：腫れが出て5日を経過し、全身の状態が良くなるまで',
-           '水ぼうそう：すべての発疹がかさぶたになるまで',
-           '※復帰には「治癒証明書／登園許可証」の提出が必要です']},
-  {id:'g_toyaku',cat:'健康・お薬',t:'お薬をお預かりするときの手順',kind:'read',
-   d:'園でお薬をお預かりする際の条件です。1つでも満たないとお預かりできません。',
-   points:['主治医が処方したお薬に限ります（市販薬は不可）',
-           '1回分ずつに分け、それぞれにお名前をご記入ください',
-           '座薬・頓服など効能の強いお薬は原則お預かりできません',
-           '必ず手渡しで日本人講師にお渡しください']},
-  {id:'g_hinan',cat:'安全・災害',t:'災害時の避難先のご案内',kind:'read',
-   d:'園でお預かりしている時間に避難が必要になった場合の順序と、避難先です。',
-   points:['① 安全が確認できる場合はスクールで待機します',
-           '② 建物や周辺が危険なときは、いったん駐車場へ避難します',
-           '③ 大火災などでさらに避難が必要なときは、第一〜第三避難場所へ移動します',
-           '※避難先は園の入口に張り紙でお知らせします']},
-  {id:'g_keiho',cat:'安全・災害',t:'警報発表時の休園の取り扱い',kind:'read',
-   d:'暴風・大雪などの警報が出たときの、休園とお迎えの基準です。',
-   points:['保育開始の2時間前に発令 → 休園',
-           '保育開始の2時間前に解除 → 通常どおり',
-           '保育時間中に発令 → 保育を中止し、お迎えのご連絡をします',
-           '※大雨洪水警報は該当しません。天災による休園の振替はありません']},
-  {id:'g_ninka',cat:'園の情報',t:'ご利用にあたって（施設の内容の掲示）',kind:'read',
-   d:'施設の名称・設置者・保育内容・加入保険・提携医療機関などの掲示です。'},
-  /* ここから記入して提出するもの */
-  {id:'d_kyoka',cat:'健康・お薬',t:'治癒証明書／登園許可証',kind:'form',
-   d:'感染症のあと、登園を再開するときに医療機関で記入していただきます。',
-   note:'登園の際、担任に直接ご提出ください。',
-   fields:['お子様の名前','病名','□ 治癒したことを証明します','□（条件）　　　　をしていれば登園できます',
-           '登園を許可した日','受診医療機関 および 医師名','電話番号']},
-  {id:'d_toyaku',cat:'健康・お薬',t:'投薬依頼書',kind:'form',
-   d:'園でお薬をお預かりするときに、お薬と一緒にご提出ください。',
-   note:'投薬依頼がある際は、必ず手渡しにて日本人講師にお渡しください。',
-   fields:['依頼者（保護者氏名）','お子様の名前','主治医（　　　　病院・医院）','持参した薬（　年　月　日に処方）',
-           '病名','症状','薬の内容（抗生物質・咳止め・整腸剤・その他）','薬の剤型（粉・シロップ・その他）',
-           '投薬する時間（食前・食後・その他）']},
-  {id:'d_kenshin',cat:'健康・お薬',t:'在籍児健康診断書',kind:'form',
-   d:'かかりつけの小児科で記入していただく、年に一度の健康診断書です。',
-   fields:['子ども氏名','男・女','生年月日（西暦　年　月　日生）','健診月日（　年　月　日／月齢　歳　ヶ月）',
-           '医師の所見　□特に異常は認められず通園可能です','　　　　　　□一部異常が認められるので通園には注意が必要です',
-           '　　　　　　□異常があり通園できる状態ではありません','小児医療機関名','小児医師名']},
-  {id:'d_henko',cat:'手続き',t:'コース変更届',kind:'form',
-   d:'コース・曜日・延長託児・ランチの内容を変えるときにご提出ください。',
-   note:'希望月の前々月1日〜月末営業日までにご提出ください（例：8月変更希望なら6月末まで）。原則1か月1枚のみ、口頭ではお受けできません。',
-   fields:['お子様の名前','希望月（　　月より）',
-           '【現在のお申込内容】コース名','　同　曜日（月・火・水・木・金）','　同　月極延長託児（無・有）','　同　ランチオーダー（無・有）',
-           '【変更後】コース名','　同　曜日（月・火・水・木・金）','　同　月極延長託児（無・有）','　同　ランチオーダー（無・有）']},
-  {id:'d_kyuen',cat:'手続き',t:'休園届',kind:'form',
-   d:'長期でお休みされるときにご提出ください。',
-   note:'休園希望月の前々月1日〜前々月末営業日までにご提出ください。年度内の休園は最大3か月です。休園月分の基本保育料・授業料の30％をいただき、お席を確保します。教育関連費は全額発生します。',
-   fields:['休園希望校舎','お子様の名前','コース名','曜日（月・火・水・木・金）','月極延長託児（無・有）','ランチオーダー（無・有）',
-           '休園月（　年　月　〜　年　月まで）','復帰月（　年　月から復帰）','休園理由']},
-  {id:'d_taien',cat:'手続き',t:'退園届',kind:'form',
-   d:'退園されるときにご提出ください。',
-   note:'希望月の前々月末営業日までにご提出ください（例：8月退園希望なら6月末まで）。期日以降のご提出は基本保育料等が発生し、返金はいたしかねます。',
-   fields:['退園希望校舎','お子様の名前','コース名','曜日（月・火・水・木・金）','月極延長託児（無・有）','ランチオーダー（無・有）',
-           '退園月（　年　月から退園）','退園理由']}
-];
-/* 園が登録した実物（PDF・画像）があれば、それを優先して見せる */
-function guideDocs(){
-  var up=stGet('guide_files',{})||{};
-  var extra=stGet('guide_extra',[])||[];
-  return WA_GUIDE.map(function(g){
-    var m={};for(var k in g)m[k]=g[k];
-    if(up[g.id]){m.file=up[g.id].data;m.fileName=up[g.id].name;m.fileAt=up[g.id].at;m.fileType=up[g.id].type;}
-    return m;
-  }).concat(extra);
+/* ── Miralink File（旧スクールガイド）────────────────────────────────
+   園から届いた書類・資料を見る・印刷する場所。マイページから入る。
+   名前は「Miralink File」に統一（2026-11-26 Remi さん依頼書・安田さんのご判断）。
+   中身は園の帳簿の鍵 mfile だけを読む。このご家庭に公開されている分だけを、サーバが絞って渡す
+   （hidden・下書き・公開先の中身は届かない。docs/miralink-file-spec.md）。
+   ★以前は、ひな型14件（WA_GUIDE）を画面に直に書き、原本は guide_files の中身（data:…）を探していた。
+     園が原本をサーバに預けるようになってからは、guide_files には鍵の目印しか入らないので、
+     原本がどの家庭からも一度も開けなかった（「ガイダンス画面が開けない」のご報告の原因）。
+     ひな型の文と、印刷用の空の用紙（WA_DOCS・openDoc）もやめた。原本の無いひな型はもう出さない（同じ判断）。 */
+var MF_CATS=['はじめに','毎日のこと','健康・お薬','安全・災害','手続き','園の情報','その他'];
+/* 記入例の赤。園の画面と同じ色にそろえる */
+var MF_RED='#D7191C';
+function mfDocs(){
+  var m=stGet('mfile',null),src=(m&&Array.isArray(m.docs))?m.docs:[],out=[];
+  src.forEach(function(d){
+    if(!d||typeof d!=='object'||!d.id)return;
+    /* 園とつながっていない見本のときは、同じ端末の Miralink の帳簿そのものを読む。
+       そのときは公開中の版（pub）だけを、保護者に届くのと同じ形にして出す。非公開・下書きは出さない */
+    if(('pub' in d)||('draft' in d)){
+      if(d.hidden||!d.pub)return;
+      var p=d.pub;
+      out.push({id:d.id,cat:d.cat,kind:d.kind,t:p.t,use:p.use,submitTo:p.submitTo,submitWhen:p.submitWhen,
+        submitNote:p.submitNote,howto:p.howto,orig:p.orig||null,marks:p.marks||[],at:p.at});
+      return;
+    }
+    out.push(d);
+  });
+  return out.filter(function(d){return !!d.t;});
 }
-function guideById(id){return guideDocs().filter(function(g){return g.id===id;})[0];}
-var WA_DOCS=WA_GUIDE.filter(function(g){return g.kind==='form';});
-function docHTML(d,c){
-  var rows=(d.fields||[]).map(function(f){
-    return '<tr><th>'+esc(f)+'</th><td>&nbsp;</td></tr>';}).join('');
-  return '<h1>'+esc(d.t)+'</h1>'
-    +'<div class="to">'+esc(waSchoolName())+'　御中</div>'
-    +'<table>'+rows+'</table>'
-    +'<div class="sign"><div>提出日　　　　年　　月　　日</div>'
-    +'<div>保護者様署名　'+esc(c&&c.name?c.name:'')+'　　　　　　　　　㊞</div></div>'
-    +'<div class="note">'+esc(d.note||d.d||'')+'</div>';
+function guideById(id){return mfDocs().filter(function(g){return g.id===id;})[0];}
+function mfKindLabel(k){return k==='form'?'記入して出す':'読むだけ';}
+var waGuideView=false,waGuideOpen=null,waGuideQ='',waGuideCat='',waGuideMode='orig';
+/* SI に聞く欄の状態。off は園の契約で使えないと分かったとき（そのあとは欄ごと出さない） */
+var MFSI={off:false,busy:false,q:'',res:null};
+function mfSiHTML(){
+  if(MFSI.off||!WAPI.base())return '';
+  var r=MFSI.res,out='';
+  if(MFSI.busy)out='<div class="muted" style="margin-top:10px;">調べています…</div>';
+  else if(r){
+    if(r.kind==='urgent')out='<div class="mfsi-urg" data-nolang="1">'+esc(r.answer||'')+'</div>';
+    else if(r.kind==='msg')out='<div class="muted" style="margin-top:10px;line-height:1.75;">'+esc(r.msg)+'</div>';
+    else{
+      var docs=mfDocs(),btns=(r.ids||[]).map(function(id){
+        var d=docs.filter(function(x){return x.id===id;})[0];
+        return d?'<button class="mfsi-doc" data-guide="'+esc(d.id)+'"><span data-nolang="1">'+esc(d.t)+'</span><span class="pgo">›</span></button>':'';
+      }).join('');
+      out=(r.answer?'<div class="mfsi-ans" data-nolang="1">'+esc(r.answer)+'</div>':'')
+        +(btns?'<div class="mfsi-docs">'+btns+'</div>'
+          :'<div class="muted" style="margin-top:10px;line-height:1.75;">当てはまる資料が見つかりませんでした。園にご確認ください。</div>'
+           +'<button class="btn sec" id="mfsiDm" style="margin-top:9px;width:100%;">園にメッセージを送る</button>');
+    }
+  }
+  return '<div class="card petal-b mfsi">'
+    +'<div style="font-weight:800;font-size:14.5px;">どの書類を出せばいい？</div>'
+    +'<div class="muted" style="margin-top:4px;line-height:1.7;">困っていることを書くと、SI（スーパーインテリジェンス）が園の資料から当てはまるものを探します。</div>'
+    +'<div class="mfsi-row"><input id="mfsiQ" value="'+esc(MFSI.q)+'" maxlength="300" placeholder="例：薬を園で飲ませてほしい">'
+    +'<button class="btn" id="mfsiGo"'+(MFSI.busy?' disabled':'')+'>SIに聞く</button></div>'
+    +out+'</div>';
 }
-function openDoc(id,c){
-  var d=WA_DOCS.filter(function(x){return x.id===id;})[0];
-  if(!d)return;
-  var w=window.open('','_blank');
-  if(!w){toast('ポップアップがブロックされました。設定で許可してください。');return;}
-  w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8">'
-    +'<title>'+esc(d.t)+'</title><style>'
-    +'@page{size:A4;margin:18mm}'
-    +'body{font-family:"Hiragino Sans","Yu Gothic",sans-serif;color:#222;font-size:13px;line-height:1.8;}'
-    +'h1{font-size:20px;text-align:center;letter-spacing:.3em;margin:0 0 22px;}'
-    +'.to{margin-bottom:20px;font-size:14px;}'
-    +'table{width:100%;border-collapse:collapse;}'
-    +'th,td{border:1px solid #555;padding:10px 12px;font-size:13px;}'
-    +'th{width:34%;background:#f4f4f4;text-align:left;font-weight:600;}'
-    +'td{height:26px;}'
-    +'.sign{margin-top:26px;text-align:right;line-height:2.6;}'
-    +'.note{margin-top:22px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:10px;}'
-    +'@media print{.pbar{display:none}}'
-    +'.pbar{position:fixed;top:0;left:0;right:0;background:#111;color:#fff;padding:9px;text-align:center;font-size:13px;}'
-    +'.pbar button{font:inherit;padding:5px 16px;border-radius:8px;border:none;background:#fff;color:#111;cursor:pointer;margin-left:10px;}'
-    +'body{padding-top:46px;}@media print{body{padding-top:0}}'
-    +'</style></head><body>'
-    +'<div class="pbar">印刷して園にご提出ください<button onclick="window.print()">印刷する</button></div>'
-    +docHTML(d,c)+'</body></html>');
-  w.document.close();
+function mfSiAsk(c){
+  var i=document.getElementById('mfsiQ'),q=String(i&&i.value||'').replace(/^\s+|\s+$/g,'');
+  if(!q||MFSI.busy)return;
+  MFSI.q=q;MFSI.busy=true;MFSI.res=null;mfListRedraw(c);
+  WAPI.call('POST','/parent/mfile/ask',{q:q}).then(function(j){
+    MFSI.busy=false;
+    MFSI.res={kind:'ok',answer:String(j&&j.answer||''),ids:Array.isArray(j&&j.ids)?j.ids:[]};
+    mfListRedraw(c);
+  }).catch(function(e){
+    MFSI.busy=false;
+    var code=e&&e.code||'';
+    /* 園の契約で使えないときは、欄ごと引っ込める（押せない欄を見せ続けない） */
+    if(code==='plan'){MFSI.off=true;MFSI.res=null;}
+    /* 命に関わる内容のときは、サーバが119などの案内を answer に入れて返す。いちばん目立つ形で出す */
+    else if(code==='urgent')MFSI.res={kind:'urgent',answer:String(e.body&&e.body.answer||e.message||'')};
+    else if(code==='limit')MFSI.res={kind:'msg',msg:'きょうは質問の上限に達しました。園にご確認ください。'};
+    else MFSI.res={kind:'msg',msg:'いまSIに聞けません。園にご確認ください。'};
+    mfListRedraw(c);
+  });
 }
-/* 園が登録したファイルだけを開く。外のURLは受けつけない。 */
-function escFileSrc(u){
-  u=String(u||'').replace(/[\s\u0000-\u001f]/g,'');
-  return /^data:(image\/(png|jpe?g|gif|webp)|application\/pdf);base64,[A-Za-z0-9+\/=]+$/i.test(u)?u:'';
+/* 一覧だけを描き直す（検索の文字を打つたびに画面全体を作り直すと、入力欄の位置が飛ぶため） */
+function mfListRedraw(c){
+  var sc=document.getElementById('scroll');if(!sc||!waGuideView||waGuideOpen)return;
+  sc.innerHTML=mfBackBtnHTML('me')+guideHTML(c);wireGuide(c);
+  try{langApply(sc);}catch(e){}
 }
-var waGuideView=false,waGuideOpen=null,waGuideQ='',waGuideCat='';
+function mfBackBtnHTML(to){
+  return to==='me'?'<button class="pback" id="gMe">‹ マイページにもどる</button>'
+    :'<button class="pback" id="gBack">‹ Miralink File にもどる</button>';
+}
 function guideHTML(c){
-  var all=guideDocs(),list=all.slice();
+  var all=mfDocs(),list=all.slice();
   if(waGuideCat)list=list.filter(function(g){return g.cat===waGuideCat;});
   if(waGuideQ){var q=waGuideQ.toLowerCase();
     list=list.filter(function(g){
-      return ((g.t||'')+(g.d||'')+(g.cat||'')+((g.points||[]).join(''))+((g.fields||[]).join(''))).toLowerCase().indexOf(q)>-1;});}
+      return [g.t,g.use,g.cat,g.howto,g.submitTo,g.submitWhen,g.submitNote].join(' ').toLowerCase().indexOf(q)>-1;});}
   var nRead=list.filter(function(g){return g.kind!=='form';}).length;
   function row(g){
-    var has=!!escFileSrc(g.file);
+    var u=String(g.use||'').replace(/\s+/g,' ');
     return '<div class="card guide-row" data-guide="'+esc(g.id)+'">'
       +'<div class="gicon'+(g.kind==='form'?' f':'')+'">'+(g.kind==='form'?'✍️':'📄')+'</div>'
       +'<div style="flex:1;min-width:0;">'
-        +'<div style="font-weight:700;font-size:14px;">'+esc(g.t)+'</div>'
-        +'<div class="muted" style="margin-top:4px;">'+esc(g.d||'')+'</div>'
-        +'<div class="ftags" style="margin-top:7px;"><span class="ftag">'+esc(g.cat)+'</span>'
-          +'<span class="ftag age">'+(g.kind==='form'?'記入して出す':'読む')+'</span>'
-          +(has?'<span class="ftag" style="background:var(--g);color:#fff;">原本あり</span>':'')+'</div>'
+        +'<div style="font-weight:700;font-size:14px;line-height:1.5;" data-nolang="1">'+esc(g.t)+'</div>'
+        +(u?'<div class="muted mfsnip" data-nolang="1">'+esc(u)+'</div>':'')
+        +'<div class="ftags" style="margin-top:7px;"><span class="ftag">'+esc(g.cat||'その他')+'</span>'
+          +'<span class="ftag age">'+mfKindLabel(g.kind)+'</span></div>'
       +'</div><span class="pgo">›</span></div>';
   }
-  return '<h2 class="sec sec-b">📚 スクールガイド</h2>'
+  var head='<h2 class="sec sec-b">📁 Miralink File</h2>'
     +'<div class="muted" style="margin:-4px 2px 14px;line-height:1.75;">'
-      +'入園のときにお渡ししている一式です。'+esc(waSchoolName())+'の最新のものがいつでも見られます。</div>'
+      +'<span data-nolang="1">'+esc(waSchoolName())+'</span><span>から届いた書類・資料です。記入して出す書類は、記入例と出し方の案内も見られます。</span></div>';
+  if(!all.length)return head+bloomEmpty('園から資料が届くと、ここに出ます');
+  return head+mfSiHTML()
     +'<div class="card petal-b">'
-      +'<div class="fsearch"><input id="gq" value="'+esc(waGuideQ)+'" placeholder="さがす（例：持ち物、インフルエンザ、休園）">'
+      +'<div class="fsearch"><input id="gq" value="'+esc(waGuideQ)+'" placeholder="さがす（例：お薬、休園、持ち物）">'
       +(waGuideQ?'<button class="fclear" id="gqx" aria-label="消す">×</button>':'')+'</div>'
       +'<div class="flabel">分類</div><div class="fchips">'
       +'<button class="chip'+(waGuideCat===''?' on':'')+'" data-gc="">すべて</button>'
-      +WA_GUIDE_CATS.map(function(k){
-        var n=all.filter(function(g){return g.cat===k;}).length;
+      +MF_CATS.map(function(k){
+        var n=all.filter(function(g){return (g.cat||'その他')===k;}).length;
         return n?'<button class="chip'+(waGuideCat===k?' on':'')+'" data-gc="'+esc(k)+'">'+esc(k)+' '+n+'</button>':'';
       }).join('')+'</div></div>'
-    +'<div class="fcount">'+list.length+'件（読む '+nRead+'・出す '+(list.length-nRead)+'）</div>'
+    +'<div class="fcount">'+list.length+'件（読むだけ '+nRead+'・出す '+(list.length-nRead)+'）</div>'
     +(list.length?list.map(row).join(''):bloomEmpty('見つかりませんでした'));
 }
 function guidePageHTML(id,c){
   var g=guideById(id);
-  if(!g)return bloomEmpty('資料が見つかりません');
-  var src=escFileSrc(g.file),isPdf=/^data:application\/pdf/i.test(src);
-  return '<button class="pback" id="gBack">‹ スクールガイドにもどる</button>'
+  if(!g)return mfBackBtnHTML('list')+bloomEmpty('資料が見つかりません');
+  var marks=(g.marks||[]).filter(function(m){return m&&m.text;});
+  if(!marks.length||!g.orig)waGuideMode='orig';
+  function line(k,v){return v?'<div class="mfsub-r"><span class="mfsub-k">'+k+'</span><span data-nolang="1">'+esc(v)+'</span></div>':'';}
+  var sub=g.kind==='form'
+    ?(line('提出先',g.submitTo)+line('時期',g.submitWhen)+line('注意点',g.submitNote))
+    :'<div style="font-size:13.5px;">提出不要（読むだけの資料です）</div>';
+  if(!sub)sub='<div class="muted">園にご確認ください。</div>';
+  return mfBackBtnHTML('list')
     +'<div class="card petal-b">'
-      +'<div class="ftags" style="margin:0 0 9px;"><span class="ftag">'+esc(g.cat)+'</span>'
-        +'<span class="ftag age">'+(g.kind==='form'?'記入して出す':'読む')+'</span></div>'
-      +'<div style="font-weight:800;font-size:18px;line-height:1.45;">'+esc(g.t)+'</div>'
-      +'<div style="margin-top:11px;font-size:14px;line-height:1.8;">'+esc(g.d||'')+'</div>'
-      +(g.points&&g.points.length?'<ul class="gpoints">'
-        +g.points.map(function(p){return '<li>'+esc(p)+'</li>';}).join('')+'</ul>':'')
-      +(g.note?'<div class="info" style="margin-top:13px;">'+esc(g.note)+'</div>':'')
+      +'<div class="ftags" style="margin:0 0 9px;"><span class="ftag">'+esc(g.cat||'その他')+'</span>'
+        +'<span class="ftag age">'+mfKindLabel(g.kind)+'</span></div>'
+      +'<div style="font-weight:800;font-size:18px;line-height:1.45;" data-nolang="1">'+esc(g.t)+'</div>'
+      +(g.use?'<div class="mfh">用途</div><div class="mftx" data-nolang="1">'+esc(g.use)+'</div>':'')
+      +'<div class="mfh">提出のご案内</div>'+sub
+      +(g.howto?'<div class="mfh">書き方の案内</div><div class="mftx" data-nolang="1">'+esc(g.howto)+'</div>':'')
     +'</div>'
-    +(src
-      ? '<div class="flabel" style="margin:16px 2px 8px;">園が登録した原本'
-          +(g.fileAt?'（'+esc(g.fileAt)+' 更新）':'')+'</div>'
-        /* スマホはPDFを画面の中に出せないので、開く・保存を先に置く */
-        +'<div class="card"><div style="display:flex;gap:11px;align-items:center;">'
-          +'<div class="gicon">'+(isPdf?'📕':'🖼️')+'</div>'
-          +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:13.5px;overflow:hidden;'
-            +'text-overflow:ellipsis;white-space:nowrap;">'+esc(g.fileName||g.t)+'</div>'
-          +'<div class="muted">'+(isPdf?'PDF':'画像')+'</div></div></div>'
-          +'<div style="display:flex;gap:8px;margin-top:11px;">'
-          +'<a class="btn" href="'+src+'" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">ひらく</a>'
-          +'<a class="btn sec" href="'+src+'" download="'+esc(g.fileName||g.t)+'" style="flex:1;text-align:center;text-decoration:none;">保存する</a></div></div>'
-        +(isPdf
-          ? '<div class="card pdfembed" style="padding:0;overflow:hidden;">'
-            +'<iframe src="'+src+'" title="'+esc(g.t)+'" style="width:100%;height:62vh;border:none;display:block;"></iframe></div>'
-          : '<div class="card" style="padding:8px;"><img src="'+src+'" alt="'+esc(g.t)+'" style="width:100%;display:block;border-radius:10px;"></div>')
-      : '<div class="card"><div class="muted">この資料の原本は、まだ園から登録されていません。'
-        +(g.kind==='form'?'下のボタンから、記入用の用紙を開けます。':'内容は上のとおりです。')+'</div></div>')
-    +(g.kind==='form'?'<div style="margin:4px 0 14px;">'
-      +'<button class="btn" data-doc="'+esc(g.id)+'">記入用の用紙を開く（印刷）</button></div>':'');
+    +(g.orig
+      ? '<div class="mfbar">'
+          +(marks.length
+            ?'<div class="seg mfseg"><button data-mfmode="orig" class="'+(waGuideMode==='orig'?'on':'')+'">原本</button>'
+              +'<button data-mfmode="ex" class="'+(waGuideMode==='ex'?'on':'')+'">記入例</button></div>'
+            :'<div class="muted" style="font-size:12px;">記入例はありません</div>')
+          +'<button class="btn sec mfprint" id="mfPrint">'+(waGuideMode==='ex'?'記入例を印刷':'原本を印刷')+'</button></div>'
+        +'<div id="mfView" class="mfview'+(waGuideMode==='ex'?' ex':'')+'"><div class="muted" style="padding:18px 4px;">原本を読み込んでいます…</div></div>'
+      : '');
+}
+/* ── 原本の取り出しと表示 ── */
+var MF_BLOB={};   /* 鍵ごとに、取ってきた中身を覚えておく（原本と記入例を切り替えるたびに取り直さない） */
+var MFV={seq:0};
+function mfFileGet(key,cb){
+  if(MF_BLOB[key]){cb(MF_BLOB[key]);return;}
+  var h={};
+  if(WAPI.token())h.Authorization='Bearer '+WAPI.token();
+  fetch(WAPI.base()+'/parent/files/'+encodeURIComponent(key),{headers:h})
+    .then(function(r){if(!r.ok)throw new Error('x');return r.blob();})
+    .then(function(b){MF_BLOB[key]=b;cb(b);})
+    .catch(function(){cb(null);});
+}
+/* pdf.js は重いので、PDF を開いたときに1度だけ読み込む */
+var MF_PDFJS={st:0,q:[]};
+function mfPdfJs(cb){
+  if(window.pdfjsLib){cb(window.pdfjsLib);return;}
+  MF_PDFJS.q.push(cb);
+  if(MF_PDFJS.st===1)return;
+  MF_PDFJS.st=1;
+  var base='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  var s=document.createElement('script');
+  s.src=base+'pdf.min.js';
+  s.onload=function(){
+    var L=window.pdfjsLib||null;
+    if(L)try{L.GlobalWorkerOptions.workerSrc=base+'pdf.worker.min.js';}catch(e){}
+    MF_PDFJS.st=L?2:0;
+    var q=MF_PDFJS.q;MF_PDFJS.q=[];q.forEach(function(f){f(L);});
+  };
+  s.onerror=function(){MF_PDFJS.st=0;var q=MF_PDFJS.q;MF_PDFJS.q=[];q.forEach(function(f){f(null);});};
+  document.head.appendChild(s);
+}
+function mfIsPdf(o,b){return /pdf/i.test(String(o&&o.type||''))||/pdf/i.test(String(b&&b.type||''))||/\.pdf$/i.test(String(o&&o.name||''));}
+/* PDF を開いて、pdf.js の文書を返す。
+   ページ数は orig.pages ではなく、pdf.js が数えた numPages を使う。
+   旧スクールガイドから移した資料は pages が 1 のまま入っていることがあるため（2026-11-26 の申し合わせ） */
+function mfPdfOpen(blob,cb){
+  mfPdfJs(function(L){
+    if(!L){cb(null);return;}
+    var fr=new FileReader();
+    fr.onload=function(){
+      try{
+        /* ★文字の対応表（cMap）を渡さないと、フォントを埋め込んでいない日本語の PDF は文字が1つも描かれず、
+           枠線だけの用紙に見えた（試しの投薬依頼書で確認）。cdnjs には対応表が置かれていないので、同じ版を jsdelivr から読む */
+        L.getDocument({data:new Uint8Array(fr.result),cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',cMapPacked:true}).promise.then(function(pdf){cb(pdf);},function(){cb(null);});
+      }catch(e){cb(null);}
+    };
+    fr.onerror=function(){cb(null);};
+    fr.readAsArrayBuffer(blob);
+  });
+}
+/* 1ページを、幅 px の canvas に描く */
+function mfPdfPage(pdf,n,px,cb){
+  pdf.getPage(n).then(function(pg){
+    var v1=pg.getViewport({scale:1}),sc=px/v1.width,vp=pg.getViewport({scale:sc});
+    var cv=document.createElement('canvas');
+    cv.width=Math.round(vp.width);cv.height=Math.round(vp.height);
+    var cx=cv.getContext('2d');
+    /* 印刷で jpeg にしたとき、透明なところが黒くならないように白で塗っておく */
+    cx.fillStyle='#fff';cx.fillRect(0,0,cv.width,cv.height);
+    pg.render({canvasContext:cx,viewport:vp}).promise.then(function(){cb(cv);},function(){cb(null);});
+  },function(){cb(null);});
+}
+/* 赤文字の記入例。位置と幅はページに対する割合で置くので、拡大縮小しても印刷してもずれない。
+   文字の大きさだけは割合で書けないので、mfFit がページの幅から px に直す */
+function mfMarksHTML(marks,pg){
+  return (marks||[]).filter(function(m){return m&&m.text&&(+m.pg||0)===pg;}).map(function(m){
+    return '<div class="mfmk" data-fs="'+(+m.fs||0.022)+'" style="left:'+(+m.x||0)*100+'%;top:'+(+m.y||0)*100+'%;width:'+(+m.w||0.4)*100+'%;">'+esc(m.text)+'</div>';
+  }).join('');
+}
+function mfFit(){
+  document.querySelectorAll('.mfpg').forEach(function(p){
+    var w=p.clientWidth;if(!w)return;
+    p.querySelectorAll('.mfmk').forEach(function(m){m.style.fontSize=(parseFloat(m.getAttribute('data-fs'))*w)+'px';});
+  });
+}
+window.addEventListener('resize',function(){try{mfFit();}catch(e){}});
+function mfViewLoad(g){
+  var box=document.getElementById('mfView');if(!box||!g||!g.orig)return;
+  var seq=++MFV.seq;
+  function alive(){return seq===MFV.seq&&document.body.contains(box);}
+  function fail(msg){if(alive())box.innerHTML='<div class="muted" style="padding:18px 4px;line-height:1.75;">'+msg+'</div>';}
+  if(!WAPI.base()){
+    fail('原本は、園とつながっているときに開けます');
+    toast('原本は、園とつながっているときに開けます');return;
+  }
+  mfFileGet(g.orig.key,function(b){
+    if(!alive())return;
+    if(!b){fail('原本を開けませんでした。時間をおいてもう一度お試しください。');return;}
+    if(mfIsPdf(g.orig,b)){
+      mfPdfOpen(b,function(pdf){
+        if(!alive())return;
+        if(!pdf){fail('原本を開けませんでした。時間をおいてもう一度お試しください。');return;}
+        var dpr=Math.min(2,window.devicePixelRatio||1),px=Math.max(320,(box.clientWidth||360)*dpr);
+        box.innerHTML='';
+        var n=1;
+        (function next(){
+          if(!alive()||n>pdf.numPages){mfFit();return;}
+          var i=n;
+          var pgEl=document.createElement('div');pgEl.className='mfpg';
+          box.appendChild(pgEl);
+          mfPdfPage(pdf,i,px,function(cv){
+            if(cv){pgEl.appendChild(cv);pgEl.insertAdjacentHTML('beforeend',mfMarksHTML(g.marks,i-1));mfFit();}
+            n++;next();
+          });
+        })();
+      });
+    }else{
+      var u=URL.createObjectURL(b);
+      box.innerHTML='<div class="mfpg"><img src="'+u+'" alt="">'+mfMarksHTML(g.marks,0)+'</div>';
+      var im=box.querySelector('img');
+      im.onload=mfFit;
+      im.onerror=function(){fail('原本を開けませんでした。時間をおいてもう一度お試しください。');};
+    }
+  });
+}
+/* ── 印刷 ──
+   ページごとに画像（幅 1600px ほどの jpeg）にして、A4 1枚に1ページずつ並べる。記入例のときは同じ割合で赤文字を重ねる。
+   ★窓は押したその場で開いておく。描き終わってから開くと、iPhone の Safari が「ポップアップ」として止める（data-watt と同じ作り） */
+function mfPrint(g,ex){
+  if(!g||!g.orig)return;
+  if(!WAPI.base()){toast('原本は、園とつながっているときに開けます');return;}
+  var w=window.open('','_blank');
+  if(!w){toast('ポップアップがブロックされました。設定で許可してください。');return;}
+  try{w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>'+esc(g.t)+'</title></head>'
+    +'<body style="font-family:sans-serif;color:#666;padding:24px;">印刷の準備をしています…</body></html>');}catch(e){}
+  toast('印刷の準備をしています…');
+  function bad(){try{w.close();}catch(e){}toast('原本を開けませんでした');}
+  function done(imgs){
+    if(!imgs.length){bad();return;}
+    /* A4 から余白 6mm を引いた枠（198×285mm）に、縦横の比を保って収める */
+    var AW=198,AH=285;
+    var pages=imgs.map(function(im,i){
+      var r=im.h/im.w,bw=AW,bh=AW*r;
+      if(bh>AH){bh=AH;bw=AH/r;}
+      var mk=ex?(g.marks||[]).filter(function(m){return m&&m.text&&(+m.pg||0)===i;}).map(function(m){
+        return '<div class="mk" style="left:'+(+m.x||0)*100+'%;top:'+(+m.y||0)*100+'%;width:'+(+m.w||0.4)*100+'%;font-size:'
+          +((+m.fs||0.022)*bw).toFixed(3)+'mm;">'+esc(m.text)+'</div>';}).join(''):'';
+      return '<div class="pg"><div class="bx" style="width:'+bw.toFixed(2)+'mm;height:'+bh.toFixed(2)+'mm;">'
+        +'<img src="'+im.src+'" alt="">'+mk+'</div></div>';
+    }).join('');
+    try{
+      w.document.open();
+      w.document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>'+esc(g.t)+'</title><style>'
+        +'@page{size:A4;margin:6mm}html,body{margin:0;padding:0;background:#fff;}'
+        +'.pg{width:198mm;height:285mm;display:flex;align-items:center;justify-content:center;page-break-after:always;break-after:page;overflow:hidden;}'
+        +'.pg:last-child{page-break-after:auto;break-after:auto;}'
+        +'.bx{position:relative;}.bx img{display:block;width:100%;height:100%;}'
+        +'.mk{position:absolute;color:'+MF_RED+';line-height:1.35;white-space:pre-wrap;word-break:break-word;'
+        +'font-family:"Hiragino Sans","Yu Gothic",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        +'</style></head><body>'+pages
+        +'<script>window.onload=function(){setTimeout(function(){window.focus();window.print();},300);};<\/script>'
+        +'</body></html>');
+      w.document.close();
+    }catch(e){bad();}
+  }
+  mfFileGet(g.orig.key,function(b){
+    if(!b){bad();return;}
+    if(mfIsPdf(g.orig,b)){
+      mfPdfOpen(b,function(pdf){
+        if(!pdf){bad();return;}
+        var out=[],n=1;
+        (function next(){
+          if(n>pdf.numPages){done(out);return;}
+          mfPdfPage(pdf,n,1600,function(cv){
+            if(cv)out.push({src:cv.toDataURL('image/jpeg',0.92),w:cv.width,h:cv.height});
+            n++;next();
+          });
+        })();
+      });
+    }else{
+      var u=URL.createObjectURL(b),im=new Image();
+      im.onload=function(){
+        var W=1600,H=Math.round(1600*im.naturalHeight/im.naturalWidth);
+        var cv=document.createElement('canvas');cv.width=W;cv.height=H;
+        var cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,W,H);cx.drawImage(im,0,0,W,H);
+        var src='';
+        try{src=cv.toDataURL('image/jpeg',0.92);}catch(e){src='';}
+        try{URL.revokeObjectURL(u);}catch(e){}
+        if(!src){bad();return;}
+        done([{src:src,w:W,h:H}]);
+      };
+      im.onerror=bad;
+      im.src=u;
+    }
+  });
 }
 function wireGuide(c){
   document.querySelectorAll('[data-guide]').forEach(function(b){b.onclick=function(){
-    waGuideOpen=b.getAttribute('data-guide');render();};});
+    waGuideOpen=b.getAttribute('data-guide');waGuideMode='orig';render();
+    try{window.scrollTo(0,0);}catch(e){}};});
   var gb=document.getElementById('gBack');
   if(gb)gb.onclick=function(){waGuideOpen=null;render();};
+  var gm=document.getElementById('gMe');
+  if(gm)gm.onclick=function(){waGuideView=false;waGuideOpen=null;render();};
   var q=document.getElementById('gq');
   if(q)q.oninput=function(){
     waGuideQ=q.value;var pos=q.selectionStart;
-    var sc=document.getElementById('scroll');sc.innerHTML=guideHTML(c);wireGuide(c);
+    mfListRedraw(c);
     var n=document.getElementById('gq');
     if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}}};
   var qx=document.getElementById('gqx');
-  if(qx)qx.onclick=function(){waGuideQ='';var sc=document.getElementById('scroll');sc.innerHTML=guideHTML(c);wireGuide(c);};
+  if(qx)qx.onclick=function(){waGuideQ='';mfListRedraw(c);};
   document.querySelectorAll('[data-gc]').forEach(function(b){b.onclick=function(){
-    waGuideCat=b.getAttribute('data-gc');
-    var sc=document.getElementById('scroll');sc.innerHTML=guideHTML(c);wireGuide(c);};});
-  document.querySelectorAll('[data-doc]').forEach(function(b){b.onclick=function(){
-    openDoc(b.getAttribute('data-doc'),c);};});
+    waGuideCat=b.getAttribute('data-gc');mfListRedraw(c);};});
+  /* SI に聞く */
+  var sg=document.getElementById('mfsiGo'),si=document.getElementById('mfsiQ');
+  if(sg)sg.onclick=function(){mfSiAsk(c);};
+  if(si){
+    si.oninput=function(){MFSI.q=si.value;};
+    /* 日本語の変換を決めるエンターでは送らない（使い方の窓と同じ。変換中は isComposing、Safari は keyCode 229） */
+    si.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();mfSiAsk(c);}});
+  }
+  /* 当てはまる資料が無いときは、園へのメッセージ（スクールの個人メッセージ）へ移る */
+  var dm=document.getElementById('mfsiDm');
+  if(dm)dm.onclick=function(){
+    waGuideView=false;waGuideOpen=null;tab='school';render();
+    setTimeout(function(){var t=document.getElementById('pdmText');
+      if(t){try{t.scrollIntoView({block:'center'});t.focus();}catch(e){}}},250);
+  };
+  /* 詳細：原本と記入例の切り替え（描き直さず、赤文字の出し入れだけ） */
+  document.querySelectorAll('[data-mfmode]').forEach(function(b){b.onclick=function(){
+    waGuideMode=b.getAttribute('data-mfmode');
+    document.querySelectorAll('[data-mfmode]').forEach(function(x){x.className=x.getAttribute('data-mfmode')===waGuideMode?'on':'';});
+    var v=document.getElementById('mfView');if(v)v.className='mfview'+(waGuideMode==='ex'?' ex':'');
+    var p=document.getElementById('mfPrint');
+    if(p){p.textContent=waGuideMode==='ex'?'記入例を印刷':'原本を印刷';try{langApply(p.parentNode);}catch(e){}}
+    mfFit();};});
+  var pr=document.getElementById('mfPrint');
+  if(pr)pr.onclick=function(){mfPrint(guideById(waGuideOpen),waGuideMode==='ex');};
+  if(waGuideOpen&&document.getElementById('mfView'))mfViewLoad(guideById(waGuideOpen));
 }
 /* ============================================================
    ポイント
@@ -5818,7 +6036,8 @@ function wireGuide(c){
 var PT_RULES=[
   {k:'att',   n:'出欠のご連絡',                     p:20},
   {k:'msg',   n:'園へのメッセージ',                 p:20},
-  {k:'guide', n:'スクールガイドを開く（はじめの1回）',p:10},
+  /* 鍵 guide はそのまま。名前だけ Miralink File に変えた（2026-11-26） */
+  {k:'guide', n:'Miralink File を開く（はじめの1回）',p:10},
   /* 園と未来WAのSNSは、押した回数を記録していないので、はじめの1回だけ数える */
   {k:'sns',   n:'園のSNSを開く（はじめの1回）',     p:10},
   {k:'save',  n:'保存・お気に入り',                 p:5},
@@ -5935,7 +6154,7 @@ function ptSync(){
   if(ch)stSet('wa_points',b);
   return p;
 }
-/* スクールガイドは開いた回数を記録していないので、開いたときにここで数える。
+/* Miralink File は開いた回数を記録していないので、開いたときにここで数える。
    はじめの1回だけ入る。 */
 function ptGuideOpened(){
   var b=ptBox(),p=b.parent;
@@ -6086,19 +6305,19 @@ function meHTML(c){
       +'</div>';
   })();
   if(c){
-    var gd=guideDocs(),nf=gd.filter(function(g){return g.kind==='form';}).length;
-    h2+='<h2 class="sec sec-b">📚 スクールガイド</h2>'
+    /* Miralink File の入口（旧スクールガイド。2026-11-26 Remi さん依頼書・安田さんのご判断） */
+    var gd=mfDocs(),nf=gd.filter(function(g){return g.kind==='form';}).length;
+    h2+='<h2 class="sec sec-b">📁 Miralink File</h2>'
       +'<div class="card petal-b" style="cursor:pointer;" id="goGuide">'
-      +'<div style="font-weight:700;font-size:14px;">入園のときにお渡しした一式が、すべてここにあります</div>'
-      +'<div class="muted" style="margin-top:6px;line-height:1.75;">'
-        +'持ち物・感染症のきまり・避難場所・警報のときの休園・各種の届出用紙まで、'
-        +gd.length+'件。紙をなくしても、必要なときにここで確認できます。</div>'
-      +'<div class="ftags" style="margin-top:10px;">'
-        +WA_GUIDE_CATS.map(function(k){
-          var n=gd.filter(function(g){return g.cat===k;}).length;
-          return n?'<span class="ftag">'+esc(k)+' '+n+'</span>':'';}).join('')+'</div>'
-      +'<button class="btn sec" style="margin-top:12px;">スクールガイドをひらく</button></div>'
-      +'<div class="muted" style="margin:8px 2px 0;">記入して出す用紙は '+nf+' 種類。印刷してご提出いただけます。</div>';
+      +'<div style="font-weight:700;font-size:14px;">園から届いた書類・資料が、ここにまとまっています</div>'
+      +(gd.length
+        ?'<div class="muted" style="margin-top:6px;line-height:1.75;">'+gd.length+'件。記入して出す書類は '+nf+' 種類で、記入例と出し方の案内も見られます。</div>'
+          +'<div class="ftags" style="margin-top:10px;">'
+          +MF_CATS.map(function(k){
+            var n=gd.filter(function(g){return (g.cat||'その他')===k;}).length;
+            return n?'<span class="ftag">'+esc(k)+' '+n+'</span>':'';}).join('')+'</div>'
+        :'<div class="muted" style="margin-top:6px;line-height:1.75;">園から資料が届くと、ここに出ます</div>')
+      +'<button class="btn sec" style="margin-top:12px;">Miralink File をひらく</button></div>';
   }
   h2+=waLineCardHTML();
   h2+=consentCardHTML();
@@ -6145,8 +6364,6 @@ function wireMe(c){
   if(g)g.onclick=function(){tab='school';render();};
   document.querySelectorAll('[data-goto]').forEach(function(b){b.onclick=function(){
     tab=b.getAttribute('data-goto');render();};});
-  document.querySelectorAll('[data-doc]').forEach(function(b){b.onclick=function(){
-    openDoc(b.getAttribute('data-doc'),c);};});
   var gg=document.getElementById('goGuide');
   if(gg)gg.onclick=function(){waGuideView=true;ptGuideOpened();render();};
   /* こども性暴力防止のアンケートを送る。保護者の控え（wa_dbs_ans）に入れて、園へ送る（WA_SEND）。園で読めるのは園長・マネージャーだけ */
@@ -6817,16 +7034,10 @@ function wirePortal(c){
     wireCommon(c);wireEvJoin(c);
     return;
   }
-  /* スクールガイド（入園時の一式）。マイページから入る */
+  /* Miralink File（旧スクールガイド）。マイページから入る */
   if(waGuideView){
-    sc.innerHTML=waGuideOpen?guidePageHTML(waGuideOpen,c):guideHTML(c);
+    sc.innerHTML=waGuideOpen?guidePageHTML(waGuideOpen,c):mfBackBtnHTML('me')+guideHTML(c);
     wireCommon(c);wireGuide(c);
-    if(!waGuideOpen){
-      var gx=document.createElement('button');
-      gx.className='pback';gx.textContent='‹ マイページにもどる';
-      gx.onclick=function(){waGuideView=false;render();};
-      sc.insertBefore(gx,sc.firstChild);
-    }
     return;
   }
   if(tab==='school'){
@@ -7819,12 +8030,12 @@ var WA_HELP={
         '「要ご用意」の札が付いているものは、入園・進級までにご用意をお願いしているものです。']},
 
  me:{t:'マイページ',
-  kw:'請求 保育料 支払 身体 身長 体重 成長 書類 ガイド しおり 治癒証明 投薬 休園 退園 プロフィール 購入履歴 申込履歴 持ち物 持物 用意 準備 入園 進級 感染症 出席停止 インフル コロナ 避難 警報 休園 おむつ 着替え タオル 名前つけ 記名',
+  kw:'Miralink File ファイル 記入例 提出 請求 保育料 支払 身体 身長 体重 成長 書類 ガイド しおり 治癒証明 投薬 休園 退園 プロフィール 購入履歴 申込履歴 持ち物 持物 用意 準備 入園 進級 感染症 出席停止 インフル コロナ 避難 警報 休園 おむつ 着替え タオル 名前つけ 記名',
   can:'お子さまの情報と、園から届いているものがまとまっています。',
   steps:['上から順に、お子さまの情報・保育料のご請求・スクールの連絡先・身体記録が並びます。',
-   '「📚 スクールガイド」を押すと、入園のときにお渡しした一式が見られます。',
-   '持ち物・感染症のきまり・避難場所などが、分類と検索から探せます。',
-   '治癒証明書などの用紙は、その場で印刷できます。'],
+   '「📁 Miralink File」を押すと、園から届いた書類・資料が見られます。',
+   '分類と検索から探せます。上の欄で「どの書類を出せばいい？」とSIに聞くこともできます。',
+   '記入して出す書類は、赤字の記入例を見ながら書けます。原本も記入例も、その場で印刷できます。'],
   tips:['紙をなくされても、ここに全部あります。',
         '保育料は、園が送付の手続きをしたものだけが出ます。']},
 
@@ -8066,7 +8277,7 @@ function waHelpInit(){
   document.getElementById('waHelpSend').onclick=send;
   /* ★日本語の変換を決めるエンターで送られていた（Remiさん 2026-10-25）。変換中は isComposing、Safari は確定のエンターだけ keyCode 229 で来る */
   document.getElementById('waHelpInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)send();});
-  var chips=['この画面の使い方','おやすみの連絡','買ったものはどこ','スクールガイド','園に聞く'];
+  var chips=['この画面の使い方','おやすみの連絡','買ったものはどこ','Miralink File','園に聞く'];
   document.getElementById('waHelpChips').innerHTML=chips.map(function(c){
     return '<button data-whchip="'+esc(c)+'">'+esc(c)+'</button>';}).join('');
   document.getElementById('waHelpChips').querySelectorAll('[data-whchip]').forEach(function(b){
