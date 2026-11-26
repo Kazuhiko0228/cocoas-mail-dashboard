@@ -1022,6 +1022,22 @@ html.px-on [data-agopen],html.px-on #spayCard1,html.px-on #tuiStart,html.px-on [
      1280px の帯の内側は 944px しかないので、3つの合計がそこに収まる幅にする
      （280+300+300+すき間32＝912px）。広い画面では、余ったぶんを3つで分け合う。 */
   @media(min-width:1180px){.hhero .hhl{flex:0 1 280px;}.htoday{flex:1 1 300px;}.hhero .hnote{flex:1 1 300px;}}
+  /* ★帯の中の枠の端が、下の連絡ボード・6つのマスの線とそろっていなかった
+     （2026-11-26 Remi さん「紫の枠のサイズを、下の線に合わせたい」）。
+     下の段（.hmain）は 1.05fr : .95fr・すき間 14px。帯も同じ割り方の格子にして、
+     「本日のタスク」の右端＝連絡ボードの右端、「今月の行事・BIRTHDAY」の左端＝6つのマスの左端にする。
+     帯の内側は左右 18px ずつ狭いので、その分を足し引きしている（100% は帯の内側の幅）。 */
+  @media(min-width:1180px){
+    .hhero{display:grid;grid-template-columns:auto minmax(0,1fr) calc((100% + 22px) * .475 - 18px);column-gap:14px;align-items:stretch;}
+    .hhero .hhl{max-width:280px;}
+    .hhero .hhl,.hhero .htoday,.hhero .hnote{min-width:0;}
+    .hhero .hhl{grid-column:1;}.hhero .htoday{grid-column:2;}.hhero .hnote{grid-column:3;}
+  }
+  /* 1400px より狭いと「本日のタスク」の枠が細くなり、1行が折り返していた。日付と時計を少しだけ小さくして枠に回す */
+  @media(min-width:1180px) and (max-width:1399px){
+    .hhero .hcd{font-size:21px;}.hhero .hcd .hcw{font-size:13px;margin-left:6px;}.hhero .hcd small{font-size:12px;}
+    .hhero .hct{font-size:38px;}
+  }
   .htoday .ht{font-size:11.5px;font-weight:700;letter-spacing:.03em;color:rgba(255,255,255,.9);margin:0 0 3px 3px;}
   .htoday .row{display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;
     background:none;border:none;color:#fff;font:inherit;font-size:12.5px;line-height:1.45;
@@ -1155,6 +1171,15 @@ html.px-on [data-agopen],html.px-on #spayCard1,html.px-on #tuiStart,html.px-on [
 .hmain>.hday{grid-column:2;grid-row:1;align-self:stretch}
 .hmain>.hads{grid-column:1;grid-row:2}
 .hmain>.hpar{grid-column:2;grid-row:2}
+/* ★連絡ボードの字が小さく、下に余白が残っていた（2026-11-26 Remi さん「ホームの下の余白部分使って、もう少し大きく」）。
+   連絡ボードを右の「6つのマス＋保護者からの連絡」の高さまで伸ばし、広告枠はその下へ送る。
+   contain:size … 申し送りが多くても、連絡ボードの中身で右の列（マス）の高さが伸びないようにする（中だけ動かして見る）。 */
+@media(min-width:901px){
+  .hmain>.hboard{grid-row:1 / span 2;contain:size;max-height:none;min-height:380px}
+  /* 右下の「保護者からの連絡」も下まで伸ばし、連絡ボードと下の線をそろえる */
+  .hmain>.hpar{align-self:stretch}
+  .hmain>.hads{grid-row:3}
+}
 .ks-list{display:flex;flex-direction:column;gap:12px}
 .ks-card{border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;background:#fff}
 .ks-top{display:grid;grid-template-columns:170px minmax(200px,2fr) minmax(130px,1fr) minmax(140px,1fr) 44px;gap:12px;align-items:end}
@@ -1189,19 +1214,48 @@ button.row-miss:hover{background:#FAF9F5}
 /* 誰にでも見えることと、時刻が日本時間であることを、書く前に分かるようにする */
 .hbnote{font-size:11.5px;color:var(--tx3);text-align:center;margin:-4px 0 8px;line-height:1.6}
 /* 書いた人の名前。共有の申し送りなので、誰が書いたものか ひと目で分かるように濃く出す */
-.hbn{display:block;text-align:right;color:var(--tx);font-weight:700;font-size:11.5px}
+.hbn{display:block;text-align:right;color:var(--tx);font-weight:700;font-size:12.5px}
 .hbh{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:12px}
-.hbh span{font-size:15px;font-weight:800}
+.hbh span{font-size:16px;font-weight:800}
 .hbb{position:absolute;right:0;width:30px;height:30px;border:0;border-radius:8px;
   background:#F0921E;color:#fff;font-size:19px;font-weight:700;cursor:pointer;line-height:1}
 .hbb:hover{filter:brightness(1.06)}
-.hbr{display:flex;align-items:flex-start;gap:10px;padding:11px 2px;
-  border-bottom:1px solid var(--line2);font-size:13px;line-height:1.8}
+.hbr{display:flex;align-items:flex-start;gap:12px;padding:13px 2px;
+  border-bottom:1px solid var(--line2);font-size:15px;line-height:1.75}
 .hbr:last-child{border-bottom:0}
-.hbt{flex:none;font-size:11px;font-weight:700;color:#0B5F8F;background:#E3F1F9;
-  border:1px solid #C6DEF4;border-radius:99px;padding:2px 10px;margin-top:1px}
+.hbt{flex:none;font-size:12px;font-weight:700;color:#0B5F8F;background:#E3F1F9;
+  border:1px solid #C6DEF4;border-radius:99px;padding:3px 0;margin-top:2px;
+  /* 「共有」と「個人宛」で札の大きさがそろうように、幅を決めておく */
+  width:5.2em;text-align:center;box-sizing:border-box;line-height:1.5}
+/* 個人宛の札。共有（紫）と見分けがつくよう、＋ボタンと同じ系統の色にする */
+.hbt.to{color:#A82970;background:#FCE9F3;border-color:#F4C5DE}
+.hbxt{display:block}
+/* 宛先と「確認しました」 */
+.hbto{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:6px}
+.hbck{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;line-height:1.4;
+  border:1px solid var(--line);border-radius:12px;padding:4px 11px;color:var(--tx2);background:#fff}
+label.hbck{cursor:pointer;border-color:#F4C5DE;color:#A82970;font-weight:700}
+.hbck input{width:18px !important;height:18px !important;margin:0;accent-color:#A82970;cursor:pointer}
+.hbck.on{background:#EAF5EE;border-color:#BFDCC9;color:#2E6B45}
+.hbck .hbtn{font-weight:700;color:var(--tx)}
+.hbck small{font-size:11px;color:var(--tx3);font-weight:400}
+.hbck>span,.hbck small{white-space:nowrap}
+.hbck{flex-wrap:wrap;max-width:100%}
+.hbck input[type=checkbox]{width:22px !important;height:22px !important;min-width:22px !important;min-height:22px !important}
+.hmain>*{min-width:0}
+/* せまい画面：書いた人と時刻は本文の下の行へ送る（横に並べると本文と確認の札が押しつぶされる） */
+@media(max-width:600px){
+  .hbr{flex-wrap:wrap;gap:8px 10px}
+  .hbx{flex:1 1 0}
+  .hbm{order:3;flex:1 1 100%;padding-left:calc(5.2em + 10px);white-space:normal;margin-top:0}
+  .hbn{display:inline;text-align:left;margin-right:8px}
+}
+/* 書く窓の宛先 */
+.hbpick{display:flex;flex-wrap:wrap;gap:6px 14px;max-height:180px;overflow:auto;padding:2px}
+.hbpick label{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer}
+.hbkind button.on{background:var(--teal);color:#fff}
 .hbx{flex:1;min-width:0;word-break:break-word}
-.hbm{flex:none;font-size:11px;color:var(--tx3);white-space:nowrap;margin-top:2px}
+.hbm{flex:none;font-size:12px;color:var(--tx3);white-space:nowrap;margin-top:2px}
 .hbd{flex:none;border:0;background:none;color:var(--tx3);font-size:16px;cursor:pointer;
   line-height:1;padding:0 2px;opacity:.45}
 .hbd:hover{opacity:1;color:#A32D2D}
@@ -1254,11 +1308,11 @@ a.had:hover{border-color:var(--teal);transform:translateY(-1px)}
    保護者が押した登園と降園）を、届いた順に1か所へ集める。
    まだ見ていないものには赤い丸を付ける。 */
 .hpar{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 18px;align-self:start}
-.hpt{font-size:13px;font-weight:800;text-align:center;margin-bottom:9px;position:relative}
-.hpn{position:absolute;right:0;top:-1px;font-size:11px;font-weight:700;color:#A32D2D;
+.hpt{font-size:15px;font-weight:800;text-align:center;margin-bottom:9px;position:relative}
+.hpn{position:absolute;right:0;top:-1px;font-size:12px;font-weight:700;color:#A32D2D;
   background:#FCEBEB;border:1px solid #F3CFCF;border-radius:99px;padding:2px 9px}
 .hpr{display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;background:none;
-  border:0;border-top:1px solid var(--line2);padding:8px 2px;font:inherit;font-size:12.5px;
+  border:0;border-top:1px solid var(--line2);padding:10px 2px;font:inherit;font-size:14px;
   line-height:1.7;color:inherit}
 .hpr:first-of-type{border-top:0}
 button.hpr{cursor:pointer}
@@ -1267,13 +1321,13 @@ button.hpr:hover{background:#FAF9F5}
 .hpd.ok{background:var(--line)}
 .hpx{flex:1;min-width:0}
 .hpx b{display:block;font-weight:700}
-.hpx small{display:block;color:var(--tx3);font-size:11.5px;line-height:1.55}
+.hpx small{display:block;color:var(--tx3);font-size:12.5px;line-height:1.55}
 /* ★時刻を行のいちばん右に置いていたので、画面の右下に浮いている丸いボタン（#aiFab）に
    隠れて読めなかった。いちばん下まで送らなくても、丸の高さに来た行がそうなる
    （2026-09-20 安田さんのご指摘・1600 / 1280 / 834 のどの幅でも起きていた）。
    丸は右下から動かせないので、時刻をお名前の下へ移し、行の左にそろえる。 */
-.hpw{display:block;font-size:11px;color:var(--tx3);line-height:1.55}
-.hpe{font-size:12.5px;color:var(--tx3);text-align:center;padding:8px 0}
+.hpw{display:block;font-size:12px;color:var(--tx3);line-height:1.55}
+.hpe{font-size:14px;color:var(--tx3);text-align:center;padding:8px 0}
 
 /* ★1400px より広い画面で、ホームの右が大きく空いていた
    （image14・2026-09-16 安田さんのご指摘）。中身の幅の上限は .content で 1140px に
@@ -1294,7 +1348,7 @@ button.hpr:hover{background:#FAF9F5}
      1列に積むと そろえる相手がいなくなるのに下限だけが残り、
      申し送りが1件のときはカードの下半分が大きく空いていた（2026-09-19 安田さんのご指摘）。
      せまいときは下限を外して、中身のぶんだけの高さにする。 */
-  .hboard{max-height:none;min-height:0}
+  .hboard{max-height:none;min-height:0;contain:none}
   .hday{grid-template-columns:repeat(3,1fr);grid-auto-rows:auto}
 }
 @media(max-width:560px){
@@ -13446,7 +13500,16 @@ var EN_DICT={
 /* ── ホーム（きょうのボード）──────────── */
 'きょうのボード':'Today’s Board','連絡ボード':'Message Board',
 'ここを押して、今日の申し送りを書けます':'Tap here to write today’s handover',
-'共有':'Shared','きょうの予定':'Today’s Schedule','お誕生日':'Birthdays',
+'共有':'Shared',
+'個人宛':'Direct',
+'連絡ボードに書く':'Post to the board',
+'園の中だけで見えます。保護者には届きません。':'Visible to staff only. Not sent to parents.',
+'宛先（複数選べます）':'To (choose one or more)',
+'宛先にできる職員がいません。「職員」の画面で職員を登録してください。':'No staff to send to. Add staff on the Staff page.',
+'全員の画面に出ます。宛てた人だけが「確認しました」を押せます。':'Everyone can see it. Only the people it is addressed to can tap “Got it”.',
+'ここに共有事項を記入してください':'Write shared notes here',
+'内容を書いてください。':'Please write a message.',
+'宛先を選んでください。':'Please choose who it is for.','きょうの予定':'Today’s Schedule','お誕生日':'Birthdays',
 '予定は入っていません':'No schedule entered',
 'きょうが誕生日のお友だちはいません':'No birthdays today',
 'きょう見ておくこと':'To check today','まだ記録していないもの':'Not yet recorded',
@@ -21490,6 +21553,43 @@ function homeBoardWho(x){
   if(!n)return '書いた人の記録がありません';
   return n+((x&&x.role)?'／'+x.role:'');
 }
+/* ── 個人宛（2026-11-26 Remi さん「共有のところに個人宛というタグを増やして、本人が確認できたらチェックボックスを押して確認済みに」）──
+   宛先にできるのは、職員名簿（DB.staff）の人と、名簿につながっていないログインの人。
+   見えるのは全員（共有と同じ・安田さんのご判断）。「確認しました」を押せるのは宛てた本人だけ。
+   宛先の鍵は 名簿＝'s'+id、ログイン＝'a'+id。本人かどうかは、ログインのつながり（staffId）か、名前（空白を除く）で見る。 */
+function homeBoardNm(n){return String(n||'').replace(/[\s　]/g,'');}
+function homeBoardPeople(){
+  var out=[],seen={};
+  try{(DB.staff||[]).forEach(function(st){if(!st||!st.name)return;var k='s'+st.id;if(seen[k])return;seen[k]=1;seen['n:'+homeBoardNm(st.name)]=1;out.push({k:k,name:st.name});});}catch(e){}
+  try{staffAccounts().forEach(function(a){
+    if(!a||a.seed||!a.name)return;
+    if(a.staffId&&seen['s'+a.staffId])return;
+    if(seen['n:'+homeBoardNm(a.name)])return;
+    seen['n:'+homeBoardNm(a.name)]=1;out.push({k:'a'+a.id,name:a.name});
+  });}catch(e){}
+  return out;
+}
+/* いまログインしている人の鍵（どれか1つでも当たれば本人） */
+function homeBoardMine(t){
+  var me=(typeof currentStaff==='function')?currentStaff():null;if(!me||!t)return false;
+  if(t.k==='a'+me.id)return true;
+  if(me.staffId&&t.k==='s'+me.staffId)return true;
+  return !!me.name&&homeBoardNm(me.name)===homeBoardNm(t.name);
+}
+function homeBoardToHTML(x){
+  var ack=(x&&x.ack)||{};
+  return '<div class="hbto">'+(x.to||[]).map(function(t){
+    var done=ack[t.k],mine=homeBoardMine(t);
+    var who='<span class="hbtn" data-nolang="1">'+esc(t.name)+'</span>';
+    if(mine)return '<label class="hbck'+(done?' on':'')+'">'+who
+      +'<input type="checkbox" data-hback="'+esc(x.id)+'|'+esc(t.k)+'"'+(done?' checked':'')+'>'
+      +'<span>'+(done?'確認済み':'確認しました')+'</span>'
+      +(done?'<small data-nolang="1">'+esc(homeBoardWhen({at:done.at,jst:1}))+'</small>':'')+'</label>';
+    return '<span class="hbck'+(done?' on':'')+'">'+who
+      +'<span>'+(done?'✓ 確認済み':'未確認')+'</span>'
+      +(done?'<small data-nolang="1">'+esc(homeBoardWhen({at:done.at,jst:1}))+'</small>':'')+'</span>';
+  }).join('')+'</div>';
+}
 function homeBoardHTML(){
   var list=homeBoardAll().slice().reverse();
   return '<div class="hboard"><div class="hbh"><span>連絡ボード</span>'
@@ -21501,9 +21601,10 @@ function homeBoardHTML(){
     +'<div class="hbl">'
     +(list.length
       ? list.map(function(x){
+          var to=x.kind==='to'&&x.to&&x.to.length;
           return '<div class="hbr" data-hbi="'+esc(x.id)+'">'
-            +'<span class="hbt">共有</span>'
-            +'<span class="hbx">'+esc(x.text)+'</span>'
+            +(to?'<span class="hbt to">個人宛</span>':'<span class="hbt">共有</span>')
+            +'<span class="hbx"><span class="hbxt">'+esc(x.text)+'</span>'+(to?homeBoardToHTML(x):'')+'</span>'
             /* ★名前と時刻がひと続きの薄い字だったので、誰が書いたものか読み取りにくかった。
                名前を1行目に濃く出し、時刻を2行目に分ける（2026-09-16 安田さんのご指摘）。
                名前と時刻は英語に置き換えない（data-nolang） */
@@ -21511,34 +21612,75 @@ function homeBoardHTML(){
             +esc(homeBoardWhen(x))+'</span>'
             +'<button class="hbd" data-hbdel="'+esc(x.id)+'" title="消す">×</button></div>';
         }).join('')
+      /* 文言は Remi さんのご指示（2026-11-26） */
       : '<div class="hbr hbe"><span class="hbt">共有</span>'
-        +'<span class="hbx">ここを押して、今日の申し送りを書けます</span></div>')
+        +'<span class="hbx">ここに共有事項を記入してください</span></div>')
     +'</div></div>';
 }
-function homeBoardWire(){
-  function add(){
-    var t=prompt('今日の申し送りを書いてください。\n（園の中だけで見えます。保護者には届きません）','');
-    if(t===null)return;
-    t=String(t).replace(/^\s+|\s+$/g,''); if(!t)return;
+/* 書く窓。★prompt では「共有／個人宛」と宛先を選べないので、窓にした（2026-11-26） */
+function homeBoardAddOpen(){
+  var people=homeBoardPeople();
+  var m=document.createElement('div');m.className='modal-bg';
+  m.innerHTML='<div class="modal" style="max-width:520px;"><h3 style="margin-top:0;">連絡ボードに書く</h3>'
+    +'<div class="muted" style="font-size:12px;margin:-4px 0 12px;line-height:1.8;">園の中だけで見えます。保護者には届きません。</div>'
+    +'<div class="seg hbkind" style="margin-bottom:12px;"><button type="button" class="on" data-hbk="share">共有</button><button type="button" data-hbk="to">個人宛</button></div>'
+    +'<div id="hbToBox" hidden><div class="field"><label>宛先（複数選べます）</label>'
+    +(people.length?'<div class="hbpick">'+people.map(function(p){
+        return '<label data-nolang="1"><input type="checkbox" value="'+esc(p.k)+'" data-nm="'+esc(p.name)+'">'+esc(p.name)+'</label>';}).join('')+'</div>'
+      :'<div class="muted" style="font-size:12.5px;">宛先にできる職員がいません。「職員」の画面で職員を登録してください。</div>')
+    +'<div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.7;">全員の画面に出ます。宛てた人だけが「確認しました」を押せます。</div></div></div>'
+    +'<div class="field"><label>内容</label><textarea id="hbText" rows="3" maxlength="200" placeholder="ここに共有事項を記入してください"></textarea></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;"><button class="btn" id="hbNo">やめる</button><button class="btn btn-primary" id="hbGo">書く</button></div></div>';
+  document.body.appendChild(m);try{langApply(m);}catch(e){}
+  var kind='share',close=function(){m.remove();};
+  m.onclick=function(e){if(e.target===m)close();};
+  m.querySelectorAll('[data-hbk]').forEach(function(b){b.onclick=function(){
+    kind=b.getAttribute('data-hbk');
+    m.querySelectorAll('[data-hbk]').forEach(function(x){x.classList.toggle('on',x===b);});
+    document.getElementById('hbToBox').hidden=kind!=='to';
+  };});
+  document.getElementById('hbNo').onclick=close;
+  document.getElementById('hbGo').onclick=function(){
+    var t=String(document.getElementById('hbText').value||'').replace(/^\s+|\s+$/g,'');
+    if(!t){alert('内容を書いてください。');return;}
+    var to=[];
+    if(kind==='to'){
+      m.querySelectorAll('.hbpick input:checked').forEach(function(i){to.push({k:i.value,name:i.getAttribute('data-nm')});});
+      if(!to.length){alert('宛先を選んでください。');return;}
+    }
     var a=homeBoardAll(),me=(typeof currentStaff==='function')?currentStaff():null;
     /* jst:1 は「この at は日本時間で書いた」という印。
        印の無い古い申し送りは世界標準時なので、出すときに homeBoardWhen が直す。 */
-    a.push({id:'hb'+Date.now(),text:t.slice(0,200),
+    var row={id:'hb'+Date.now(),text:t.slice(0,200),
       by:me?(me.name||''):'',
       role:(me&&typeof roleLabel==='function')?roleLabel(me.role):'',
-      at:homeBoardStamp(),jst:1});
+      at:homeBoardStamp(),jst:1};
+    if(to.length){row.kind='to';row.to=to;row.ack={};}
+    a.push(row);
     /* 溜めすぎない。古いものから落とす */
     stSet('homeBoard',a.slice(-30));
-    renderHome();
-  }
-  var b=document.getElementById('hbAdd'); if(b)b.onclick=add;
-  document.querySelectorAll('.hbe').forEach(function(e){e.onclick=add;});
+    close();renderHome();
+  };
+  setTimeout(function(){var ta=document.getElementById('hbText');if(ta)ta.focus();},50);
+}
+function homeBoardWire(){
+  var b=document.getElementById('hbAdd'); if(b)b.onclick=homeBoardAddOpen;
+  document.querySelectorAll('.hbe').forEach(function(e){e.onclick=homeBoardAddOpen;});
   document.querySelectorAll('[data-hbdel]').forEach(function(x){x.onclick=function(ev){
     ev.stopPropagation();
     if(!confirm('この申し送りを消します。よろしいですか。'))return;
     var id=x.getAttribute('data-hbdel');
     stSet('homeBoard',homeBoardAll().filter(function(y){return y.id!==id;}));
     renderHome();
+  };});
+  /* 確認しました。押し直すと外せる（押しまちがい用）。本人の宛先でなければ何もしない */
+  document.querySelectorAll('[data-hback]').forEach(function(x){x.onchange=function(){
+    var v=x.getAttribute('data-hback').split('|'),a=homeBoardAll(),me=(typeof currentStaff==='function')?currentStaff():null;
+    var row=a.filter(function(y){return y.id===v[0];})[0];if(!row)return;
+    var t=(row.to||[]).filter(function(y){return y.k===v[1];})[0];if(!t||!homeBoardMine(t))return;
+    row.ack=row.ack||{};
+    if(x.checked)row.ack[t.k]={by:me?(me.name||''):'',at:homeBoardStamp()};else delete row.ack[t.k];
+    stSet('homeBoard',a);renderHome();
   };});
 }
 
