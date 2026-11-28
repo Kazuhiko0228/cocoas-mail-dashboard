@@ -438,7 +438,7 @@ function admOfficialHost(){return /(^|\.)mirai-wa\.com$|\.github\.io$/i.test(loc
     history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:''));}
 }catch(e){}})();
 
-var view='home', openId=null, DATA={}, PLANS={}, OPTS={}, UPGRADE={};
+var view='home', openId=null, DATA={}, PLANS={}, OPTS={}, UPGRADE={}, LUMP={}, INIT_FEE=49800;
 
 /* ── 見た目の部品 ────────────────────── */
 function statusPill(s){
@@ -446,9 +446,56 @@ function statusPill(s){
   return '<span class="pill '+(m[s]||'p-lead')+'">'+esc(s||'見込み')+'</span>';
 }
 function planTag(p){
-  var n=(PLANS[p]&&PLANS[p].name)||p||'—';
+  var n=(PLANS[p]&&PLANS[p].name)||(p==='base'?'ベースプラン':p)||'—';
   return '<span class="plan">'+esc(n)+'</span>';
 }
+/* ══ 料金の作り替え（2026-11-28 安田さんのご判断）══════════
+   ★以前は Connect / Standard / Pro / Business のプランで機能と金額を分け、園児数60名を超えた1名500円を足していた。
+   ベースプラン1つ＋オプション3つ（mfile・audit・accounting）に変え、園児数の加算はやめた。
+   一括払い（4つ）は申込で選べるが、自動では請求しない。運営が「まとめて請求」で手で作る。
+   金額はサーバ（GET /admin/plans）の値を使う。読めなかったときだけ下の控えで出す（画面が白くならないように） */
+var OPT_KEYS=['mfile','audit','accounting'];
+var OPT_FALLBACK={mfile:{name:'Miralink File',monthly:2200},audit:{name:'監査書類の自動整備',monthly:5000},accounting:{name:'売上・支出管理',monthly:5000}};
+var LUMP_KEYS=['y1','y1_first5','y2','y2_first5'];
+var LUMP_FALLBACK={y1:{name:'通常1年プラン',yen:167400,months:12,note:'初期設定料込み。オプション別'},
+  y1_first5:{name:'初回5園限定・1年プラン',yen:147800,months:12,note:'初期設定料込み。ベース2か月分無料'},
+  y2:{name:'通常2年プラン',yen:285000,months:24,note:'初期設定料込み。オプション別'},
+  y2_first5:{name:'初回5園限定・2年プラン',yen:265400,months:24,note:'初期設定料込み。無料は最初の2か月のみ'}};
+/* GET /admin/plans の答えを入れる。欠けている項目があっても前の値か控えで動く */
+function plansSet(p){
+  p=p||{};PLANS=p.plans||{};OPTS=p.options||{};UPGRADE=p.upgrade||{};LUMP=p.lump||{};
+  if(p.tax&&typeof p.tax==='object')PLAN_TAX={percent:p.tax.percent,taxable:(p.tax.config||{}).taxable,rounding:(p.tax.config||{}).rounding};
+  if(p.initialFee!=null&&!isNaN(+p.initialFee))INIT_FEE=+p.initialFee;
+}
+function planBaseOf(){var b=(PLANS&&PLANS.base)||{};return {name:b.name||'ベースプラン',monthly:(b.monthly!=null&&!isNaN(+b.monthly))?+b.monthly:9800};}
+function optInfoOf(k){var o=(OPTS&&OPTS[k])||{},f=OPT_FALLBACK[k]||{};
+  return {name:o.name||f.name||k,monthly:(o.monthly!=null&&!isNaN(+o.monthly))?+o.monthly:f.monthly};}
+function lumpInfoOf(k){var o=(LUMP&&LUMP[k])||{},f=LUMP_FALLBACK[k]||{};
+  return {name:o.name||f.name||k,yen:(o.yen!=null&&!isNaN(+o.yen))?+o.yen:f.yen,months:o.months||f.months,note:o.note||f.note||''};}
+/* 契約・申込についているオプションの鍵（知らない値は捨てる） */
+function optsOf(c){var a=(c&&Array.isArray(c.options))?c.options:[];return OPT_KEYS.filter(function(k){return a.indexOf(k)>-1;});}
+function optsTag(c){var a=optsOf(c);
+  return a.length?a.map(function(k){return '<span class="chip" style="font-size:10.5px;margin:2px 3px 0 0;">'+esc(optInfoOf(k).name)+'</span>';}).join('')
+    :'<span style="font-size:11px;color:var(--mute);">オプションなし</span>';}
+function lumpText(k){if(!k||k==='monthly'||!LUMP_FALLBACK[k])return '毎月払い';var l=lumpInfoOf(k);return l.name+'（'+yen(l.yen)+'・税別）';}
+/* 契約の欄・導入のウィザードで使う、オプション3つのチェックと一括払いの選択 */
+function optChecksHTML(pre,c){var on=optsOf(c);
+  return '<div class="f"><label>オプション（月額・税別）</label><div style="display:flex;flex-wrap:wrap;gap:6px 16px;">'
+    +OPT_KEYS.map(function(k){var o=optInfoOf(k);
+      /* ★.f の中の input は幅いっぱいに広がる決まりなので、チェックが左に離れて名前が3行に折れていた。幅を戻す */
+      return '<label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400;color:var(--ink);white-space:nowrap;margin:0;"><input type="checkbox" style="width:auto;flex:none;margin:0;" class="'+pre+'_opt" value="'+k+'"'+(on.indexOf(k)>-1?' checked':'')+'> '
+        +esc(o.name)+' <span class="num" style="color:var(--mute);">'+(o.monthly==null?'':yen(o.monthly))+'</span></label>';}).join('')
+    +'</div></div>';}
+function optChecksGet(pre){return Array.prototype.map.call(document.querySelectorAll('.'+pre+'_opt:checked'),function(e){return e.value;});}
+function lumpSelHTML(id,c){var cur=(c&&c.lump)||'';
+  return '<div class="f"><label>お支払いの回数</label><select id="'+id+'"><option value="">毎月払い</option>'
+    +LUMP_KEYS.map(function(k){var l=lumpInfoOf(k);return '<option value="'+k+'"'+(cur===k?' selected':'')+'>'+esc(l.name+'（'+yen(l.yen)+'・'+l.months+'か月）')+'</option>';}).join('')
+    +'</select><div class="hint" style="margin:4px 0 0;">一括払いは自動で請求しません。「まとめて請求」で作ります。</div></div>';}
+function lumpGet(id){var e=$(id),v=e?e.value:'';return LUMP_FALLBACK[v]?v:null;}
+/* 一括払いを選んだ園の案内（園の詳細の契約の近く。決定3・2026-11-28） */
+function lumpNoteHTML(c){var k=c&&c.lump;if(!k||!LUMP_FALLBACK[k])return '';var l=lumpInfoOf(k);
+  return '<div class="note warn" style="margin:0 0 12px;">一括払いを選んだ園です（'+esc(l.name)+'・'+yen(l.yen)+'・税別・'+esc(l.months)+'か月分）。'
+    +'請求は「まとめて請求」で作ってください。'+(l.note?'<br><span style="font-size:11.5px;">'+esc(l.note)+'</span>':'')+'</div>';}
 
 /* ── ログイン ────────────────────────── */
 function loginHTML(){
@@ -481,7 +528,7 @@ function wireLogin(){
         API.setToken(j.token);DATA.me=j.admin;readHash();GLB_AT=0;
         /* 料金表を先に読む。読めなくても画面は出す。 */
         return API.call('GET','/admin/plans')
-          .then(function(p){PLANS=p.plans;OPTS=p.options||{};UPGRADE=p.upgrade||{};},function(){})
+          .then(function(p){plansSet(p);},function(){})
           .then(function(){render();});
       })
       .catch(function(x){b.disabled=false;b.textContent='ログイン';
@@ -1120,14 +1167,14 @@ function tenantsHTML(){
     +'<div class="hint" style="margin:0;">申込が届いている園は「申込」から。申込のない園は、商談の内容を入れてから園のアカウントを作ります（管理者のログインと導入の手順も一緒にできます）。</div></div>'
     +'<button class="btn sec sm" data-v="apply">申込を見る</button><button class="btn sm" id="tNew">申込なしで始める</button></div></div>'
     +(t.length? '<div class="tw"><table><thead><tr>'
-      +'<th>園</th><th>状態</th><th>プラン</th><th class="r">在籍</th>'
+      +'<th>園</th><th>状態</th><th>オプション</th><th class="r">在籍</th>'
       +'<th class="r">当月（税別）</th><th class="r">残債</th><th>開始</th></tr></thead><tbody>'
       +t.map(function(x){
         var q=x.quote||{},c=x.cancel||{};
         return '<tr data-t="'+x.id+'">'
           +'<td><b>'+esc(x.name)+'</b><div style="font-size:11px;color:var(--mute);">'+esc(x.code)+'</div></td>'
           +'<td>'+statusPill(x.status)+'</td>'
-          +'<td>'+planTag(x.plan)+(q.inCampaign?'<div style="font-size:10.5px;color:var(--accent);margin-top:3px;">キャンペーン中</div>':'')+'</td>'
+          +'<td>'+optsTag(x.contract||x)+(x.lump&&LUMP_FALLBACK[x.lump]?'<div style="font-size:10.5px;color:var(--warn);margin-top:3px;">一括払い</div>':'')+(q.inCampaign?'<div style="font-size:10.5px;color:var(--accent);margin-top:3px;">キャンペーン中</div>':'')+'</td>'
           +'<td class="r num">'+x.seats+'</td>'
           +'<td class="r num"><b>'+yen(q.total)+'</b>'
             +(q.note?'<div style="font-size:10.5px;color:var(--warn);">単価未設定</div>':'')+'</td>'
@@ -1203,11 +1250,10 @@ function tenantHTML(){
   var d=DATA.one;
   if(!d)return '<div class="empty">読み込んでいます…</div>';
   var c=d.contract||{},q=d.quote||{},cn=d.cancel||{};
-  var plans=['connect','standard','pro','business'];
   var sts=['見込み','商談中','モニター','契約中','解約予定','解約済'];
   var head='<button class="back" id="bk">‹ 園の一覧にもどる</button>'
     +'<h2>'+esc(d.tenant.name)+'</h2>'
-    +'<div class="lead">'+esc(d.tenant.code)+'　'+statusPill(c.status)+'　'+planTag(c.plan)
+    +'<div class="lead">'+esc(d.tenant.code)+'　'+statusPill(c.status)+'　'+planTag('base')+' '+optsTag(c)
       +(d.tenant.active===false?'　<span class="pill" style="background:#FBEBEB;color:#9C3535;border:1px solid #EDCDCD;">利用停止中</span>':'')
       +'　当月 <b class="num">'+yen(q.total)+'</b>（税別）'
       /* 担当が空のときは「未設定（選ぶ）」と薄い黄色で（2026-10-09。「（なし）」だけでは選べることが分からなかった） */
@@ -1226,6 +1272,7 @@ function tenantHTML(){
     +'</div>'
 
     +(q.note?'<div class="note">'+esc(q.note)+'</div>':'')
+    +lumpNoteHTML(c)
 
     +'<div class="card"><h3>当月の内訳</h3>'
     +'<div class="lines">'
@@ -1255,7 +1302,8 @@ function tenantHTML(){
     +(d.seatHistory.length? '<div class="lines" style="margin-top:11px;">'
       +d.seatHistory.map(function(h){
         return '<div><span class="l">'+esc(h.counted_on)+'</span>'
-          +'<span class="y num">'+h.seats+'名（超過 '+h.billable+'名）</span></div>';}).join('')
+          /* ★園児数の加算はやめた（2026-11-28）ので「超過 ◯名」は出さない。人数の記録だけ残す */
+          +'<span class="y num">'+h.seats+'名</span></div>';}).join('')
       +'</div>':'')
     +'</div>'
 
@@ -1296,23 +1344,26 @@ function tenantHTML(){
     +'</div>';
   /* 2026-10-09 改善案6。★開くと最初に「未納のときの連絡」が出ていた（導入のときには使わない）。契約の条件を一番上に、未納は一番下へ */
   P.contract=''
+    +lumpNoteHTML(c)
     +'<div class="card"><h3>契約の条件 <span style="font-weight:400;font-size:12px;color:var(--mute);">（ヒアリングで決めた内容を入れて保存）</span></h3>'
     +'<div class="grid3">'
-    +'<div class="f"><label>プラン</label><select id="c_plan">'
-      +plans.map(function(p){return '<option value="'+p+'"'+(c.plan===p?' selected':'')+'>'
-        +esc((PLANS[p]&&PLANS[p].name)||p)+'</option>';}).join('')+'</select></div>'
+    /* ★以前はここでプラン（Connect〜Business）を選び、定額に含む園児数・超過1人あたりの欄があった。
+       プランは「ベースプラン」だけになり、園児数の加算はやめた（2026-11-28 安田さんのご判断）。
+       オプション3つと一括払いを選ぶ形にした。保存のとき plan は必ず 'base' を送る */
+    +'<div class="f"><label>プラン</label><input value="'+esc(planBaseOf().name+'（'+yen(planBaseOf().monthly)+'・税別）')+'" disabled></div>'
     +'<div class="f"><label>状態</label><select id="c_status">'
       +sts.map(function(s){return '<option'+(c.status===s?' selected':'')+'>'+esc(s)+'</option>';}).join('')+'</select></div>'
     +'<div class="f"><label>開始日</label><input id="c_started" type="date" value="'+esc(c.started_on||'')+'"></div>'
     +'</div>'
+    +optChecksHTML('c',c)
     +'<div class="grid3">'
-    +'<div class="f"><label>月額（税別・空欄でプランの既定）</label><input id="c_monthly" class="num" inputmode="numeric" value="'+esc(c.monthly_yen==null?'':c.monthly_yen)+'"></div>'
-    +'<div class="f"><label>定額に含む園児数</label><input id="c_inc" class="num" inputmode="numeric" value="'+esc(c.seat_included==null?'':c.seat_included)+'"></div>'
-    +'<div class="f"><label>超過1人あたり（税別）</label><input id="c_unit" class="num" inputmode="numeric" placeholder="未確定" value="'+esc(c.seat_unit_yen==null?'':c.seat_unit_yen)+'"></div>'
+    +'<div class="f"><label>ベースの月額（税別・空欄で '+yen(planBaseOf().monthly)+'）</label><input id="c_monthly" class="num" inputmode="numeric" value="'+esc(c.monthly_yen==null?'':c.monthly_yen)+'"></div>'
+    +lumpSelHTML('c_lump',c)
+    +'<div class="f"></div>'
     +'</div>'
-    /* ★金額がまだ決まっていない3つ。0 のあいだは、いままでと同じ請求になる。 */
+    /* 初期設定料（すべての園に同じ既定。2026-11-28）と、まだ決まっていないストアの率2つ。率が 0 のあいだは、いままでと同じ請求になる。 */
     +'<div class="grid3">'
-    +'<div class="f"><label>初期費用（税別・契約時に1回）</label><input id="c_init" class="num" inputmode="numeric" placeholder="0＝いただかない" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
+    +'<div class="f"><label>初期設定料（税別・契約時に1回。既定 '+yen(INIT_FEE)+'）</label><input id="c_init" class="num" inputmode="numeric" placeholder="'+esc(INIT_FEE)+'" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
     +'<div class="f"><label>ストアの運営手数料（％）</label><input id="c_sfee" class="num" inputmode="numeric" placeholder="0＝仮の率" value="'+esc(c.store_fee_percent==null?'':c.store_fee_percent)+'"></div>'
     +'<div class="f"><label>ストアの園への還元（％）</label><input id="c_sback" class="num" inputmode="numeric" placeholder="0＝園の設定（既定20%）" value="'+esc(c.store_back_percent==null?'':c.store_back_percent)+'"></div>'
     +'</div>'
@@ -1325,7 +1376,7 @@ function tenantHTML(){
     +'<div class="f"><label>取り分の値（％か円。既定なら空欄）</label><input id="c_tval" class="num" inputmode="decimal" placeholder="既定のときは空欄" value="'+esc(+c.tuition_fee_yen>0?c.tuition_fee_yen:(c.tuition_fee_percent==null?'':c.tuition_fee_percent))+'"></div>'
     +'<div class="f"></div></div>'
     +'<details class="hint" style="margin:0 0 12px;"><summary style="cursor:pointer;">ストア・保育料カード払いの率について</summary><div style="margin-top:6px;">'
-    +'初期費用とストアの率は、まだ決まっていないので 0 のままにしてあります。'
+    +'ストアの率は、まだ決まっていないので 0 のままにしてあります。'
     +'0 のあいだは、いままでと同じ請求です。決まったらここに入れてください。'
     +'手数料と還元を足して100%を超えると、出品者の取り分がなくなるので保存できません。<br>'
     /* 保護者のカード払いの台帳（wa_payments）は、作った時点の率を焼き込む。
@@ -1341,7 +1392,7 @@ function tenantHTML(){
     +'<div class="f"><label>最低契約期間（か月）</label><input id="c_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div>'
     +'</div>'
     /* 完全無料（2026-11-01 安田さん「設定で完全無料もできるように」） */
-    +'<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:13px;"><input type="checkbox" id="c_free"'+(c.free_forever?' checked':'')+'> <b>完全無料</b>（期間なし・ずっと0円。初期費用・園児数の加算もなし。支払い方法の登録も要りません）</label>'
+    +'<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:13px;"><input type="checkbox" id="c_free"'+(c.free_forever?' checked':'')+'> <b>完全無料</b>（期間なし・ずっと0円。初期設定料・オプションもなし。支払い方法の登録も要りません）</label>'
     +'<div class="f"><label>メモ</label><textarea id="c_note" rows="2">'+esc(c.note||'')+'</textarea></div>'
     +'<div class="row"><button class="btn" id="save">契約を保存する</button><span class="msg" id="sm"></span></div>'
     +'</div>'
@@ -1355,7 +1406,7 @@ function tenantHTML(){
     +'</div>'
     +'<div class="card"><h3>契約書をつくる</h3>'
     +'<div class="lead" style="margin-bottom:10px;">'
-    +'この園の契約（プラン・開始日・在籍数）から差し込んで組み立てます。'
+    +'この園の契約（ベースプラン・オプション・開始日）から差し込んで組み立てます。'
     +'見積書の金額は、請求とまったく同じ計算から出しています。'
     +'書かれる金額は、実際に請求する金額と必ず一致します。</div>'
     +'<div class="row" style="flex-wrap:wrap;gap:8px;">'
@@ -1470,7 +1521,7 @@ function obCardHTML(){
   }else if(now&&now.key!=='billing'){
     var btns='', ctx='';
     if(now.key==='hearing'){
-      if(c)ctx='いまの条件：'+esc((c.plan||'').toUpperCase())+'・'+esc(campText(c))+'・最低契約 '+esc(c.min_months)+'か月・初期費用 '+esc(yen(+c.initial_fee_yen||0));
+      if(c)ctx='いまの条件：'+esc(planBaseOf().name)+(optsOf(c).length?'＋'+esc(optsOf(c).map(function(k){return optInfoOf(k).name;}).join('・')):'')+'・'+esc(lumpText(c.lump))+'・'+esc(campText(c))+'・最低契約 '+esc(c.min_months)+'か月・初期設定料 '+esc(yen(+c.initial_fee_yen||0));
       btns='<button class="btn" data-obs="hearing" data-to="done">この条件で決まった（済にする）</button><button class="btn sec" data-gotab="contract">条件を直す（契約・請求タブ）</button>';
     }else if(now.key==='contract'){
       btns='<button class="btn" data-gotab="docs">書類タブで契約書を送る</button>';
@@ -1684,16 +1735,19 @@ function wizBody(k){
       +'<div class="hint" style="margin-top:10px;">管理者が最初にログインすると、Miralink に「はじめの準備」の案内が出て、契約書の同意 → 利用料金の支払い方法 → 園児 → 保護者 の順に進めます。</div>';
   }
   if(k==='terms'){
-    var c=d.contract||{}, q=d.quote||{}, plans=['connect','standard','pro','business'];
+    var c=d.contract||{}, q=d.quote||{};
     return wizProfileHTML()+'<div class="lead" style="margin-top:12px;">先方と決めた条件を入れます。金額は請求と同じ計算で出ます。</div>'
       +'<div class="grid3">'
-      +'<div class="f"><label>プラン</label><select id="wz_plan">'+plans.map(function(p){return '<option value="'+p+'"'+(c.plan===p?' selected':'')+'>'+esc((PLANS[p]&&PLANS[p].name)||p)+'</option>';}).join('')+'</select></div>'
+      /* ★以前はプラン（Connect〜Business）を選んでいた。ベースプラン＋オプションの形に（2026-11-28 安田さんのご判断） */
+      +'<div class="f"><label>プラン</label><input value="'+esc(planBaseOf().name+'（'+yen(planBaseOf().monthly)+'・税別）')+'" disabled></div>'
       +'<div class="f"><label>ご利用開始日</label><input id="wz_start" type="date" value="'+esc(c.started_on||'')+'"></div>'
-      +'<div class="f"><label>初期費用（税別）</label><input id="wz_init" class="num" inputmode="numeric" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
+      +'<div class="f"><label>初期設定料（税別・既定 '+yen(INIT_FEE)+'）</label><input id="wz_init" class="num" inputmode="numeric" placeholder="'+esc(INIT_FEE)+'" value="'+esc(c.initial_fee_yen==null?'':c.initial_fee_yen)+'"></div>'
       +'<div class="f"><label>割引する月数（なしは 0）</label><input id="wz_cm" class="num" inputmode="numeric" value="'+esc(c.campaign_months)+'"></div>'
       +'<div class="f"><label>その間の割引（何％引き・無料で始めるなら 100）</label><input id="wz_coff" class="num" inputmode="numeric" value="'+esc(campOff(c))+'"></div>'
       +'<div class="f"><label>最低契約期間（か月）</label><input id="wz_mm" class="num" inputmode="numeric" value="'+esc(c.min_months)+'"></div></div>'
-      +'<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:13px;"><input type="checkbox" id="wz_free"'+(c.free_forever?' checked':'')+'> <b>完全無料</b>（期間なし・ずっと0円。初期費用・園児数の加算もなし。支払い方法の登録も要りません）</label>'
+      +optChecksHTML('wz',c)
+      +'<div class="grid3">'+lumpSelHTML('wz_lump',c)+'<div class="f"></div><div class="f"></div></div>'
+      +'<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:13px;"><input type="checkbox" id="wz_free"'+(c.free_forever?' checked':'')+'> <b>完全無料</b>（期間なし・ずっと0円。初期設定料・オプションもなし。支払い方法の登録も要りません）</label>'
       +'<div class="wzQuote"><span style="flex:1;min-width:200px;">いまの条件でのひと月の金額 <b class="num">'+yen(q.total||0)+'</b>（税別・在籍 '+esc(d.seats||0)+'名）</span>'
       /* 2026-10-11：入れた条件で金額を出し直す（保存はするが、このステップは済にしない） */
       +'<button class="btn sec sm" id="wzRecalc">入れた条件で金額を出し直す</button><span class="msg" id="wzRM"></span></div>'
@@ -3001,7 +3055,7 @@ function applyHTML(){
             +(a.school?'　'+esc(a.school):'')
             +'<div style="font-size:11.5px;color:var(--mute);margin-top:2px;">'
             +esc(a.person||'')+'　'+esc(a.email||'')
-            +'　／　'+esc(a.plan||'')+'　'+(a.starts_on?esc(a.starts_on)+' 開始':'')
+            +'　／　'+esc(apPlanText(a))+'　'+(a.starts_on?esc(a.starts_on)+' 開始':'')
             +'　／　'+esc(String(a.created_at).slice(0,10))
             +(a.mail_sent_at?'':'　／　<span style="color:#A8701A;">メール未送信</span>')
             +'</div></span>'
@@ -3015,6 +3069,21 @@ function applyHTML(){
   return h;
 }
 
+/* 申込の内容（プラン・オプション・お支払いの回数・払い方）を1行に（2026-11-28 料金の作り替え）。
+   ★以前は a.plan（Connect などの文字）をそのまま出していた。新しい申込は payload に options・lump・pay が入る。
+   古い申込（プラン名だけ）はその名前を出す */
+function apPlanText(a){
+  var p=(a&&a.payload)||{}, t=[];
+  var pl=p.plan||a.plan||'';
+  t.push(pl==='base'?planBaseOf().name:(pl||'プラン未定'));
+  var o=optsOf({options:p.options||a.options});
+  if(o.length)t.push('＋'+o.map(function(k){return optInfoOf(k).name;}).join('・'));
+  var lp=p.lump||a.lump;
+  if(lp&&LUMP_FALLBACK[lp])t.push('・'+lumpInfoOf(lp).name);
+  var py=p.pay||a.pay;
+  if(py==='card')t.push('・クレジット');else if(py==='transfer')t.push('・口座振替（当面は請求書払い）');
+  return t.join('');
+}
 /* 申込フォームのURL（2026-10-09 安田さん「申込のところからもURLにアクセスできるように」）。
    ★以前は location.href の最後の / から後ろを差し替えていたので、#/apply のような住所のときに
    「admin.html#/apply.html」になり、コピーしたURLを開いても申込フォームが出なかった */
@@ -3034,7 +3103,6 @@ function shodanHTML(){
   if(!shodanOn)return '<div class="card"><div class="row"><div style="flex:1;min-width:220px;"><h3 style="margin:0 0 4px;">申込なしで始める</h3>'
     +'<div style="font-size:12.5px;color:var(--mute);">園に申込フォームを書いてもらわずに、商談で聞いた内容から導入を始めます。</div></div>'
     +'<button class="btn sm" id="sdOpen">商談の内容を入れる</button></div></div>';
-  var pl=Object.keys(PLANS||{});
   function f(id,label,ph,type){return '<div class="f"><label>'+label+'</label><input id="'+id+'"'+(type?' type="'+type+'"':'')+' placeholder="'+esc(ph||'')+'" value="'+esc(shodanPre[id]||'')+'"></div>';}
   return '<div class="card"><h3>申込なしで始める（商談の内容）</h3>'
     +'<div class="lead" style="margin-bottom:8px;">分かっているところだけで大丈夫です（<b>園名か法人名</b>と<b>先方のご担当者</b>は必須）。作ったあと、そのまま「この申込で園のアカウントを作る」に進みます。</div>'
@@ -3042,7 +3110,11 @@ function shodanHTML(){
     +f('sd_corp','法人名','社会福祉法人 〇〇会')+f('sd_school','園名','〇〇保育園')
     +f('sd_person','先方のご担当者（必須）','山田 花子')+f('sd_role','役職','園長')
     +f('sd_email','メール','info@example.jp','email')+f('sd_tel','電話','03-0000-0000','tel')
-    +'<div class="f"><label>プラン</label><select id="sd_plan"><option value="">未定</option>'+pl.map(function(k){return '<option value="'+esc(k)+'">'+esc((PLANS[k]&&PLANS[k].name)||k)+'</option>';}).join('')+'</select></div>'
+    /* ★以前はプラン（Connect〜Business）を選んでいた。ベースプラン固定で、オプションとお支払いの回数を選ぶ（2026-11-28） */
+    +'<div class="f"><label>プラン</label><input value="'+esc(planBaseOf().name)+'" disabled></div>'
+    +lumpSelHTML('sd_lump',{lump:shodanPre.sd_lump||''})
+    +'<div class="f" style="grid-column:1/-1;">'+optChecksHTML('sd',{options:shodanPre.sd_opts||[]})+'</div>'
+    +'<div class="f"><label>利用料金の払い方</label><select id="sd_pay"><option value="">未定</option><option value="card">クレジット</option><option value="transfer">口座振替（準備中。それまでは請求書払い）</option></select></div>'
     +f('sd_starts','ご利用開始の予定','','date')
     +f('sd_kids','園児数の目安','40')
     +'</div>'
@@ -3680,44 +3752,45 @@ function meHTML(){
     +'<div class="f"><label>新しいパスワード（8文字以上）</label><input id="n_pw" type="password"></div></div>'
     +'<div class="row"><button class="btn sm" id="pw_go">変更する</button><span class="msg" id="pw_m"></span></div></div>';
 }
+/* 料金表（2026-11-28 安田さんの料金表）。
+   ★以前は Connect〜Business の4行と「Standard は90名で Pro と同額」の比べ方、
+   Connect＋監査対応の単発オプションと Standard の比べ方を出していた。プランで分けるのをやめたので外した。
+   金額はサーバ（GET /admin/plans）から受け取ったものを出す。ここに直書きすると、料金を変えたときに画面だけ古いまま残る
+   （読めなかったときだけ、上の控え OPT_FALLBACK などで出す） */
+var PLAN_TAX=null;
+function planTaxIn(n){
+  if(n==null||isNaN(+n))return null;
+  var t=(DATA.tax&&DATA.tax.tax)||PLAN_TAX||{};
+  if(t.taxable===false)return +n;
+  var pct=(t.percent!=null&&!isNaN(+t.percent))?+t.percent:10, x=(+n)*pct/100;
+  x=t.rounding==='floor'?Math.floor(x):(t.rounding==='round'?Math.round(x):Math.ceil(x));
+  return (+n)+x;
+}
 function plansHTML(){
+  var b=planBaseOf();
+  function row(k,name,yenV,unit,note){
+    return '<tr style="cursor:default;"><td>'+esc(k)+'</td><td>'+esc(name)+'</td>'
+      +'<td class="r num">'+(yenV==null?'—':yen(yenV))+'</td>'
+      +'<td class="r num">'+(yenV==null?'—':yen(planTaxIn(yenV)))+'</td>'
+      +'<td>'+esc(unit)+'</td><td style="font-size:11.5px;color:var(--mute);">'+esc(note||'')+'</td></tr>';
+  }
   return ''
     +'<div class="card"><h3>料金表</h3>'
-    +'<div class="tw"><table style="min-width:480px;"><thead><tr><th>プラン</th>'
-    +'<th class="r">月額（税別）</th><th class="r">定額に含む人数</th>'
-    +'<th class="r">超過1人あたり</th></tr></thead><tbody>'
-    +Object.keys(PLANS).map(function(k){var p=PLANS[k];
-      return '<tr style="cursor:default;"><td>'+esc(p.name)+'</td>'
-        +'<td class="r num">'+(p.monthly==null?'個別見積':yen(p.monthly))+'</td>'
-        +'<td class="r num">'+(p.seatIncluded==null?'無制限':p.seatIncluded+'名')+'</td>'
-        +'<td class="r num">'+(p.seatUnit==null?'—':yen(p.seatUnit))+'</td></tr>';
-    }).join('')+'</tbody></table></div>'
+    +'<div class="tw"><table style="min-width:640px;"><thead><tr><th>区分</th><th>項目</th>'
+    +'<th class="r">税別</th><th class="r">税込</th><th>単位</th><th>備考</th></tr></thead><tbody>'
+    +row('ベース',b.name,b.monthly,'月・園','クレジット決済・写真販売機能を含む。取引手数料は別途')
+    +row('初期費用','初期設定料',INIT_FEE,'初回・園','キャンペーン利用でも必要')
+    +OPT_KEYS.map(function(k){var o=optInfoOf(k);
+      return row('オプション',o.name,o.monthly,'月・園',k==='audit'?'人による監査対応は含まない':'');}).join('')
+    +row('データ移行','30人超の追加料金',10000,'追加30人単位','標準名簿30人まで無料。独自加工は別見積もり')
+    +LUMP_KEYS.map(function(k){var l=lumpInfoOf(k);
+      return row('一括払い',l.name,l.yen,'初回'+(l.months||'')+'か月',l.note);}).join('')
+    +'</tbody></table></div>'
     +'<div style="font-size:11.5px;color:var(--mute);margin-top:10px;line-height:1.75;">'
-    +'園ごとの契約で単価を上書きできます。空欄のときは、この表の金額を使います。<br>'
-    +'<b>Standard は90名で Pro と同額</b>になり、91名からは Pro のほうが安くなります。'
-    +'</div>'
-    +'<div style="margin-top:14px;padding-top:13px;border-top:1px solid var(--line);">'
-    +'<div style="font-weight:800;font-size:13px;margin-bottom:7px;">単発オプション</div>'
-    +'<div class="lines" style="margin-top:0;">'
-    /* 金額はサーバ（src/admin.js）から受け取ったものを出す。
-       ここに直書きすると、料金を変えたときに画面だけ古いまま残る。 */
-    +(function(){
-      var u=UPGRADE||{}, o=(OPTS&&OPTS.audit_year)||{};
-      if(u.standardYear==null)return '<div class="empty" style="padding:12px 0;">'
-        +'料金の情報を読み込めませんでした</div>';
-      return '<div><span class="l">'+esc(o.name||'監査対応（1年・単発）')+'</span>'
-          +'<span class="y num">'+yen(u.auditOption)+'</span></div>'
-        +'<div><span class="l">Connect 1年 ＋ 単発オプション</span>'
-          +'<span class="y num">'+yen(u.connectPlusOption)+'</span></div>'
-        +'<div><span class="l">Standard 1年</span>'
-          +'<span class="y num">'+yen(u.standardYear)+'</span></div>'
-        +'<div class="tot"><span class="l">Standard のほうが安い額</span>'
-          +'<span class="y num">'+yen(u.diff)+'</span></div>';
-    })()
-    +'</div>'
-    +'<div style="font-size:11.5px;color:var(--mute);margin-top:9px;line-height:1.75;">'
-    +'Connect の園が監査対応だけ単発で買うより、Standard で契約したほうが年間で安くなります。'
-    +'営業のときにこの数字を出せます。</div></div></div>';
+    +'園ごとの契約で、ベースの月額を上書きできます（空欄のときはこの表の金額）。園児の人数による加算はありません。<br>'
+    +'<b>データ移行の追加料金と一括払いは、自動の請求に入りません。</b>見積書・「まとめて請求」に手で足してください。<br>'
+    +'クレジット決済手数料・写真販売手数料は、決済タブの手数料設定のままです。'
+    +'</div></div>';
 }
 /* 設定 › 料金・税：料金プラン・消費税・保育料カード払いの BJ の取り分を1か所に（2026-10-08） */
 /* キャンペーンの「何％引き」⇔「払う割合」（サーバの campaign_rate） */
@@ -3736,8 +3809,10 @@ function cdefHTML(){
     +'<div class="grid2">'
     +'<div class="f"><label>キャンペーン（か月・なしは 0）</label><input id="cd_m" class="num" inputmode="numeric" value="'+esc(d.campaign_months)+'"></div>'
     +'<div class="f"><label>キャンペーン中の割引（％引き）</label><input id="cd_off" class="num" inputmode="numeric" value="'+esc(d.campaign_off_percent)+'"></div>'
-    +'<div class="f"><label>最低契約期間（か月・全プラン）</label><input id="cd_min" class="num" inputmode="numeric" value="'+esc(d.min_months)+'"></div>'
-    +'<div class="f"><label>初期費用（Pro プランだけ・円・税別）</label><input id="cd_init" class="num" inputmode="numeric" value="'+esc(d.initial_fee_pro==null?50000:d.initial_fee_pro)+'"><div class="hint" style="margin:4px 0 0;">Connect・Standard は初期費用なし（10/18 の打ち合わせ）</div></div>'
+    +'<div class="f"><label>最低契約期間（か月・すべてのご契約）</label><input id="cd_min" class="num" inputmode="numeric" value="'+esc(d.min_months)+'"></div>'
+    /* ★以前は「初期費用（Pro プランだけ）」で、Connect・Standard は初期費用なしだった（10/18 の打ち合わせ）。
+       初期設定料はすべての園に 49,800円（2026-11-28 安田さんのご判断）。古い initial_fee_pro しか無いときはその値を出す */
+    +'<div class="f"><label>初期設定料（すべての園・円・税別）</label><input id="cd_init" class="num" inputmode="numeric" value="'+esc(d.initial_fee!=null?d.initial_fee:(d.initial_fee_pro!=null?d.initial_fee_pro:INIT_FEE))+'"><div class="hint" style="margin:4px 0 0;">キャンペーンを使う園にもかかります</div></div>'
     +'</div><div class="row"><button class="btn sm" id="cdSave">既定値を保存する</button><span class="msg" id="cdM"></span></div></div>';
 }
 function feesHTML(){
@@ -3786,10 +3861,14 @@ function showDoc(j){
   if(j.arts){
     j.arts.forEach(function(a,i){ h+=docArt(a,i+1); });
     if(j.plans&&j.plans.length){
+      /* ★以前は「プラン・月額・園児数」の3列だった。料金の作り替え（2026-11-28）で園児数の列は無くなった。
+         サーバ（contracts.js planRows）がどの名前で返しても出せるよう、3つ目は seat・unit・note のあるものを出す */
+      var third=j.plans.some(function(p){return p.seat||p.unit||p.note;});
       h+='<h2>別表　料金</h2>'
-        +'<table><thead><tr><th>プラン</th><th>月額（園1施設あたり）</th><th>園児数</th></tr></thead><tbody>'
+        +'<table><thead><tr><th>項目</th><th>料金（園1施設あたり）</th>'+(third?'<th>備考</th>':'')+'</tr></thead><tbody>'
         +j.plans.map(function(p){
-          return '<tr><td>'+esc(p.plan)+'</td><td>'+esc(p.monthly)+'</td><td>'+esc(p.seat)+'</td></tr>';
+          return '<tr><td>'+esc(p.plan||p.name||'')+'</td><td>'+esc(p.monthly||p.price||p.yen||'')+'</td>'
+            +(third?'<td>'+esc(p.seat||p.unit||p.note||'')+'</td>':'')+'</tr>';
         }).join('')+'</tbody></table>';
     }
     h+=docSign(j.company,j.info);
@@ -4230,7 +4309,7 @@ function wire(){
   if($('cdSave'))$('cdSave').onclick=function(){
     var v=function(id){return $(id).value.trim();};
     say('cdM','保存中…',true);
-    API.call('PUT','/admin/contract-defaults',{campaign_months:v('cd_m'),campaign_off_percent:v('cd_off'),min_months:v('cd_min'),initial_fee_pro:v('cd_init')})
+    API.call('PUT','/admin/contract-defaults',{campaign_months:v('cd_m'),campaign_off_percent:v('cd_off'),min_months:v('cd_min'),initial_fee:v('cd_init')})
       .then(function(j){DATA.cdef={defaults:j.defaults};render();setTimeout(function(){say('cdM','保存しました。次に作る園から、この条件になります',true);},50);})
       .catch(function(e){say('cdM',e.message);});
   };
@@ -4354,9 +4433,8 @@ function wire(){
   if($('supGo'))$('supGo').onclick=function(){var r=supReasonText('supR','supM');if(r)supAct.start({reason:r});};
   document.querySelectorAll('[data-supv]').forEach(function(b){b.onclick=function(){SUP.view=b.getAttribute('data-supv');SUP.edit=null;render();};});
   if($('supUnlock'))$('supUnlock').onclick=function(){var r=supReasonText('supUr','supUm');if(r)supAct.unlock({reason:r});};
-  /* プランを選ぶと、初期費用をそのプランの既定にする（Pro だけ。2026-10-18 の打ち合わせ）。値引きするときは、そのあと書き換える */
-  [['c_plan','c_init'],['wz_plan','wz_init']].forEach(function(p){var sel=$(p[0]),inp=$(p[1]);if(!sel||!inp)return;
-    sel.addEventListener('change',function(){var pro=(DATA.cdef&&DATA.cdef.defaults&&DATA.cdef.defaults.initial_fee_pro!=null)?+DATA.cdef.defaults.initial_fee_pro:50000;inp.value=sel.value==='pro'?pro:0;});});
+  /* ★以前はプランを選ぶと初期費用を入れ替えていた（Pro だけ 50,000円・ほかは 0。2026-10-18 の打ち合わせ）。
+     初期設定料はすべての園に同じ額になったので（2026-11-28 安田さんのご判断）、入れ替えはやめた */
   if($('supEdit'))$('supEdit').onclick=function(){var r=supReasonText('supEr','supEm');if(r)supAct.edit({reason:r});};
   document.querySelectorAll('[data-supw]').forEach(function(b){b.onclick=function(){var c=SUP.cells[+b.getAttribute('data-supw')];if(!c)return;SUP.edit=c;render();setTimeout(function(){var i=$('supWv');if(i){i.focus();i.select();}},30);};});
   if($('supWno'))$('supWno').onclick=function(){SUP.edit=null;render();};
@@ -4457,10 +4535,11 @@ function wire(){
     var v=function(id){var e=$(id);return e?e.value.trim():'';};
     say('sm','保存中…',true);
     API.call('PUT','/admin/tenants/'+openId+'/contract',{
-      plan:v('c_plan'),status:v('c_status'),started_on:v('c_started'),
+      /* ★以前はプランの選択と園児数の2欄（seat_included・seat_unit_yen）を送っていた。
+         プランは 'base' だけ・園児数の加算はやめた（2026-11-28）。options と lump を送る */
+      plan:'base',options:optChecksGet('c'),lump:lumpGet('c_lump'),
+      status:v('c_status'),started_on:v('c_started'),
       monthly_yen:v('c_monthly')===''?'':+v('c_monthly'),
-      seat_included:v('c_inc')===''?'':+v('c_inc'),
-      seat_unit_yen:v('c_unit')===''?'':+v('c_unit'),
       campaign_months:campSave(v('c_cm'),v('c_coff')).months,campaign_rate:campSave(v('c_cm'),v('c_coff')).rate,min_months:+v('c_mm'),
       free_forever:!!($('c_free')&&$('c_free').checked),
       /* 空欄は触らない（0で上書きすると、入れてあった額が消える） */
@@ -4637,7 +4716,7 @@ function wire(){
     var v=function(id){return $(id).value.trim();}, cs=campSave(v('wz_cm'),v('wz_coff'));
     if(+v('wz_cm')>36||+v('wz_coff')>100){say('wzM','割引する月数は 0〜36、割引は 0〜100％で入れてください');return;}
     say('wzM','保存中…',true);
-    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),
+    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:'base',options:optChecksGet('wz'),lump:lumpGet('wz_lump'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),
         campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm'),free_forever:!!($('wz_free')&&$('wz_free').checked)})
       .then(function(){return wizFin('hearing')?null:API.call('PUT','/admin/tenants/'+openId+'/onboarding/hearing',{status:'done',note:''});})
       .then(function(){WZ.step=3;GLB_AT=0;render();window.scrollTo(0,0);})
@@ -4648,7 +4727,7 @@ function wire(){
     if(+v('wz_cm')>36){say('wzRM','割引する月数は 0〜36 で入れてください');return;}
     if(+v('wz_coff')>100){say('wzRM','割引は 0〜100％で入れてください');return;}
     var cs=campSave(v('wz_cm'),v('wz_coff'));say('wzRM','計算中…',true);
-    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:v('wz_plan'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm'),free_forever:!!($('wz_free')&&$('wz_free').checked)})
+    API.call('PUT','/admin/tenants/'+openId+'/contract',{plan:'base',options:optChecksGet('wz'),lump:lumpGet('wz_lump'),started_on:v('wz_start'),initial_fee_yen:v('wz_init')===''?'':+v('wz_init'),campaign_months:cs.months,campaign_rate:cs.rate,min_months:+v('wz_mm'),free_forever:!!($('wz_free')&&$('wz_free').checked)})
       .then(function(){render();}).catch(function(e){say('wzRM',e.message);});
   };
   if($('wzInv'))$('wzInv').onclick=function(){var em=$('wzBillMail').value.trim();
@@ -4684,7 +4763,7 @@ function wire(){
     g.forEach(function(x,gi){items.push(['##',x.t]);x.rows.forEach(function(r,ri){var e=document.querySelector('[data-ape="'+gi+'_'+ri+'"]');items.push([r[0],e?e.value.trim():r[1]]);});});
     var val=function(keys){for(var i=0;i<items.length;i++){if(keys.indexOf(items[i][0])>-1&&items[i][1])return items[i][1];}return null;};
     var body={payload:{items:items},corp:val(['法人名']),school:val(['園・施設名','施設名']),person:val(['担当者名','ご担当者']),
-      email:val(['担当者のメールアドレス','メール']),tel:val(['担当者の電話番号','電話']),plan:val(['プラン']),startsOn:val(['ご利用開始日','ご利用開始の予定'])};
+      email:val(['担当者のメールアドレス','メール']),tel:val(['担当者の電話番号','電話']),plan:val(['プラン'])?'base':null,startsOn:val(['ご利用開始日','ご利用開始の予定'])};
     Object.keys(body).forEach(function(k){if(body[k]==null)delete body[k];});
     say('apEdM','保存中…',true);
     API.call('PUT','/admin/applications/'+a.id,body).then(function(){return API.call('GET','/admin/applications/'+a.id);})
@@ -4725,7 +4804,7 @@ function wire(){
     say('sdM','作成中…',true);$('sdGo').disabled=true;
     var fa=addrVal('sd'), hq=$('sd_hqOn')&&$('sd_hqOn').checked?addrVal('sdhq'):null;
     API.call('POST','/admin/applications',{corp:v('sd_corp'),school:v('sd_school'),person:v('sd_person'),role:v('sd_role'),
-      email:v('sd_email'),tel:v('sd_tel'),plan:v('sd_plan'),startsOn:v('sd_starts'),kids:v('sd_kids'),memo:v('sd_memo'),
+      email:v('sd_email'),tel:v('sd_tel'),plan:'base',options:optChecksGet('sd'),lump:lumpGet('sd_lump')||'monthly',pay:v('sd_pay')||null,startsOn:v('sd_starts'),kids:v('sd_kids'),memo:v('sd_memo'),
       facilityType:v('sd_ftype'),rep:v('sd_rep'),zip:fa.zip,pref:fa.pref,addr:fa.addr,
       hqDiffer:!!hq,hqZip:hq?hq.zip:'',hqPref:hq?hq.pref:'',hqAddr:hq?hq.addr:''})
       .then(function(j){
@@ -4745,7 +4824,8 @@ function wire(){
   if($('quote'))$('quote').onclick=function(){
     var d=DATA.one; if(!d)return;
     var c=d.contract||{}, q=d.quote||{}, ini=d.initial||{}, tax=d.tax||{};
-    var pl=(PLANS[c.plan]&&PLANS[c.plan].name)||c.plan||'';
+    /* ★以前はプラン名（Connect など）だけを出していた。ベースプラン＋オプションの名前を出す（2026-11-28） */
+    var pl=planBaseOf().name+(optsOf(c).length?'＋'+optsOf(c).map(function(k){return optInfoOf(k).name;}).join('・'):'');
     var today=d.today||'';
     /* 割引はマイナスで来る。「¥-7,400」ではなく「−¥7,400」と出す。 */
     function yen2(n){
@@ -4793,18 +4873,21 @@ function wire(){
       +'〒901-0154 沖縄県那覇市赤嶺2-11-9<br>エンゼルハイム小禄赤嶺第３ 601<br>info@bimjapan.jp</div></div>'
       +'<table class="q"><tbody>'
       +'<tr><td>ご契約プラン</td><td class="r">'+esc(pl)+'</td></tr>'
-      +'<tr><td>在籍園児数</td><td class="r">'+(d.seats||0)+' 名</td></tr>'
+      +'<tr><td>お支払いの回数</td><td class="r">'+esc(lumpText(c.lump))+'</td></tr>'
       +'<tr><td>ご利用開始日</td><td class="r">'+esc(c.started_on||'（未定）')+'</td></tr>'
       +'</tbody></table>'
       +block('初回のご請求（開始月の日割り）', ini.lines, ini.total, tax.initial)
       +block('翌月以降（毎月）', q.lines, q.total, tax.monthly)
       +'<div class="note">'
       +'・金額はすべて税別で表示し、合計に消費税を足しています。<br>'
-      +'・初期費用はいただきません。<br>'
+      /* ★「初期費用はいただきません」「園児数が定額の人数を超えた月は加算」と書いていた。
+         初期設定料はすべての園にかかり、園児数の加算はやめた（2026-11-28 安田さんのご判断） */
+      +'・初期設定料（'+yen(+c.initial_fee_yen>0?+c.initial_fee_yen:INIT_FEE)+'・税別）は、契約時に1回いただきます。キャンペーンをお使いの場合もかかります。<br>'
+      +(c.lump&&LUMP_FALLBACK[c.lump]?('・お支払いは'+esc(lumpInfoOf(c.lump).name)+'（'+yen(lumpInfoOf(c.lump).yen)+'・税別・初期設定料込み）です。一括払いのご請求は別にお送りします。<br>'):'')
       +(c.campaign_months?('・ローンチキャンペーン：'+c.campaign_months+'か月間 '
         +Math.round((1-(+c.campaign_rate||0))*100)+'%OFF。キャンペーン後の最低契約期間は '
         +(c.min_months||6)+'か月です。<br>'):'')
-      +'・園児数が定額に含まれる人数を超えた月は、超えた分だけ加算されます。<br>'
+      +'・園児の名簿の移行は30人まで無料です。30人を超える分は30人ごとに 10,000円（税別）で、この見積りには入っていません。<br>'
       +'・このお見積りは、発行日時点の在籍数と契約条件で計算しています。<br>'
       +'</div>'
       +'<div style="margin-top:26px;text-align:center;">'
@@ -4887,7 +4970,7 @@ document.addEventListener('keydown',function(ev){
 if(API.base()&&API.token()){
   Promise.all([
     /* ★再読み込みのあと単発オプションの金額が「読み込めませんでした」になっていた（料金表だけ読んでいた） */
-    API.call('GET','/admin/plans').then(function(j){PLANS=j.plans;OPTS=j.options||{};UPGRADE=j.upgrade||{};}).catch(function(){}),
+    API.call('GET','/admin/plans').then(function(j){plansSet(j);}).catch(function(){}),
     API.call('GET','/admin/me').then(function(j){DATA.me=j;}).catch(function(){})
   ]).then(render);
 }else{

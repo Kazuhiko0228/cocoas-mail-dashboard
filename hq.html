@@ -362,7 +362,10 @@ function homeHTML(){
         +'<td>'+bar(s.records.done,s.records.total)+'</td>'
         +'<td class="r num">'+(s.absence||'—')+'</td>'
         +'<td class="r num">'+(s.waiting||'—')+'</td>'
-        +'<td><span class="plan">'+esc(s.plan)+'</span>'
+        /* ★プラン名（connect・standard など）をそのまま出していた。プランは「ベースプラン」1つになり、
+           オプション（mfile・audit・accounting）で分ける形に（2026-11-28 安田さんのご判断）。サーバが options を返さないときはプランだけ出す */
+        +'<td><span class="plan">'+esc(s.plan==='base'?'ベースプラン':(s.plan||'—'))+'</span>'
+          +((s.options&&s.options.length)?'<div style="font-size:10.5px;color:var(--mute);margin-top:2px;">＋'+esc(s.options.map(function(k){return {mfile:'Miralink File',audit:'監査書類の自動整備',accounting:'売上・支出管理'}[k]||k;}).join('・'))+'</div>':'')
           +(s.noContract?'<div style="font-size:10.5px;color:var(--bad);margin-top:2px;">契約が未設定</div>':'')+'</td>'
         +'<td class="r num">'+yen(s.monthlyGross)+'</td>'
         +'</tr>';
@@ -371,7 +374,7 @@ function homeHTML(){
     +'<p class="lead" style="margin-top:12px;">'
     +'「本日の記録」は 登園シート・安全点検・午睡チェック・健康チェック・業務日報 の5つです。'
     +'金額は税込で、契約の内容から出しています。'
-    +'契約が未設定の園は、プランの既定で計算しているため実際の請求と異なります。</p>';
+    +'契約が未設定の園は、ベースプランの既定の額で計算しているため実際の請求と異なります。</p>';
   return h;
 }
 

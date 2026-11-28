@@ -312,28 +312,7 @@ html.px-on [data-agopen],html.px-on #spayCard1,html.px-on #tuiStart,html.px-on [
   .sender-line .s2{color:var(--tx3);}
   .sender-line.warn{background:#FCEBEB;border-color:#E8C9C9;color:#A32D2D;}
   .sender-line.warn .s2{color:#A32D2D;}
-  /* いま見ている画面のプランを、上の帯にいつも出す。
-     商談のときは、ここを押してプランごとの見え方をそのまま見せる。
-     札が増えて帯が窮屈になったとき、はみ出さずに折り返すよう wrap を足した。 */
-  /* ★折り返しを足したつもりで書いていなかった。360px の日本語では札の行が1行のまま伸びて
-     画面から 7px はみ出し、40画面すべてが横に動くようになっていた（367px ／ 画面は 360px）。
-     折り返しは下の「スマホで持ったときの直し」の中に置いてある。
-     ★はじめここに（画面のはばに関わらず）書いたら、広い画面でも上の帯の並びがわずかに動き、
-       1280・1600 の写真が 1〜15/255 ずれた。広い画面は1画素も変えない決まりなので、せまい画面だけにした。 */
-  .planbar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2);}
-  .planbar .pb-l{font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:.04em;white-space:nowrap;}
-  .planbar .pb-now{font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;}
-  .planbar .pb-note{font-size:11px;color:var(--tx3);white-space:nowrap;}
-  .planpick{display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;}
-  /* いただいた PRO・STANDARD の絵は、白い余白の中に札が真ん中で描かれている。
-     枠で切り抜いて札の部分だけを見せる（絵の中心＝札の中心なので、真ん中よせで合う）。 */
-  .planchip{display:inline-flex;align-items:center;justify-content:center;height:22px;border:0;padding:0;background:transparent;border-radius:99px;}
-  .planchip.pc-img{width:44px;overflow:hidden;}
-  .planchip.pc-img img{width:49px;height:49px;flex:none;}
-  .planchip .pb-txt{display:block;min-width:44px;text-align:center;color:#fff;font-size:8.5px;font-weight:700;letter-spacing:.04em;border-radius:99px;padding:5px 7px;line-height:1;}
-  .planpick .planchip{cursor:pointer;opacity:.42;filter:grayscale(1);}
-  .planpick .planchip:hover{opacity:.8;filter:none;}
-  .planpick .planchip.on{opacity:1;filter:none;background:var(--card);box-shadow:0 0 0 1px var(--line),0 1px 3px rgba(0,0,0,.10);}
+  /* ★ここに上の帯のプランの札（.planbar・.planchip）の見た目があった。札は出さなくなったので外した（2026-11-28 安田さんのご判断） */
   /* ★中身の幅に上限があるのに、左端から並べるだけだった。
      2560px のような広い画面では、上限で止まったぶんがまるごと右の空きになり、
      中身が左に寄って見えていた（2026-09-19 安田さんのご指摘）。
@@ -1554,10 +1533,6 @@ button.hpr:hover{background:#FAF9F5}
      単語の真ん中で折れて、何の画面か読み取れなかった。
      1語が行に入りきらないときだけ折る形にする。 */
   .topbar .tbttl h1{font-size:14.5px;line-height:1.3;overflow-wrap:break-word;display:flex;align-items:center;}
-  #planBar{display:none;}
-  /* 出さない決まりにしたが、あとで出すことにしたときに備えて折り返しも入れておく。
-     1行のまま伸びると、360px の日本語で 7px はみ出して画面ごと横に動いた。 */
-  .planbar{flex-wrap:wrap;}
   .topbar .btn-primary{width:44px;min-width:44px;padding:0;gap:0;font-size:0;justify-content:center;}
   /* ほかの端末と共有中の帯。せまい画面では、印と「今すぐ同期」だけにして1段におさめる */
   #syncBar .muted,#syncBar #syncStatus{display:none;}
@@ -7346,11 +7321,10 @@ function go(page){
     page=firstOpenPage();
   }
   else if(!egPlanOfPage(page)){
-    /* オプションで外している組は、プランの話ではないので入れ方を案内する */
+    /* ★以前は「設定 → オプション機能 で入れると使えます」と案内していたが、オプションは契約で決まり、
+       園が自分で入れることはできなくなった（2026-11-28 安田さんのご判断）。どのオプションかを名前で伝える */
     var _op=(typeof optOfPage==='function')?optOfPage(page):'';
-    if(_op){ var _ol=(EG_OPTS.filter(function(o){return o.k===_op;})[0]||{}).l||_op;
-      alert('「'+_ol+'」はオプション機能です。園長・管理者が 設定 → オプション機能 で入れると使えます。'); }
-    else alert('この機能は、ご契約のプランには含まれていません。');
+    alert('この機能は、ご契約のオプション（'+(_op?optName(_op):'—')+'）に含まれていません。');
     page='home';
   }
   /* ★1400px より広い画面で、ホームの右が大きく空いていた（image14・2026-09-16）。
@@ -7519,127 +7493,70 @@ function buildNav(){
   nav.removeAttribute('data-grouped');
   try{navGroups();}catch(e){}
   try{wireNav();}catch(e){}
-  /* 契約のプランに入っていない・見られない役職のときは、ホームの下の Miralink AI も出さない */
+  /* 見られない役職のときは、ホームの下の Miralink AI も出さない */
   var apl=nav.querySelector('a[data-go="aiplan"]');if(apl)apl.style.display=curAiOk()?'':'none';
+  /* ★Miralink File の行（NEW の札つき）は HTML に直に書いてあり、EG_NAV から作らないので、
+     オプションを契約していない園にも出てしまう。ここで契約を見て出し入れする（2026-11-28 安田さんのご判断） */
+  var gdl=nav.querySelector('a[data-go="guide"]');if(gdl)gdl.style.display=(egPlanOfPage('guide')&&(typeof canView!=='function'||!currentStaff()||canView('guide')))?'':'none';
 }
 
-/* ══ プランと役職による出し分け ════════════════
-   料金表のプランに合わせて、見せるものを切り替える。
-   サーバにつないでいるときは契約のプランを使い、
-   つないでいないときは設定で選んだものを使う（試作を見せるため）。 */
-var PLAN_RANK={connect:1,standard:2,pro:3,business:3};
-/* プランの見た目。
-   PRO は img/ic/04.png、STANDARD は img/ic/05.png（いただいた札の絵）。
-   コネクトの絵は無いので、同じ形の札を文字で作る。 */
-var PLAN_META={
-  connect: {l:'コネクト',    mark:'CONNECT',  img:'',              bg:'#5B6875'},
-  standard:{l:'スタンダード', mark:'STANDARD', img:'img/ic/05.png', bg:'#0B5F8F'},
-  pro:     {l:'プロ',        mark:'PRO',      img:'img/ic/04.png', bg:'#27500A'},
-  business:{l:'プロ',        mark:'PRO',      img:'img/ic/04.png', bg:'#27500A'}
-};
-/* プランを画面から切りかえてよいのは、サーバにつないでいないとき（商談で見せるとき）だけ。
-   つないでいる園で切りかえられると、契約より上のプランの機能を自分で開けてしまう。
-   万一この判定でつまずいたときは「切りかえられない」側に倒す（安全側）。 */
+/* ══ ベースプランとオプションによる出し分け ════════════════
+   ★以前は Connect／Standard／Pro のプランで機能を分け、上の帯にプランの札（STANDARD など）を出していた。
+   つないでいないときは札を押して見え方を切りかえる「お試し表示」もあった。
+   料金をベースプラン＋オプションの形に作り替えたので、プランの札・切りかえ・プランで隠す作りはやめた
+   （2026-11-28 安田さんのご判断）。SI と新規顧客管理は、どの園にも出す。
+   プランは 'base' だけ。EG_NAV に古い plan の印が残っていても、隠さないように planAllows はいつも通す。 */
 function planLocked(){
   try{ return !!(typeof API!=='undefined' && API.online()); }catch(e){ return true; }
 }
-function myPlan(){
-  /* つないでいるときは、ログインのときにサーバから受け取ったプランだけを見る。
-     ここで端末の設定（cocoas_plan）も見ていると、
-     同期の口や画面の切りかえから書き換えて、自分でプランの制限を外せてしまう。 */
+function myPlan(){ return 'base'; }
+function planAllows(need){ return true; }
+
+/* ══ オプション（園ごとの契約）══════════════
+   鍵の名前は固定（サーバと同じ）。中に入る画面は EG_NAV の opt の印で決める。
+     mfile      … Miralink File（guide）
+     audit      … 監査書類の自動整備（audit・docgen・reqnav）
+     accounting … 売上・支出管理（revenue・expense）。保護者への請求書（billing）はベースプランに入る
+   金額は税別の月額（2026-11-28 安田さんの料金表）。 */
+var EG_OPTS=[
+  {k:'mfile',      l:'Miralink File',     yen:2200, d:'保護者へお渡しする資料を公開し、未来WAで見られるようにします。保護者がSIに資料のことをたずねられます'},
+  {k:'audit',      l:'監査書類の自動整備', yen:5000, d:'監査対応、運営に必要な書類・市町村指定の書類の作成（人による監査対応は含みません）'},
+  {k:'accounting', l:'売上・支出管理',     yen:5000, d:'売上チャートとスクール経費精算'}
+];
+var BASE_PLAN_YEN=9800;
+/* ★2026-09-14 から EG_OPTS_ON を false にして、オプションは全部入っている扱いにしていた。
+   ベースプラン＋オプションの契約にしたので、ふたたび入れる（2026-11-28 安田さんのご判断）。
+   ★以前は設定の画面で園がチェックを入れて SET.opts に保存していた。園が自分で入れられると
+   契約していないオプションが開けてしまうので、SET.opts はもう見ない。ログインのときサーバから届いた契約だけを見る。 */
+var EG_OPTS_ON=true;
+/* いま契約しているオプションの鍵の一覧。
+   サーバにつないでいるときは、ログインの応答の tenant.options（例 ['mfile','audit']）。
+   ★サーバが options を返さない（まだ作り替える前のサーバ）ときは、全部入っている扱いにする。
+     動いている園はすべて3つとも契約に移す決まり（2026-11-28 安田さんのご判断）なので、
+     ここで全部外すと、サーバを出し直すまでのあいだ、使っていた画面が消えてしまう。
+   つないでいないとき（試作・商談）も、全部入っている扱いにする。 */
+function myOpts(){
+  var all=EG_OPTS.map(function(o){return o.k;});
+  if(!planLocked())return all;
   var t=null;
   try{ t=(typeof API!=='undefined'&&API.tenant)?API.tenant():null; }catch(e){ t=null; }
-  if(planLocked()){
-    var sp=t&&t.plan;
-    return PLAN_RANK[sp]?sp:'pro';
-  }
-  /* つないでいないとき（試作・商談）だけ、端末に選んでおいたものを使う。
-     鍵は前と同じ cocoas_plan のまま。前に選んだ内容をそのまま読めるようにするため。 */
-  var p=(t&&t.plan)||stGet('plan','pro');
-  return PLAN_RANK[p]?p:'pro';
+  if(!t||!Array.isArray(t.options))return all;
+  return t.options.filter(function(k){return all.indexOf(k)>=0;});
 }
-/* 商談用：見ている画面のプランを切りかえる。つないでいる間は受け付けない。 */
-function setDemoPlan(p){
-  if(planLocked()){
-    alert('サーバにつないでいる間は、プランを切りかえられません。ご契約のプランのままご覧ください。');
-    planBarRender();
-    return;
-  }
-  if(!PLAN_RANK[p])return;
-  if(p===myPlan()){planBarRender();return;}
-  stSet('plan',p);
-  /* ホームで開いていたマスは閉じる。
-     そのプランで消える機能が、開いたまま残ってしまうのを防ぐ。 */
-  try{ egOpen=null; }catch(e){}
-  try{ applyPerms(); }catch(e){}   /* サイドバーとホームの出し分けを作り直す */
-  planBarRender();
-  try{ go('home'); }catch(e){}
+/* EG_OPTS に無い鍵（以前の sales・aiplan など）は、オプションではないので通す */
+function optOn(k){
+  if(!EG_OPTS_ON||!k)return true;
+  if(!EG_OPTS.some(function(o){return o.k===k;}))return true;
+  return myOpts().indexOf(k)>=0;
 }
-/* 札ひとつ分の見た目。btn が true なら押せるボタンにする。 */
-function planChipHTML(p,on,btn){
-  var m=PLAN_META[p]||PLAN_META.pro;
-  var body=m.img
-    ? '<img src="'+m.img+'" alt="'+esc(m.l)+'">'
-    : '<span class="pb-txt" style="background:'+m.bg+';">'+esc(m.mark)+'</span>';
-  var cls='planchip '+(m.img?'pc-img':'pc-txt')+(on?' on':'');
-  if(!btn)return '<span class="'+cls+'" title="'+esc(m.l)+'プラン">'+body+'</span>';
-  return '<button type="button" class="'+cls+'" data-plan="'+esc(p)+'" title="'+esc(m.l)+'プランの画面で見る">'+body+'</button>';
-}
-/* 上の帯に「いま見ている画面のプラン」を出す。
-   つないでいないときだけ、3つの札を押して切りかえられる。 */
-function planBarRender(){
-  var bar=document.querySelector('.topbar');if(!bar)return;
-  var box=document.getElementById('planBar');
-  if(!box){
-    box=el('div',{id:'planBar','class':'planbar'});
-    var sp=bar.querySelector('.spacer');
-    if(sp&&sp.parentNode===bar)bar.insertBefore(box,sp.nextSibling);else bar.appendChild(box);
-  }
-  var cur=myPlan(),lock=planLocked(),m=PLAN_META[cur]||PLAN_META.pro;
-  /* ★契約が決まっている園（lock）では、スタンプだけにする（2026-08-27 のご指示）。
-     「表示中のプラン」「ご契約のプランです」は、切りかえられると思わせるだけで、
-     園が押せるものは何も無い。切りかえられるお試しのときだけ、説明を出す。 */
-  var h='';
-  if(lock){
-    h+=planChipHTML(cur,true,false);
-  }else{
-    h+='<span class="pb-l">表示中のプラン</span>'
-      +'<span class="planpick">'
-      +['connect','standard','pro'].map(function(p){return planChipHTML(p,p===cur,true);}).join('')
-      +'</span>'
-      +'<span class="pb-now">'+esc(m.l)+'</span>'
-      +'<span class="pb-note" title="この端末で見え方を試すための切りかえです。園の契約は変わりません">お試し表示</span>';
-  }
-  box.innerHTML=h;
-  if(lock)return;
-  box.querySelectorAll('[data-plan]').forEach(function(b){
-    b.onclick=function(){setDemoPlan(b.getAttribute('data-plan'));};
-  });
-}
-/* ══ オプション機能（園ごとに入れる・外す）══════════════
-   COCOAS に「保育管理システム」の素の形を見せるため、営業・監査・AI の組は
-   はじめは出さない（Remi さん 2026-09-13）。設定 → オプション機能 で園ごとに入れられる。
-   権限もコードも残す。消してしまうと、あとで足すときに作り直しになる。 */
-var EG_OPTS=[
-  /* need は、その組を使うのに要るプラン（EG_NAV の plan と合わせる）。設定の画面で、入れても使えないものを選べなくするため */
-  {k:'sales', l:'新規顧客管理', need:'pro', d:'顧客リスト・体験結果報告・個別メッセージ・営業分析。ダッシュボードの問い合わせ・体験・入退園の数もここに入ります'},
-  {k:'audit', l:'監査対応・書類作成', need:'standard', d:'監査対応、運営に必要な書類・市町村指定の書類の作成'},
-  {k:'aiplan',l:'Miralink SI', need:'standard', d:'保育の相談に答えるSI（日案はカリキュラム作成の中でSIとつくる）'}
-];
-/* ★2026-09-14 安田さん：網羅チェックのため、オプションは一旦なくして全部出す。
-   設定に保存された値（SET.opts）は見ない。仕組み（EG_OPTS／opt の印）は、あとでオプションに戻すときのために残す。
-   戻すときは「その項目ごと見えなくする」（サイドバー・メニュー・ダッシュボードのボタンからも消す。押して案内を出す形にしない） */
-var EG_OPTS_ON=false;
-function optOn(k){ if(!EG_OPTS_ON)return true; var o=(typeof SET!=='undefined'&&SET&&SET.opts&&typeof SET.opts==='object')?SET.opts:{}; return !!o[k]; }
-/* その画面が「オプションで外している組」にあるか（プランで外れているのとは別の案内を出すため） */
+function optName(k){ return (EG_OPTS.filter(function(o){return o.k===k;})[0]||{}).l||k; }
+/* その画面が「契約していないオプション」に入っているか。入っていればその鍵を返す */
 function optOfPage(p){
   var found='';
   try{
     EG_NAV.forEach(function(g){ g.items.forEach(function(it){
       var hit=(it.p===p)||(it.sub||[]).some(function(y){return y.p===p;});
-      /* ★プランを見ずにオプション名を返していたので、プランに含まれない組でも「設定で入れると使えます」と案内し、
-         入れても次は「プランに含まれていません」で止まっていた。プランが通るときだけオプションの話にする。 */
-      if(hit&&!found&&!it.optFree&&planAllows(g.plan)&&planAllows(it.plan))found=(g.opt&&!optOn(g.opt))?g.opt:((it.opt&&!optOn(it.opt))?it.opt:'');
+      if(hit&&!found&&!it.optFree)found=(g.opt&&!optOn(g.opt))?g.opt:((it.opt&&!optOn(it.opt))?it.opt:'');
     });});
   }catch(e){}
   return found;
@@ -7755,7 +7672,8 @@ function missingDocs(){
       var b=[], iv=(stGet('invoices',{})||{})[mk]||{}, en2=enrolled();
       var noInv=en2.filter(function(x){var r=iv[x.id]; return !r||!r.status||r.status==='未発行';}).length;
       if(noInv)b.push({l:'今月の請求書',d:noInv+'名ぶんが未発行です',p:'billing',n:noInv+'名'});
-      if(!((expGet(mk).rows||[]).length))b.push({l:'今月の経費精算',d:mk.replace('-','/')+' の経費がまだ入っていません',p:'expense'});
+      /* 経費精算は オプション「売上・支出管理」。契約していない園には、押せない行を出さない（2026-11-28） */
+      if(egPlanOfPage('expense')&&!((expGet(mk).rows||[]).length))b.push({l:'今月の経費精算',d:mk.replace('-','/')+' の経費がまだ入っていません',p:'expense'});
       put('請求・経費管理',b);
     }catch(e){}
   }
@@ -7875,10 +7793,6 @@ function missHead(days,t){
 function missCell(x,t,mark){
   var cls='mt-c'+(x.w===6?' sat':x.w===0?' sun':'')+(x.iso===t?' today':'');
   return '<td class="'+cls+'">'+mark+'</td>';
-}
-function planAllows(need){
-  if(!need)return true;
-  return PLAN_RANK[myPlan()]>=PLAN_RANK[need];
 }
 /* 園長・管理者だけに見せるもの。一般（先生）には出さない。 */
 
@@ -8299,7 +8213,7 @@ function isBoss(){
      cat  … カテゴリ（①〜⑦）
      items… ホームに出すマス
      sub  … そのマスの中に入れる機能
-     plan … このプラン以上で見せる（省略＝全プラン）
+     opt  … このオプション（EG_OPTS の鍵）を契約した園だけに見せる（省略＝ベースプラン）
      boss … true なら園長・管理者だけ
 
    マークは Remi さんが作成中。決まったら i: を差し替える。 */
@@ -8387,7 +8301,7 @@ var EG_NAV=[
    {k:'tasks',      l:'月間カレンダー', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'tasks'},
    {k:'annual',     l:'年間スケジュール', i:'ic:60',si:'cal', c:'#123E6B', bg:'#E6F1FB', p:'annual'},
    /* サイドバーでは、ホームのすぐ下に出す（navHide）。メニューのマスとプランの判定のためにここにも残す */
-   {k:'aiplan',     l:'Miralink',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', plan:'standard', opt:'aiplan', navHide:true}
+   {k:'aiplan',     l:'Miralink',      i:'ic:52',si:'spark', c:'#3C3489', bg:'#EEEDFE', p:'aiplan', navHide:true}
  ]},
  {cat:'生徒情報',items:[
    {k:'roster',   l:'生徒情報', i:'ic:53',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'roster'}
@@ -8405,28 +8319,31 @@ var EG_NAV=[
    /* 契約とオプションはこの画面の上部にまとめてある（2026-08-19 安田さん）。サイドバーの「生徒台帳（契約情報）」は同じ画面を開く2行目だったので消し、
       パスワード確認（システム概要17行「PW付き」）はこの行へ移した（2026-09-14） */
    {k:'billing',  l:'請求書作成・管理', i:'ic:51',si:'yen', c:'#27500A', bg:'#EAF3DE', p:'billing', pw:true},
-   {k:'expense',  l:'スクール経費精算', i:'ic:44',si:'report', c:'#854F0B', bg:'#FAEEDA', p:'expense'},
-   {k:'revenue',  l:'売上チャート', i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'revenue'}
+   /* 経費精算と売上チャートは オプション「売上・支出管理」（accounting）。請求書づくり（billing）はベースプラン（2026-11-28 安田さんのご判断） */
+   {k:'expense',  l:'スクール経費精算', i:'ic:44',si:'report', c:'#854F0B', bg:'#FAEEDA', p:'expense', opt:'accounting'},
+   {k:'revenue',  l:'売上チャート', i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'revenue', opt:'accounting'}
  ]},
- {cat:'監査対応・書類作成',boss:true,plan:'standard',opt:'audit',items:[
+ /* ★以前は Standard プラン以上で出していた。いまは オプション「監査書類の自動整備」（audit）を契約した園だけに出す（2026-11-28 安田さんのご判断） */
+ {cat:'監査対応・書類作成',boss:true,opt:'audit',items:[
    {k:'audit',  l:'監査対応',   i:'ic:68',si:'audit', c:'#A32D2D', bg:'#FCEBEB', p:'audit'},
    {k:'docgen', l:'書類作成',   i:'ic:28',si:'fileplus', c:'#3C3489', bg:'#EEEDFE', sub:[
      {p:'docgen', l:'運営に必要な書類'},
      {p:'reqnav', l:'市町村指定の書類'}]}
  ]},
- {cat:'新規顧客管理',boss:true,plan:'pro',opt:'sales',items:[
+ /* ★以前は Pro プランと sales のオプションで隠していた。いまはベースプランに入るので、どの園にも出す（2026-11-28 安田さんのご判断） */
+ {cat:'新規顧客管理',boss:true,items:[
    {k:'leads',   l:'顧客リスト',     i:'ic:49',si:'users', c:'#0B5F8F', bg:'#E3F1F9', p:'leads'},
    {k:'trial',   l:'体験結果報告',   i:'ic:39',si:'clipboard', c:'#A32D2D', bg:'#FCEBEB', p:'trial'},
    /* ★compose は請求書の送付・振込のお願い・経費精算の「経理へメール」・テンプレートの「この文面で使う」でも使う。
       営業オプションで止めていたので、オプションを入れていない園では請求書が送れなくなっていた。
       optFree で、組のオプションが外れていても画面は開ける（サイドバーには組ごと出ない）。 */
    {k:'mailg',   l:'個別メッセージ',     i:'ic:37',si:'mail', c:'#123E6B', bg:'#E6F1FB', p:'compose', optFree:true},
-   {k:'sales',   l:'営業分析',       i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', plan:'pro', p:'sales'}
+   {k:'sales',   l:'営業分析',       i:'ic:35',si:'report', c:'#3C3489', bg:'#EEEDFE', p:'sales'}
  ]},
  {cat:'スクール情報',items:[
    {k:'facility', l:'スクール情報（園の基本情報）', i:'ic:42',si:'home', c:'#5B6875', bg:'#F1EFE8', p:'facility', boss:true},
    /* 「ガイダンス資料」→「Miralink File」（2026-11-26 Remi さん）。サイドバーでは上の3つの行に出すので navHide */
-   {k:'guide',    l:'Miralink File', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide', navHide:true},
+   {k:'guide',    l:'Miralink File', i:'ic:21',si:'book', c:'#123E6B', bg:'#E6F1FB', p:'guide', navHide:true, opt:'mfile'},
    /* ガイダンス資料は先生も見る。書類格納の中身は監査書類なので園長・管理者の行にし、監査書類の一覧を直接開く（2026-09-14 統合） */
    {k:'docs',     l:'監査書類の格納', i:'ic:43',si:'folder', c:'#5B6875', bg:'#F1EFE8', p:'docs', boss:true, tab:'audit'},
    {k:'settings', l:'設定',          i:'ic:19',si:'gear', c:'#5B6875', bg:'#F1EFE8', p:'settings', boss:true}
@@ -8443,14 +8360,12 @@ function egNav(){
   var out=[];
   EG_NAV.forEach(function(g){
     if(g.boss&&!isBoss())return;
-    if(!planAllows(g.plan))return;
     if(g.opt&&!optOn(g.opt))return;   /* オプションで外している組 */
     var items=g.items.filter(function(x){
       /* off が付いているマスは、サイドバーにもメニューにもホームにも出さない。
-         プラン・オプションとは別に、この版では見せないと決めたもの。 */
+         オプションとは別に、この版では見せないと決めたもの。 */
       if(x.off)return false;
       if(x.boss&&!isBoss())return false;
-      if(!planAllows(x.plan))return false;
       if(x.opt&&!optOn(x.opt))return false;
       if(x.scond&&typeof schoolCond==='function'&&schoolCond()[x.scond]==='no')return false;
       if(x.sub){
@@ -8597,7 +8512,7 @@ function egIcon(i){
 
 
 /* ══════════════════════════════════════════════════
-   AI保育計画支援（Proプラン）
+   AI保育計画支援（以前は Pro プラン。いまはベースプランに入る・2026-11-28）
 
    園に入っている記録を読んで、クラスに合った計画とアイディアを作る。
    いまは決まった手順で組み立てている。外部のAIはまだ呼んでいない。
@@ -8612,7 +8527,7 @@ function egIcon(i){
 
 /* 日時の文字列。Miralink には共通のものが無いので、ここで用意する。 */
 
-/* ══ 営業分析（Proプラン）══════════════════════
+/* ══ 営業分析（以前は Pro プラン。いまはベースプランに入る・2026-11-28）══════════════════════
    リードの状態から数字を出す。数字のもとは連絡先の「ステータス」。
    出しているのは集計であって、予測ではない。 */
 var SALES_GROUP={
@@ -10347,8 +10262,10 @@ function aiActFailText(note){
   var n=String(note||'');
   if(/GEMINI_API_KEY|接続先が設定されていません/.test(n))
     return 'SIの接続先（鍵）がまだ設定されていません。園では直せないので、運営にご連絡ください。';
-  if(/Standard|プラン/.test(n))
-    return 'SIと活動を考える機能は、Standard プラン以上でご利用いただけます。運営にご相談ください。';
+  /* ★「Standard プラン以上でご利用いただけます」と出していた。SI はベースプランに入ったので、
+     断られたときは設定の行き違いとして Miralink サポートへの連絡を案内する（2026-11-28 安田さんのご判断） */
+  if(/Standard|プラン|オプション/.test(n))
+    return 'この園では、いまSIをお使いいただけない設定になっています。Miralink サポート（info@bimjapan.jp）にご連絡ください。';
   if(/上限|本日はお休み/.test(n))
     return n+'（今日はこれ以上使えません。明日またお試しください。）';
   if(/混み合/.test(n))
@@ -13402,8 +13319,7 @@ var EN_DICT={
 'この案をここに入れる':'Put this idea here','書いていた欄に戻る':'Back to what you were writing',
 'SIの接続先（鍵）がまだ設定されていません。園では直せないので、運営にご連絡ください。':
   'The SI connection key has not been set up yet. The school cannot fix this; please contact the operator.',
-'SIと活動を考える機能は、Standard プラン以上でご利用いただけます。運営にご相談ください。':
-  'Planning activities with SI is available on the Standard plan or above. Please contact the operator.',
+
 'SI側が混み合っています。1〜2分おいてから、もう一度お試しください。':
   'The SI service is busy. Please wait a minute or two and try again.',
 'SIからの返事が空でした。条件（やりたいこと・時間・場所）を少し変えてお試しください。':
@@ -13558,7 +13474,7 @@ var EN_DICT={
 '監査対応・書類作成':'Audit & Documents','設定・その他':'Settings & Other',
 '画面をロック':'Lock Screen','パスワード変更':'Change Password','ログアウト':'Log Out',
 '管理者としてログイン中':'Signed in as Administrator','新規メッセージ':'New Message',
-'メニューの開け閉め':'Open / close menu','表示中のプラン':'Current plan',
+'メニューの開け閉め':'Open / close menu',
 
 /* ── ホーム（きょうのボード）──────────── */
 'きょうのボード':'Today’s Board','連絡ボード':'Message Board',
@@ -13894,7 +13810,7 @@ var EN_DICT={
 '原本を登録':'Register Original',
 '旅費交通費':'Travel Expenses',
 'Gフォーム':'Google Forms',
-'お試し表示':'Preview',
+
 '年齢/性別':'Age/Gender',
 '例：〇〇市':'e.g., 〇〇 City',
 '10分ごと':'Every 10 minutes',
@@ -14722,7 +14638,7 @@ var EN_DICT={
 '2026年度の準備状況':'2026 school year preparation status',
 '次回アクションが近い順':'Soonest next action first',
 '書類格納に登録するもの':'Items to register in Document Storage',
-'プロプランの画面で見る':'View in the Pro Plan screen',
+
 '正しい場所へ入れられる':'Can put things in the right place',
 '反響数を入れると出ます':'Shown once you enter the number of responses',
 '座って待つことができる':'Can sit and wait',
@@ -14831,7 +14747,7 @@ var EN_DICT={
 '項目名（例：課外レッスン）':'Item name (e.g. extracurricular lessons)',
 '離脱の記録はまだありません':'No drop-out records yet',
 'トイレ・手洗いの順番を待つ':'Waits their turn for the toilet and handwashing',
-'コネクトプランの画面で見る':'View in the Connect Plan screen',
+
 '共用の備品がそろっているか':'Are shared supplies all in place?',
 '職員アカウントの版（自動）':'Staff accounts version (auto)',
 'メッセージはまだありません':'No messages yet',
@@ -14980,7 +14896,7 @@ var EN_DICT={
 '朝の時点の天気を入れてください':'Enter the weather as of this morning',
 'けいれんのときの役割の割り当て':'Role assignments during a seizure',
 '不審者への対応（現場での動き）':'Responding to a suspicious person (on-site actions)',
-'スタンダードプランの画面で見る':'View on the Standard Plan screen',
+
 '書類の送り先（メールアドレス）':'Document recipient (email address)',
 'うがい（水を口に含み吐き出す）':'Rinses mouth (holds water in mouth and spits it out)',
 '：設置時（変更・廃止時は都度）':': At establishment (and whenever changed or closed)',
@@ -15269,7 +15185,7 @@ var EN_DICT={
 '送ると、保護者の未来WAの「園からの個人メッセージ」に届きます。':'When sent, it arrives in the parent\'s MiraiWA under "Personal Messages from School".',
 '送ると、この文章がそのまま保護者に届きます。この欄は直せません。':'When sent, this text goes to parents exactly as is. This field cannot be edited.',
 '上の項目にない情報は、見出しと内容を自由に追加して記録できます。':'For information not covered by the items above, you can add your own headings and content.',
-'この端末で見え方を試すための切りかえです。園の契約は変わりません':'This toggle is only for testing how it looks on this device. Your school\'s plan is not changed',
+
 '収納代行会社を利用する（お支払先を収納会社の情報に切り替えます）':'Use a payment collection agency (switches the payee to the agency\'s details)',
 '題名：【重要】（設定で入力）　入園書類受理と請求書添付のお知らせ':'Subject: [Important] (Enter in Settings)　Enrollment Documents Received and Invoice Attached',
 '職員ごとに4けたの番号を決めます。番号そのものは端末に残りません。':'Set a 4-digit code for each staff member. The code itself is not stored on the device.',
@@ -15611,7 +15527,21 @@ var EN_DICT={
 '体温を 25〜45 の範囲で入力してください。':'Enter a temperature between 25 and 45.',
 '件の配信を予約しました':'message(s) scheduled',
 '」は もうあります。ちがう名前にしてください。':'” already exists. Please use a different name.',
-'この機能は、ご契約のプランには含まれていません。':'This feature isn’t included in your plan.',
+/* 料金の作り替え（ベースプラン＋オプション・2026-11-28 安田さんのご判断） */
+'この機能は、ご契約のオプション（Miralink File）に含まれていません。':'This feature isn’t included in your contracted options (Miralink File).',
+'この機能は、ご契約のオプション（監査書類の自動整備）に含まれていません。':'This feature isn’t included in your contracted options (Automated audit documents).',
+'この機能は、ご契約のオプション（売上・支出管理）に含まれていません。':'This feature isn’t included in your contracted options (Sales & expense management).',
+'この機能は、ご契約のオプション（—）に含まれていません。':'This feature isn’t included in your contracted options.',
+'この園では、いまSIをお使いいただけない設定になっています。Miralink サポート（info@bimjapan.jp）にご連絡ください。':'SI is not available for this school at the moment. Please contact Miralink Support (info@bimjapan.jp).',
+'SIは、ログインしているときに使えます。':'SI is available while signed in.',
+'ベースプラン':'Base plan','契約中':'Subscribed','{0}円（税別・月）':'¥{0}/month (excl. tax)',
+'監査書類の自動整備':'Automated audit documents','売上・支出管理':'Sales & expense management',
+'Miralink サポート（info@bimjapan.jp）にご連絡いただくと追加できます。':'You can add this by contacting Miralink Support (info@bimjapan.jp).',
+'Miralink File は、ご契約のオプションに含まれていません。':'Miralink File is not included in your contracted options.',
+'保護者へお渡しする資料を公開し、未来WAで見られるようにします。保護者がSIに資料のことをたずねられます':'Publish documents for parents so they can view them in MiraiWA. Parents can ask SI about the documents',
+'監査対応、運営に必要な書類・市町村指定の書類の作成（人による監査対応は含みません）':'Audit prep, and creating operations forms and municipal forms (does not include in-person audit support)',
+'売上チャートとスクール経費精算':'Sales chart and school expense reimbursement',
+'以前のプランのお試しの切りかえ（いまは使っていません）':'Former plan preview switch (no longer used)',
 '新しいパスワードを入れてください（8文字以上）。':'Enter a new password (at least 8 characters).',
 '資料の名前を入力してください（例：年間行事予定）':'Enter a document name (e.g. Annual event schedule)',
 '名への配信を予約しました':'recipient(s) scheduled',
@@ -15667,8 +15597,8 @@ var EN_DICT={
 'この方のメールアドレスが入っていません。 顧客リストで登録してからお使いください。':'This person has no email address. Please add it in Leads first.',
 'この答えを忘れます。 次に活動を考えるとき、もう一度お聞きします。 よろしいですか？':'Forget this answer? We’ll ask again next time you plan activities.',
 'まだ何も入っていません。項目を選ぶか、メモを書いてから「保存する」を押してください。':'Nothing entered yet. Select items or write a memo, then press “Save”.',
-'」はオプション機能です。園長・管理者が 設定 → オプション機能 で入れると使えます。':'” is an optional feature. The Director or an Administrator can turn it on in Settings → Optional features.',
-'サーバにつないでいる間は、プランを切りかえられません。ご契約のプランのままご覧ください。':'You can’t switch plans while connected to the server. You’re viewing your contracted plan.',
+
+
 'シフトの予定時間を出勤簿に入力します（入力済みの日はそのまま残します）。よろしいですか？':'Fill the timesheet with scheduled shift times? (Days already entered are kept.)',
 '」の担当は、いまのアカウントでは選べません。 自分の権限と、その下の担当だけを選べます。':'” can’t be assigned from this account. You can only choose your own role or the roles below it.',
 'さんの暗証番号（4けた）を決めてください。 空のまま OK を押すと、いまの番号を消します。':': set a 4-digit PIN. Leave blank and press OK to remove the current PIN.',
@@ -18151,7 +18081,7 @@ var EN_DICT={
 '{0}. 未来WA のアプリを開きます':'{0}. Open the MiraiWA app',
 '今月の測定がまだ記録されていません':'This month’s measurements haven’t been recorded yet',
 'この児童を外す':'Remove this child',
-'ご契約のプランには含まれていません':'Not included in your plan',
+
 'いつも同じ端末で登録してください。':'Always register from the same device.',
 'に保存済みの日があると止まります）':'has a finalized day)',
 '寝る向きを矢印で記録します：仰向け':'Record sleep position with arrows: on back',
@@ -18177,7 +18107,7 @@ var EN_DICT={
 '安全計画・危機管理マニュアルの策定':'Create a safety plan & Crisis Management Manual',
 '全体的な計画・指導計画（保育計画）':'Overall plan & teaching plans (care plans)',
 '毎年（全体計画）／毎月（月間計画）':'Yearly (overall plan) / Monthly (monthly plan)',
-'ご契約のプラン（お試しの切りかえ）':'Your plan (trial switch)',
+
 '入力をまちがえました。直せますか？':'I entered something wrong. Can I fix it?',
 '入力した内容をあとから直せますか？':'Can I edit what I entered later?',
 'けがや体調の判断も相談できますか。':'Can I also ask about injuries or health concerns?',
@@ -19283,7 +19213,7 @@ var EN_DICT={
 '歳児がいます。小さくちぎれるもの・口に入る大きさのものに気をつけてください。':'-year-olds in this class. Watch for things that tear into small pieces or are small enough to fit in the mouth.',
 'クラスの記録をもとに、SIが下書きを書いています。5〜15秒ほどかかります。':'SI is drafting from class records. This takes about 5–15 seconds.',
 'お迎えできる方がまだ登録されていません。園長・管理者が生徒台帳で登録します。':'No authorized pickups registered yet. The Director or an administrator adds them in the Student Register.',
-'SIは、ログインしているときに使えます（Standard 以上）。':'SI is available while signed in with a school code (Standard plan or higher).',
+
 'オプションがありません。下の欄に名前を入れて「追加」すると、ここに入ります。':'No options yet. Enter a name in the field below and press “Add” to add one here.',
 '月に1回。大量調理施設衛生管理マニュアルにそった衛生管理として求められます。':'Once a month. Required as hygiene management under the Large-Scale Cooking Facility Hygiene Manual.',
 '部位（該当箇所に印）： 頭・顔・首・肩・腕・手・胸・腹・背中・腰・脚・膝・足':'Body part (mark where applicable): head, face, neck, shoulders, arms, hands, chest, abdomen, back, lower back, legs, knees, feet',
@@ -19704,9 +19634,9 @@ var EN_DICT={
 '家庭での食べ方も聞き取り、園と歩調をそろえる。偏りが極端な場合は、必要に応じて栄養士や専門機関と連携する。':'Ask how they eat at home and align with the family. For extreme picky eating, work with a nutritionist or specialist as needed.',
 '全員そろっての切り替えが難しい子には、少し早めに声をかける、そばに付き添うなど、その子のペースを尊重する。':'For children who struggle with group transitions, respect their pace: give an early heads-up or stay close by.',
 '上の一覧で、園から保護者へ送付できるものと、その送り先の画面を確かめます。「ひらく」でその画面へ行けます。':'Check the list above for what the school can send to parents and which screen it goes to. Tap “Open” to go there.',
-'顧客リスト・体験結果報告・個別メッセージ・営業分析。ダッシュボードの問い合わせ・体験・入退園の数もここに入ります':'Leads, Trial Reports, Individual Messages, and Sales Analysis. Also includes inquiry, trial, and enrollment counts on the Dashboard.',
+
 '口や鼻に入ったり、首に巻きついたりすることがあります。短く切って渡し、使い終わったらその場で集めてください。':'It can get into the mouth or nose, or wrap around the neck. Cut it short before handing out and collect it right after use.',
-'はじめは保育管理の基本だけを出しています。使う組にチェックを入れて保存すると、サイドバーとメニューに出ます。':'Only the childcare basics are shown at first. Check the groups you use and save to add them to the sidebar and menu.',
+
 'この後の追いかけを決めます。担当と内容を分けて登録できます（本部だけでなくマネージャーが追う場合もこちら）。':'Decide the next follow-up. You can set who’s responsible and what to do separately (use this also when a Manager, not just Head Office, follows up).',
 '選んだ種別や進み具合は、お使いのパソコン・タブレットの中に自動で保存されます。別の端末には引き継がれません。':'The type and progress you select are saved automatically on your computer or tablet. They don’t carry over to other devices.',
 '金額は自動で計算されます。その月だけ回数を変えたい・割引を付けたいときは、その子の行の「明細」から直します。':'Amounts are calculated automatically. To change counts or add a discount for just that month, use “Breakdown” on the child’s row.',
@@ -21269,7 +21199,7 @@ function renderFeed(){
     if(jb)FEED.ai.ja=jb.value;if(eb)FEED.ai.en=eb.value;}
   ['#fdSumJa','#fdSumEn'].forEach(function(q){var x=$(q);if(x)x.oninput=fdSumKeep;});
   var ai=$('#fdAI'); if(ai)ai.onclick=function(){
-    if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())){fdSay('SIは、ログインしているときに使えます（Standard 以上）。');return;}
+    if(!(typeof API_LIVE!=='undefined'&&API_LIVE&&API.base()&&API.token())){fdSay('SIは、ログインしているときに使えます。');return;}
     fdKeep();
     /* 書いた文をしまってから、材料を集め直す（いま入れた1行も材料に入るように）。
        ★以前は、送付したひとことと登園の時刻だけを渡していた。
@@ -24352,7 +24282,9 @@ function renderDash(){
     +'<div class="muted" style="margin-top:6px;font-size:11px;">クラスをタップで男女比</div></div>';
   var isIppan=(typeof currentRole==='function'&&currentRole()==='一般');
   // 一般スタッフには営業系の数値（問い合わせ・体験・入退園）は表示しない
-  /* 新規顧客管理をオプションで外している園にも出さない（Remi さん 2026-09-13） */
+  /* 新規顧客管理をオプションで外している園にも出さない（Remi さん 2026-09-13）。
+     ★2026-11-28 から新規顧客管理はベースプランに入り、sales はオプションの鍵ではなくなった（optOn はいつも通す）。
+     あとでオプションに戻したときのために判定は残す */
   var salesOff=(typeof optOn==='function'&&!optOn('sales'));
   /* ★保護者が未来WAで押した登園が数えられず、先生が保存するまで「本日の出席」が少なく出ていた。
      登園シートの画面・配置の帯と同じ補い方をした姿で数える（保存はしない） */
@@ -29244,13 +29176,8 @@ var SET_SAVE={
     SET.daycareFormUrl=$('#s_form').value;SET.surveyUrl=$('#s_survey').value;
     return '';
   },
-  opts:function(){
-    if(!EG_OPTS_ON)return '';
-    var _op={};document.querySelectorAll('[data-opt]').forEach(function(c){_op[c.getAttribute('data-opt')]=!!c.checked;});
-    SET.opts=_op;
-    if(typeof buildNav==='function')buildNav();   /* オプションの出し入れをサイドバーに反映 */
-    return '';
-  },
+  /* ★オプションを園が選んで SET.opts に保存していた。契約で決まるようにしたので、ここでは何も保存しない（2026-11-28） */
+  opts:function(){ return ''; },
   haichi:function(){
     /* 保育士の配置。数を入れ違えると足りているのに足りないと出るので、1以上のときだけ受け取る */
     /* ★1つでも空欄だと6つ全部を捨てていたのに「保存しました」と出ていた。
@@ -29448,7 +29375,8 @@ function settingsFold(){
 var SET_NAV_GROUPS=[
   ['園の基本',['学校情報','写真販売','表示のことば','選択肢の管理']],
   ['保育・記録',['保育士の配置','登園記録のオプション','アクティビティ種類','生徒情報・ベース設定','以前に取り込んだ紙']],
-  ['お金・請求',['振込口座','料金設定','請求書の体裁','経費管理']],
+  /* オプション機能（ご契約の確認）は お金・請求 の組に置く（2026-11-28 料金の作り替え） */
+  ['お金・請求',['オプション機能','振込口座','料金設定','請求書の体裁','経費管理']],
   ['アカウント・権限',['職員アカウント','権限管理','全体配信・お知らせのひな形']],
   ['年度の切り替え',['新年度の準備']],
   ['データ・つなぎ先',['Miralink SI','SIの接続','書類・写真の預け先','データのバックアップ']]
@@ -29519,12 +29447,17 @@ function renderSettings(){
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_photoPre','写真認証コード（Pre）',SET.photoCodePre,'例：pre2026')+f('s_photoKinder','写真認証コード（Kinder）',SET.photoCodeKinder,'例：kinder2026')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr 1fr;">'+f('s_dcN','預かり保育 通常料金',SET.daycareFeeNormal,'例：5,500')+f('s_dcE','預かり保育 延長料金',SET.daycareFeeExt,'例：6,600')+f('s_dcL','預かり保育 給食費',SET.daycareLunch,'例：550')+'</div>'+
       '<div class="grid" style="grid-template-columns:1fr 1fr;">'+f('s_form','預かり保育 申込フォームURL',SET.daycareFormUrl,'例：https://（申込フォーム）')+f('s_survey','アンケートURL',SET.surveyUrl,'例：https://（アンケート）')+'</div>'+sSaveBar('photo')+'</div>'+
-    (!EG_OPTS_ON?'':'<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('grid')+'オプション機能</h3>'
-    +'<div class="muted" style="font-size:12px;margin-bottom:8px;line-height:1.8;">はじめは保育管理の基本だけを出しています。使う組にチェックを入れて保存すると、サイドバーとメニューに出ます。</div>'
-    /* ★プランを見ずに3つとも選べたので、プランに含まれない組にチェックを入れて保存しても開けなかった。
-       通らないものは選べなくし、理由を書く（保存するときは、いまの値のまま残る）。 */
-    +EG_OPTS.map(function(o){var ok=planAllows(o.need);return '<label style="display:flex;gap:9px;align-items:flex-start;padding:6px 0;cursor:'+(ok?'pointer':'default')+';'+(ok?'':'opacity:.6;')+'"><input type="checkbox" data-opt="'+esc(o.k)+'"'+(optOn(o.k)?' checked':'')+(ok?'':' disabled')+' style="width:auto;margin-top:3px;"><span><b>'+esc(o.l)+'</b><div class="muted" style="font-size:11.5px;">'+esc(o.d)+'</div>'+(ok?'':'<div class="muted" style="font-size:11.5px;color:#A32D2D;">ご契約のプランには含まれていません</div>')+'</span></label>';}).join('')
-    +sSaveBar('opts')+'</div>')+
+    /* ★以前は オプションの組（新規顧客管理・監査・SI）に園がチェックを入れて保存する欄だった。
+       オプションは契約で決まるので、ここは「いま何を契約しているか」を見せるだけにした。
+       ほかのオプションは Miralink サポートで足せることを書く（2026-11-28 安田さんのご判断） */
+    '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('grid')+'オプション機能</h3>'
+    +'<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0 10px;border-bottom:1px solid var(--line);margin-bottom:4px;"><b>ベースプラン</b><span>'+Number(BASE_PLAN_YEN).toLocaleString('ja-JP')+'円（税別・月）</span></div>'
+    +EG_OPTS.map(function(o){var on=optOn(o.k);return '<div style="display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);">'
+      +'<span><b>'+esc(o.l)+'</b>'+(on?' <span class="tag" style="background:#EAF3DE;color:#27500A;">契約中</span>':'')
+      +'<div class="muted" style="font-size:11.5px;">'+esc(o.d)+'</div>'
+      +(on?'':'<div class="muted" style="font-size:11.5px;">Miralink サポート（info@bimjapan.jp）にご連絡いただくと追加できます。</div>')+'</span>'
+      +'<span style="white-space:nowrap;">'+Number(o.yen).toLocaleString('ja-JP')+'円（税別・月）</span></div>';}).join('')
+    +'</div>'+
     '<div class="card" style="max-width:620px;margin-bottom:16px;"><h3>'+ic('users')+'保育士の配置</h3>'+
       '<div class="muted" style="margin-bottom:10px;">子ども何人につき保育士1人か。国が決めている数を入れてありますが、'
       +'3歳児と4・5歳児は当分のあいだ 従前の数（20人・30人）でもよい扱いがあり、自治体によって運用が違います。'
@@ -36053,23 +35986,29 @@ function renderDocsHub(){
 
   /* ② Miralink File（旧ガイダンス資料・スクールガイド。先生も見られる）
      名前は「Miralink File」にそろえる（2026-11-26 Remi さん依頼書・安田さんのご判断） */
-  cards+='<div class="card docpick" id="dpGuide" style="cursor:pointer;">'
+  /* ★Miralink File をオプション（mfile）にしたので、契約していない園ではカードごと出さない。
+     出すと、押したとたんに「ご契約のオプションに含まれていません」で止まる（2026-11-28 安田さんのご判断） */
+  var mfOk=egPlanOfPage('guide');
+  if(mfOk)cards+='<div class="card docpick" id="dpGuide" style="cursor:pointer;">'
     +'<div class="dpic" style="background:#FDF3E3;color:#854F0B;">'+ic('book')+'</div>'
     +'<h3 style="margin:14px 0 6px;">Miralink File（保護者へお渡しする資料）</h3>'
     +'<div class="muted">公開した資料が、そのまま保護者の未来WAに出ます。</div>'
     +'<div class="dpstat"><b>'+nGuide+'</b> / '+nGuideAll+' 件 公開中</div>'
     +'<button class="btn btn-primary" style="margin-top:14px;">Miralink File をひらく</button></div>';
+  var nCards=(boss?1:0)+(mfOk?1:0);
 
   s.innerHTML='<div class="page-h"><h1>'+ic('folder')+'書類格納</h1></div>'
-    +'<div class="grid" style="grid-template-columns:repeat('+(boss?2:1)+',1fr);gap:16px;'
-      +(boss?'':'max-width:420px;')+'">'
+    +'<div class="grid" style="grid-template-columns:repeat('+Math.max(nCards,1)+',1fr);gap:16px;'
+      +(nCards>1?'':'max-width:420px;')+'">'
     +cards
     +'</div>'
     +(boss?'':'<div class="muted" style="font-size:12px;margin-top:14px;line-height:1.9;">'
-      +'監査書類の格納は、園長・管理者だけが開けます。</div>');
+      +'監査書類の格納は、園長・管理者だけが開けます。</div>')
+    +(mfOk?'':'<div class="muted" style="font-size:12px;margin-top:14px;line-height:1.9;">'
+      +'Miralink File は、ご契約のオプションに含まれていません。</div>');
 
   if(boss&&$('#dpAudit'))$('#dpAudit').onclick=function(){docsView='audit';renderDocs();};
-  $('#dpGuide').onclick=function(){docsView='';go('guide');};
+  if($('#dpGuide'))$('#dpGuide').onclick=function(){docsView='';go('guide');};
 }
 /* 書類格納の1枠に、ファイルを取り込む。書類格納の画面と監査対応の一覧の両方から使う
    （2026-09-25 安田さんのご依頼「書類格納のページに飛ぶのではなく、直接その書類を選んで取り込めるように」）。
@@ -38048,14 +37987,15 @@ function localPasswordModal(){
 
 function staffLogout(){sessionStorage.removeItem('cocoas_staffSession');sessionStorage.removeItem('cocoas_serverUser');if(typeof API!=='undefined'&&API.enabled())API.setToken('');location.reload();}
 function applyPerms(){
-  /* 役職やプランで見せるものが変わるので、まずサイドバーを組み立て直す。
+  /* 役職やオプションで見せるものが変わるので、まずサイドバーを組み立て直す。
      ログインの前でも組み立てる（試作をそのまま見せられるように）。 */
   try{buildNav();}catch(e){console.error('[buildNav]',e.message);}
-  /* いま何のプランで見ているかは、ログインの前後にかかわらずいつも出す */
-  try{planBarRender();}catch(e){console.error('[planBar]',e.message);}
+  /* ★ここで上の帯にプランの札（STANDARD など）を出していた。ベースプラン＋オプションにしたので札は出さない（2026-11-28 安田さんのご判断） */
   var s=currentStaff();if(!s)return;
   var nav=document.getElementById('nav');
-  document.querySelectorAll('#nav a[data-go]').forEach(function(a){a.style.display=canView(a.getAttribute('data-go'))?'':'none';});
+  /* ★権限だけを見ていたので、buildNav で隠したオプションの行（Miralink File）や Miralink AI が、ここでまた出ていた。
+     オプションの契約（egPlanOfPage）も合わせて見る（2026-11-28） */
+  document.querySelectorAll('#nav a[data-go]').forEach(function(a){var _g=a.getAttribute('data-go');a.style.display=(canView(_g)&&egPlanOfPage(_g)&&(_g!=='aiplan'||curAiOk()))?'':'none';});
   /* 上の帯にも移動のボタンがある。ここを出したままにすると、
      権限のない人が押して、理由もわからないままホームへ戻される。 */
   document.querySelectorAll('.topbar [data-go]').forEach(function(a){
@@ -44143,7 +44083,7 @@ var LOG_LABEL={
   'cocoas_ai_setup':'SIに伝えた園の方針','cocoas_ai_class':'SIに伝えたクラスのこと',
   'cocoas_ai_plans':'SIが作った案','cocoas_ai_log':'SIを使った記録',
   'cocoas_help_log':'使い方サポートの記録','cocoas_help_esc':'使い方サポートで答えられなかったもの',
-  'cocoas_plan':'ご契約のプラン（お試しの切りかえ）',
+  'cocoas_plan':'以前のプランのお試しの切りかえ（いまは使っていません）',
   'cocoas_navOpen':'サイドバーの開いている組','cocoas_navOff':'サイドバーの開閉',
   'cocoas_navSubOpen':'サイドバーの開いているマス',
   /* 下の5つは「版」。人が入力したものではなく、こちらが表を直したときに

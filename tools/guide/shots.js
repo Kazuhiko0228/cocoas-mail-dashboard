@@ -48,7 +48,7 @@ async function setupSchool(db) {
   await db.query("UPDATE users SET login_id = login_id || '-old' || id WHERE lower(login_id)='sakura-admin'");
   const opened = await call('POST', '/admin/applications/' + ap.rows[0].id + '/open', { code, name: 'さくら保育園', loginId: 'sakura-admin', adminName: '桜井 園長' }, boss);
   const tid = opened.tenant.id;
-  await call('PUT', '/admin/tenants/' + tid + '/contract', { plan: 'standard' }, boss);
+  await call('PUT', '/admin/tenants/' + tid + '/contract', { plan: 'base', options: ['mfile', 'audit', 'accounting'] }, boss);
   const docs = [];
   for (const kind of ['normal', 'memo']) docs.push((await call('POST', '/admin/tenants/' + tid + '/contracts', { kind, email: 'sakura-office@test.invalid' }, boss)).doc);
   log('園を作りました', code);
