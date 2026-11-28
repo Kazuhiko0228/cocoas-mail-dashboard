@@ -96,7 +96,7 @@ footer a:hover{color:#fff}
 <div class="top"><div class="wrap">
   <div class="eyebrow">%(kicker)s</div>
   <h1>%(title)s</h1>
-  <div class="meta">版 %(ver)s　／　株式会社BIM JAPAN</div>
+  <div class="meta">版 %(ver)s　／　合同会社Vista</div>
 </div></div>
 <div class="body"><div class="wrap">
   <div class="lead">%(desc)s</div>
@@ -105,16 +105,15 @@ footer a:hover{color:#fff}
 TAIL = """  <div class="biz">
     <b>事業者</b>
     <dl>
-      <dt>商号</dt><dd>株式会社BIM JAPAN</dd>
-      <dt>代表者</dt><dd>代表取締役　安田 応彦</dd>
-      <dt>所在地</dt><dd>〒901-0155　沖縄県那覇市赤嶺2-11-9　エンゼルハイム小禄赤嶺第３ 601</dd>
-      <dt>お問い合わせ</dt><dd>info@bimjapan.jp</dd>
+      <dt>商号</dt><dd>合同会社Vista</dd>
+      <dt>代表者</dt><dd>代表社員　白神 玲美</dd>
+      <dt>お問い合わせ</dt><dd>vista.remi2026@gmail.com</dd>
     </dl>
   </div>
 </div></div>
 <footer><div class="wrap">
   <a href="hp.html">サービス紹介</a>　／　<a href="terms.html">利用規約</a>　／　<a href="privacy.html">プライバシーポリシー</a>　／　<a href="lp.html">お問い合わせ</a><br>
-  © 2026 BIM JAPAN Inc.
+  © 2026 合同会社Vista
 </div></footer>
 </body>
 </html>
